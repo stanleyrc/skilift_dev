@@ -25,19 +25,6 @@ Plot <- R6Class(
       self$figure <- figure
       self$server <- server
       self$uuid <- uuid
-    },
-    to_list = function() {
-      return(list(
-        plot_id = as.character(self$plot_id),
-        sample = ifelse(is.null(self$sample), NULL, as.character(self$sample)),
-        type = as.character(self$type),
-        source = as.character(self$source),
-        title = as.character(self$title),
-        visible = as.logical(self$visible),
-        figure = ifelse(is.null(self$figure), NULL, as.character(self$figure)),
-        server = ifelse(is.null(self$server), NULL, as.character(self$server)),
-        uuid = ifelse(is.null(self$uuid), NULL, as.character(self$uuid))
-      ))
     }
   )
 )
@@ -56,7 +43,7 @@ Patient <- R6Class(
       self$path <- path
       self$ref <- ref
       self$tags <- tags
-      self$plots <- lapply(1:nrow(plots), function(i) {
+      self$plots <- lapply(seq_len(nrow(plots)), function(i) {
         plot <- plots[i, ]
         args <- list(
           type = plot[["type"]],
@@ -65,24 +52,14 @@ Patient <- R6Class(
           visible = plot[["visible"]],
           sample = plot[["sample"]]
         )
-        
+
         if ("figure" %in% names(plot)) args$figure <- plot[["figure"]]
         if ("server" %in% names(plot)) args$server <- plot[["server"]]
         if ("uuid" %in% names(plot)) args$uuid <- plot[["uuid"]]
-        
+
         args <- args[!sapply(args, is.null)]
         return(args)
       })
-    },
-    to_list = function() {
-      return(list(
-        patient_id = as.character(self$patient_id),
-        path = as.character(self$path),
-        ref = as.character(self$ref),
-        tags = as.character(self$tags),
-        plots = lapply(self$plots, function(plot) plot$to_list()),
-        path = as.character(self$path)
-      ))
     }
   )
 )
@@ -99,7 +76,6 @@ PGVdb <- R6Class(
       data <- fromJSON(json_file, flatten = TRUE)
       self$patients <- lapply(names(data), function(x) {
         tags <- if (is.null(data[[x]]$description)) NULL else data[[x]]$description
-        print(data[[x]]$plots)
         Patient$new(
           patient_id = x,
           ref = data[[x]]$reference,
@@ -138,24 +114,22 @@ PGVdb <- R6Class(
             visible = plot$visible
           )
 
-          if (!is.null(plot$sample)) plot_data$sample <- plot$sample
-          if (!is.null(plot$figure)) plot_data$figure <- plot$figure
-          if (!is.null(plot$server) || !is.null(plot$uuid)) {
-            plot_data$visible <- TRUE
-          }
-          if (!is.null(plot$server)) plot_data$server <- plot$server
-          if (!is.null(plot$uuid)) plot_data$uuid <- plot$uuid
+          if (!is.na(plot$sample)) plot_data$sample <- plot$sample
+          if (!is.na(plot$figure)) plot_data$figure <- plot$figure
+          if (!is.na(plot$server)) plot_data$server <- plot$server
+          if (!is.na(plot$uuid)) plot_data$uuid <- plot$uuid
 
+          # Remove attributes with null values
+          plot_data <- plot_data[!sapply(plot_data, is.null)]
           return(plot_data)
         })
-        
+
         data[[i]] <- list(
           description = patient$tags,
           reference = patient$ref,
           plots = plots
         )
       }
-
       return(toJSON(data, auto_unbox = TRUE, pretty = TRUE))
     }
   )
@@ -168,4 +142,5 @@ pgvdir <- "~/projects/pgv/public"
 db <- PGVdb$new(datafiles.json, datadir)
 db$drop_patient("TEST")
 db$to_json()
+writeLines(db$to_json(), "test.datafiles.json")
 filtered_patients <- db$filter_by_patient_id("E")

@@ -1,0 +1,108 @@
+{
+  "DEMO": {
+    "description": ["tumor_type=ESAD", "dataset=ESAD-UK", "organ=Esophagus", "lineage=Esophageal columnar epithelium", "gender=female", "cluster=INVDUP", "PLAG1 mut", "KRAS amp", "MUTYH germline pathogenic", "CDKN2A homdel"],
+    "reference": "hg19",
+    "plots": [
+      {
+        "type": "phylogeny",
+        "source": "phylogeny.newick",
+        "title": "Phylogenetic Information for DEMO",
+        "visible": true,
+        "sample": null,
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "anatomy",
+        "source": "anatomy.json",
+        "title": "Anatomy for DEMO",
+        "visible": true,
+        "sample": null,
+        "figure": "figure.svg",
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "genome",
+        "source": "genome1.json",
+        "title": "Tumor sample 7K",
+        "visible": true,
+        "sample": "7K",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "walk",
+        "source": "walks.json",
+        "title": "Walks for sample 7K",
+        "visible": true,
+        "sample": "7K",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "genome",
+        "source": "genome.json",
+        "title": "Tumor sample 7E",
+        "visible": true,
+        "sample": "7E",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "barplot",
+        "source": "rpkm.arrow",
+        "title": "RPKM Probability Distribution 7E",
+        "visible": true,
+        "sample": "7E",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "scatterplot",
+        "source": "coverage.arrow",
+        "title": "Coverage Distribution 7E",
+        "visible": true,
+        "sample": "7E",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "genome",
+        "source": "genome2.json",
+        "title": "Tumor sample 7G",
+        "visible": true,
+        "sample": "7G",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "scatterplot",
+        "source": "coverage2.arrow",
+        "title": "Coverage Distribution 7G",
+        "visible": true,
+        "sample": "7G",
+        "figure": null,
+        "server": null,
+        "uuid": null
+      },
+      {
+        "type": "bigwig",
+        "source": null,
+        "title": null,
+        "visible": true,
+        "sample": "7L",
+        "figure": null,
+        "server": "http://higlass.io",
+        "uuid": "AOR9BgKaS4WPX7esuBM4sQ"
+      }
+    ]
+  }
+}
