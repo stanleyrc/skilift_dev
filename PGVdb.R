@@ -26,17 +26,17 @@ Plot <- R6Class(
       self$server <- server
       self$uuid <- uuid
     },
-    toList = function() {
+    to_list = function() {
       return(list(
-        plot_id = self$plot_id,
-        sample = self$sample,
-        type = self$type,
-        source = self$source,
-        title = self$title,
-        visible = self$visible,
-        figure = self$figure,
-        server = self$server,
-        uuid = self$uuid
+        plot_id = as.character(self$plot_id),
+        sample = ifelse(is.null(self$sample), NULL, as.character(self$sample)),
+        type = as.character(self$type),
+        source = as.character(self$source),
+        title = as.character(self$title),
+        visible = as.logical(self$visible),
+        figure = ifelse(is.null(self$figure), NULL, as.character(self$figure)),
+        server = ifelse(is.null(self$server), NULL, as.character(self$server)),
+        uuid = ifelse(is.null(self$uuid), NULL, as.character(self$uuid))
       ))
     }
   )
@@ -56,7 +56,8 @@ Patient <- R6Class(
       self$path <- path
       self$ref <- ref
       self$tags <- tags
-      self$plots <- apply(plots, 1, function(plot) {
+      self$plots <- lapply(1:nrow(plots), function(i) {
+        plot <- plots[i, ]
         args <- list(
           type = plot[["type"]],
           source = plot[["source"]],
@@ -64,23 +65,23 @@ Patient <- R6Class(
           visible = plot[["visible"]],
           sample = plot[["sample"]]
         )
-
+        
         if ("figure" %in% names(plot)) args$figure <- plot[["figure"]]
         if ("server" %in% names(plot)) args$server <- plot[["server"]]
         if ("uuid" %in% names(plot)) args$uuid <- plot[["uuid"]]
-
+        
         args <- args[!sapply(args, is.null)]
-        return(do.call(Plot$new, args))
+        return(args)
       })
     },
-    toList = function() {
+    to_list = function() {
       return(list(
-        patient_id = self$patient_id,
-        path = self$path,
-        ref = self$ref,
-        tags = self$tags,
-        plots = lapply(self$plots, function(plot) plot$toList()),
-        path = self$path
+        patient_id = as.character(self$patient_id),
+        path = as.character(self$path),
+        ref = as.character(self$ref),
+        tags = as.character(self$tags),
+        plots = lapply(self$plots, function(plot) plot$to_list()),
+        path = as.character(self$path)
       ))
     }
   )
@@ -98,6 +99,7 @@ PGVdb <- R6Class(
       data <- fromJSON(json_file, flatten = TRUE)
       self$patients <- lapply(names(data), function(x) {
         tags <- if (is.null(data[[x]]$description)) NULL else data[[x]]$description
+        print(data[[x]]$plots)
         Patient$new(
           patient_id = x,
           ref = data[[x]]$reference,
@@ -121,31 +123,40 @@ PGVdb <- R6Class(
         patient$patient_id != patient_id
       })]
     },
-    update_datafile = function() {
-      # Validate the contents of self$patients
-      are_all_patients <- sapply(self$patients, function(patient) {
-        inherits(patient, "Patient")
-      })
+    to_json = function() {
+      data <- vector("list", length(self$patients))
+      names(data) <- sapply(self$patients, `[[`, "patient_id")
 
-      if (!all(are_all_patients)) {
-        stop("The patients list in the PGVdb object contains non-Patient objects.")
+      for (i in seq_along(self$patients)) {
+        patient <- self$patients[[i]]
+
+        plots <- lapply(patient$plots, function(plot) {
+          plot_data <- list(
+            type = plot$type,
+            source = plot$source,
+            title = plot$title,
+            visible = plot$visible
+          )
+
+          if (!is.null(plot$sample)) plot_data$sample <- plot$sample
+          if (!is.null(plot$figure)) plot_data$figure <- plot$figure
+          if (!is.null(plot$server) || !is.null(plot$uuid)) {
+            plot_data$visible <- TRUE
+          }
+          if (!is.null(plot$server)) plot_data$server <- plot$server
+          if (!is.null(plot$uuid)) plot_data$uuid <- plot$uuid
+
+          return(plot_data)
+        })
+        
+        data[[i]] <- list(
+          description = patient$tags,
+          reference = patient$ref,
+          plots = plots
+        )
       }
 
-      data <- lapply(self$patients, function(patient) {
-        patient_data <- patient$toList()
-        patient_data <- patient_data[!sapply(patient_data, is.null)]
-        return(patient_data)
-      })
-
-      # Formulate timestamp and backup filename
-      timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-      backup_filename <- paste0(private$json_file, ".", timestamp)
-
-      # Rename the current json file to the backup file
-      file.rename(private$json_file, backup_filename)
-
-      # Write the new, updated data to the original filename.
-      write(toJSON(data, pretty = TRUE), private$json_file)
+      return(toJSON(data, auto_unbox = TRUE, pretty = TRUE))
     }
   )
 )
@@ -156,5 +167,5 @@ pgvdir <- "~/projects/pgv/public"
 
 db <- PGVdb$new(datafiles.json, datadir)
 db$drop_patient("TEST")
-db$update_datafile()
+db$to_json()
 filtered_patients <- db$filter_by_patient_id("E")
