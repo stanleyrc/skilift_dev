@@ -1,0 +1,27 @@
+Package: PGVdb
+Title: An R interface to load and modify PGV datafiles
+Version: 0.1.0
+Maintainer: Shihab Dider <sdider@nygenome.org>
+Authors@R: c(person(given = "Max", family = "Chao", role = c("aut", "cre"), email = "mchao@nygenome.org"),
+    person(given = "Shihab", family = "Dider", role = c("aut"), email = "sdider@nygenome.org"))
+Description: Object that represents the PGV datafiles.json 
+Remotes: 
+  github::mskilab-org/PGVdb
+Depends:
+    R (>= 3.6.0),
+    data.table (>= 1.10), 
+    R6,
+    jsonlite,
+    gGnome
+Imports:
+    data.table (>= 1.10), 
+    R6,
+    jsonlite,
+    gGnome
+License: GPL-2
+BugReports: http://github.com/mskilab-org/PGVdb/issues
+RoxygenNote: 7.2.3
+Suggests:
+    testthat (>= 2.0),
+    covr,
+    pkgdown

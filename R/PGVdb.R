@@ -1,92 +1,61 @@
-library(R6)
-library(jsonlite)
-library(data.table)
-devtools::load_all('gGnome')
-
-#' @name cov2arrowPGV
-#' @description
+#' @title PGVdb Object
 #'
-#' Prepares an scatter plot arrow file with coverage info for PGV (https://github.com/mskilab/pgv)
+#' @description 
+#' Class representing a PGV database. Contains metadata, plots, and methods
+#' for interacting with the database and converting to and from JSON.
 #'
-#' @param cov input coverage data (GRanges)
-#' @param field which field of the input data to use for the Y axis
-#' @param output_file output file path.
-#' @param ref the name of the reference to use. If not provided, then the default reference that is defined in the meta.js file will be loaded.
-#' @param cov.color.field a field in the input GRanges object to use to determine the color of each point
-#' @param overwrite (logical) by default, if the output path already exists, it will not be overwritten.
-#' @param meta.js path to JSON file with metadata for PGV (should be located in "public/settings.json" inside the repository)
-#' @param bin.width (integer) bin width for rebinning the coverage (default: 1e4)
-#' @author Alon Shaiber, Max Chao
+#' @section Methods:
+#' \code{initialize()} Initialize the PGVdb object
+#' \code{load_json()} Load data from JSON file into metadata and plots
+#' \code{update_datafiles_json()} Update the JSON data files
+#' \code{to_datatable()} Convert metadata and plots to a single data table
+#' \code{add_plots()} Add new plots to the database
+#' \code{remove_plots()} Remove plots from the database
+#' \code{validate()} Validate metadata and plot data
+#' \code{create_cov_arrow()} Create coverage arrow plot JSON
+#' \code{create_ggraph_json()} Create gGraph JSON
+#' \code{create_gwalk_json()} Create gWalk JSON
+#'
 #' @export
-# cov2arrowPGV <- function(cov,
-#                          field = "ratio",
-#                          output_file = "coverage.arrow",
-#                          ref = "hg19",
-#                          meta.js = NULL,
-#                          ...) {
-#   if (!file.exists(output_file)) {
-#     if (!requireNamespace("arrow", quietly = TRUE)) {
-#       stop('You must have the package "arrow" installed in order for converting a
-#            coverage file to arrow file to work. Please install it.')
-#     }
-#     message("Converting coverage format")
-#     dat <- cov2cov.js(cov,
-#       meta.js = meta.js,
-#       js.type = "PGV", field = field,
-#       ref = ref, ...
-#     )
-#     message("Done converting coverage format")
-#     if (!is.null(meta.js)) {
-#       ref_meta <- get_ref_metadata_from_PGV_json(meta.js, ref)
-#       setkey(ref_meta, "chromosome")
-#       # create a map
-#       # 3.981s
-#       map_cols <- data.table(
-#         color = unique(ref_meta$color),
-#         numcolor = color2numeric(unique(ref_meta$color))
-#       )
-#       dat$color <- merge(ref_meta[dat$seqnames], map_cols,
-#         by = "color", sort = FALSE
-#       )$numcolor
-#     } else {
-#       # no cov.color.field and no meta.js so set all colors to black
-#       dat$color <- 0
-#     }
-#     outdt <- dat[, .(x = new.start, y = get(field), color)]
-#     # if there are any NAs for colors then set those to black
-#     outdt[is.na(color), color := 0]
-#     # remove NAs
-#     outdt <- outdt[!is.na(y)]
-#
-#     # sort according to x values (that is what PGV expects)
-#     outdt <- outdt[order(x)]
-#
-#     message("Writing arrow file (using write_feather)")
-#     arrow_table <- arrow::Table$create(outdt,
-#       schema = arrow::schema(
-#         x = arrow::float32(),
-#         y = arrow::float32(),
-#         color = arrow::float32()
-#       )
-#     )
-#     arrow::write_feather(arrow_table, output_file)
-#   } else {
-#     message('arrow file, "', output_file, '" already exists.')
-#   }
-#   return(output_file)
-# }
-
-
+#' @importFrom jsonlite fromJSON toJSON
+#' @importFrom gGnome parse.js.seqlengths cov2arrowPGV refresh
+#' @import R6
+#' @import data.table
 PGVdb <- R6Class("PGVdb",
   private = list(
+    #' @field json_file (`character(1)`)
+    #' Path to the datafiles.json
     json_file = NULL
   ),
   public = list(
+    #' @field metadata (`data.table`)\cr
+    #' Data table containing patient metadata
     metadata = NULL,
+
+    #' @field plots (`data.table`)\cr
+    #' Data table containing plot metadata
     plots = NULL,
+
+    #' @field datadir (`character(1)`).
     datadir = NULL,
+
+    #' @field publicdir (`character(1)`).
     publicdir = NULL,
+
+    #' @field settings (`charater(1)`).
     settings = NULL,
+
+    #' @description
+    #' Creates a new instance of this [R6][R6::R6Class] class.
+    #'
+    #' @param json_file (`character(1)`)\cr
+    #'   JSON file path.
+    #' @param datadir (`character(1)`)\cr
+    #'   Data directory path.
+    #' @param publicdir (`character(1)`)\cr
+    #'   Public directory path.
+    #' @param settings (`character(1)`)\cr
+    #'   Settings object path.
     initialize = function(json_file, datadir, publicdir, settings) {
       private$json_file <- json_file
       self$load_json(json_file)
@@ -95,6 +64,12 @@ PGVdb <- R6Class("PGVdb",
       self$settings <- settings
     },
 
+    #' @description
+    #' Loads patient metadata and plot data from a JSON file.
+    #'
+    #' @param json_file (`character(1)`)\cr
+    #'   Datafiles.json file path.
+    #' @return NULL.
     load_json = function(json_file) {
       json_data <- jsonlite::fromJSON(json_file)
 
@@ -138,6 +113,9 @@ PGVdb <- R6Class("PGVdb",
       self$plots <- data.table::rbindlist(plots_list, fill = TRUE)
     },
 
+    #' @description
+    #' Update the JSON data files with current metadata and plot data.
+    #' @return NULL.
     update_datafiles_json = function() {
       json_file <- private$json_file
       # Create a backup file with timestamp
@@ -202,6 +180,13 @@ PGVdb <- R6Class("PGVdb",
       write(json_string, file = json_file)
     },
 
+    #' @description
+    #' Convert metadata and plots to a single data table.
+    #'
+    #' @param filter (`character(1)`)\cr
+    #'  Filter to apply.
+    #'
+    #' @return (`data.table`).
     to_datatable = function(filter = NULL) {
       filtered_datatable <- data.table()
 
@@ -225,6 +210,15 @@ PGVdb <- R6Class("PGVdb",
       return(filtered_datatable)
     },
 
+    #' @description
+    #' Add new plots to the PGVdb.
+    #'
+    #' @param plots_to_add (`data.table`)\cr
+    #'   Data table of plots to add.
+    #' @param overwrite_files (`logical(1)`)\cr
+    #'   Overwrite existing files if TRUE.
+    #'
+    #' @return NULL.
     add_plots = function(plots_to_add, overwrite_files = FALSE) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
@@ -293,13 +287,13 @@ PGVdb <- R6Class("PGVdb",
         common_columns <- intersect(names(plot), names(self$plots))
         extended_data <- plot[, ..common_columns]
 
-        is_duplicate <- duplicated(rbind(self$plots, extended_data, fill=TRUE))
+        is_duplicate <- duplicated(data.table::rbind(self$plots, extended_data, fill=TRUE))
 
         if (any(is_duplicate)) {
           message("Skipping duplicate row: ")
           print(plot)
         } else {
-          self$plots <- rbind(self$plots, extended_data, fill = TRUE)
+          self$plots <- data.table::rbind(self$plots, extended_data, fill = TRUE)
         }
 
         if (plot$patient.id %in% self$metadata$patient.id) {
@@ -312,9 +306,9 @@ PGVdb <- R6Class("PGVdb",
           }
         } else {
           if ("tags" %in% colnames(plot)) {
-            self$metadata <- rbind(self$metadata, data.frame(patient.id = plot$patient.id, tags = plot$tags, ref = plot$ref), fill = TRUE)
+            self$metadata <- data.table::rbind(self$metadata, data.frame(patient.id = plot$patient.id, tags = plot$tags, ref = plot$ref), fill = TRUE)
           } else {
-            self$metadata <- rbind(self$metadata, data.frame(patient.id = plot$patient.id, ref = plot$ref), fill = TRUE)
+            self$metadata <- data.table::rbind(self$metadata, data.frame(patient.id = plot$patient.id, ref = plot$ref), fill = TRUE)
           }
         }
       }
@@ -323,6 +317,15 @@ PGVdb <- R6Class("PGVdb",
       self$update_datafiles_json()
     },
 
+    #' @description
+    #' Remove plots from the PGVdb.
+    #'
+    #' @param plots_to_remove (`data.table`)\cr 
+    #'   Data table of plots to remove
+    #' @param delete_files (`logical(1)`)\cr 
+    #'   Delete plot files if TRUE.
+    #'
+    #' @return NULL
     remove_plots = function(plots_to_remove, delete_files = FALSE) {
       remove_plots <- data.table::setDT(plots_to_remove) # Convert to data.table if required
 
@@ -383,6 +386,10 @@ PGVdb <- R6Class("PGVdb",
       }
     },
 
+    #' @description
+    #' Validate metadata and plot data.
+    #'
+    #' @return NULL.
     validate = function() {
       # Check if all patients have at least one plot, otherwise remove patient from metadata
       patients_without_plots <- self$metadata[!patient.id %in% unique(self$plots$patient.id), patient.id]
@@ -430,11 +437,20 @@ PGVdb <- R6Class("PGVdb",
       }
     },
 
+    #' @description
+    #' Create coverage arrow plot JSON file.
+    #'
+    #' @param plot_metadata (`data.table`)\cr 
+    #'   Plot metadata.
+    #' @param overwrite (`logical(1)`)\cr 
+    #'   Overwrite if file exists.
+    #'
+    #' @return NULL.
     create_cov_arrow = function(plot_metadata, overwrite = FALSE) {
       cov_json_path <- file.path(self$datadir, plot_metadata$source)
       if (!file.exists(cov_json_path) || overwite == TRUE) {
         if (file.exists(plot_metadata$path)) {
-          cov2arrowPGV(plot_metadata$path,
+          gGnome::cov2arrowPGV(plot_metadata$path,
             field = plot_metadata$path,
             meta.js = self$settings,
             ref = plot_metadata$path,
@@ -452,6 +468,16 @@ PGVdb <- R6Class("PGVdb",
       }
     },
 
+
+    #' @description
+    #' Create gGraph JSON file.
+    #'
+    #' @param plot_metadata (`data.table`)\cr 
+    #'   Plot metadata.
+    #' @param overwrite (`logical(1)`)\cr 
+    #'   Overwrite if file exists.
+    #'
+    #' @return NULL.
     create_ggraph_json = function(plot_metadata, overwrite = FALSE) {
       ggraph_json_path <- file.path(
         self$datadir,
@@ -468,7 +494,7 @@ PGVdb <- R6Class("PGVdb",
           ggraph <- readRDS(plot_metadata$path)
         }
         if (any(class(ggraph) == "gGraph")) {
-          seq_lengths <- parse.js.seqlengths(
+          seq_lengths <- gGnome::parse.js.seqlengths(
             self$settings,
             js.type = "PGV",
             ref = plot_metadata$ref
@@ -488,14 +514,14 @@ PGVdb <- R6Class("PGVdb",
           if ("annotation" %in% colnames(plot_metadata)) {
             # probably check for other cid.field names?
             # field = 'sedge.id'
-            refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+            gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
               filename = ggraph_json_path,
               verbose = TRUE,
               annotation = plot_metadata$annotation
             ) # ,
             # cid.field = field)
           } else {
-            refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+            gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
               filename = ggraph_json_path,
               verbose = TRUE
             )
@@ -508,13 +534,22 @@ PGVdb <- R6Class("PGVdb",
       }
     },
 
+    #' @description
+    #' Create gWalk JSON file
+    #'
+    #' @param plot_metadata (`data.table`)\cr 
+    #'   Plot metadata.
+    #' @param overwrite (`logical(1)`)\cr 
+    #'   Overwrite if file exists.
+    #'
+    #' @return NULL.
     create_gwalk_json = function(overwrite = FALSE) {
       gwalk_json_path <- file.path(self$datadir, plot_metadata$source)
       if (!file.exists(gwalk_json_path) || overwrite == TRUE) {
         print(paste0("reading in ", plot_metadata$path))
         # TODO: at some point we need to do a sanity check to see that a valid rds of gWalk was provided
         gwalk <- readRDS(plot_metadata$path) %>%
-          refresh()
+          gGnome::refresh()
         if (gwalk$length == 0) {
           warning(sprintf("Zero walks in gWalk .rds file provided for sample %s!
                           No walks json will be produced!", plot_metadata$sample))
@@ -531,15 +566,3 @@ PGVdb <- R6Class("PGVdb",
     }
   )
 )
-
-datafiles.json <- "~/projects/pgv/public/datafiles.json"
-datadir <- "~/projects/pgv/public/data"
-publicdir <- "~/projects/pgv/public"
-settings <- "~/projects/pgv/public/settings.json"
-
-db <- PGVdb$new(datafiles.json, datadir, publicdir, settings)
-# db$add_plots(data.table(patient.id="TEST", sample="1", ref="hg19", type="genome", path="HCC1954.gg.rds", source="genome.json", visible=TRUE))
-# db$remove_plots(data.table(patient.id = "TEST"))
-# # db$update_datafiles_json()
-# writeLines(db$to_json(), "test.datafiles.json")
-# filtered_patients <- db$filter_by_patient_id("E")

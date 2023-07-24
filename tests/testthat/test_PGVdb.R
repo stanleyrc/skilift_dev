@@ -1,3 +1,33 @@
+library(testthat)
+
+setup({
+  library(PGVdb)
+  library(R6)
+  library(data.table)
+  library(jsonlite)
+  library(gGnome)
+})
+
+context("PGVdb")
+
+load_paths <- function() {
+  datafiles.json <- system.file("extdata", "pgv", "test.datafiles.json", package = "PGVdb")
+  datadir <- system.file("extdata", "pgv", "data", package = "PGVdb")
+  publicdir <- system.file("extdata", "pgv", "public", package = "PGVdb")
+  settings <- system.file("extdata", "pgv", "test.settings.json", package = "PGVdb")
+
+  list(
+    datafiles = datafiles.json,
+    datadir = datadir,
+    publicdir = publicdir,
+    settings = settings
+  )
+}
+
+paths <- load_paths()
+
+db <- PGVdb$new(datafiles.json, datadir, publicdir, settings)
+
 library(gGnome)
 library(dplyr)
 source("./PGVdb.R")
@@ -53,3 +83,9 @@ test_delete_patient <- function() {
 
 test_create_patient()
 test_delete_patient()
+
+# db$add_plots(data.table(patient.id="TEST", sample="1", ref="hg19", type="genome", path="HCC1954.gg.rds", source="genome.json", visible=TRUE))
+# db$remove_plots(data.table(patient.id = "TEST"))
+# # db$update_datafiles_json()
+# writeLines(db$to_json(), "test.datafiles.json")
+# filtered_patients <- db$filter_by_patient_id("E")
