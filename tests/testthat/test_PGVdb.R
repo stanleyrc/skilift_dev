@@ -1,7 +1,6 @@
 library(testthat)
 
 setup({
-  library(PGVdb)
   library(R6)
   library(data.table)
   library(jsonlite)
@@ -192,4 +191,9 @@ test_that("remove_plots works correctly when removing patients", {
 
 test_that("validate works correctly", {
   expect_silent(pgvdb$validate())
+})
+
+test_that("init_pgv works correctly", {
+  pgv_dir  <- "/Users/diders01/projects/pgv_init_test"
+  pgvdb$init_pgv(pgv_dir)
 })
