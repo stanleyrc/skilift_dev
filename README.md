@@ -15,8 +15,6 @@ The key methods allow converting to/from JSON for data storage, validating the d
 ## Methods
 - `initialize(json_file, datadir, publicdir, settings)`: Initialize a new PGVdb object
 
-- `load_json(json_file)`: Load data from JSON into metadata and plots
-
 - `update_datafiles_json()`: Update JSON data files on disk 
 
 - `to_datatable(filter)`: Convert to a single data table, apply optional filter
@@ -26,12 +24,6 @@ The key methods allow converting to/from JSON for data storage, validating the d
 - `remove_plots(plots_to_remove_dt)`: Remove plots
 
 - `validate()`: Validate metadata and plots
-
-- `create_cov_arrow(plot_metadata)`: Create coverage arrow JSON 
-
-- `create_ggraph_json(plot_metadata)`: Create gGraph JSON
-
-- `create_gwalk_json(plot_metadata)`: Create gWalk JSON
 
 ## Fields
 
@@ -51,13 +43,6 @@ pgv <- PGVdb$new(json_file, datadir, publicdir, settings)
 ```
 
 Create a new PGVdb object by passing the path to the datafiles.json, data directory, public directory, and settings file.
-
-### load_json
-```r  
-pgv$load_json(json_file)
-```
-
-Load patient metadata and plot data from a JSON file into the PGVdb object.
 
 ### update_datafiles_json
 ```r
