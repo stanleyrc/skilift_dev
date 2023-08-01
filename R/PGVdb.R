@@ -1,3 +1,72 @@
+#' @name cov2arrowPGV
+#' @description
+#'
+#' Prepares an scatter plot arrow file with coverage info for PGV (https://github.com/mskilab/pgv)
+#'
+#' @param cov input coverage data (GRanges)
+#' @param field which field of the input data to use for the Y axis
+#' @param output_file output file path.
+#' @param ref the name of the reference to use. If not provided, then the default reference that is defined in the meta.js file will be loaded.
+#' @param cov.color.field a field in the input GRanges object to use to determine the color of each point
+#' @param overwrite (logical) by default, if the output path already exists, it will not be overwritten.
+#' @param meta.js path to JSON file with metadata for PGV (should be located in "public/settings.json" inside the repository)
+#' @param bin.width (integer) bin width for rebinning the coverage (default: 1e4)
+#' @author Alon Shaiber
+cov2arrowPGV = function(cov,
+        field = "ratio",
+        output_file = 'coverage.arrow',
+        ref = 'hg19',
+        cov.color.field = NULL,
+        overwrite = FALSE,
+        meta.js = NULL,
+        ...){
+
+    outdir = dirname(output_file)
+    dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
+
+    if (!file.exists(output_file) | overwrite){
+        if (!requireNamespace("arrow", quietly = TRUE)) {
+            stop('You must have the package "arrow" installed in order for this function to work. Please install it.')
+        }
+
+        message('Converting coverage format')
+        dat = cov2cov.js(cov, meta.js = meta.js, js.type = 'PGV', field = field,
+                         ref = ref, cov.color.field = cov.color.field, ...)
+        message('Done converting coverage format')
+
+        if (!is.null(cov.color.field)){
+            dat[, color := color2numeric(get(cov.color.field))]
+        } else {
+            if (!is.null(meta.js)){
+                ref_meta = get_ref_metadata_from_PGV_json(meta.js, ref)
+                setkey(ref_meta, 'chromosome')
+                dat$color = color2numeric(ref_meta[dat$seqnames]$color)
+            } else {
+                # no cov.color.field and no meta.js so set all colors to black
+                dat$color = 0
+            }
+        }
+
+        outdt = dat[, .(x = new.start, y = get(field), color)]
+
+        # if there are any NAs for colors then set those to black
+        outdt[is.na(color), color := 0]
+
+        # remove NAs
+        outdt = outdt[!is.na(y)]
+
+        # sort according to x values (that is what PGV expects)
+        outdt = outdt[order(x)]
+
+        message('Writing arrow file (using write_feather)')
+        arrow_table = arrow::Table$create(outdt, schema = arrow::schema(x = arrow::float32(), y = arrow::float32(), color = arrow::float32()))
+        arrow::write_feather(arrow_table, output_file, compression="uncompressed")
+    } else {
+        message('arrow file, "', output_file, '" already exists.')
+    }
+    return(output_file)
+}
+
 #' @title PGVdb Object
 #'
 #' @description 
@@ -18,7 +87,7 @@
 #'
 #' @export
 #' @importFrom jsonlite fromJSON toJSON
-#' @importFrom gGnome parse.js.seqlengths cov2arrow refresh
+#' @importFrom gGnome parse.js.seqlengths refresh
 #' @import R6
 #' @import data.table
 PGVdb <- R6Class("PGVdb",
@@ -564,79 +633,9 @@ PGVdb <- R6Class("PGVdb",
           include.graph = FALSE
         )
       } else {
-        message(gwalk_json_path, "already exists! Set overwrite = TRUE if you want to overwite it.")
+        message(gwalk_json_path, "already exists! Set overwrite = TRUE if you want to overwrite it.")
       }
     }
   )
 )
-
-#' @name cov2arrow
-#' @description
-#'
-#' Prepares an scatter plot arrow file with coverage info for PGV (https://github.com/mskilab/pgv)
-#'
-#' @param cov input coverage data (GRanges)
-#' @param field which field of the input data to use for the Y axis
-#' @param output_file output file path.
-#' @param ref the name of the reference to use. If not provided, then the default reference that is defined in the meta.js file will be loaded.
-#' @param cov.color.field a field in the input GRanges object to use to determine the color of each point
-#' @param overwrite (logical) by default, if the output path already exists, it will not be overwritten.
-#' @param meta.js path to JSON file with metadata for PGV (should be located in "public/settings.json" inside the repository)
-#' @param bin.width (integer) bin width for rebinning the coverage (default: 1e4)
-#' @author Alon Shaiber
-#' @export
-cov2arrowPGV = function(cov,
-        field = "ratio",
-        output_file = 'coverage.arrow',
-        ref = 'hg19',
-        cov.color.field = NULL,
-        overwrite = FALSE,
-        meta.js = NULL,
-        ...){
-
-    outdir = dirname(output_file)
-    dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
-
-    if (!file.exists(output_file) | overwrite){
-        if (!requireNamespace("arrow", quietly = TRUE)) {
-            stop('You must have the package "arrow" installed in order for this function to work. Please install it.')
-        }
-
-        message('Converting coverage format')
-        dat = cov2cov.js(cov, meta.js = meta.js, js.type = 'PGV', field = field,
-                         ref = ref, cov.color.field = cov.color.field, ...)
-        message('Done converting coverage format')
-
-        if (!is.null(cov.color.field)){
-            dat[, color := color2numeric(get(cov.color.field))]
-        } else {
-            if (!is.null(meta.js)){
-                ref_meta = get_ref_metadata_from_PGV_json(meta.js, ref)
-                setkey(ref_meta, 'chromosome')
-                dat$color = color2numeric(ref_meta[dat$seqnames]$color)
-            } else {
-                # no cov.color.field and no meta.js so set all colors to black
-                dat$color = 0
-            }
-        }
-
-        outdt = dat[, .(x = new.start, y = get(field), color)]
-
-        # if there are any NAs for colors then set those to black
-        outdt[is.na(color), color := 0]
-
-        # remove NAs
-        outdt = outdt[!is.na(y)]
-
-        # sort according to x values (that is what PGV expects)
-        outdt = outdt[order(x)]
-
-        message('Writing arrow file (using write_feather)')
-        arrow_table = arrow::Table$create(outdt, schema = arrow::schema(x = arrow::float32(), y = arrow::float32(), color = arrow::float32()))
-        arrow::write_feather(arrow_table, output_file, compression="uncompressed")
-    } else {
-        message('arrow file, "', output_file, '" already exists.')
-    }
-    return(output_file)
-}
 

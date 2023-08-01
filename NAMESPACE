@@ -3,7 +3,6 @@
 export(PGVdb)
 import(R6)
 import(data.table)
-importFrom(gGnome,cov2arrow)
 importFrom(gGnome,parse.js.seqlengths)
 importFrom(gGnome,refresh)
 importFrom(jsonlite,fromJSON)

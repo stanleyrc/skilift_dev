@@ -153,7 +153,7 @@ Filter to apply.}
 \subsection{Method \code{add_plots()}}{
 Add new plots to the PGVdb.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$add_plots(plots_to_add, overwrite_files = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$add_plots(plots_to_add, overwrite = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -162,8 +162,11 @@ Add new plots to the PGVdb.
 \item{\code{plots_to_add}}{(`data.table`)\cr
 Data table of plots to add.}
 
-\item{\code{overwrite_files}}{(`logical(1)`)\cr
+\item{\code{overwrite}}{(`logical(1)`)\cr
 Overwrite existing files if TRUE.}
+
+\item{\code{write_to_json}}{(`logical(1)`)\cr
+Write to datafiles.json if TRUE.}
 }
 \if{html}{\out{</div>}}
 }
@@ -177,7 +180,7 @@ NULL.
 \subsection{Method \code{remove_plots()}}{
 Remove plots from the PGVdb.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$remove_plots(plots_to_remove, delete_files = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$remove_plots(plots_to_remove, delete = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -186,7 +189,7 @@ Remove plots from the PGVdb.
 \item{\code{plots_to_remove}}{(`data.table`)\cr 
 Data table of plots to remove}
 
-\item{\code{delete_files}}{(`logical(1)`)\cr 
+\item{\code{delete}}{(`logical(1)`)\cr 
 Delete plot files if TRUE.}
 }
 \if{html}{\out{</div>}}
@@ -262,17 +265,17 @@ NULL.
 \subsection{Method \code{create_gwalk_json()}}{
 Create gWalk JSON file
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_gwalk_json(overwrite = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_gwalk_json(plot_metadata, overwrite = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{overwrite}}{(`logical(1)`)\cr 
-Overwrite if file exists.}
-
 \item{\code{plot_metadata}}{(`data.table`)\cr 
 Plot metadata.}
+
+\item{\code{overwrite}}{(`logical(1)`)\cr 
+Overwrite if file exists.}
 }
 \if{html}{\out{</div>}}
 }
