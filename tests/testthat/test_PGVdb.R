@@ -5,16 +5,17 @@ setup({
   library(R6)
   library(data.table)
   library(jsonlite)
-  library(gGnome)
+  devtools::load_all("../gGnome/gGnome")
 })
 
+devtools::load_all(".")
 context("PGVdb")
 
 load_paths <- function() {
-  datafiles.json <- system.file("extdata", "pgv", "test.datafiles.json", package = "PGVdb")
-  datadir <- system.file("extdata", "pgv", "data", package = "PGVdb")
+  datafiles.json <- system.file("extdata", "pgv", "public", "datafiles.json", package = "PGVdb")
+  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
   publicdir <- system.file("extdata", "pgv", "public", package = "PGVdb")
-  settings <- system.file("extdata", "pgv", "test.settings.json", package = "PGVdb")
+  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
 
   list(
     datafiles = datafiles.json,
@@ -24,68 +25,171 @@ load_paths <- function() {
   )
 }
 
+reset_pgvdb  <- function() {
+  default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
+  file.copy(default_datafiles_json_path, paths$datafiles, overwrite = TRUE)
+  pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
+}
+
 paths <- load_paths()
+pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
 
-db <- PGVdb$new(datafiles.json, datadir, publicdir, settings)
 
-library(gGnome)
-library(dplyr)
-source("./PGVdb.R")
-source("./functions.R")
 
-db <- return_PGV_db(
-  datafiles.json = "~/projects/pgv/public/datafiles.json",
-  data_folder = "~/projects/pgv/public/data",
-  PGV_public_dir = "~/projects/pgv/public"
-)
+test_that("PGVdb initializes correctly", {
+  expect_equal(nrow(pgvdb$metadata), 1)
+  expect_equal(nrow(pgvdb$plots), 10)
+})
 
-reset_db <- function() {
-  datafiles <- "~/projects/pgv/public/datafiles.json"
-  reset_datafiles <- "~/projects/pgv/public/datafiles0.json"
-  file.copy(reset_datafiles, datafiles)
-}
+test_that("load_json works correctly", {
+  expect_error(pgvdb$load_json("bad_path.json"))
 
-test_add_tags <- function() {
-  add_tag <- data.table(patient.id = "DEMO", tags = "random tag")
-  db$descriptions <- rbind(db$descriptions, add_tag)
-  db$descriptions[patient.id = "DEMO"]
-  db$descriptions <- db$descriptions[-c(11), ]
-  push_PGV_db(db)
-}
+  pgvdb$load_json(paths$datafiles)
 
-# Create a new patient called TEST which is an exact duplicate of DEMO
-test_create_patient <- function() {
-  id <- "TEST"
-  new_graph <- data.table(
-    patient.id = id,
-    name.col = id,
-    gg.col = "HCC1954.gg.rds",
-    gw.col = NA,
-    annotation = list(c(
-      "simple", "bfb", "chromoplexy",
-      "chromothripsis", "del", "dm", "dup",
-      "pyrgo", "qrdel", "qrdup", "qrp", "rigma",
-      "tic", "tyfonas"
-    )),
-    tree = NA,
+  expect_equal(nrow(pgvdb$metadata), 1)
+  expect_equal(nrow(pgvdb$plots), 10)
+})
+
+test_that("to_datatable returns correct output", {
+  dt <- pgvdb$to_datatable()
+
+  expect_s3_class(dt, "data.table")
+  expect_gte(nrow(dt), 10)
+
+  dt_filtered <- pgvdb$to_datatable(list("patient.id", "DEMO"))
+
+  expect_equal(nrow(dt_filtered), 10)
+})
+
+test_that("add_plots works correctly", {
+  pgvdb <- reset_pgvdb()
+
+  new_cov <- data.table(
+    patient.id = "TEST_ADD",
     ref = "hg19",
-    cov.field = NA,
-    dirpaths = file.path(paste0(db$data_folder, "/", id))
+    type = "scatterplot",
+    path = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    source = "coverage.arrow",
+    field = "cn",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_cov, overwrite = TRUE)
+  expect_warning(pgvdb$add_plots(new_cov)) # Try adding duplicate
+
+  new_genome <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = "genome",
+    path = system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
+    source = "genome.json",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_genome)
+  expect_warning(pgvdb$add_plots(new_genome)) # Try adding duplicate
+
+  new_walk <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = "walk",
+    path = system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"),
+    source = "walk.json",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_walk)
+  expect_warning(pgvdb$add_plots(new_walk)) # Try adding duplicate
+})
+
+test_that("add_plots works correctly with multiple plots", {
+  pgvdb <- reset_pgvdb()
+  paths  <- c(
+    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+  )
+  new_plots <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = c("scatterplot", "genome", "walk"),
+    path = paths,
+    source = c("coverage.arrow", "genome.json", "walk.json"),
+    field= c("cn", NA, NA),
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_plots)
+  expect_warning(pgvdb$add_plots(new_plots)) # Try adding duplicate
+})
+
+test_that("add_plots works correctly with multiple patients", {
+  pgvdb <- reset_pgvdb()
+  paths  <- c(
+    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+  )
+  new_plots <- data.table(
+    patient.id = c("TEST_ADD1", "TEST_ADD2", "TEST_ADD3"),
+    ref = "hg19",
+    type = c("scatterplot", "genome", "walk"),
+    path = paths,
+    source = c("coverage.arrow", "genome.json", "walk.json"),
+    field= c("cn", NA, NA),
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_plots)
+  expect_warning(pgvdb$add_plots(new_plots)) # Try adding duplicate
+})
+
+test_that("remove_plots works correctly", {
+  pgvdb <- reset_pgvdb()
+
+  new_cov <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = "scatterplot",
+    path = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    source = "coverage.arrow",
+    field = "cn",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_cov, overwrite = TRUE)
+
+  remove_plot <- data.table(
+    patient.id = "TEST_ADD",
+    source = "coverage.arrow"
   )
 
-  add_patients_PGV(db, table_add = new_graph, cores = 1)
-}
+  pgvdb$remove_plots(remove_plot, delete = TRUE)
 
-test_delete_patient <- function() {
-  id <- "TEST"
-  drop_patients_PGV(db, "DEMO", delete = TRUE)
-}
+  expect_equal(nrow(pgvdb$plots), 10)
+})
 
-test_create_patient()
-test_delete_patient()
+test_that("remove_plots works correctly when removing patients", {
+  pgvdb <- reset_pgvdb()
+  paths  <- c(
+    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+  )
+  new_plots <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = c("scatterplot", "genome", "walk"),
+    path = paths,
+    source = c("coverage.arrow", "genome.json", "walk.json"),
+    field = c("cn", NA, NA),
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_plots)
 
-# db$add_plots(data.table(patient.id="TEST", sample="1", ref="hg19", type="genome", path="HCC1954.gg.rds", source="genome.json", visible=TRUE))
-# db$remove_plots(data.table(patient.id = "TEST"))
-# # db$update_datafiles_json()
-# writeLines(db$to_json(), "test.datafiles.json")
-# filtered_patients <- db$filter_by_patient_id("E")
+  remove_plot <- data.table(
+    patient.id = "TEST_ADD"
+  )
+
+  pgvdb$remove_plots(remove_plot, delete = TRUE)
+
+  expect_equal(nrow(pgvdb$plots), 10)
+})
+
+test_that("validate works correctly", {
+  expect_silent(pgvdb$validate())
+})

@@ -2,3 +2,5 @@ dev/
 gGnome/*
 tags
 .Rhistory
+*/**/pgv
+*/**/pgv_test
