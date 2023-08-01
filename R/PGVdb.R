@@ -409,10 +409,11 @@ PGVdb <- R6Class("PGVdb",
       # If delete is TRUE, remove plot files and patient directories if empty
       if (delete) {
         # Loop through each row of the plots_to_remove table
+        print("Deleting plots from data directory...")
         for (i in seq_len(nrow(remove_plots[!is.na("source")]))) {
           plot <- remove_plots[i, ]
 
-          # Remove plot files
+          # Select plots/patients to remove
           if (is_remove_patients) {
             patient_plots <- self$plots[patient.id == plot$patient.id, .(patient.id, source)]
           } else {
@@ -432,6 +433,7 @@ PGVdb <- R6Class("PGVdb",
           for (patient in unique_patients) {
             patient_dir <- file.path(self$datadir, patient)
             if (dir.exists(patient_dir) && length(dir(paste0(patient_dir, "/*"))) == 0) {
+              message(patient_dir, "has no plots, deleting...")
               unlink(patient_dir)
             }
           }
@@ -439,6 +441,7 @@ PGVdb <- R6Class("PGVdb",
       }
 
       # Remove plots from PGVdb$plots
+      print("Removing plots from PGVdb...")
       if (is_remove_patients) {
         self$plots <- self$plots[!patient.id %in% remove_plots$patient.id]
       } else {
@@ -447,7 +450,6 @@ PGVdb <- R6Class("PGVdb",
           self$plots <- self$plots[!(patient.id %in% remove_plots$patient.id & server %in% remove_plots$server)]
         }
       }
-
     },
 
     #' @description
@@ -478,24 +480,30 @@ PGVdb <- R6Class("PGVdb",
         .SDcols = c("patient.id", "source", "server", "uuid"),
       ]
 
-      # Construct error message with missing files and missing values
+      # Construct error message and table with missing source and missing values
       error_message <- ""
+      missing_data <- data.table()
       if (nrow(missing_files) > 0) {
         error_message <- paste(error_message, "Missing Files:\n")
         error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, sep = " - "), collapse = "\n")
+        missing_data <- rbind(missing_data, missing_files)
       }
       if (nrow(missing_servers) > 0) {
         error_message <- paste(error_message, "Missing Servers (or uuids for the servers):\n")
         error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$server, missing_files$uuid, sep = " - "), collapse = "\n")
+        missing_data <- rbind(missing_data, missing_servers)
       }
       if (nrow(missing_values) > 0) {
         error_message <- paste(error_message, "Missing Values:\n")
         error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, sep = " - "), collapse = "\n")
+        missing_data <- rbind(missing_data, missing_values)
       }
 
       # Return error message if there are any missing files or values
       if (error_message != "") {
         warning(error_message)
+        print("Returning data.table with invalid rows...")
+        return(missing_data)
       } else {
         self$update_datafiles_json()
       }
@@ -634,6 +642,25 @@ PGVdb <- R6Class("PGVdb",
         )
       } else {
         message(gwalk_json_path, "already exists! Set overwrite = TRUE if you want to overwrite it.")
+      }
+    },
+
+    #' @description
+    #' Download and instantiate a PGV instance with symlinked data
+    #'
+    #' @param pgv_dir (`character(1)`)\cr 
+    #'   Directory where the pgv instance will be installed
+    #'
+    #' @return NULL
+    init_pgv = function(pgv_dir) {
+      init_script_path  <- system.file("src", "init_pgv.sh", package="PGVdb")
+      # Check if node is installed
+      cmd <- paste("which", "node")
+      is_installed <- length(system(cmd, intern = TRUE)) != 0
+      if (!is_installed) {
+        stop(paste(program_name, "is not installed. Please install it before proceeding."))
+      } else {
+        system(paste("bash", init_script_path, private$json_file, self$datadir, self$publicdir, self$settings, pgv_dir))
       }
     }
   )

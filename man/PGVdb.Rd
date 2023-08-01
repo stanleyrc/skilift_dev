@@ -62,6 +62,7 @@ Path to the datafiles.json}
 \item \href{#method-PGVdb-create_cov_arrow}{\code{PGVdb$create_cov_arrow()}}
 \item \href{#method-PGVdb-create_ggraph_json}{\code{PGVdb$create_ggraph_json()}}
 \item \href{#method-PGVdb-create_gwalk_json}{\code{PGVdb$create_gwalk_json()}}
+\item \href{#method-PGVdb-init_pgv}{\code{PGVdb$init_pgv()}}
 \item \href{#method-PGVdb-clone}{\code{PGVdb$clone()}}
 }
 }
@@ -281,6 +282,27 @@ Overwrite if file exists.}
 }
 \subsection{Returns}{
 NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PGVdb-init_pgv"></a>}}
+\if{latex}{\out{\hypertarget{method-PGVdb-init_pgv}{}}}
+\subsection{Method \code{init_pgv()}}{
+Download and instantiate a PGV instance with symlinked data
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$init_pgv(pgv_dir)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{pgv_dir}}{(`character(1)`)\cr 
+Directory where the pgv instance will be installed}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
 }
 }
 \if{html}{\out{<hr>}}
