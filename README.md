@@ -58,8 +58,6 @@ dt <- pgv$to_datatable(filter = c("patient.id", "HCC"))
 
 Convert metadata and plots to a single data table, applying an optional filter.
 
-Here are some more details on the add_plots and remove_plots methods:
-
 ### add_plots
 
 ```r
