@@ -1,5 +1,5 @@
 # PGVdb
-Faciliates easier loading and manipulation of genomic data for use with ![PGV](https://github.com/mskilab-org/pgv).
+Faciliates easier loading and manipulation of genomic data for use with [PGV](https://github.com/mskilab-org/pgv).
 
 # Installation
 - To install directly from github: `devtools::install_github("mskilab-org/pgvdb")`
