@@ -1,6 +1,7 @@
 library(testthat)
 
 setup({
+  library(parallel)
   library(R6)
   library(data.table)
   library(jsonlite)
@@ -25,12 +26,13 @@ load_paths <- function() {
 }
 
 reset_pgvdb  <- function() {
+  devtools::load_all(".")
+  paths <- load_paths()
   default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
   file.copy(default_datafiles_json_path, paths$datafiles, overwrite = TRUE)
   pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
 }
 
-paths <- load_paths()
 pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
 
 
@@ -114,7 +116,7 @@ test_that("add_plots works correctly with multiple plots", {
     field= c("cn", NA, NA),
     visible = TRUE
   )
-  pgvdb$add_plots(new_plots)
+  pgvdb$add_plots(new_plots, overwrite=TRUE)
   expect_warning(pgvdb$add_plots(new_plots)) # Try adding duplicate
 })
 
@@ -131,10 +133,10 @@ test_that("add_plots works correctly with multiple patients", {
     type = c("scatterplot", "genome", "walk"),
     path = paths,
     source = c("coverage.arrow", "genome.json", "walk.json"),
-    field= c("cn", NA, NA),
+    field= c(NA, NA, NA),
     visible = TRUE
   )
-  pgvdb$add_plots(new_plots)
+  pgvdb$add_plots(new_plots, overwrite=TRUE)
   expect_warning(pgvdb$add_plots(new_plots)) # Try adding duplicate
 })
 
