@@ -19,6 +19,7 @@ for interacting with the database and converting to and from JSON.
 \code{create_cov_arrow()} Create coverage arrow plot JSON
 \code{create_ggraph_json()} Create gGraph JSON
 \code{create_gwalk_json()} Create gWalk JSON
+\code{init_pgv()} Download and launch PGV instance
 }
 
 \section{Public fields}{
@@ -165,9 +166,6 @@ Data table of plots to add.}
 
 \item{\code{overwrite}}{(`logical(1)`)\cr
 Overwrite existing files if TRUE.}
-
-\item{\code{write_to_json}}{(`logical(1)`)\cr
-Write to datafiles.json if TRUE.}
 }
 \if{html}{\out{</div>}}
 }

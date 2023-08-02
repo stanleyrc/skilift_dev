@@ -7,12 +7,15 @@ publicdir=$3
 settings=$4
 pgv_dir=$5
 
-echo "Downloading pgv..."
-git clone "https://github.com/mskilab-org/pgv.git" $pgv_dir
-cd $pgv_dir
-yarn install
+echo "Checking if PGV instance exists..."
+if [[ -d "$pgv_dir" ]]; then
+  echo "PGV instance already exists in $pgv_dir"
+else
+  echo "Downloading pgv..."
+  git clone "https://github.com/mskilab-org/pgv.git" "$pgv_dir"
+fi
 
-echo "Setting up PGV..."
+echo "Setting up PGV instance with PGVdb data..."
 cp $datafiles_json "$pgv_dir/public/datafiles.json"
 cp $settings "$pgv_dir/public/settings.json"
 

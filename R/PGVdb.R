@@ -69,7 +69,7 @@ cov2arrowPGV = function(cov,
 
 #' @title PGVdb Object
 #'
-#' @description 
+#' @description
 #' Class representing a PGV database. Contains metadata, plots, and methods
 #' for interacting with the database and converting to and from JSON.
 #'
@@ -84,6 +84,7 @@ cov2arrowPGV = function(cov,
 #' \code{create_cov_arrow()} Create coverage arrow plot JSON
 #' \code{create_ggraph_json()} Create gGraph JSON
 #' \code{create_gwalk_json()} Create gWalk JSON
+#' \code{init_pgv()} Download and launch PGV instance
 #'
 #' @export
 #' @importFrom jsonlite fromJSON toJSON
@@ -286,8 +287,6 @@ PGVdb <- R6Class("PGVdb",
     #'   Data table of plots to add.
     #' @param overwrite (`logical(1)`)\cr
     #'   Overwrite existing files if TRUE.
-    #' @param write_to_json (`logical(1)`)\cr
-    #'   Write to datafiles.json if TRUE.
     #' @return NULL.
     add_plots = function(plots_to_add, overwrite = FALSE) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
@@ -313,7 +312,7 @@ PGVdb <- R6Class("PGVdb",
       }
 
       if (any(!new_plots$patient.id %in% self$metadata$patient.id)) {
-        if (!("ref" %in% names(new_plots)) | is.na(new_plots$ref) | is.null(new_plots$ref)) {
+        if (!("ref" %in% names(new_plots)) | any(is.na(new_plots$ref)) | any(is.null(new_plots$ref))) {
           warning("You are trying to add a new patient without specifying its reference. Make sure all references are non-null")
           message("Creating an empty data.table with required columns instead...")
           empty$ref <- character()
@@ -435,6 +434,7 @@ PGVdb <- R6Class("PGVdb",
             if (dir.exists(patient_dir) && length(dir(paste0(patient_dir, "/*"))) == 0) {
               message(patient_dir, "has no plots, deleting...")
               unlink(patient_dir)
+              self$metadata <- self$metadata[patient.id != patient]
             }
           }
         }
