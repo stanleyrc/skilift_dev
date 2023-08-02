@@ -5,8 +5,7 @@ setup({
   library(R6)
   library(data.table)
   library(jsonlite)
-  devtools::load_all("../gGnome/gGnome")
-})
+  devtools::load_all("../../../gGnome/gGnome")
 
 devtools::load_all(".")
 context("PGVdb")
@@ -33,18 +32,18 @@ reset_pgvdb  <- function() {
   pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
 }
 
-pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
-
-
 
 test_that("PGVdb initializes correctly", {
+  pgvdb <- reset_pgvdb()
   expect_equal(nrow(pgvdb$metadata), 1)
   expect_equal(nrow(pgvdb$plots), 10)
 })
 
 test_that("load_json works correctly", {
+  pgvdb <- reset_pgvdb()
   expect_error(pgvdb$load_json("bad_path.json"))
 
+  paths <- load_paths()
   pgvdb$load_json(paths$datafiles)
 
   expect_equal(nrow(pgvdb$metadata), 1)
@@ -52,6 +51,7 @@ test_that("load_json works correctly", {
 })
 
 test_that("to_datatable returns correct output", {
+  pgvdb <- reset_pgvdb()
   dt <- pgvdb$to_datatable()
 
   expect_s3_class(dt, "data.table")
@@ -98,6 +98,17 @@ test_that("add_plots works correctly", {
   )
   pgvdb$add_plots(new_walk)
   expect_warning(pgvdb$add_plots(new_walk)) # Try adding duplicate
+
+  new_bw <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = "bigwig",
+    server = "http://higlass.io",
+    uuid ="AOR9BgKaS4WPX7esuBM4sQ",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_bw)
+  expect_warning(pgvdb$add_plots(new_bw)) # Try adding duplicate
 })
 
 test_that("add_plots works correctly with multiple plots", {
@@ -133,7 +144,7 @@ test_that("add_plots works correctly with multiple patients", {
     type = c("scatterplot", "genome", "walk"),
     path = paths,
     source = c("coverage.arrow", "genome.json", "walk.json"),
-    field= c(NA, NA, NA),
+    field= c("cn", NA, NA),
     visible = TRUE
   )
   pgvdb$add_plots(new_plots, overwrite=TRUE)
