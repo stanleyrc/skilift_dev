@@ -292,7 +292,7 @@ PGVdb <- R6Class("PGVdb",
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
       # Check if required columns exist
-      required_columns <- c("patient.id", "type", "path", "visible")
+      required_columns <- c("patient.id", "type", "visible")
       empty <- data.table::data.table(
         patient.id = character(),
         type = character(),
@@ -304,7 +304,7 @@ PGVdb <- R6Class("PGVdb",
         stringsAsFactors = FALSE
       )
       if (!all(required_columns %in% names(new_plots)) ||
-      !(("source" %in% names(new_plots)) || ("server" %in% names(new_plots) && "uuid" %in% names(new_plots)))) {
+      !(("source" %in% names(new_plots) && "path" %in% names(new_plots)) || ("server" %in% names(new_plots) && "uuid" %in% names(new_plots)))) {
         warning("Required columns not found, creating an empty data.table with required columns instead...")
         message("(All plots must have either a non-null source field or non-null server and uuid fields)")
 
@@ -333,8 +333,8 @@ PGVdb <- R6Class("PGVdb",
 
         # Check if plot source does not exist for that patient or if overwrite = TRUE
         plot_file <- file.path(patient_dir, plot$source)
-        if (file.exists(plot_file) && !overwrite) {
-          message(paste0("Plot source file already exists for patient ", plot$patient.id, ". Set overwrite = TRUE to overwrite."))
+        if (file.exists(plot_file) && is.na(plot$server) && !overwrite) {
+          warning(paste0("Plot source file already exists for patient ", plot$patient.id, ". Set overwrite = TRUE to overwrite."))
         } else {
           # Use the plot type to determine the conversion function to use
           if (plot$type == "genome") {
