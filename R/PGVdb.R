@@ -406,9 +406,6 @@ PGVdb <- R6Class("PGVdb",
         return("Error: Required columns (patient.id OR patient.id, source OR patient.id, server, uuid) not found in plots_to_remove data.table.")
       }
 
-      # Call validate to remove any patients that have no plots
-      self$validate()
-
       # If delete is TRUE, remove plot files and patient directories if empty
       if (delete) {
         # Loop through each row of the plots_to_remove table
@@ -454,6 +451,10 @@ PGVdb <- R6Class("PGVdb",
           self$plots <- self$plots[!(patient.id %in% remove_plots$patient.id & server %in% remove_plots$server)]
         }
       }
+
+      # Call validate to remove any patients that have no plots
+      self$validate()
+
     },
 
     #' @description

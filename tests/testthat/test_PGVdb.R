@@ -164,24 +164,28 @@ test_that("add_plots works correctly with multiple patients", {
 
 test_that("remove_plots works correctly", {
   pgvdb <- reset_pgvdb()
-
-  new_cov <- data.table(
+  paths  <- c(
+    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+  )
+  new_plots <- data.table(
     patient.id = "TEST_ADD",
     ref = "hg19",
-    type = "scatterplot",
-    path = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
-    source = "coverage.arrow",
-    field = "cn",
+    type = c("scatterplot", "genome", "walk"),
+    path = paths,
+    source = c("coverage.arrow", "genome.json", "walk.json"),
+    field = c("cn", NA, NA),
     visible = TRUE
   )
-  pgvdb$add_plots(new_cov, overwrite = TRUE)
+  pgvdb$add_plots(new_plots)
 
   remove_plot <- data.table(
     patient.id = "TEST_ADD",
     source = "coverage.arrow"
   )
 
-  pgvdb$remove_plots(remove_plot, delete = TRUE)
+  pgvdb$remove_plots(remove_plot)
 
   expect_equal(nrow(pgvdb$plots), 10)
 })
@@ -208,7 +212,7 @@ test_that("remove_plots works correctly when removing patients", {
     patient.id = "TEST_ADD"
   )
 
-  pgvdb$remove_plots(remove_plot, delete = TRUE)
+  pgvdb$remove_plots(remove_plot)
 
   expect_equal(nrow(pgvdb$plots), 10)
 })
