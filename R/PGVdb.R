@@ -304,7 +304,7 @@ PGVdb <- R6Class("PGVdb",
         stringsAsFactors = FALSE
       )
       if (!all(required_columns %in% names(new_plots)) ||
-      !(("source" %in% names(new_plots) && "path" %in% names(new_plots)) || ("server" %in% names(new_plots) && "uuid" %in% names(new_plots)))) {
+      !(("source" %in% names(new_plots) && "path" %in% names(new_plots)) || ("server" %in% names(new_plots) && "uuid" %in% names(new_plots)) || all(grepl("\\.json$", new_plots$path)))) {
         warning("Required columns not found, creating an empty data.table with required columns instead...")
         message("(All plots must have either a non-null source field or non-null server and uuid fields)")
 
@@ -333,16 +333,20 @@ PGVdb <- R6Class("PGVdb",
 
         # Check if plot source does not exist for that patient or if overwrite = TRUE
         plot_file <- file.path(patient_dir, plot$source)
-        if (file.exists(plot_file) && is.na(plot$server) && !overwrite) {
-          warning(paste0("Plot source file already exists for patient ", plot$patient.id, ". Set overwrite = TRUE to overwrite."))
-        } else {
-          # Use the plot type to determine the conversion function to use
-          if (plot$type == "genome") {
-            self$create_ggraph_json(plot, overwrite)
-          } else if (plot$type == "scatterplot") {
-            self$create_cov_arrow(plot, overwrite)
-          } else if (plot$type == "walk") {
-            self$create_gwalk_json(plot, overwrite)
+        if (plot$type != "bigwig") {
+          if (grepl("\\.json$", plot$path)) {
+            file.copy(plot$path, plot_file)
+          } else if (file.exists(plot_file) && !overwrite) {
+            warning(paste0("Plot source file already exists for patient ", plot$patient.id, ". Set overwrite = TRUE to overwrite."))
+          } else {
+            # Use the plot type to determine the conversion function to use
+            if (plot$type == "genome") {
+              self$create_ggraph_json(plot, overwrite)
+            } else if (plot$type == "scatterplot") {
+              self$create_cov_arrow(plot, overwrite)
+            } else if (plot$type == "walk") {
+              self$create_gwalk_json(plot, overwrite)
+            }
           }
         }
 
@@ -502,7 +506,7 @@ PGVdb <- R6Class("PGVdb",
       # Return error message if there are any missing files or values
       if (error_message != "") {
         warning(error_message)
-        print("Returning data.table with invalid rows...")
+        print("Returning data.table with the invalid rows...")
         return(missing_data)
       } else {
         self$update_datafiles_json()

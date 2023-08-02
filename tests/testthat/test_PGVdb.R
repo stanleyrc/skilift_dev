@@ -109,6 +109,17 @@ test_that("add_plots works correctly", {
   )
   pgvdb$add_plots(new_bw)
   expect_warning(pgvdb$add_plots(new_bw)) # Try adding duplicate
+
+  new_json <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    type = "walk",
+    path = system.file("extdata", "test_data", "walks.json", package = "PGVdb"),
+    source = "walks.json",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_json)
+  expect_warning(pgvdb$add_plots(new_json)) # Try adding duplicate
 })
 
 test_that("add_plots works correctly with multiple plots", {
