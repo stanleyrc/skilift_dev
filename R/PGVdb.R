@@ -292,21 +292,17 @@ PGVdb <- R6Class("PGVdb",
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
       # Check if required columns exist
-      required_columns <- c("patient.id", "type", "visible")
+      required_columns <- c("patient.id", "x", "visible")
       empty <- data.table::data.table(
         patient.id = character(),
-        type = character(),
-        source = character(), # filename in pgv, e.g genome.json
-        server = character(),
-        uuid = character(),
-        path = character(), # path to datafile, e.g HCC1954.gg.rds
+        x, # either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
         visible = logical(),
         stringsAsFactors = FALSE
       )
-      if (!all(required_columns %in% names(new_plots)) ||
-      !(("source" %in% names(new_plots) && "path" %in% names(new_plots)) || ("server" %in% names(new_plots) && "uuid" %in% names(new_plots)) || all(grepl("\\.json$", new_plots$path)))) {
-        warning("Required columns not found, creating an empty data.table with required columns instead...")
-        message("(All plots must have either a non-null source field or non-null server and uuid fields)")
+
+      if (!all(required_columns %in% names(new_plots))) {
+        warning("Required columns not found, creating an empty data.table (called 'empty') with required columns instead...")
+        message("(All plots must have either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath in the 'x' column)")
 
         return(empty)
       }
@@ -314,7 +310,7 @@ PGVdb <- R6Class("PGVdb",
       if (any(!new_plots$patient.id %in% self$metadata$patient.id)) {
         if (!("ref" %in% names(new_plots)) | any(is.na(new_plots$ref)) | any(is.null(new_plots$ref))) {
           warning("You are trying to add a new patient without specifying its reference. Make sure all references are non-null")
-          message("Creating an empty data.table with required columns instead...")
+          message("Creating an empty data.table (called 'empty') with required columns instead...")
           empty$ref <- character()
           return(empty)
         }
@@ -324,20 +320,63 @@ PGVdb <- R6Class("PGVdb",
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
 
-        # Check if patient exists, if not, make sure ref exists, then create patient directory
+        # Check if patient dir exists, if not, create patient directory
         patient_dir <- file.path(self$datadir, plot$patient.id)
         if (!dir.exists(patient_dir)) {
           warning(paste("Patient directory does not exist. Creating a directory for new patient: ", plot$patient.id))
           dir.create(patient_dir)
         }
 
-        # Check if plot source does not exist for that patient or if overwrite = TRUE
+        # Get type and source from x
+        if (is.list(plot$x) && length(plot$x) == 2) {
+          plot$type <- 'bigwig'
+          plot$server <- plot$x[[1]]
+          plot$uuid  <- plot$x[[2]]
+        } else if (is(plot$x, "GRanges")) {
+          plot$type <- 'scatterplot'
+          plot$source <- 'coverage.arrow'
+        } else if (is(plot$x, "gGraph")) {
+          plot$type <- 'genome'
+          plot$source <- 'genome.json'
+        } else if (is(plot$x, "gWalk")) {
+          plot$type <- 'walk'
+          plot$source <- 'walks.json'
+        } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'rds') {
+          rds_object <- readRDS(plot$x)
+          if (is(rds_object, "GRanges")) {
+            plot$type <- 'scatterplot'
+            plot$source <- 'coverage.arrow'
+          } else if (is(rds_object, "gGraph")) {
+            plot$type <- 'genome'
+            plot$source <- 'genome.json'
+          } else if (is(rds_object, "gWalk")) {
+            plot$type <- 'walk'
+            plot$source <- 'walks.json'
+          }
+        } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
+          warning("Type must be specified by the user for JSON files.")
+        }
+
+        # Check if source already exists, if so, increment
+        if (!is.null(plot$source)) {
+          source_path <- file.path(patient_dir, plot$source)
+          if (overwrite) {
+            warning("Existing source for plot will be overwritten.")
+          } else {
+            base_name <- tools::file_path_sans_ext(plot$source)
+            ext <- tools::file_ext(plot$source)
+            counter <- 2
+            while (file.exists(file.path(patient_dir, paste0(base_name, counter, ".", ext)))) {
+              counter <- counter + 1
+            }
+            plot$source <- paste0(base_name, counter, ".", ext)
+          }
+        }
+
         plot_file <- file.path(patient_dir, plot$source)
         if (plot$type != "bigwig") {
-          if (grepl("\\.json$", plot$path)) {
-            file.copy(plot$path, plot_file)
-          } else if (file.exists(plot_file) && !overwrite) {
-            warning(paste0("Plot source file already exists for patient ", plot$patient.id, ". Set overwrite = TRUE to overwrite."))
+          if (grepl("\\.json$", plot$x)) {
+            file.copy(plot$x, plot_file)
           } else {
             # Use the plot type to determine the conversion function to use
             if (plot$type == "genome") {
@@ -531,12 +570,12 @@ PGVdb <- R6Class("PGVdb",
       )
 
       if (!("field" %in% names(plot_metadata))) {
-          stop(warning("Please include a 'field' column in the plot_metadata which indicates the column name that contains the coverage data."))
+          stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
       }
 
       if (!file.exists(cov_json_path) || overwrite) {
-        if (file.exists(plot_metadata$path)) {
-          cov2arrowPGV(plot_metadata$path,
+        if (file.exists(plot_metadata$x) || is(plot$x, "GRanges")) {
+          cov2arrowPGV(plot_metadata$x,
             field = plot_metadata$field,
             meta.js = self$settings,
             ref = plot_metadata$ref,
@@ -550,7 +589,7 @@ PGVdb <- R6Class("PGVdb",
           ))
         }
       } else {
-        message(plot_metadata$path, " already exists! Set overwrite = TRUE if you want to overwrite it.")
+        message(plot_metadata$x, " already exists! Set overwrite = TRUE if you want to overwrite it.")
       }
     },
 
@@ -571,13 +610,14 @@ PGVdb <- R6Class("PGVdb",
         plot_metadata$source
       )
       if (!file.exists(ggraph_json_path) || overwrite) {
-        message(paste0("reading in ", plot_metadata$path))
-        # TODO: at some point we need to do a sanity check to see that a valid rds of gGraph was provided
-        if (grepl(plot_metadata$path, pattern = ".rds")) {
-          ggraph <- readRDS(plot_metadata$path)
+        message(paste0("reading in ", plot_metadata$x))
+        if (grepl(plot_metadata$x, pattern = ".rds")) {
+          ggraph <- readRDS(plot_metadata$x)
+        } else if (is(plot$x, "gGraph")) {
+          ggraph <- plot$x
         } else {
-          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$path)
-          ggraph <- readRDS(plot_metadata$path)
+          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
+          ggraph <- readRDS(plot_metadata$x)
         }
         if (any(class(ggraph) == "gGraph")) {
           seq_lengths <- gGnome::parse.js.seqlengths(
@@ -613,7 +653,7 @@ PGVdb <- R6Class("PGVdb",
             )
           }
         } else {
-          warning(plot_metadata$path, " rds read was not a gGraph")
+          warning(plot_metadata$x, " rds read was not a gGraph")
         }
       } else {
         warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
@@ -632,9 +672,16 @@ PGVdb <- R6Class("PGVdb",
     create_gwalk_json = function(plot_metadata, overwrite = FALSE) {
       gwalk_json_path <- file.path(self$datadir, plot_metadata$patient.id, plot_metadata$source)
       if (!file.exists(gwalk_json_path) || overwrite == TRUE) {
-        message(paste0("reading in ", plot_metadata$path))
-        # TODO: at some point we need to do a sanity check to see that a valid rds of gWalk was provided
-        gwalk <- readRDS(plot_metadata$path) %>% gGnome::refresh()
+        message(paste0("reading in ", plot_metadata$x))
+
+        if (grepl(plot_metadata$x, pattern = ".rds")) {
+          gwalk <- readRDS(plot_metadata$x) %>% gGnome::refresh()
+        } else if (is(plot$x, "gGraph")) {
+          gwalk <- plot$x %>% gGnome::refresh()
+        } else {
+          message("Expected .rds ending for gWalk Attempting to read anyway: ", plot_metadata$x)
+          gwalk <- readRDS(plot_metadata$x) %>% gGnome::refresh()
+        }
         if (gwalk$length == 0) {
           warning(sprintf("Zero walks in gWalk .rds file provided for sample %s!
                           No walks json will be produced!", plot_metadata$sample))
