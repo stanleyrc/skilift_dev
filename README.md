@@ -61,19 +61,31 @@ Convert metadata and plots to a single data table, applying an optional filter.
 ### add_plots
 
 ```r
-pgv$add_plots(plots_to_add, overwrite = FALSE)  
+pgv$add_plots(plots_to_add, overwrite = FALSE, cores=1)  
 ```
 
 Add new plots by passing a `data.table` containing required columns:
 
 - `patient.id`: Patient identifier
-- `type`: Plot type (e.g. "genome", "scatterplot")  
-- `path`: Path to source data file
+- `x`: can be
+    - list(list(server="", uuid="")): a list of the [server, uuid] 
+    - list(GRanges), list(gWalk), list(gGraph): a list containing an object
+    - Filepath to an RDS object
 - `visible`: Whether plot is visible
 
 The `overwrite` flag determines whether to overwrite existing source files. 
 
-If required columns are missing, an empty table will be returned with the required column names.
+If required columns are missing, an empty table will be returned with the
+required column names. The `type` column (indiciating the type of plot:
+scatterplot, genome, walk, bigwig, etc) is derived from `x` if not supplied by
+the user. The `source` column (indicating the name of the plot file inside the
+pgv data directory) is derived from the `type`, if not supplied by the user.
+Unless the overwrite flag is set, it will not overwrite existing plot files,
+instead it will just increment the filename of the new plot file (i.e
+coverage.json -> coverage2.json)
+
+The `cores` parameter determines how many cores to use for parallel execution.
+By default, it will not run in parallel (i.e use 1 core).
 
 ### remove_plots
 
@@ -98,4 +110,22 @@ Passing just `patient.id` will remove all plots for that patient.
 pgv$validate()
 ```
 
-Validate metadata and plot data, removing invalid entries.
+Validate metadata and plot data, removing invalid entries. Is automatically
+called when adding/removing plots. Useful if you make manual changes to the
+pgvdb plots or metadata.
+
+
+### init_pgv
+
+```r 
+pgv$init_pgv(pgv_dir, build=FALSE)
+```
+
+Initialize a pgv instance loaded with the data in pgvdb at `pgv_dir`. This
+method will clone the ![pgv repo](https://github.com/mskilab-org/pgv) and
+create symlinks in the pgv data directory that point to your pgvdb data. 
+
+If the `build` flag is set to `TRUE` it will build pgv instead of launching a
+local instance (useful when running on a remote server or hpc). In that case,
+you should set `pgv_dir` to be a directory inside whichever directory is served
+by your remote server (e.g `public_html`).
