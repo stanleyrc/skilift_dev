@@ -17,8 +17,8 @@ else
 fi
 
 echo "Setting up PGV instance with PGVdb data..."
-cp $datafiles_json "$pgv_dir/public/datafiles.json"
-cp $settings "$pgv_dir/public/settings.json"
+cp -f $datafiles_json "$pgv_dir/public/datafiles.json"
+cp -f $settings "$pgv_dir/public/settings.json"
 
 origin_directory=$datadir
 target_directory="$pgv_dir/public/data"
