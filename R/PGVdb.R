@@ -89,6 +89,7 @@ cov2arrowPGV = function(cov,
 #' @export
 #' @importFrom jsonlite fromJSON toJSON
 #' @importFrom gGnome parse.js.seqlengths refresh
+#' @import parallel
 #' @import R6
 #' @import data.table
 PGVdb <- R6Class("PGVdb",
@@ -287,8 +288,10 @@ PGVdb <- R6Class("PGVdb",
     #'   Data table of plots to add.
     #' @param overwrite (`logical(1)`)\cr
     #'   Overwrite existing files if TRUE.
+    #' @param cores (`number(1)`)\cr
+    #'   Number of cores to use for parallel execution
     #' @return NULL.
-    add_plots = function(plots_to_add, overwrite = FALSE) {
+    add_plots = function(plots_to_add, overwrite = FALSE, cores=2) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
       # Check if required columns exist
@@ -329,20 +332,20 @@ PGVdb <- R6Class("PGVdb",
 
         # Get type and source from x
         if (is(plot$x[[1]], "GRanges")) {
-          if (is.na(plot$type)) {
+          if (!"type" %in% names(plot) || is.na(plot$type)) {
             plot$type <- 'scatterplot'
           }
-          if (is.na(plot$source)) {
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
             plot$source <- 'coverage.arrow'
           }
         } else if (is(plot$x[[1]], "gGraph")) {
           plot$type <- 'genome'
-          if (is.na(plot$source)) {
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
             plot$source <- 'genome.json'
           }
         } else if (is(plot$x[[1]], "gWalk")) {
           plot$type <- 'walk'
-          if (is.na(plot$source)) {
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
             plot$source <- 'walks.json'
           }
         } else if (is.list(plot$x) && length(plot$x[[1]]) == 2) {
@@ -352,28 +355,28 @@ PGVdb <- R6Class("PGVdb",
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'rds') {
           rds_object <- readRDS(plot$x)
           if (is(rds_object, "GRanges")) {
-            if (is.na(plot$type)) {
+            if (!"type" %in% names(plot) || is.na(plot$type)) {
               plot$type <- 'scatterplot'
             }
-            if (is.na(plot$source)) {
+            if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source <- 'coverage.arrow'
             }
           } else if (is(rds_object, "gGraph")) {
             plot$type <- 'genome'
-            if (is.na(plot$source)) {
+            if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source <- 'genome.json'
             }
           } else if (is(rds_object, "gWalk")) {
             plot$type <- 'walk'
-            if (is.na(plot$source)) {
+            if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source <- 'walks.json'
             }
           }
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
-          if (is.na(plot$type)) {
+          if (!"type" %in% names(plot) || is.na(plot$type)) {
             warning("Type must be specified by the user for JSON files.")
           } else {
-            if (is.na(plot$source)) {
+            if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source  <- basename(plot$x)
             }
           }
@@ -395,23 +398,45 @@ PGVdb <- R6Class("PGVdb",
           }
         }
 
-        plot_file <- file.path(patient_dir, plot$source)
-        print(plot_file)
-        if (plot$type != "bigwig") {
-          if (grepl("\\.json$", plot$x)) {
-            file.copy(plot$x, plot_file)
-          } else {
-            # Use the plot type to determine the conversion function to use
-            if (plot$type == "genome") {
-              self$create_ggraph_json(plot, overwrite)
-            } else if (plot$type == "scatterplot") {
-              self$create_cov_arrow(plot, overwrite)
-            } else if (plot$type == "walk") {
-              self$create_gwalk_json(plot, overwrite)
+        # Store the updated plot back in new_plots
+        new_plots[i, "type"] <- plot$type
+        new_plots[i, "source"] <- plot$source
+      } # Break the loop into three pieces to parallize the plot creation
+
+      # Define the function to create plot files
+      create_plot_file <- function(plot) {
+        tryCatch({
+          patient_dir <- file.path(self$datadir, plot$patient.id)
+          plot_file <- file.path(patient_dir, plot$source)
+          if (plot$type != "bigwig") {
+            if (grepl("\\.json$", plot$x)) {
+              file.copy(plot$x, plot_file)
+            } else {
+              # Use the plot type to determine the conversion function to use
+              if (plot$type == "genome") {
+                self$create_ggraph_json(plot, overwrite)
+              } else if (plot$type == "scatterplot") {
+                self$create_cov_arrow(plot, overwrite)
+              } else if (plot$type == "walk") {
+                self$create_gwalk_json(plot, overwrite)
+              }
             }
           }
-        }
+        }, error = function(e) {
+          message("Error in creating plot file: ", e$message)
+          # traceback()
+        })
+      }
 
+      # Use mclapply to create the plot files in parallel
+      parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
+        plot <- new_plots[i, ]
+        create_plot_file(plot)
+      })
+
+      # Last piece of the loop
+      for (i in seq_len(nrow(new_plots))) {
+        plot <- new_plots[i, ]
         common_columns <- intersect(names(plot), names(self$plots))
         extended_data <- plot[, ..common_columns]
 
