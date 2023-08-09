@@ -768,9 +768,11 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @param pgv_dir (`character(1)`)\cr 
     #'   Directory where the pgv instance will be installed
+    #' @param build (`logical(1)`)\cr 
+    #'   Flag to indicate whether to build pgv or launch local instance
     #'
     #' @return NULL
-    init_pgv = function(pgv_dir) {
+    init_pgv = function(pgv_dir, build = FALSE) {
       init_script_path  <- system.file("src", "init_pgv.sh", package="PGVdb")
       # Check if node is installed
       cmd <- paste("which", "node")
@@ -778,7 +780,7 @@ PGVdb <- R6Class("PGVdb",
       if (!is_installed) {
         stop(paste(program_name, "is not installed. Please install it before proceeding."))
       } else {
-        system(paste("bash", init_script_path, private$json_file, self$datadir, self$publicdir, self$settings, pgv_dir))
+        system(paste("bash", init_script_path, private$json_file, self$datadir, self$publicdir, self$settings, pgv_dir, build))
       }
     }
   )
