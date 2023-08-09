@@ -155,7 +155,7 @@ Filter to apply.}
 \subsection{Method \code{add_plots()}}{
 Add new plots to the PGVdb.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$add_plots(plots_to_add, overwrite = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$add_plots(plots_to_add, overwrite = FALSE, cores = 2)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -166,6 +166,9 @@ Data table of plots to add.}
 
 \item{\code{overwrite}}{(`logical(1)`)\cr
 Overwrite existing files if TRUE.}
+
+\item{\code{cores}}{(`number(1)`)\cr
+Number of cores to use for parallel execution}
 }
 \if{html}{\out{</div>}}
 }
@@ -288,7 +291,7 @@ NULL.
 \subsection{Method \code{init_pgv()}}{
 Download and instantiate a PGV instance with symlinked data
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$init_pgv(pgv_dir)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$init_pgv(pgv_dir, build = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -296,6 +299,9 @@ Download and instantiate a PGV instance with symlinked data
 \describe{
 \item{\code{pgv_dir}}{(`character(1)`)\cr 
 Directory where the pgv instance will be installed}
+
+\item{\code{build}}{(`logical(1)`)\cr 
+Flag to indicate whether to build pgv or launch local instance}
 }
 \if{html}{\out{</div>}}
 }
