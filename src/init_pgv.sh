@@ -17,8 +17,13 @@ else
 fi
 
 echo "Setting up PGV instance with PGVdb data..."
-cp -f $datafiles_json "$pgv_dir/public/datafiles.json"
-cp -f $settings "$pgv_dir/public/settings.json"
+if [[ "$datafiles_json" != "$pgv_dir/public/datafiles.json" ]]; then
+    cp -f "$datafiles_json" "$pgv_dir/public/datafiles.json"
+fi
+
+if [[ "$settings" != "$pgv_dir/public/settings.json" ]]; then
+    cp -f "$settings" "$pgv_dir/public/settings.json"
+fi
 
 origin_directory=$datadir
 target_directory="$pgv_dir/public/data"
@@ -84,7 +89,7 @@ if [ "$build" = "TRUE" ]; then
     if [ ! -s public/datafiles.json ]; then
         echo 'No datafiles.json was found so using the DEMO data'
         echo "To use your own data, don't forget to update datafiles.json"
-        cp public/datafiles0.json public/datafiles.json
+        cp -f public/datafiles0.json public/datafiles.json
     fi
 
     rm -rf ./build
