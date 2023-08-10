@@ -94,9 +94,9 @@ cov2arrowPGV = function(cov,
 #' @import data.table
 PGVdb <- R6Class("PGVdb",
   private = list(
-    #' @field json_file (`character(1)`)
+    #' @field datafiles_json_path (`character(1)`)
     #' Path to the datafiles.json
-    json_file = NULL
+    datafiles_json_path = NULL
   ),
   public = list(
     #' @field metadata (`data.table`)\cr
@@ -119,7 +119,7 @@ PGVdb <- R6Class("PGVdb",
     #' @description
     #' Creates a new instance of this [R6][R6::R6Class] class.
     #'
-    #' @param json_file (`character(1)`)\cr
+    #' @param datafiles_json_path (`character(1)`)\cr
     #'   JSON file path.
     #' @param datadir (`character(1)`)\cr
     #'   Data directory path.
@@ -127,9 +127,9 @@ PGVdb <- R6Class("PGVdb",
     #'   Public directory path.
     #' @param settings (`character(1)`)\cr
     #'   Settings object path.
-    initialize = function(json_file, datadir, publicdir, settings) {
-      private$json_file <- json_file
-      self$load_json(json_file)
+    initialize = function(datafiles_json_path, datadir, publicdir, settings) {
+      private$datafiles_json_path <- datafiles_json_path
+      self$load_json(datafiles_json_path)
       self$datadir <- datadir
       self$publicdir <- publicdir
       self$settings <- settings
@@ -138,11 +138,11 @@ PGVdb <- R6Class("PGVdb",
     #' @description
     #' Loads patient metadata and plot data from a JSON file.
     #'
-    #' @param json_file (`character(1)`)\cr
+    #' @param datafiles_json_path (`character(1)`)\cr
     #'   Datafiles.json file path.
     #' @return NULL.
-    load_json = function(json_file) {
-      json_data <- jsonlite::fromJSON(json_file)
+    load_json = function(datafiles_json_path) {
+      json_data <- jsonlite::fromJSON(datafiles_json_path)
 
       # Extract metadata
       metadata_list <- lapply(names(json_data), function(patient_id) {
@@ -164,16 +164,7 @@ PGVdb <- R6Class("PGVdb",
         patient_data <- json_data[[patient_id]]
         patient_plots <- patient_data$plots
 
-        plot_data <- data.table(
-          sample = patient_plots$sample,
-          type = patient_plots$type,
-          source = patient_plots$source,
-          visible = patient_plots$visible,
-          title = patient_plots$title,
-          figure = patient_plots$figure,
-          server = patient_plots$server,
-          uuid = patient_plots$uuid
-        )
+        plot_data  <- copy(patient_plots)
 
         data.table(
           patient.id = rep(patient_id, nrow(plot_data)),
@@ -188,11 +179,11 @@ PGVdb <- R6Class("PGVdb",
     #' Update the JSON data files with current metadata and plot data.
     #' @return NULL.
     update_datafiles_json = function() {
-      json_file <- private$json_file
+      datafiles_json_path <- private$datafiles_json_path
       # Create a backup file with timestamp
       timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-      backup_file <- paste0(json_file, ".", timestamp)
-      file.copy(json_file, backup_file)
+      backup_file <- paste0(datafiles_json_path, ".", timestamp)
+      file.copy(datafiles_json_path, backup_file)
 
       # Build the JSON structure
       json_data <- list()
@@ -213,23 +204,16 @@ PGVdb <- R6Class("PGVdb",
             "visible" = patient_plots$visible[i]
           )
 
-          if (!is.na(patient_plots$title[i])) {
-            plot_entry$title <- patient_plots$title[i]
-          }
-          if (!is.na(patient_plots$source[i])) {
-            plot_entry$source <- patient_plots$source[i]
-          }
-          if (!is.na(patient_plots$sample[i])) {
-            plot_entry$sample <- patient_plots$sample[i]
-          }
-          if (!is.na(patient_plots$figure[i])) {
-            plot_entry$figure <- patient_plots$figure[i]
-          }
-          if (!is.na(patient_plots$server[i])) {
-            plot_entry$server <- patient_plots$server[i]
-          }
-          if (!is.na(patient_plots$uuid[i])) {
-            plot_entry$uuid <- patient_plots$uuid[i]
+          # Get the column names of patient_plots
+          cols <- names(patient_plots)
+
+          # Loop over the column names
+          for (col in cols) {
+            # Use [[ ]] to access the column by name and check if it's NA
+            if (!is.na(patient_plots[[col]][i])) {
+              # If it's not NA, add it to plot_entry
+              plot_entry[[col]] <- patient_plots[[col]][i]
+            }
           }
 
           plots[[i]] <- plot_entry
@@ -248,7 +232,7 @@ PGVdb <- R6Class("PGVdb",
 
       # Convert JSON to string and write to file
       json_string <- jsonlite::toJSON(json_data, auto_unbox = TRUE, pretty = TRUE)
-      write(json_string, file = json_file)
+      write(json_string, file = datafiles_json_path)
     },
 
     #' @description
@@ -484,7 +468,7 @@ PGVdb <- R6Class("PGVdb",
 
       # Determine if only patient IDs are provided
       is_remove_patients <- length(names(remove_plots)) == 1 && names(remove_plots) == "patient.id"
-      is_remove_server <- "server" %in% names(remove_plots)
+      is_remove_server <- "server" %in% names(remove_plots) && any(!is.na(remove_plots$server))
 
       # Check if required columns exist
       required_columns <- if (is_remove_patients) "patient.id" else c("patient.id", "source")
@@ -780,7 +764,7 @@ PGVdb <- R6Class("PGVdb",
       if (!is_installed) {
         stop(paste(program_name, "is not installed. Please install it before proceeding."))
       } else {
-        system(paste("bash", init_script_path, private$json_file, self$datadir, self$publicdir, self$settings, pgv_dir, build))
+        system(paste("bash", init_script_path, private$datafiles_json_path, self$datadir, self$publicdir, self$settings, pgv_dir, build))
       }
     }
   )

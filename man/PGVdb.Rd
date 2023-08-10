@@ -25,7 +25,7 @@ for interacting with the database and converting to and from JSON.
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
-\item{\code{json_file}}{(`character(1)`)
+\item{\code{datafiles_json_path}}{(`character(1)`)
 Path to the datafiles.json}
 
 \item{\code{metadata}}{(`data.table`)\cr
@@ -45,7 +45,7 @@ Data table containing plot metadata}
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}
 \describe{
-\item{\code{json_file}}{(`character(1)`)
+\item{\code{datafiles_json_path}}{(`character(1)`)
 Path to the datafiles.json}
 }
 \if{html}{\out{</div>}}
@@ -73,13 +73,13 @@ Path to the datafiles.json}
 \subsection{Method \code{new()}}{
 Creates a new instance of this [R6][R6::R6Class] class.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$new(json_file, datadir, publicdir, settings)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$new(datafiles_json_path, datadir, publicdir, settings)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{json_file}}{(`character(1)`)\cr
+\item{\code{datafiles_json_path}}{(`character(1)`)\cr
 JSON file path.}
 
 \item{\code{datadir}}{(`character(1)`)\cr
@@ -100,13 +100,13 @@ Settings object path.}
 \subsection{Method \code{load_json()}}{
 Loads patient metadata and plot data from a JSON file.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$load_json(json_file)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$load_json(datafiles_json_path)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{json_file}}{(`character(1)`)\cr
+\item{\code{datafiles_json_path}}{(`character(1)`)\cr
 Datafiles.json file path.}
 }
 \if{html}{\out{</div>}}
