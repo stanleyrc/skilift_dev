@@ -468,7 +468,7 @@ PGVdb <- R6Class("PGVdb",
 
       # Determine if only patient IDs are provided
       is_remove_patients <- length(names(remove_plots)) == 1 && names(remove_plots) == "patient.id"
-      is_remove_server <- "server" %in% names(remove_plots) && any(!is.na(remove_plots$server))
+      is_remove_server <- "server" %in% names(remove_plots) && any(!is.na(remove_plots$server)) && any(!is.na(remove_plots$uuid))
 
       # Check if required columns exist
       required_columns <- if (is_remove_patients) "patient.id" else c("patient.id", "source")
@@ -517,11 +517,18 @@ PGVdb <- R6Class("PGVdb",
       initial_rows <- nrow(self$plots)
 
       if (is_remove_patients) {
-        self$plots <- self$plots[!patient.id %in% remove_plots$patient.id]
+        self$plots <- self$plots[!self$plots$patient.id %in% remove_plots$patient.id | is.na(self$plots$patient.id) | is.na(remove_plots$patient.id), ]
       } else {
-        self$plots <- self$plots[!(patient.id %in% remove_plots$patient.id & source %in% remove_plots$source)]
+        self$plots <- self$plots[
+                                 !(self$plots$patient.id %in% remove_plots$patient.id & !is.na(self$plots$patient.id) & !is.na(remove_plots$patient.id) &
+                                   self$plots$source %in% remove_plots$source & !is.na(self$plots$source) & !is.na(remove_plots$source))
+                                 ]
         if (is_remove_server) {
-          self$plots <- self$plots[!(patient.id %in% remove_plots$patient.id & server %in% remove_plots$server)]
+          self$plots <- self$plots[
+                                   !(self$plots$patient.id %in% remove_plots$patient.id & !is.na(self$plots$patient.id) & !is.na(remove_plots$patient.id) &
+                                     self$plots$server %in% remove_plots$server & !is.na(self$plots$server) & !is.na(remove_plots$server) &
+                                     self$plots$uuid %in% remove_plots$uuid & !is.na(self$plots$uuid) & !is.na(remove_plots$uuid))
+                                   ]
         }
       }
 
