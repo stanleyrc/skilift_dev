@@ -179,6 +179,11 @@ PGVdb <- R6Class("PGVdb",
     #' Update the JSON data files with current metadata and plot data.
     #' @return NULL.
     update_datafiles_json = function() {
+      missing_data <- self$validate()
+      if (missing_data) {
+        stop(warning("Did not update datafiles because of malformed pgvdb object."))
+      }
+
       datafiles_json_path <- private$datafiles_json_path
       # Create a backup file with timestamp
       timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
@@ -451,7 +456,7 @@ PGVdb <- R6Class("PGVdb",
       }
 
       # Validate and update metadata and plots tables
-      self$validate()
+      self$update_datafiles_json()
     },
 
     #' @description
@@ -537,7 +542,7 @@ PGVdb <- R6Class("PGVdb",
         warning("No rows were removed. Are you sure the row exists in plots?")
       }
       # Call validate to remove any patients that have no plots
-      self$validate()
+      self$update_datafiles_json()
 
     },
 
@@ -588,13 +593,14 @@ PGVdb <- R6Class("PGVdb",
         missing_data <- rbind(missing_data, missing_values)
       }
 
+      # Coerce visible to be boolean
+      self$plots$visible = as.logical(self$plots$visible)
+
       # Return error message if there are any missing files or values
       if (error_message != "") {
         warning(error_message)
         print("Returning data.table with the invalid rows...")
         return(missing_data)
-      } else {
-        self$update_datafiles_json()
       }
     },
 
