@@ -180,7 +180,7 @@ PGVdb <- R6Class("PGVdb",
     #' @return NULL.
     update_datafiles_json = function() {
       missing_data <- self$validate()
-      if (missing_data) {
+      if (!is.null(missing_data)) {
         stop(warning("Did not update datafiles because of malformed pgvdb object."))
       }
 
@@ -455,7 +455,6 @@ PGVdb <- R6Class("PGVdb",
         }
       }
 
-      # Validate and update metadata and plots tables
       self$update_datafiles_json()
     },
 
@@ -541,7 +540,6 @@ PGVdb <- R6Class("PGVdb",
       if (initial_rows == final_rows) {
         warning("No rows were removed. Are you sure the row exists in plots?")
       }
-      # Call validate to remove any patients that have no plots
       self$update_datafiles_json()
 
     },
@@ -551,6 +549,18 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @return NULL.
     validate = function() {
+      # Check if there are any duplicate columns in self$plots
+      if (any(duplicated(colnames(self$plots)))) {
+        duplicate_cols <- unique(colnames(self$plots)[duplicated(colnames(self$plots))])
+        self$plots <- self$plots[, !(colnames(self$plots) %in% duplicate_cols)]
+      }
+      
+      # Check if there are any duplicate columns in self$metadata
+      if (any(duplicated(colnames(self$metadata)))) {
+        duplicate_cols <- unique(colnames(self$metadata)[duplicated(colnames(self$metadata))])
+        self$metadata <- self$metadata[, !(colnames(self$metadata) %in% duplicate_cols)]
+      }
+
       # Check if all patients have at least one plot, otherwise remove patient from metadata
       patients_without_plots <- self$metadata[!patient.id %in% unique(self$plots$patient.id), patient.id]
       if (length(patients_without_plots) > 0) {

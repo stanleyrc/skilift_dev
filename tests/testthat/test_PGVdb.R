@@ -213,7 +213,7 @@ test_that("remove_plots works correctly", {
 
   remove_plot <- data.table(
     patient.id = "TEST_ADD",
-    source = "coverage3.arrow"
+    source = "coverage.arrow"
   )
 
   pgvdb$remove_plots(remove_plot)
