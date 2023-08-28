@@ -11,6 +11,9 @@ build=$6
 echo "Checking if PGV instance exists..."
 if [[ -d "$pgv_dir" ]]; then
   echo "PGV instance already exists in $pgv_dir"
+  echo "Updating local repo..."
+  cd "$pgv_dir"
+  git pull origin main
 else
   echo "Downloading pgv..."
   git clone "https://github.com/mskilab-org/pgv.git" "$pgv_dir"
