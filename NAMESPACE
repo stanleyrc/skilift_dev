@@ -3,6 +3,7 @@
 export(PGVdb)
 import(R6)
 import(data.table)
+import(httr)
 import(parallel)
 importFrom(gGnome,parse.js.seqlengths)
 importFrom(gGnome,refresh)

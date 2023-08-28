@@ -19,6 +19,7 @@ for interacting with the database and converting to and from JSON.
 \code{create_cov_arrow()} Create coverage arrow plot JSON
 \code{create_ggraph_json()} Create gGraph JSON
 \code{create_gwalk_json()} Create gWalk JSON
+\code{upload_to_higlass()} Upload file to higlass server
 \code{init_pgv()} Download and launch PGV instance
 }
 
@@ -63,6 +64,8 @@ Path to the datafiles.json}
 \item \href{#method-PGVdb-create_cov_arrow}{\code{PGVdb$create_cov_arrow()}}
 \item \href{#method-PGVdb-create_ggraph_json}{\code{PGVdb$create_ggraph_json()}}
 \item \href{#method-PGVdb-create_gwalk_json}{\code{PGVdb$create_gwalk_json()}}
+\item \href{#method-PGVdb-upload_to_higlass}{\code{PGVdb$upload_to_higlass()}}
+\item \href{#method-PGVdb-delete_from_higlass}{\code{PGVdb$delete_from_higlass()}}
 \item \href{#method-PGVdb-init_pgv}{\code{PGVdb$init_pgv()}}
 \item \href{#method-PGVdb-clone}{\code{PGVdb$clone()}}
 }
@@ -283,6 +286,47 @@ Overwrite if file exists.}
 }
 \subsection{Returns}{
 NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PGVdb-upload_to_higlass"></a>}}
+\if{latex}{\out{\hypertarget{method-PGVdb-upload_to_higlass}{}}}
+\subsection{Method \code{upload_to_higlass()}}{
+Upload file to higlass server
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$upload_to_higlass(
+  endpoint = "http://10.1.29.225:41800/api/v1/tilesets/",
+  datafile,
+  filetype,
+  datatype,
+  coordSystem,
+  name,
+  uuid = "",
+  username = "sdider",
+  password = "higlass_test"
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+httr:response
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PGVdb-delete_from_higlass"></a>}}
+\if{latex}{\out{\hypertarget{method-PGVdb-delete_from_higlass}{}}}
+\subsection{Method \code{delete_from_higlass()}}{
+Remove file in higlass server
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$delete_from_higlass(
+  endpoint = "http://10.1.29.225:41800/api/v1/tilesets/",
+  uuid,
+  username = "sdider",
+  password = "higlass_test"
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+httr:response
 }
 }
 \if{html}{\out{<hr>}}
