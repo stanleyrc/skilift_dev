@@ -5,7 +5,9 @@ setup({
   library(R6)
   library(data.table)
   library(jsonlite)
+  library(httr)
   devtools::load_all("../../../gGnome/gGnome")
+})
 
 devtools::load_all(".")
 context("PGVdb")
@@ -146,6 +148,14 @@ test_that("add_plots loads from object correctly", {
 
 test_that("add_plots works correctly with multiple plot filepaths", {
   pgvdb <- reset_pgvdb()
+  new_plots <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    x = system.file("extdata", "test_data", "complex_not_added.rds", package = "PGVdb"),
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_plots)
+
   paths  <- c(
     system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
     system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
@@ -248,7 +258,39 @@ test_that("remove_plots works correctly when removing patients", {
 
 test_that("validate works correctly", {
   expect_silent(pgvdb$validate())
+
 })
+
+test_that("adding to higlass server works correctly", {
+  pgvdb <- reset_pgvdb()
+  # upload_to_higlass = function(datafile, filetype, datatype, coordSystem, name) {
+  endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/"
+  pgvdb$upload_to_higlass(
+    endpoint,
+    datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
+    filetype = "chromsizes-tsv",
+    datatype = "chromsizes",
+    coordSystem = "hg38",
+    name = "hg38"
+  )
+  pgvdb$upload_to_higlass(
+    endpoint,
+    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
+    name = "test_bigwig",
+    filetype = "bigwig",
+    datatype = "vector",
+    coordSystem = "hg38",
+    uuid="test"
+  )
+})
+
+test_that("deleting higlass tileset works correctly", {
+  pgvdb <- reset_pgvdb()
+  # upload_to_higlass = function(datafile, filetype, datatype, coordSystem, name) {
+  endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/"
+  pgvdb$delete_from_higlass(endpoint, uuid = "VgApTJAsRHipjwtHJNX1IA")
+})
+    
 
 test_that("init_pgv works correctly", {
   pgvdb <- reset_pgvdb()

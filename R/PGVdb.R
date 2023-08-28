@@ -84,6 +84,7 @@ cov2arrowPGV = function(cov,
 #' \code{create_cov_arrow()} Create coverage arrow plot JSON
 #' \code{create_ggraph_json()} Create gGraph JSON
 #' \code{create_gwalk_json()} Create gWalk JSON
+#' \code{upload_to_higlass()} Upload file to higlass server
 #' \code{init_pgv()} Download and launch PGV instance
 #'
 #' @export
@@ -91,6 +92,7 @@ cov2arrowPGV = function(cov,
 #' @importFrom gGnome parse.js.seqlengths refresh
 #' @import parallel
 #' @import R6
+#' @import httr
 #' @import data.table
 PGVdb <- R6Class("PGVdb",
   private = list(
@@ -341,6 +343,8 @@ PGVdb <- R6Class("PGVdb",
           plot$type <- 'bigwig'
           plot$server <- plot$x[[1]][[1]]
           plot$uuid  <- plot$x[[1]][[2]]
+          new_plots[i, "server"] <- plot$server
+          new_plots[i, "uuid"] <- plot$uuid
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'rds') {
           rds_object <- readRDS(plot$x)
           if (is(rds_object, "GRanges")) {
@@ -373,8 +377,8 @@ PGVdb <- R6Class("PGVdb",
 
         # Check if source already exists, if so, increment
         if (!is.null(plot$source)) {
-          source_path <- file.path(patient_dir, plot$source)
-          if (overwrite) {
+          source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
+          if (overwrite && file.exists(source_full_path)) {
             warning("Existing source for plot will be overwritten.")
           } else {
             base_name <- tools::file_path_sans_ext(plot$source)
@@ -385,11 +389,10 @@ PGVdb <- R6Class("PGVdb",
             }
             plot$source <- paste0(base_name, counter, ".", ext)
           }
+          new_plots[i, "source"] <- plot$source
         }
 
-        # Store the updated plot back in new_plots
         new_plots[i, "type"] <- plot$type
-        new_plots[i, "source"] <- plot$source
       } # Break the loop into three pieces to parallize the plot creation
 
       # Define the function to create plot files
@@ -417,15 +420,26 @@ PGVdb <- R6Class("PGVdb",
         })
       }
 
-      # Use mclapply to create the plot files in parallel
-      parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
-        plot <- new_plots[i, ]
-        create_plot_file(plot)
-      })
+      if (!any(is.null(plot$source))) {
+            # Use mclapply to create the plot files in parallel
+            parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
+                                 plot <- new_plots[i, ]
+                                 create_plot_file(plot)
+        })
+      }
 
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
+
+        if (!is.null(plot$source)) {
+          source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
+          if (!file.exists(source_full_path)) {
+            warning("File does not exist: ", source_full_path)
+            next  # Skip adding plot to pgvdb if file does not exist
+          }
+        }
+
         common_columns <- intersect(names(plot), names(self$plots))
         extended_data <- plot[, ..common_columns]
 
@@ -468,16 +482,16 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @return NULL
     remove_plots = function(plots_to_remove, delete = FALSE) {
-      remove_plots <- data.table::setDT(plots_to_remove) # Convert to data.table if required
+      plots_to_remove <- data.table::setDT(plots_to_remove) # Convert to data.table if required
 
       # Determine if only patient IDs are provided
-      is_remove_patients <- length(names(remove_plots)) == 1 && names(remove_plots) == "patient.id"
-      is_remove_server <- "server" %in% names(remove_plots) && any(!is.na(remove_plots$server)) && any(!is.na(remove_plots$uuid))
+      is_remove_patients <- length(names(plots_to_remove)) == 1 && names(plots_to_remove) == "patient.id"
+      is_remove_server <- "server" %in% names(plots_to_remove) && any(!is.na(plots_to_remove$server)) && any(!is.na(plots_to_remove$uuid))
 
       # Check if required columns exist
       required_columns <- if (is_remove_patients) "patient.id" else c("patient.id", "source")
       server_required_columns <- c("patient.id", "server", "uuid")
-      if (!(all(required_columns %in% names(remove_plots)) || all(server_required_columns %in% names(remove_plots)))) {
+      if (!(all(required_columns %in% names(plots_to_remove)) || all(server_required_columns %in% names(plots_to_remove)))) {
         return("Error: Required columns (patient.id OR patient.id, source OR patient.id, server, uuid) not found in plots_to_remove data.table.")
       }
 
@@ -485,8 +499,8 @@ PGVdb <- R6Class("PGVdb",
       if (delete) {
         # Loop through each row of the plots_to_remove table
         print("Deleting plots from data directory...")
-        for (i in seq_len(nrow(remove_plots[!is.na("source")]))) {
-          plot <- remove_plots[i, ]
+        for (i in seq_len(nrow(plots_to_remove[!is.na("source")]))) {
+          plot <- plots_to_remove[i, ]
 
           # Select plots/patients to remove
           if (is_remove_patients) {
@@ -521,17 +535,19 @@ PGVdb <- R6Class("PGVdb",
       initial_rows <- nrow(self$plots)
 
       if (is_remove_patients) {
-        self$plots <- self$plots[!self$plots$patient.id %in% remove_plots$patient.id | is.na(self$plots$patient.id) | is.na(remove_plots$patient.id), ]
+        self$plots <- self$plots[!self$plots$patient.id %in% plots_to_remove$patient.id | is.na(self$plots$patient.id) | is.na(plots_to_remove$patient.id), ]
       } else {
-        self$plots <- self$plots[
-                                 !(self$plots$patient.id %in% remove_plots$patient.id & !is.na(self$plots$patient.id) & !is.na(remove_plots$patient.id) &
-                                   self$plots$source %in% remove_plots$source & !is.na(self$plots$source) & !is.na(remove_plots$source))
-                                 ]
+        if (!is.null(plots_to_remove$source)) {
+          self$plots <- self$plots[
+                                   !(self$plots$patient.id %in% plots_to_remove$patient.id & !is.na(self$plots$patient.id) & !is.na(plots_to_remove$patient.id) &
+                                     self$plots$source %in% plots_to_remove$source & !is.na(self$plots$source) & !is.na(plots_to_remove$source))
+                                   ]
+        }
         if (is_remove_server) {
           self$plots <- self$plots[
-                                   !(self$plots$patient.id %in% remove_plots$patient.id & !is.na(self$plots$patient.id) & !is.na(remove_plots$patient.id) &
-                                     self$plots$server %in% remove_plots$server & !is.na(self$plots$server) & !is.na(remove_plots$server) &
-                                     self$plots$uuid %in% remove_plots$uuid & !is.na(self$plots$uuid) & !is.na(remove_plots$uuid))
+                                   !(self$plots$patient.id %in% plots_to_remove$patient.id & !is.na(self$plots$patient.id) & !is.na(plots_to_remove$patient.id) &
+                                     self$plots$server %in% plots_to_remove$server & !is.na(self$plots$server) & !is.na(plots_to_remove$server) &
+                                     self$plots$uuid %in% plots_to_remove$uuid & !is.na(self$plots$uuid) & !is.na(plots_to_remove$uuid))
                                    ]
         }
       }
@@ -590,17 +606,17 @@ PGVdb <- R6Class("PGVdb",
       if (nrow(missing_files) > 0) {
         error_message <- paste(error_message, "Missing Files:\n")
         error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, sep = " - "), collapse = "\n")
-        missing_data <- rbind(missing_data, missing_files)
+        missing_data <- rbind(missing_data, missing_files, fill=TRUE)
       }
       if (nrow(missing_servers) > 0) {
         error_message <- paste(error_message, "Missing Servers (or uuids for the servers):\n")
-        error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$server, missing_files$uuid, sep = " - "), collapse = "\n")
-        missing_data <- rbind(missing_data, missing_servers)
+        error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, sep = " - "), collapse = "\n")
+        missing_data <- rbind(missing_data, missing_servers, fill=TRUE)
       }
       if (nrow(missing_values) > 0) {
         error_message <- paste(error_message, "Missing Values:\n")
         error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, sep = " - "), collapse = "\n")
-        missing_data <- rbind(missing_data, missing_values)
+        missing_data <- rbind(missing_data, missing_values, fill=TRUE)
       }
 
       # Coerce visible to be boolean
@@ -714,8 +730,8 @@ PGVdb <- R6Class("PGVdb",
               filename = ggraph_json_path,
               verbose = TRUE,
               annotation = plot_metadata$annotation
-            ) # ,
-            # cid.field = field)
+            # cid.field = field
+            )
           } else {
             gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
               filename = ggraph_json_path,
@@ -769,6 +785,83 @@ PGVdb <- R6Class("PGVdb",
         message(gwalk_json_path, "already exists! Set overwrite = TRUE if you want to overwrite it.")
       }
     },
+
+    #' @description
+    #' Upload file to higlass server
+    #'
+    #' @return httr:response
+    upload_to_higlass = function(endpoint = "http://10.1.29.225:41800/api/v1/tilesets/", 
+                                 datafile, 
+                                 filetype, 
+                                 datatype, 
+                                 coordSystem, 
+                                 name, 
+                                 uuid = "",
+                                 username = "sdider", 
+                                 password = "higlass_test") {
+      # Define the API endpoint
+      print(paste("Uploading datafile to higlass:", datafile))
+
+      # Convert datafile argument to a multipart object
+      datafile <- httr::upload_file(datafile)
+
+      # Package other data as key-value pairs in a list
+      body <- list(
+                   'datafile' = datafile,
+                   'filetype' = filetype,
+                   'datatype' = datatype,
+                   'coordSystem' = coordSystem,
+                   'name' = name,
+                   'uuid' = uuid
+      )
+
+      # Create the response object
+      response <- httr::POST(
+                             endpoint,
+                             authenticate(username, password, "basic"),
+                             body = body,
+                             encode = "multipart"
+      )
+
+      # Parse the response
+      response_content <- httr::content(response, "parsed")
+
+      # Store the UUID
+      uuid <- response_content$uuid
+      filetype  <- response_content$filetype
+
+      server <- sub("(/api.*)", "", endpoint)
+
+      print(paste("UUID:", uuid))
+      print(paste("filetype:", filetype))
+      if (filetype == "bigwig") {
+        new_higlass <-  data.table(patient.id = "TEST_HIGLASS", ref=coordSystem, x = list(list(server = server, uuid = uuid)), visible=TRUE)
+        self$add_plots(new_higlass)
+      }
+    },
+
+    #' @description
+    #' Remove file in higlass server
+    #'
+    #' @return httr:response
+    delete_from_higlass = function(endpoint = "http://10.1.29.225:41800/api/v1/tilesets/", 
+                                   uuid,
+                                   username = "sdider", 
+                                   password = "higlass_test") {
+      # Define the API endpoint
+      url <- paste0(endpoint, uuid, "/")
+
+      # Create the response object
+      response <- DELETE(
+                         url,
+                         authenticate(username, password, "basic")
+      )
+      server <- sub("(/api.*)", "", endpoint)
+
+      remove_higlass <-  data.table(patient.id = "TEST_HIGLASS", server = server, uuid = uuid)
+      self$remove_plots(remove_higlass)
+    },
+
 
     #' @description
     #' Download and instantiate a PGV instance with symlinked data
