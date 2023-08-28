@@ -37,8 +37,6 @@ Data table containing plot metadata}
 
 \item{\code{datadir}}{(`character(1)`).}
 
-\item{\code{publicdir}}{(`character(1)`).}
-
 \item{\code{settings}}{(`charater(1)`).}
 }
 \if{html}{\out{</div>}}
@@ -76,7 +74,7 @@ Path to the datafiles.json}
 \subsection{Method \code{new()}}{
 Creates a new instance of this [R6][R6::R6Class] class.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$new(datafiles_json_path, datadir, publicdir, settings)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$new(datafiles_json_path, datadir, settings)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -87,9 +85,6 @@ JSON file path.}
 
 \item{\code{datadir}}{(`character(1)`)\cr
 Data directory path.}
-
-\item{\code{publicdir}}{(`character(1)`)\cr
-Public directory path.}
 
 \item{\code{settings}}{(`character(1)`)\cr
 Settings object path.}
