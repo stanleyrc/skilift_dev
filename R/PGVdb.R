@@ -239,8 +239,8 @@ PGVdb <- R6Class("PGVdb",
     #' @description
     #' Convert metadata and plots to a single data table.
     #'
-    #' @param filter (`character(1)`)\cr
-    #'  Filter to apply.
+    #' @param filter (`list()`)\cr
+    #'  Filter to apply. Consists of two elements: the column to filter on and the string to filter with.
     #'
     #' @return (`data.table`).
     to_datatable = function(filter = NULL) {
@@ -270,21 +270,22 @@ PGVdb <- R6Class("PGVdb",
     #' Add new plots to the PGVdb.
     #'
     #' @param plots_to_add (`data.table`)\cr
-    #'   Data table of plots to add.
+    #'  Data table of plots to add. Must have a minimal set of columns: patient.id, x. 
+    #'  x is either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
+    #'  If adding a new patient, table must include a ref column.
     #' @param overwrite (`logical(1)`)\cr
-    #'   Overwrite existing files if TRUE.
+    #'  Overwrite existing files if TRUE.
     #' @param cores (`number(1)`)\cr
-    #'   Number of cores to use for parallel execution
+    #'  Number of cores to use for parallel execution
     #' @return NULL.
     add_plots = function(plots_to_add, overwrite = FALSE, cores=2) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
       # Check if required columns exist
-      required_columns <- c("patient.id", "x", "visible")
+      required_columns <- c("patient.id", "x")
       empty <- data.table::data.table(
         patient.id = character(),
         x = list(), # either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
-        visible = logical(),
         stringsAsFactors = FALSE
       )
 
@@ -315,7 +316,7 @@ PGVdb <- R6Class("PGVdb",
           dir.create(patient_dir)
         }
 
-        # Get type and source from x
+        # Get type and source/server + uuid from x
         if (is(plot$x[[1]], "GRanges")) {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
             plot$type <- 'scatterplot'
@@ -361,7 +362,8 @@ PGVdb <- R6Class("PGVdb",
           }
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
-            warning("Type must be specified by the user for JSON files.")
+            warning("Type must be specified by the user for JSON files. This plot will be skipped.")
+            next
           } else {
             if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source  <- basename(plot$x)
@@ -377,7 +379,9 @@ PGVdb <- R6Class("PGVdb",
           } else {
             base_name <- tools::file_path_sans_ext(plot$source)
             ext <- tools::file_ext(plot$source)
-            counter <- 2
+            if (file.exists(source_full_path)) {
+              counter <- 2
+            } else { counter <- 1 }
             while (file.exists(file.path(patient_dir, paste0(base_name, counter, ".", ext)))) {
               counter <- counter + 1
             }
@@ -410,7 +414,7 @@ PGVdb <- R6Class("PGVdb",
           }
         }, error = function(e) {
           message("Error in creating plot file: ", e$message)
-          # traceback()
+          traceback()
         })
       }
 
@@ -419,7 +423,7 @@ PGVdb <- R6Class("PGVdb",
             parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
                                  plot <- new_plots[i, ]
                                  create_plot_file(plot)
-        })
+        }, mc.cores = cores)
       }
 
       # Last piece of the loop
@@ -429,18 +433,18 @@ PGVdb <- R6Class("PGVdb",
         if (!is.null(plot$source)) {
           source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
           if (!file.exists(source_full_path)) {
-            warning("File does not exist: ", source_full_path)
-            next  # Skip adding plot to pgvdb if file does not exist
+            warning("File does not exist: ", source_full_path, " skipping adding to pgvdb...")
+            next
           }
         }
 
         common_columns <- intersect(names(plot), names(self$plots))
         extended_data <- plot[, ..common_columns]
 
-        is_duplicate <- duplicated(rbind(self$plots, extended_data, fill=TRUE))
+        is_duplicate <- duplicated(rbind(self$plots, extended_data, fill = TRUE))
 
         if (any(is_duplicate)) {
-          warning("Row already in plots, skipping (plot file will still have been overwritten if overwrite flag was set): ")
+          warning("Row already in plots, skipping (plot file will still be overwritten if overwrite flag was set): ")
           print(plot)
         } else {
           self$plots <- rbind(self$plots, extended_data, fill = TRUE)
@@ -561,14 +565,16 @@ PGVdb <- R6Class("PGVdb",
     validate = function() {
       # Check if there are any duplicate columns in self$plots
       if (any(duplicated(colnames(self$plots)))) {
-        duplicate_cols <- unique(colnames(self$plots)[duplicated(colnames(self$plots))])
-        self$plots <- self$plots[, !(colnames(self$plots) %in% duplicate_cols)]
+        warning("Duplicate columns found in plots table. Removing duplicate...")
+        print(colnames(self$plots))
+        self$plots[, which(duplicated(names(self$plots))) := NULL]
       }
       
       # Check if there are any duplicate columns in self$metadata
       if (any(duplicated(colnames(self$metadata)))) {
-        duplicate_cols <- unique(colnames(self$metadata)[duplicated(colnames(self$metadata))])
-        self$metadata <- self$metadata[, !(colnames(self$metadata) %in% duplicate_cols)]
+        warning("Duplicate columns found in plots table. Removing duplicate...")
+        print(colnames(self$metadata))
+        self$metadata[, which(duplicated(names(self$metadata))) := NULL]
       }
 
       # Check if all patients have at least one plot, otherwise remove patient from metadata

@@ -15,13 +15,11 @@ context("PGVdb")
 load_paths <- function() {
   datafiles.json <- system.file("extdata", "pgv", "public", "datafiles.json", package = "PGVdb")
   datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
-  publicdir <- system.file("extdata", "pgv", "public", package = "PGVdb")
   settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
 
   list(
     datafiles = datafiles.json,
     datadir = datadir,
-    publicdir = publicdir,
     settings = settings
   )
 }
@@ -31,7 +29,7 @@ reset_pgvdb  <- function() {
   paths <- load_paths()
   default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
   file.copy(default_datafiles_json_path, paths$datafiles, overwrite = TRUE)
-  pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$publicdir, paths$settings)
+  pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$settings)
 }
 
 
@@ -185,7 +183,7 @@ test_that("add_plots works correctly with multiple plot objects", {
     field= c("cn", NA, NA),
     visible = TRUE
   )
-  pgvdb$add_plots(new_plots, overwrite=TRUE)
+  pgvdb$add_plots(new_plots, overwrite=TRUE, cores=4)
 })
 
 test_that("add_plots works correctly with multiple patients", {
@@ -257,6 +255,13 @@ test_that("remove_plots works correctly when removing patients", {
 })
 
 test_that("validate works correctly", {
+  # duplicate plots
+  pgvdb  <- reset_pgvdb()
+  pgvdb$plots[, patient.id2 := list(patient.id)]
+  setnames(pgvdb$plots, "patient.id2", "patient.id")
+  pgvdb$validate()
+  pgvdb$plots
+
   expect_silent(pgvdb$validate())
 
 })
@@ -291,7 +296,6 @@ test_that("deleting higlass tileset works correctly", {
   pgvdb$delete_from_higlass(endpoint, uuid = "VgApTJAsRHipjwtHJNX1IA")
 })
     
-
 test_that("init_pgv works correctly", {
   pgvdb <- reset_pgvdb()
   paths  <- c(
