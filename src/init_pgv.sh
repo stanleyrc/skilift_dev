@@ -3,10 +3,9 @@ set -euxo pipefail
 
 datafiles_json=$1
 datadir=$2
-publicdir=$3
-settings=$4
-pgv_dir=$5
-build=$6
+settings=$3
+pgv_dir=$4
+build=$5
 
 echo "Checking if PGV instance exists..."
 if [[ -d "$pgv_dir" ]]; then

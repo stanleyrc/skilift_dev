@@ -112,9 +112,6 @@ PGVdb <- R6Class("PGVdb",
     #' @field datadir (`character(1)`).
     datadir = NULL,
 
-    #' @field publicdir (`character(1)`).
-    publicdir = NULL,
-
     #' @field settings (`charater(1)`).
     settings = NULL,
 
@@ -125,15 +122,12 @@ PGVdb <- R6Class("PGVdb",
     #'   JSON file path.
     #' @param datadir (`character(1)`)\cr
     #'   Data directory path.
-    #' @param publicdir (`character(1)`)\cr
-    #'   Public directory path.
     #' @param settings (`character(1)`)\cr
     #'   Settings object path.
-    initialize = function(datafiles_json_path, datadir, publicdir, settings) {
+    initialize = function(datafiles_json_path, datadir, settings) {
       private$datafiles_json_path <- datafiles_json_path
       self$load_json(datafiles_json_path)
       self$datadir <- datadir
-      self$publicdir <- publicdir
       self$settings <- settings
     },
 
@@ -880,7 +874,7 @@ PGVdb <- R6Class("PGVdb",
       if (!is_installed) {
         stop(paste(program_name, "is not installed. Please install it before proceeding."))
       } else {
-        system(paste("bash", init_script_path, private$datafiles_json_path, self$datadir, self$publicdir, self$settings, pgv_dir, build))
+        system(paste("bash", init_script_path, private$datafiles_json_path, self$datadir, self$settings, pgv_dir, build))
       }
     }
   )
