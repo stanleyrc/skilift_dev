@@ -169,6 +169,7 @@ PGVdb <- R6Class("PGVdb",
       })
 
       self$plots <- rbindlist(plots_list, fill = TRUE)
+      self$validate()
     },
 
     #' @description
