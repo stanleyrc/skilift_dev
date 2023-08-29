@@ -73,6 +73,7 @@ test_that("add_plots loads from filepath correctly", {
     visible = TRUE
   )
   pgvdb$add_plots(new_cov, overwrite = TRUE)
+  expect_equal(nrow(pgvdb$plots), 11)
 
   new_genome <- data.table(
     patient.id = "TEST_ADD",
@@ -81,6 +82,7 @@ test_that("add_plots loads from filepath correctly", {
     visible = TRUE
   )
   pgvdb$add_plots(new_genome)
+  expect_equal(nrow(pgvdb$plots), 12)
 
   new_walk <- data.table(
     patient.id = "TEST_ADD",
@@ -89,6 +91,7 @@ test_that("add_plots loads from filepath correctly", {
     visible = TRUE
   )
   pgvdb$add_plots(new_walk)
+  expect_equal(nrow(pgvdb$plots), 13)
 
   new_bw <- data.table(
     patient.id = "TEST_ADD",
@@ -97,7 +100,7 @@ test_that("add_plots loads from filepath correctly", {
     visible = TRUE
   )
   pgvdb$add_plots(new_bw)
-  expect_warning(pgvdb$add_plots(new_bw)) # Try adding duplicate
+  expect_equal(nrow(pgvdb$plots), 14)
 
   new_json <- data.table(
     patient.id = "TEST_ADD",
@@ -106,8 +109,8 @@ test_that("add_plots loads from filepath correctly", {
     x = system.file("extdata", "test_data", "walks.json", package = "PGVdb"),
     visible = TRUE
   )
-  pgvdb  <- reset_pgvdb()
   pgvdb$add_plots(new_json)
+  expect_equal(nrow(pgvdb$plots), 15)
 })
 
 test_that("add_plots loads from object correctly", {
@@ -122,6 +125,8 @@ test_that("add_plots loads from object correctly", {
     visible = TRUE
   )
   pgvdb$add_plots(new_cov)
+  expect_equal(nrow(pgvdb$plots), 11)
+
 
   gg = readRDS(system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"))
   new_genome <- data.table(
@@ -131,6 +136,7 @@ test_that("add_plots loads from object correctly", {
     visible = TRUE
   )
   pgvdb$add_plots(new_genome)
+  expect_equal(nrow(pgvdb$plots), 12)
 
   gw = readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"))
   new_walk <- data.table(
@@ -139,12 +145,12 @@ test_that("add_plots loads from object correctly", {
     x = list(gw),
     visible = TRUE
   )
-  pgvdb  <- reset_pgvdb()
   pgvdb$add_plots(new_walk)
+  expect_equal(nrow(pgvdb$plots), 13)
 
 })
 
-test_that("add_plots works correctly with multiple plot filepaths", {
+test_that("Bug with rds file", {
   pgvdb <- reset_pgvdb()
   new_plots <- data.table(
     patient.id = "TEST_ADD",
@@ -153,6 +159,10 @@ test_that("add_plots works correctly with multiple plot filepaths", {
     visible = TRUE
   )
   pgvdb$add_plots(new_plots)
+})
+
+test_that("add_plots works correctly with multiple plot filepaths", {
+  pgvdb <- reset_pgvdb()
 
   paths  <- c(
     system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
@@ -167,6 +177,7 @@ test_that("add_plots works correctly with multiple plot filepaths", {
     visible = TRUE
   )
   pgvdb$add_plots(new_plots, overwrite=TRUE)
+  expect_equal(nrow(pgvdb$plots), 13)
 })
 
 test_that("add_plots works correctly with multiple plot objects", {
@@ -184,6 +195,7 @@ test_that("add_plots works correctly with multiple plot objects", {
     visible = TRUE
   )
   pgvdb$add_plots(new_plots, overwrite=TRUE, cores=4)
+  expect_equal(nrow(pgvdb$plots), 13)
 })
 
 test_that("add_plots works correctly with multiple patients", {
@@ -201,6 +213,7 @@ test_that("add_plots works correctly with multiple patients", {
     visible = TRUE
   )
   pgvdb$add_plots(new_plots, overwrite=TRUE)
+  expect_equal(nrow(pgvdb$plots), 13)
 })
 
 test_that("remove_plots works correctly", {
@@ -226,7 +239,7 @@ test_that("remove_plots works correctly", {
 
   pgvdb$remove_plots(remove_plot)
 
-  expect_equal(nrow(pgvdb$plots), 10)
+  expect_equal(nrow(pgvdb$plots), 12)
 })
 
 test_that("remove_plots works correctly when removing patients", {
@@ -257,18 +270,15 @@ test_that("remove_plots works correctly when removing patients", {
 test_that("validate works correctly", {
   # duplicate plots
   pgvdb  <- reset_pgvdb()
+  non_dup_pgvdb  <- pgvdb$plots
   pgvdb$plots[, patient.id2 := list(patient.id)]
   setnames(pgvdb$plots, "patient.id2", "patient.id")
-  pgvdb$validate()
-  pgvdb$plots
-
-  expect_silent(pgvdb$validate())
-
+  expect_warning(pgvdb$validate())
+  expect_equal(non_dup_pgvdb, pgvdb$plots)
 })
 
 test_that("adding to higlass server works correctly", {
   pgvdb <- reset_pgvdb()
-  # upload_to_higlass = function(datafile, filetype, datatype, coordSystem, name) {
   endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/"
   pgvdb$upload_to_higlass(
     endpoint,
@@ -287,13 +297,24 @@ test_that("adding to higlass server works correctly", {
     coordSystem = "hg38",
     uuid="test"
   )
+  expect_equal(nrow(pgvdb$plots), 11)
 })
 
 test_that("deleting higlass tileset works correctly", {
   pgvdb <- reset_pgvdb()
-  # upload_to_higlass = function(datafile, filetype, datatype, coordSystem, name) {
   endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/"
-  pgvdb$delete_from_higlass(endpoint, uuid = "VgApTJAsRHipjwtHJNX1IA")
+  pgvdb$upload_to_higlass(
+    endpoint,
+    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
+    name = "test_bigwig",
+    filetype = "bigwig",
+    datatype = "vector",
+    coordSystem = "hg38",
+    uuid="test"
+  )
+  uuid  <- pgvdb$plots[11, "uuid"]
+  pgvdb$delete_from_higlass(endpoint, uuid = uuid[[1]])
+  expect_equal(nrow(pgvdb$plots), 10)
 })
     
 test_that("init_pgv works correctly", {
