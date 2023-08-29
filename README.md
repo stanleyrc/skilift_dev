@@ -122,10 +122,55 @@ pgv$init_pgv(pgv_dir, build=FALSE)
 ```
 
 Initialize a pgv instance loaded with the data in pgvdb at `pgv_dir`. This
-method will clone the ![pgv repo](https://github.com/mskilab-org/pgv) and
+method will clone/pull the ![pgv repo](https://github.com/mskilab-org/pgv) and
 create symlinks in the pgv data directory that point to your pgvdb data. 
 
 If the `build` flag is set to `TRUE` it will build pgv instead of launching a
 local instance (useful when running on a remote server or hpc). In that case,
 you should set `pgv_dir` to be a directory inside whichever directory is served
 by your remote server (e.g `public_html`).
+
+### upload_to_higlass
+
+```r 
+pgv$upload_to_higlass(endpoint, datafile, filetype, datatype, coordSystem, name, username, password)
+```
+
+Upload a file to the higlass server. Will also add the file to the current
+pgvdb instance. Note that you will need to upload a `chromSizes.tsv` file
+first, before uploading other files. 
+
+```r 
+endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/" # dev endpoint
+pgv$upload_to_higlass(
+    endpoint,
+    datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
+    filetype = "chromsizes-tsv",
+    datatype = "chromsizes",
+    coordSystem = "hg38",
+    name = "hg38",
+    username = "username_here",
+    password = "password_here"
+)
+
+
+pgv$upload_to_higlass(
+    endpoint,
+    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
+    name = "test_bigwig",
+    filetype = "bigwig",
+    datatype = "vector",
+    coordSystem = "hg38",
+    username = "username_here",
+    password = "password_here"
+)
+```
+
+### delete_from_higlass
+
+```r 
+ pgv$delete_from_higlass(endpoint, uuid, username, password)
+```
+
+Delete a file from the higlass server. Will also remove the plot from the pgvdb
+instance. Tilesets can only be deleted by their uuid.
