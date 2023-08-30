@@ -792,6 +792,7 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @return httr:response
     upload_to_higlass = function(endpoint = "http://10.1.29.225:41800/api/v1/tilesets/", 
+                                 patient.id = "TEST_HIGLASS",
                                  datafile, 
                                  filetype, 
                                  datatype, 
@@ -836,7 +837,7 @@ PGVdb <- R6Class("PGVdb",
       print(paste("UUID:", uuid))
       print(paste("filetype:", filetype))
       if (filetype == "bigwig") {
-        new_higlass <-  data.table(patient.id = "TEST_HIGLASS", ref=coordSystem, x = list(list(server = server, uuid = uuid)), visible=TRUE)
+        new_higlass <-  data.table(patient.id = patient.id, ref=coordSystem, x = list(list(server = server, uuid = uuid)), visible=TRUE)
         self$add_plots(new_higlass)
       }
     },
@@ -846,6 +847,7 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @return httr:response
     delete_from_higlass = function(endpoint = "http://10.1.29.225:41800/api/v1/tilesets/", 
+                                   patient.id = "TEST_HIGLASS",
                                    uuid,
                                    username = "sdider", 
                                    password = "higlass_test") {
@@ -859,7 +861,7 @@ PGVdb <- R6Class("PGVdb",
       )
       server <- sub("(/api.*)", "", endpoint)
 
-      remove_higlass <-  data.table(patient.id = "TEST_HIGLASS", server = server, uuid = uuid)
+      remove_higlass <-  data.table(patient.id = patient.id, server = server, uuid = uuid)
       self$remove_plots(remove_higlass)
     },
 
