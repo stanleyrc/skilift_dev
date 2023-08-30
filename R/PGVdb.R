@@ -791,7 +791,7 @@ PGVdb <- R6Class("PGVdb",
     #' Upload file to higlass server
     #'
     #' @return httr:response
-    upload_to_higlass = function(endpoint = "http://10.1.29.225:41800/api/v1/tilesets/", 
+    upload_to_higlass = function(endpoint = "http://10.1.29.225:41800/", 
                                  patient.id = "TEST_HIGLASS",
                                  datafile, 
                                  filetype, 
@@ -799,7 +799,7 @@ PGVdb <- R6Class("PGVdb",
                                  coordSystem, 
                                  name, 
                                  uuid = "",
-                                 username = "sdider", 
+                                 username = "admin", 
                                  password = "higlass_test") {
       # Define the API endpoint
       print(paste("Uploading datafile to higlass:", datafile))
@@ -817,9 +817,11 @@ PGVdb <- R6Class("PGVdb",
                    'uuid' = uuid
       )
 
+      url <- paste0(endpoint, "api/v1/tilesets/")
+
       # Create the response object
       response <- httr::POST(
-                             endpoint,
+                             url,
                              authenticate(username, password, "basic"),
                              body = body,
                              encode = "multipart"
@@ -829,15 +831,19 @@ PGVdb <- R6Class("PGVdb",
       response_content <- httr::content(response, "parsed")
 
       # Store the UUID
+      print(response_content)
       uuid <- response_content$uuid
       filetype  <- response_content$filetype
-
-      server <- sub("(/api.*)", "", endpoint)
 
       print(paste("UUID:", uuid))
       print(paste("filetype:", filetype))
       if (filetype == "bigwig") {
-        new_higlass <-  data.table(patient.id = patient.id, ref=coordSystem, x = list(list(server = server, uuid = uuid)), visible=TRUE)
+        new_higlass <-  data.table(
+                                   patient.id = patient.id, 
+                                   ref=coordSystem, 
+                                   x = list(list(server = endpoint, uuid = uuid)), 
+                                   visible=TRUE
+        )
         self$add_plots(new_higlass)
       }
     },
@@ -846,22 +852,23 @@ PGVdb <- R6Class("PGVdb",
     #' Remove file in higlass server
     #'
     #' @return httr:response
-    delete_from_higlass = function(endpoint = "http://10.1.29.225:41800/api/v1/tilesets/", 
+    delete_from_higlass = function(endpoint = "http://10.1.29.225:41800/", 
                                    patient.id = "TEST_HIGLASS",
                                    uuid,
-                                   username = "sdider", 
+                                   username = "admin", 
                                    password = "higlass_test") {
       # Define the API endpoint
-      url <- paste0(endpoint, uuid, "/")
+      url <- paste0(endpoint, "api/v1/tilesets/", uuid, "/")
 
       # Create the response object
       response <- DELETE(
                          url,
                          authenticate(username, password, "basic")
       )
-      server <- sub("(/api.*)", "", endpoint)
+      response_content <- httr::content(response, "parsed")
+      print(response_content)
 
-      remove_higlass <-  data.table(patient.id = patient.id, server = server, uuid = uuid)
+      remove_higlass <-  data.table(patient.id = patient.id, server = endpoint, uuid = uuid)
       self$remove_plots(remove_higlass)
     },
 

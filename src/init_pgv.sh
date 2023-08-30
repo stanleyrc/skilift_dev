@@ -37,27 +37,10 @@ copy_directory() {
   local origin_dir="$1"
   local target_dir="$2"
 
-  # Loop through files and directories in the origin directory
-  for item in "$origin_dir"/*; do
-    if [[ -d "$item" ]]; then
-      # If it's a directory, create the corresponding directory in the target directory if it doesn't exist
-      local subdirectory="${item##*/}"
-      local target_subdirectory="$target_dir/$subdirectory"
-      if [[ ! -d "$target_subdirectory" ]]; then
-        mkdir -p "$target_subdirectory"
-      fi
-      
-      # Recursively copy the subdirectory
-      copy_directory "$item" "$target_subdirectory"
-    elif [[ -f "$item" ]]; then
-      # If it's a file, create a symlink in the target directory to the file in the origin directory if it doesn't exist
-      local file="${item##*/}"
-      local target_file="$target_dir/$file"
-      if [[ ! -e "$target_file" ]]; then
-        ln -s "$item" "$target_file"
-      fi
-    fi
-  done
+  # If the symbolic link at the target directory does not already exist, create it
+  if [[ ! -e "$target_dir" ]]; then
+    ln -s "$origin_dir" "$target_dir"
+  fi
 }
 
 # Call the copy_directory function with the origin and target directory paths
