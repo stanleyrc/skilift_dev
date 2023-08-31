@@ -71,5 +71,5 @@ dt2json = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"test.js
     return(file_name)
 }
 
-hits_medbin = readRDS("~/projects/ATAC_HICHIP/hits_per_norm.depth.med.all.score_offset.dt_8_25_23.rds")[1:1000,]
-dt = dt2json(hits_medbin,settings=settings,ref="hg38")
+#hits_medbin = readRDS("~/projects/ATAC_HICHIP/hits_per_norm.depth.med.all.score_offset.dt_8_25_23.rds")[1:1000,]
+#dt = dt2json(hits_medbin,settings=settings,ref="hg38")
