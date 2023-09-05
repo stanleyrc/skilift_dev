@@ -282,6 +282,9 @@ PGVdb <- R6Class("PGVdb",
     add_plots = function(plots_to_add, overwrite = FALSE, cores=2) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
+      if (!("overwrite" %in% tolower(names(new_plots)))) {
+        new_plots[, overwrite := FALSE]
+      }
       # Check if required columns exist
       required_columns <- c("patient.id", "x")
       empty <- data.table::data.table(

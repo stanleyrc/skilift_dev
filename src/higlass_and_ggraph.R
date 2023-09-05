@@ -1,6 +1,5 @@
 #library(rtracklayer)
 
-
 gr2bw = function(datafile=NULL,grange=NULL,ref,score.col,
                  file_name = paste(getwd(),"test.bw",sep="/")) {
 #         file_name = paste0(getwd(),"/",gsub("rds","bw",tstrsplit(datafile,"/")[[length(tstrsplit(datafile,"/"))]]))) { # will save to the same name as your input file but in your current directory with .bw
