@@ -6,7 +6,7 @@ setup({
   library(data.table)
   library(jsonlite)
   library(httr)
-  devtools::load_all("../../../gGnome/gGnome")
+  devtools::load_all("../../gGnome/gGnome")
 })
 
 devtools::load_all(".")
@@ -28,8 +28,9 @@ reset_pgvdb  <- function() {
   devtools::load_all(".")
   paths <- load_paths()
   default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
-  file.copy(default_datafiles_json_path, paths$datafiles, overwrite = TRUE)
+  file.copy(default_datafiles_json_path, paths$datafiles)
   pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$settings)
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
 }
 
 
@@ -70,14 +71,16 @@ test_that("add_plots loads from filepath correctly", {
     ref = "hg19",
     x = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
     field = "cn",
-    visible = TRUE
+    visible = TRUE,
+    type = "scatterplot",
+    overwrite = TRUE
   )
-  pgvdb$add_plots(new_cov, overwrite = TRUE)
+  pgvdb$add_plots(new_cov)
   expect_equal(nrow(pgvdb$plots), 11)
 
   new_genome <- data.table(
     patient.id = "TEST_ADD",
-    ref = "hg19",
+    ref = "hg38",
     x = system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
     visible = TRUE
   )
@@ -111,6 +114,17 @@ test_that("add_plots loads from filepath correctly", {
   )
   pgvdb$add_plots(new_json)
   expect_equal(nrow(pgvdb$plots), 15)
+
+  new_bigwig_granges  <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg38",
+    type = "bigwig",
+    field = "foreground",
+    x = system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb"),
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_bigwig_granges)
+  expect_equal(nrow(pgvdb$plots), 16)
 })
 
 test_that("add_plots loads from object correctly", {
@@ -122,7 +136,9 @@ test_that("add_plots loads from object correctly", {
     ref = "hg19",
     x = list(cov),
     field = "cn",
-    visible = TRUE
+    type = "scatterplot",
+    visible = TRUE,
+    overwrite = TRUE
   )
   pgvdb$add_plots(new_cov)
   expect_equal(nrow(pgvdb$plots), 11)
@@ -174,9 +190,11 @@ test_that("add_plots works correctly with multiple plot filepaths", {
     ref = "hg19",
     x = paths,
     field= c("cn", NA, NA),
-    visible = TRUE
+    type=c("scatterplot", NA, NA),
+    visible = TRUE,
+    overwrite = c(TRUE, TRUE, TRUE)
   )
-  pgvdb$add_plots(new_plots, overwrite=TRUE)
+  pgvdb$add_plots(new_plots)
   expect_equal(nrow(pgvdb$plots), 13)
 })
 
@@ -192,9 +210,11 @@ test_that("add_plots works correctly with multiple plot objects", {
     ref = "hg19",
     x = objects,
     field= c("cn", NA, NA),
-    visible = TRUE
+    type=c("scatterplot", NA, NA),
+    visible = TRUE,
+    overwrite = c(TRUE, TRUE, TRUE)
   )
-  pgvdb$add_plots(new_plots, overwrite=TRUE, cores=4)
+  pgvdb$add_plots(new_plots, cores=4)
   expect_equal(nrow(pgvdb$plots), 13)
 })
 
@@ -210,9 +230,11 @@ test_that("add_plots works correctly with multiple patients", {
     ref = "hg19",
     x = paths,
     field= c("cn", NA, NA),
-    visible = TRUE
+    type=c("scatterplot", NA, NA),
+    visible = TRUE,
+    overwrite = TRUE
   )
-  pgvdb$add_plots(new_plots, overwrite=TRUE)
+  pgvdb$add_plots(new_plots)
   expect_equal(nrow(pgvdb$plots), 13)
 })
 
@@ -228,9 +250,11 @@ test_that("remove_plots works correctly", {
     ref = "hg19",
     x = paths,
     field = c("cn", NA, NA),
-    visible = TRUE
+    type=c("scatterplot", NA, NA),
+    visible = TRUE,
+    overwrite = TRUE
   )
-  pgvdb$add_plots(new_plots, overwrite=TRUE)
+  pgvdb$add_plots(new_plots)
 
   remove_plot <- data.table(
     patient.id = "TEST_ADD",
@@ -254,9 +278,11 @@ test_that("remove_plots works correctly when removing patients", {
     ref = "hg19",
     x = paths,
     field = c("cn", NA, NA),
-    visible = TRUE
+    type=c("scatterplot", NA, NA),
+    visible = TRUE,
+    overwrite = TRUE
   )
-  pgvdb$add_plots(new_plots, overwrite=TRUE)
+  pgvdb$add_plots(new_plots)
 
   remove_plot <- data.table(
     patient.id = "TEST_ADD"
@@ -279,9 +305,8 @@ test_that("validate works correctly", {
 
 test_that("adding to higlass server works correctly", {
   pgvdb <- reset_pgvdb()
-  endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/"
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
   pgvdb$upload_to_higlass(
-    endpoint,
     datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
     filetype = "chromsizes-tsv",
     datatype = "chromsizes",
@@ -289,31 +314,27 @@ test_that("adding to higlass server works correctly", {
     name = "hg38"
   )
   pgvdb$upload_to_higlass(
-    endpoint,
     datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
     name = "test_bigwig",
     filetype = "bigwig",
     datatype = "vector",
     coordSystem = "hg38",
-    uuid="test"
   )
   expect_equal(nrow(pgvdb$plots), 11)
 })
 
 test_that("deleting higlass tileset works correctly", {
   pgvdb <- reset_pgvdb()
-  endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/"
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
   pgvdb$upload_to_higlass(
-    endpoint,
     datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
     name = "test_bigwig",
     filetype = "bigwig",
     datatype = "vector",
-    coordSystem = "hg38",
-    uuid="test"
+    coordSystem = "hg38"
   )
   uuid  <- pgvdb$plots[11, "uuid"]
-  pgvdb$delete_from_higlass(endpoint, uuid = uuid[[1]])
+  pgvdb$delete_from_higlass(pgvdb$higlass_metadata$endpoint, uuid = uuid[[1]])
   expect_equal(nrow(pgvdb$plots), 10)
 })
     
