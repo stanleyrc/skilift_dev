@@ -5,3 +5,4 @@ tags
 */**/pgv
 */**/pgv_test
 */**/*.bw
+*/**/test_bigwig_granges.rds

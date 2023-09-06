@@ -1,38 +1,23 @@
-#library(rtracklayer)
+library(rtracklayer)
 
-gr2bw = function(datafile=NULL,grange=NULL,ref,score.col,
-                 file_name = paste(getwd(),"test.bw",sep="/")) {
-#         file_name = paste0(getwd(),"/",gsub("rds","bw",tstrsplit(datafile,"/")[[length(tstrsplit(datafile,"/"))]]))) { # will save to the same name as your input file but in your current directory with .bw
-    print(paste("using",ref,"if this is the wrong reference this command will fail or your coordiantes will be off in PGV"))
-#get seqlengths of specified reference as a named vector
-    if ((( is.null(datafile) & is.null(grange)) | !is.null(datafile) & !is.null(grange))) { #| datafile != NULL & grange != NULL) {
-        stop("to create a bigwig: either an rds of a grange or a grange object must be passed and not both")
+gr2bw = function(gr, chrom_lengths, score_col_name, output_filepath) {
+    #get seqlengths of specified reference as a named vector
+    if (!is.null(gr)) {
+        bw.gr = gr %>% sortSeqlevels() %>% gr.chr()
+    } else {
+        stop("Granges is null")
     }
-    settings_data <- jsonlite::fromJSON(settings)
-    chrom_lengths <- as.data.table(settings_data$coordinates$sets[[ref]])[,.(chromosome,startPoint,endPoint)]
-    colnames(chrom_lengths) = c("seqnames","start","end")
-    chrom_lengths[!grepl("chr",seqnames), seqnames := paste0("chr",seqnames)] # weird fix because hg38_chr does not have chr on Y and M
-                                        #creating bigwig
-    if (!is.null(datafile)) {
-        bw.gr = readRDS(datafile) %>% sortSeqlevels() %>% gr.chr()
-    }
-    if (!is.null(grange)) {
-        bw.gr = grange %>% sortSeqlevels() %>% gr.chr()
-    }
-#check whether seqlengths are longer than seqlengths
+    #check whether seqlengths are longer than seqlengths
     if(any(bw.gr@seqinfo@seqlengths > chrom_lengths[seqnames %in% names(seqlengths(bw.gr))]$end)) {
-#        return(chrom_lengths) ;
-        warning(paste0("the seqlengths of your granges is longer than the seqlengths of ",ref,"\nreturning seqlengths of ",ref))
+        warning(paste0("the seqlengths of your granges is longer than the seqlengths of ref, \nreturning seqlengths of ref..."))
         return(chrom_lengths)
-#        return(chrom_lengths) ; stop(paste("the seqlengths of your granges is longer than the seqlengths of ",ref))
-        }
-#    if seqlengths are not longer than ref seqlengths then fix it to have the same seqlengths
-    bw.gr@seqinfo@seqlengths = chrom_lengths[seqnames %in% bw.gr@seqinfo@seqnames]$end
-        bw.gr$score = bw.gr@elementMetadata[[score.col]]
-        export.bw(object=bw.gr,con=file_name)
-        print(paste("bigwig exported to",file_name))
-    return(file_name)
     }
+    #    if seqlengths are not longer than ref seqlengths then fix it to have the same seqlengths
+    bw.gr@seqinfo@seqlengths = chrom_lengths[seqnames %in% bw.gr@seqinfo@seqnames]$end
+    bw.gr$score = bw.gr@elementMetadata[[score_col_name]]
+    export.bw(object=bw.gr,con=output_filepath)
+    print(paste("bigwig exported to", output_filepath))
+}
 
 
 #testing

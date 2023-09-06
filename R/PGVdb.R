@@ -1,3 +1,5 @@
+source("src/higlass_and_ggraph.R")  # import auxiliary functions for import datatables and granges bigwigs
+
 #' @name cov2arrowPGV
 #' @description
 #'
@@ -94,7 +96,7 @@ cov2arrowPGV = function(cov,
 #' @import R6
 #' @import httr
 #' @import data.table
-PGVdb <- R6Class("PGVdb",
+PGVdb <- R6Class( "PGVdb",
   private = list(
     #' @field datafiles_json_path (`character(1)`)
     #' Path to the datafiles.json
@@ -112,8 +114,12 @@ PGVdb <- R6Class("PGVdb",
     #' @field datadir (`character(1)`).
     datadir = NULL,
 
-    #' @field settings (`charater(1)`).
+    #' @field settings (`character(1)`).
     settings = NULL,
+
+    #' @field higlass_metadata (`list`)\cr
+    #' Attribute containing HiGlass metadata
+    higlass_metadata = NULL,
 
     #' @description
     #' Creates a new instance of this [R6][R6::R6Class] class.
@@ -124,11 +130,27 @@ PGVdb <- R6Class("PGVdb",
     #'   Data directory path.
     #' @param settings (`character(1)`)\cr
     #'   Settings object path.
-    initialize = function(datafiles_json_path, datadir, settings) {
+    #' @param higlass_metadata (`list`, optional)\cr
+    #'   HiGlass metadata containing endpoint, username, and password.
+    initialize = function(datafiles_json_path, datadir, settings, higlass_metadata = NULL) {
       private$datafiles_json_path <- datafiles_json_path
       self$load_json(datafiles_json_path)
       self$datadir <- datadir
       self$settings <- settings
+      
+      if (!is.null(higlass_metadata)) {
+        self$higlass_metadata <- list(
+          endpoint = ifelse(is.null(higlass_metadata$endpoint), "http://10.1.29.225:41800/", higlass_metadata$endpoint),
+          username = ifelse(is.null(higlass_metadata$username), "admin", higlass_metadata$username),
+          password = ifelse(is.null(higlass_metadata$password), "higlass_test", higlass_metadata$password)
+        )
+      } else {
+        self$higlass_metadata <- list(
+          endpoint = "http://10.1.29.225:41800/",
+          username = "admin",
+          password = "higlass_test"
+        )
+      }
     },
 
     #' @description
@@ -274,12 +296,10 @@ PGVdb <- R6Class("PGVdb",
     #'  Data table of plots to add. Must have a minimal set of columns: patient.id, x. 
     #'  x is either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
     #'  If adding a new patient, table must include a ref column.
-    #' @param overwrite (`logical(1)`)\cr
-    #'  Overwrite existing files if TRUE.
     #' @param cores (`number(1)`)\cr
     #'  Number of cores to use for parallel execution
     #' @return NULL.
-    add_plots = function(plots_to_add, overwrite = FALSE, cores=2) {
+    add_plots = function(plots_to_add, cores=2) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
 
       if (!("overwrite" %in% tolower(names(new_plots)))) {
@@ -320,13 +340,18 @@ PGVdb <- R6Class("PGVdb",
           dir.create(patient_dir)
         }
 
-        # Get type and source/server + uuid from x
         if (is(plot$x[[1]], "GRanges")) {
-          if (!"type" %in% names(plot) || is.na(plot$type)) {
-            plot$type <- 'scatterplot'
+          if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
+            warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
+            next
           }
-          if (!"source" %in% names(plot) || is.na(plot$source)) {
-            plot$source <- 'coverage.arrow'
+          if (plot$type == "scatterplot") {
+            if (!"source" %in% names(plot) || is.na(plot$source)) {
+              plot$source <- 'coverage.arrow'
+            }
+          } else if (plot$type == "bigwig") {
+            unique_filename <- paste("file_", gsub(" ", "_", gsub(":|-", "_", Sys.time())), ".bw", sep = "")
+            plot$source  <- unique_filename
           }
         } else if (is(plot$x[[1]], "gGraph")) {
           plot$type <- 'genome'
@@ -347,11 +372,17 @@ PGVdb <- R6Class("PGVdb",
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'rds') {
           rds_object <- readRDS(plot$x)
           if (is(rds_object, "GRanges")) {
-            if (!"type" %in% names(plot) || is.na(plot$type)) {
-              plot$type <- 'scatterplot'
+            if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
+              warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
+              next
             }
-            if (!"source" %in% names(plot) || is.na(plot$source)) {
-              plot$source <- 'coverage.arrow'
+            if (plot$type == "scatterplot") {
+              if (!"source" %in% names(plot) || is.na(plot$source)) {
+                plot$source <- 'coverage.arrow'
+              }
+            } else if (plot$type == "bigwig") {
+              unique_filename <- paste("file_", Sys.time(), ".bw", sep = "")
+              plot$source  <- unique_filename
             }
           } else if (is(rds_object, "gGraph")) {
             plot$type <- 'genome'
@@ -377,47 +408,85 @@ PGVdb <- R6Class("PGVdb",
 
         # Check if source already exists, if so, increment
         if (!is.null(plot$source)) {
-          source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
-          if (overwrite && file.exists(source_full_path)) {
+          source_full_path <- file.path(self$datadir, plot$patient.id, plot$source)
+          if (plot$overwrite && file.exists(source_full_path)) {
             warning("Existing source for plot will be overwritten.")
-          } else {
+          } else if (!plot$overwrite && file.exists(source_full_path)) {
             base_name <- tools::file_path_sans_ext(plot$source)
             ext <- tools::file_ext(plot$source)
-            if (file.exists(source_full_path)) {
-              counter <- 2
-            } else { counter <- 1 }
-            while (file.exists(file.path(patient_dir, paste0(base_name, counter, ".", ext)))) {
+            counter <- 2
+            while (file.exists(file.path(self$datadir, plot$patient.id, paste0(base_name, counter, ".", ext)))) {
               counter <- counter + 1
             }
             plot$source <- paste0(base_name, counter, ".", ext)
           }
           new_plots[i, "source"] <- plot$source
         }
-
         new_plots[i, "type"] <- plot$type
       } # Break the loop into three pieces to parallize the plot creation
 
       # Define the function to create plot files
       create_plot_file <- function(plot) {
         tryCatch({
-          patient_dir <- file.path(self$datadir, plot$patient.id)
-          plot_file <- file.path(patient_dir, plot$source)
-          if (plot$type != "bigwig") {
+          plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
+
+          if (plot$type == "bigwig" && !is.null(plot$source)) {
+
+            # field contains the column name in GRanges that corresponds to bigwig scores
+            if (is.null(plot$field)) {
+              warning("The column name in GRanges containing scores for bigwig was not specified, using 'foreground' as default")
+              score_col_name <- "foreground" # Use default value
+            } else {
+              score_col_name <- plot$field
+            }
+
+            # Find ref chrom lengths with matching patient.id
+            settings_data <- jsonlite::fromJSON(self$settings)
+            chrom_lengths <- as.data.table(settings_data$coordinates$sets[[plot$ref]])[,.(chromosome,startPoint,endPoint)]
+            colnames(chrom_lengths) = c("seqnames","start","end")
+            chrom_lengths[!grepl("chr",seqnames), seqnames := paste0("chr",seqnames)] # weird fix because hg38_chr does not have chr on Y and M
+
+            if (endsWith(plot$x, ".rds")) {
+              bigwig_grange <- readRDS(plot$x)
+            } else if (inherits(plot$x, "GRanges")) {
+              bigwig_grange <- plot$x
+            }
+
+            gr2bw(gr = bigwig_grange,
+                  output_filepath = plot$source,
+                  score_col_name = score_col_name,
+                  chrom_lengths = chrom_lengths)
+
+            # Call upload_to_higlass function with parameters
+            uuid <- self$upload_to_higlass(patient.id = plot$patient.id,
+                                      datafile = plot$source,
+                                      filetype = "bigwig",
+                                      datatype = "vector",
+                                      name = basename(plot$source),
+                                      coordSystem = plot$ref)
+
+            # Bigwig should be deleted after uploading
+            if (plot$overwrite && !is.null(uuid)) {
+              warning("Removing bigwig file after successful upload to higlass")
+              file.remove(plot$source)
+            }
+          } else {
             if (grepl("\\.json$", plot$x)) {
               file.copy(plot$x, plot_file)
             } else {
               # Use the plot type to determine the conversion function to use
               if (plot$type == "genome") {
-                self$create_ggraph_json(plot, overwrite)
+                self$create_ggraph_json(plot)
               } else if (plot$type == "scatterplot") {
-                self$create_cov_arrow(plot, overwrite)
+                self$create_cov_arrow(plot)
               } else if (plot$type == "walk") {
-                self$create_gwalk_json(plot, overwrite)
+                self$create_gwalk_json(plot)
               }
             }
           }
         }, error = function(e) {
           message("Error in creating plot file: ", e$message)
+          print(e)
           traceback()
         })
       }
@@ -435,6 +504,9 @@ PGVdb <- R6Class("PGVdb",
         plot <- new_plots[i, ]
 
         if (!is.null(plot$source)) {
+          if (plot$type == "bigwig") {
+            next
+          }
           source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
           if (!file.exists(source_full_path)) {
             warning("File does not exist: ", source_full_path, " skipping adding to pgvdb...")
@@ -639,11 +711,9 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @param plot_metadata (`data.table`)\cr 
     #'   Plot metadata.
-    #' @param overwrite (`logical(1)`)\cr 
-    #'   Overwrite if file exists.
     #'
     #' @return NULL.
-    create_cov_arrow = function(plot_metadata, overwrite = FALSE) {
+    create_cov_arrow = function(plot_metadata) {
       cov_json_path <- file.path(
         self$datadir,
         plot_metadata$patient.id,
@@ -654,7 +724,7 @@ PGVdb <- R6Class("PGVdb",
           stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
       }
 
-      if (!file.exists(cov_json_path) || overwrite) {
+      if (!file.exists(cov_json_path) || plot_metadata$overwrite) {
         if (is(plot_metadata$x[[1]], "GRanges")) {
           cov2arrowPGV(plot_metadata$x[[1]],
             field = plot_metadata$field,
@@ -687,17 +757,15 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @param plot_metadata (`data.table`)\cr 
     #'   Plot metadata.
-    #' @param overwrite (`logical(1)`)\cr 
-    #'   Overwrite if file exists.
     #'
     #' @return NULL.
-    create_ggraph_json = function(plot_metadata, overwrite = FALSE) {
+    create_ggraph_json = function(plot_metadata) {
       ggraph_json_path <- file.path(
         self$datadir,
         plot_metadata$patient.id,
         plot_metadata$source
       )
-      if (!file.exists(ggraph_json_path) || overwrite) {
+      if (!file.exists(ggraph_json_path) || plot_metadata$overwrite) {
         if (is(plot_metadata$x[[1]], "gGraph")) {
           ggraph <- plot_metadata$x[[1]]
         } else {
@@ -755,13 +823,11 @@ PGVdb <- R6Class("PGVdb",
     #'
     #' @param plot_metadata (`data.table`)\cr 
     #'   Plot metadata.
-    #' @param overwrite (`logical(1)`)\cr 
-    #'   Overwrite if file exists.
     #'
     #' @return NULL.
-    create_gwalk_json = function(plot_metadata, overwrite = FALSE) {
+    create_gwalk_json = function(plot_metadata) {
       gwalk_json_path <- file.path(self$datadir, plot_metadata$patient.id, plot_metadata$source)
-      if (!file.exists(gwalk_json_path) || overwrite == TRUE) {
+      if (!file.exists(gwalk_json_path) || plot_metadata$overwrite == TRUE) {
         if (is(plot_metadata$x[[1]], "gWalk")) {
           gwalk <- plot_metadata$x[[1]] %>% gGnome::refresh()
         } else {
@@ -793,17 +859,17 @@ PGVdb <- R6Class("PGVdb",
     #' @description
     #' Upload file to higlass server
     #'
-    #' @return httr:response
-    upload_to_higlass = function(endpoint = "http://10.1.29.225:41800/", 
+    #' @return uuid
+    #'  The uuid returned by the response from higlass
+    upload_to_higlass = function(endpoint = self$higlass_metadata$endpoint, 
                                  patient.id = "TEST_HIGLASS",
                                  datafile, 
                                  filetype, 
                                  datatype, 
                                  coordSystem, 
                                  name, 
-                                 uuid = "",
-                                 username = "admin", 
-                                 password = "higlass_test") {
+                                 username = self$higlass_metadata$username, 
+                                 password = self$higlass_metadata$password) {
       # Define the API endpoint
       print(paste("Uploading datafile to higlass:", datafile))
 
@@ -816,8 +882,7 @@ PGVdb <- R6Class("PGVdb",
                    'filetype' = filetype,
                    'datatype' = datatype,
                    'coordSystem' = coordSystem,
-                   'name' = name,
-                   'uuid' = uuid
+                   'name' = name
       )
 
       url <- paste0(endpoint, "api/v1/tilesets/")
@@ -834,7 +899,6 @@ PGVdb <- R6Class("PGVdb",
       response_content <- httr::content(response, "parsed")
 
       # Store the UUID
-      print(response_content)
       uuid <- response_content$uuid
       filetype  <- response_content$filetype
 
@@ -849,6 +913,8 @@ PGVdb <- R6Class("PGVdb",
         )
         self$add_plots(new_higlass)
       }
+
+      return(uuid)
     },
 
     #' @description
