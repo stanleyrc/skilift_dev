@@ -37,6 +37,8 @@ The key methods allow converting to/from JSON for data storage, validating the d
 
 - `settings`: Path to settings file
 
+- `higlass_metadata`: List containing endpoint, username, and password to Higlass server
+
 ### Constructor
 ```r
 pgv <- PGVdb$new(datafiles_json_path, datadir, publicdir, settings)
@@ -61,7 +63,7 @@ Convert metadata and plots to a single data table, applying an optional filter.
 ### add_plots
 
 ```r
-pgv$add_plots(plots_to_add, overwrite = FALSE, cores=1)  
+pgv$add_plots(plots_to_add, cores=2)  
 ```
 
 Add new plots by passing a `data.table` containing required columns:
@@ -73,16 +75,21 @@ Add new plots by passing a `data.table` containing required columns:
     - Filepath to an RDS object
 - `visible`: Whether plot is visible
 
-The `overwrite` flag determines whether to overwrite existing source files. 
-
 If required columns are missing, an empty table will be returned with the
 required column names. The `type` column (indiciating the type of plot:
 scatterplot, genome, walk, bigwig, etc) is derived from `x` if not supplied by
-the user. The `source` column (indicating the name of the plot file inside the
-pgv data directory) is derived from the `type`, if not supplied by the user.
-Unless the overwrite flag is set, it will not overwrite existing plot files,
+the user. For `GRanges`, the `type` and `field` (the name of the score column)
+must be specified by the user (either bigwig or scatterplot). The `source`
+column (indicating the name of the plot file inside the pgv data directory) is
+derived from the `type`, if not supplied by the user. 
+
+Unless an `overwrite` column is set, it will not overwrite existing plot files,
 instead it will just increment the filename of the new plot file (i.e
-coverage.json -> coverage2.json)
+coverage.json -> coverage2.json). For GRanges containing bigwig data, the
+GRange will be converted into a bigwig (with a unique name) and automaticaly
+uploaded to the default mskilab higlass server (see above for changing to a
+different server). If overwrite is set to TRUE, the converted bigwig file will
+be deleted after uploading.
 
 The `cores` parameter determines how many cores to use for parallel execution.
 By default, it will not run in parallel (i.e use 1 core).
