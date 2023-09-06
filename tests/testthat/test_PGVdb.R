@@ -28,9 +28,10 @@ reset_pgvdb  <- function() {
   devtools::load_all(".")
   paths <- load_paths()
   default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
-  file.copy(default_datafiles_json_path, paths$datafiles)
-  pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$settings)
-  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
+  file.copy(default_datafiles_json_path, paths$datafiles, overwrite=TRUE)
+  endpoint <- "http://10.1.29.225:8000/"
+  pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$settings, higlass_metadata=list(endpoint=endpoint))
+  return(pgvdb)
 }
 
 
@@ -164,6 +165,18 @@ test_that("add_plots loads from object correctly", {
   pgvdb$add_plots(new_walk)
   expect_equal(nrow(pgvdb$plots), 13)
 
+  gr_bw = readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb"))
+  new_bigwig_granges  <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg38",
+    type = "bigwig",
+    field = "foreground",
+    x = list(gr_bw),
+    visible = TRUE,
+    overwrite = TRUE
+  )
+  pgvdb$add_plots(new_bigwig_granges)
+  expect_equal(nrow(pgvdb$plots), 14)
 })
 
 test_that("Bug with rds file", {
@@ -183,19 +196,21 @@ test_that("add_plots works correctly with multiple plot filepaths", {
   paths  <- c(
     system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
     system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb")
   )
+
   new_plots <- data.table(
     patient.id = "TEST_ADD",
-    ref = "hg19",
+    ref = c("hg19", "hg19", "hg19", "hg38"),
     x = paths,
-    field= c("cn", NA, NA),
-    type=c("scatterplot", NA, NA),
+    field= c("cn", NA, NA, "foreground"),
+    type=c("scatterplot", NA, NA, "bigwig"),
     visible = TRUE,
-    overwrite = c(TRUE, TRUE, TRUE)
+    overwrite = c(TRUE, TRUE, TRUE, TRUE)
   )
   pgvdb$add_plots(new_plots)
-  expect_equal(nrow(pgvdb$plots), 13)
+  expect_equal(nrow(pgvdb$plots), 14)
 })
 
 test_that("add_plots works correctly with multiple plot objects", {
@@ -203,19 +218,21 @@ test_that("add_plots works correctly with multiple plot objects", {
   objects  <- c(
     list(readRDS(system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"))),
     list(readRDS(system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"))),
-    list(readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")))
+    list(readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"))),
+    list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb")))
   )
+
   new_plots <- data.table(
     patient.id = "TEST_ADD",
-    ref = "hg19",
+    ref = c("hg19", "hg19", "hg19", "hg38"),
     x = objects,
-    field= c("cn", NA, NA),
-    type=c("scatterplot", NA, NA),
+    field = c("cn", NA, NA, "foreground"),
+    type = c("scatterplot", NA, NA, "bigwig"),
     visible = TRUE,
-    overwrite = c(TRUE, TRUE, TRUE)
+    overwrite = c(TRUE, TRUE, TRUE, TRUE)
   )
-  pgvdb$add_plots(new_plots, cores=4)
-  expect_equal(nrow(pgvdb$plots), 13)
+  pgvdb$add_plots(new_plots)
+  expect_equal(nrow(pgvdb$plots), 14)
 })
 
 test_that("add_plots works correctly with multiple patients", {

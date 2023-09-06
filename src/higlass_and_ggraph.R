@@ -5,18 +5,19 @@ gr2bw = function(gr, chrom_lengths, score_col_name, output_filepath) {
     if (!is.null(gr)) {
         bw.gr = gr %>% sortSeqlevels() %>% gr.chr()
     } else {
-        stop("Granges is null")
+        stop("GRanges is null")
     }
     #check whether seqlengths are longer than seqlengths
     if(any(bw.gr@seqinfo@seqlengths > chrom_lengths[seqnames %in% names(seqlengths(bw.gr))]$end)) {
-        warning(paste0("the seqlengths of your granges is longer than the seqlengths of ref, \nreturning seqlengths of ref..."))
+        warning(paste0("The seqlengths of your GRanges are longer than the seqlengths of ref. \nAre you sure you are using the correct ref? \nprinting and returning seqlengths of ref..."))
+        print(chrom_lengths)
         return(chrom_lengths)
     }
     #    if seqlengths are not longer than ref seqlengths then fix it to have the same seqlengths
     bw.gr@seqinfo@seqlengths = chrom_lengths[seqnames %in% bw.gr@seqinfo@seqnames]$end
     bw.gr$score = bw.gr@elementMetadata[[score_col_name]]
     export.bw(object=bw.gr,con=output_filepath)
-    print(paste("bigwig exported to", output_filepath))
+    print(paste("Bigwig exported to", output_filepath))
 }
 
 

@@ -205,7 +205,7 @@ PGVdb <- R6Class( "PGVdb",
 
       datafiles_json_path <- private$datafiles_json_path
       # Create a backup file with timestamp
-      timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+      timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
       backup_file <- paste0(datafiles_json_path, ".", timestamp)
       file.copy(datafiles_json_path, backup_file)
 
@@ -234,9 +234,11 @@ PGVdb <- R6Class( "PGVdb",
           # Loop over the column names
           for (col in cols) {
             # Use [[ ]] to access the column by name and check if it's NA
-            if (!is.na(patient_plots[[col]][i])) {
-              # If it's not NA, add it to plot_entry
-              plot_entry[[col]] <- patient_plots[[col]][i]
+            if (col != "patient.id") {
+              if (!is.na(patient_plots[[col]][i])) {
+                # If it's not NA, add it to plot_entry
+                plot_entry[[col]] <- patient_plots[[col]][i]
+              }
             }
           }
 
@@ -350,7 +352,8 @@ PGVdb <- R6Class( "PGVdb",
               plot$source <- 'coverage.arrow'
             }
           } else if (plot$type == "bigwig") {
-            unique_filename <- paste("file_", gsub(" ", "_", gsub(":|-", "_", Sys.time())), ".bw", sep = "")
+            timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
+            unique_filename <- paste0(timestamp, '.bw')
             plot$source  <- unique_filename
           }
         } else if (is(plot$x[[1]], "gGraph")) {
@@ -381,7 +384,8 @@ PGVdb <- R6Class( "PGVdb",
                 plot$source <- 'coverage.arrow'
               }
             } else if (plot$type == "bigwig") {
-              unique_filename <- paste("file_", Sys.time(), ".bw", sep = "")
+              timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
+              unique_filename <- paste0(timestamp, '.bw')
               plot$source  <- unique_filename
             }
           } else if (is(rds_object, "gGraph")) {
@@ -428,59 +432,61 @@ PGVdb <- R6Class( "PGVdb",
       # Define the function to create plot files
       create_plot_file <- function(plot) {
         tryCatch({
-          plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
+          if (!is.null(plot$source)) {
+            plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
 
-          if (plot$type == "bigwig" && !is.null(plot$source)) {
+            if (plot$type == "bigwig") {
 
-            # field contains the column name in GRanges that corresponds to bigwig scores
-            if (is.null(plot$field)) {
-              warning("The column name in GRanges containing scores for bigwig was not specified, using 'foreground' as default")
-              score_col_name <- "foreground" # Use default value
+              # field contains the column name in GRanges that corresponds to bigwig scores
+              if (is.null(plot$field)) {
+                warning("The column name in GRanges containing scores for bigwig was not specified, using 'foreground' as default")
+                score_col_name <- "foreground" # Use default value
+              } else {
+                score_col_name <- plot$field
+              }
+
+              # Find ref chrom lengths with matching patient.id
+              settings_data <- jsonlite::fromJSON(self$settings)
+              chrom_lengths <- as.data.table(settings_data$coordinates$sets[[plot$ref]])[,.(chromosome,startPoint,endPoint)]
+              colnames(chrom_lengths) = c("seqnames","start","end")
+              chrom_lengths[!grepl("chr",seqnames), seqnames := paste0("chr",seqnames)] # weird fix because hg38_chr does not have chr on Y and M
+
+              if (is(plot$x[[1]], "GRanges")) {
+                bigwig_grange <- plot$x[[1]]
+              } else if (endsWith(plot$x, ".rds")) {
+                bigwig_grange <- readRDS(plot$x)
+              }
+
+              gr2bw(gr = bigwig_grange,
+                    output_filepath = plot_file,
+                    score_col_name = score_col_name,
+                    chrom_lengths = chrom_lengths)
+
+              # Call upload_to_higlass function with parameters
+              uuid <- self$upload_to_higlass(patient.id = plot$patient.id,
+                                             datafile = plot_file,
+                                             filetype = "bigwig",
+                                             datatype = "vector",
+                                             name = plot$source,
+                                             coordSystem = plot$ref)
+
+              # Bigwig should be deleted after uploading
+              if (plot$overwrite && !is.null(uuid)) {
+                warning("Overwrite = TRUE: removing bigwig file after successful upload to higlass")
+                file.remove(plot_file)
+              }
             } else {
-              score_col_name <- plot$field
-            }
-
-            # Find ref chrom lengths with matching patient.id
-            settings_data <- jsonlite::fromJSON(self$settings)
-            chrom_lengths <- as.data.table(settings_data$coordinates$sets[[plot$ref]])[,.(chromosome,startPoint,endPoint)]
-            colnames(chrom_lengths) = c("seqnames","start","end")
-            chrom_lengths[!grepl("chr",seqnames), seqnames := paste0("chr",seqnames)] # weird fix because hg38_chr does not have chr on Y and M
-
-            if (endsWith(plot$x, ".rds")) {
-              bigwig_grange <- readRDS(plot$x)
-            } else if (inherits(plot$x, "GRanges")) {
-              bigwig_grange <- plot$x
-            }
-
-            gr2bw(gr = bigwig_grange,
-                  output_filepath = plot$source,
-                  score_col_name = score_col_name,
-                  chrom_lengths = chrom_lengths)
-
-            # Call upload_to_higlass function with parameters
-            uuid <- self$upload_to_higlass(patient.id = plot$patient.id,
-                                      datafile = plot$source,
-                                      filetype = "bigwig",
-                                      datatype = "vector",
-                                      name = basename(plot$source),
-                                      coordSystem = plot$ref)
-
-            # Bigwig should be deleted after uploading
-            if (plot$overwrite && !is.null(uuid)) {
-              warning("Removing bigwig file after successful upload to higlass")
-              file.remove(plot$source)
-            }
-          } else {
-            if (grepl("\\.json$", plot$x)) {
-              file.copy(plot$x, plot_file)
-            } else {
-              # Use the plot type to determine the conversion function to use
-              if (plot$type == "genome") {
-                self$create_ggraph_json(plot)
-              } else if (plot$type == "scatterplot") {
-                self$create_cov_arrow(plot)
-              } else if (plot$type == "walk") {
-                self$create_gwalk_json(plot)
+              if (grepl("\\.json$", plot$x)) {
+                file.copy(plot$x, plot_file)
+              } else {
+                # Use the plot type to determine the conversion function to use
+                if (plot$type == "genome") {
+                  self$create_ggraph_json(plot)
+                } else if (plot$type == "scatterplot") {
+                  self$create_cov_arrow(plot)
+                } else if (plot$type == "walk") {
+                  self$create_gwalk_json(plot)
+                }
               }
             }
           }
