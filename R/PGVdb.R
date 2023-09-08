@@ -455,6 +455,8 @@ PGVdb <- R6Class( "PGVdb",
                 bigwig_grange <- plot$x[[1]]
               } else if (endsWith(plot$x, ".rds")) {
                 bigwig_grange <- readRDS(plot$x)
+              } else {
+                stop(message("Invalid file/object. File must be a valid GRanges or .rds file. Please check your extension and/or filetype."))
               }
 
               gr2bw(gr = bigwig_grange,
@@ -914,7 +916,7 @@ PGVdb <- R6Class( "PGVdb",
         new_higlass <-  data.table(
                                    patient.id = patient.id, 
                                    ref=coordSystem, 
-                                   x = list(list(server = endpoint, uuid = uuid)), 
+                                   x = list(list(server = sub("/$", "", endpoint), uuid = uuid)), 
                                    visible=TRUE
         )
         self$add_plots(new_higlass)
