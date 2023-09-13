@@ -13,7 +13,7 @@ The PGVdb class manages a database of patient metadata and genomic plot data. It
 The key methods allow converting to/from JSON for data storage, validating the data, adding/removing plots, and generating plot JSON for visualization. The metadata and plots are stored as data tables for easy manipulation.
 
 ## Methods
-- `initialize(datafiles_json_path, datadir, publicdir, settings)`: Initialize a new PGVdb object
+- `initialize(datafiles_json_path, datadir, settings)`: Initialize a new PGVdb object
 
 - `update_datafiles_json()`: Update JSON data files on disk 
 
@@ -33,18 +33,16 @@ The key methods allow converting to/from JSON for data storage, validating the d
 
 - `datadir`: Path to data directory
 
-- `publicdir`: Path to public directory 
-
 - `settings`: Path to settings file
 
 - `higlass_metadata`: List containing endpoint, username, and password to Higlass server
 
 ### Constructor
 ```r
-pgv <- PGVdb$new(datafiles_json_path, datadir, publicdir, settings)
+pgv <- PGVdb$new(datafiles_json_path, datadir, settings)
 ```
 
-Create a new PGVdb object by passing the path to the datafiles.json, data directory, public directory, and settings file.
+Create a new PGVdb object by passing the path to the datafiles.json, data directory, and settings file.
 
 ### update_datafiles_json
 ```r
