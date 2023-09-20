@@ -809,7 +809,7 @@ PGVdb <- R6Class( "PGVdb",
             gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
               filename = ggraph_json_path,
               verbose = TRUE,
-              annotation = plot_metadata$annotation
+              annotations = unlist(plot_metadata$annotation)
             # cid.field = field
             )
           } else {
@@ -856,7 +856,7 @@ PGVdb <- R6Class( "PGVdb",
 
         gwalk$json(
           filename = gwalk_json_path, verbose = TRUE,
-          annotation = plot_metadat$annotation,
+          annotations = unlist(plot_metadat$annotation),
           include.graph = FALSE
         )
       } else {
