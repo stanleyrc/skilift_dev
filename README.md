@@ -23,6 +23,8 @@ The key methods allow converting to/from JSON for data storage, validating the d
 
 - `remove_plots(plots_to_remove_dt)`: Remove plots
 
+- `list_higlass_tilesets(endpoint, username, password)`: List bigwig tilesets on higlass
+
 - `validate()`: Validate metadata and plots
 
 ## Fields
@@ -39,21 +41,21 @@ The key methods allow converting to/from JSON for data storage, validating the d
 
 ### Constructor
 ```r
-pgv <- PGVdb$new(datafiles_json_path, datadir, settings)
+pgvdb <- PGVdb$new(datafiles_json_path, datadir, settings)
 ```
 
 Create a new PGVdb object by passing the path to the datafiles.json, data directory, and settings file.
 
 ### update_datafiles_json
 ```r
-pgv$update_datafiles_json()  
+pgvdb$update_datafiles_json()  
 ```
 
 Update the datafiles JSON on disk with the current metadata and plots.
 
 ### to_datatable
 ```r
-dt <- pgv$to_datatable(filter = c("patient.id", "HCC"))
+dt <- pgvdb$to_datatable(filter = c("patient.id", "HCC"))
 ```
 
 Convert metadata and plots to a single data table, applying an optional filter.
@@ -61,7 +63,7 @@ Convert metadata and plots to a single data table, applying an optional filter.
 ### add_plots
 
 ```r
-pgv$add_plots(plots_to_add, cores=2)  
+pgvdb$add_plots(plots_to_add, cores=2)  
 ```
 
 Add new plots by passing a `data.table` containing required columns:
@@ -95,7 +97,7 @@ By default, it will not run in parallel (i.e use 1 core).
 ### remove_plots
 
 ```r
-pgv$remove_plots(plots_to_remove, delete = FALSE)
+pgvdb$remove_plots(plots_to_remove, delete = FALSE)
 ```
 
 Remove plots by passing a `data.table` with either:
@@ -112,7 +114,7 @@ Passing just `patient.id` will remove all plots for that patient.
 ### validate
 
 ```r
-pgv$validate()
+pgvdb$validate()
 ```
 
 Validate metadata and plot data, removing invalid entries. Is automatically
@@ -123,7 +125,7 @@ pgvdb plots or metadata.
 ### init_pgv
 
 ```r 
-pgv$init_pgv(pgv_dir, build=FALSE)
+pgvdb$init_pgv(pgv_dir, build=FALSE)
 ```
 
 Initialize a pgv instance loaded with the data in pgvdb at `pgv_dir`. This
@@ -135,10 +137,29 @@ local instance (useful when running on a remote server or hpc). In that case,
 you should set `pgv_dir` to be a directory inside whichever directory is served
 by your remote server (e.g `public_html`).
 
+### list_higlass_tilesets
+
+```r 
+pgvdb$list_higlass_tilesets(endpoint, username, password)
+```
+
+Return all bigwig tileset info on the higlass server as a data.table.
+
+```r 
+endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/" # dev endpoint
+tilesets <- pgvdb$list_higlass_tilesets(
+    endpoint,
+    username = "username_here",
+    password = "password_here"
+)
+```
+
+
+
 ### upload_to_higlass
 
 ```r 
-pgv$upload_to_higlass(endpoint, datafile, filetype, datatype, coordSystem, name, username, password)
+pgvdb$upload_to_higlass(endpoint, datafile, filetype, datatype, coordSystem, name, username, password)
 ```
 
 Upload a file to the higlass server. Will also add the file to the current
@@ -147,7 +168,7 @@ first, before uploading other files.
 
 ```r 
 endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/" # dev endpoint
-pgv$upload_to_higlass(
+pgvdb$upload_to_higlass(
     endpoint,
     datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
     filetype = "chromsizes-tsv",
@@ -159,7 +180,7 @@ pgv$upload_to_higlass(
 )
 
 
-pgv$upload_to_higlass(
+pgvdb$upload_to_higlass(
     endpoint,
     datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
     name = "test_bigwig",
@@ -174,7 +195,7 @@ pgv$upload_to_higlass(
 ### delete_from_higlass
 
 ```r 
- pgv$delete_from_higlass(endpoint, uuid, username, password)
+ pgvdb$delete_from_higlass(endpoint, uuid, username, password)
 ```
 
 Delete a file from the higlass server. Will also remove the plot from the pgvdb
