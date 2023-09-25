@@ -70,6 +70,7 @@ test_that("add_plots loads from filepath correctly", {
   new_cov <- data.table(
     patient.id = "TEST_ADD",
     ref = "hg19",
+    tags = c("tags1", "tags2", "tags3"),
     x = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
     field = "cn",
     visible = TRUE,
@@ -235,6 +236,25 @@ test_that("add_plots works correctly with multiple plot objects", {
   expect_equal(nrow(pgvdb$plots), 14)
 })
 
+test_that("add_plots works correctly with multiple bigwigs", {
+  pgvdb <- reset_pgvdb()
+  bigwigs  <- c(
+    list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb"))),
+    list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb")))
+  )
+
+  new_plots <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg38",
+    x = bigwigs,
+    field = "foreground",
+    type = "bigwig",
+    visible = TRUE
+  )
+  pgvdb$add_plots(new_plots)
+  expect_equal(nrow(pgvdb$plots), 14)
+})
+
 test_that("add_plots works correctly with multiple patients", {
   pgvdb <- reset_pgvdb()
   paths  <- c(
@@ -320,6 +340,14 @@ test_that("validate works correctly", {
   expect_equal(non_dup_pgvdb, pgvdb$plots)
 })
 
+test_that("listing higlass tilesets works correctly", {
+  pgvdb  <- reset_pgvdb()
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
+  tilesets <- pgvdb$list_higlass_tilesets()
+  print(tilesets)
+})
+
+
 test_that("adding to higlass server works correctly", {
   pgvdb <- reset_pgvdb()
   pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
@@ -343,13 +371,12 @@ test_that("adding to higlass server works correctly", {
 test_that("deleting higlass tileset works correctly", {
   pgvdb <- reset_pgvdb()
   pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
-  pgvdb$upload_to_higlass(
-    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
-    name = "test_bigwig",
-    filetype = "bigwig",
-    datatype = "vector",
-    coordSystem = "hg38"
-  )
+
+  # flush higlass
+  tilesets <- pgvdb$list_higlass_tilesets()
+  uuids <- tilesets$uuid
+  pgvdb$delete_from_higlass(pgvdb$higlass_metadata$endpoint, uuids = uuids)
+
   uuid  <- pgvdb$plots[11, "uuid"]
   pgvdb$delete_from_higlass(pgvdb$higlass_metadata$endpoint, uuid = uuid[[1]])
   expect_equal(nrow(pgvdb$plots), 10)

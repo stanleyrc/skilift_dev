@@ -86,7 +86,9 @@ cov2arrowPGV = function(cov,
 #' \code{create_cov_arrow()} Create coverage arrow plot JSON
 #' \code{create_ggraph_json()} Create gGraph JSON
 #' \code{create_gwalk_json()} Create gWalk JSON
+#' \code{list_higlass_tilesets()} Upload file to higlass server
 #' \code{upload_to_higlass()} Upload file to higlass server
+#' \code{delete_from_higlass()} Upload file to higlass server
 #' \code{init_pgv()} Download and launch PGV instance
 #'
 #' @export
@@ -166,17 +168,17 @@ PGVdb <- R6Class( "PGVdb",
       metadata_list <- lapply(names(json_data), function(patient_id) {
         patient_data <- json_data[[patient_id]]
         ref <- patient_data$reference
-        tags <- list(patient_data$description) # Store tags as a list
+        description <- list(patient_data$description) # Store description as a list
 
         data.table(
           patient.id = patient_id,
           ref = ref,
-          tags = tags
+          description = description
         )
       })
 
       self$metadata <- rbindlist(metadata_list)
-      setnames(self$metadata, old = names(self$metadata), new = c("patient.id", "ref", "tags")) # Rename columns
+      setnames(self$metadata, old = names(self$metadata), new = c("patient.id", "ref", "description")) # Rename columns
 
       plots_list <- lapply(names(json_data), function(patient_id) {
         patient_data <- json_data[[patient_id]]
@@ -216,7 +218,7 @@ PGVdb <- R6Class( "PGVdb",
       for (patient_id in self$metadata$patient.id) {
         # Subset metadata for the current patient
         metadata <- self$metadata[self$metadata$patient.id == patient_id, ]
-        description <- metadata$tags[[1]]
+        description <- metadata$description[[1]]
         reference <- metadata$ref
 
         # Subset plots for the current patient
@@ -430,7 +432,7 @@ PGVdb <- R6Class( "PGVdb",
       } # Break the loop into three pieces to parallize the plot creation
 
       # Define the function to create plot files
-      create_plot_file <- function(plot) {
+      create_plot_file <- function(plot, plot_index) {
         tryCatch({
           if (!is.null(plot$source)) {
             plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
@@ -477,6 +479,7 @@ PGVdb <- R6Class( "PGVdb",
                 warning("Overwrite = TRUE: removing bigwig file after successful upload to higlass")
                 file.remove(plot_file)
               }
+              return(uuid)
             } else {
               if (grepl("\\.json$", plot$x)) {
                 file.copy(plot$x, plot_file)
@@ -500,21 +503,30 @@ PGVdb <- R6Class( "PGVdb",
       }
 
       if (!any(is.null(plot$source))) {
-            # Use mclapply to create the plot files in parallel
-            parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
-                                 plot <- new_plots[i, ]
-                                 create_plot_file(plot)
+        # Use mclapply to create the plot files in parallel
+        new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
+                                          plot <- new_plots[i, ]
+                                          if (plot$type == "bigwig") {
+                                            uuid <- create_plot_file(plot)
+                                            plot$server <- self$higlass_metadata$endpoint
+                                            plot$uuid <- uuid
+                                            plot$source <- NULL
+                                          } else {
+                                            create_plot_file(plot)
+                                          }
+
+                                          plot  # Return the modified plot
+
         }, mc.cores = cores)
+
+        # Assign the updated new_plots object
+        new_plots <- do.call(rbind, new_plots)
       }
 
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
-
         if (!is.null(plot$source)) {
-          if (plot$type == "bigwig") {
-            next
-          }
           source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
           if (!file.exists(source_full_path)) {
             warning("File does not exist: ", source_full_path, " skipping adding to pgvdb...")
@@ -535,16 +547,16 @@ PGVdb <- R6Class( "PGVdb",
         }
 
         if (plot$patient.id %in% self$metadata$patient.id) {
-          # If patient.id exists, update tags and ref
-          if ("tags" %in% colnames(plot)) {
-            self$metadata[self$metadata$patient.id == plot$patient.id, "tags"] <- plot$tags
+          # If patient.id exists, update description and ref
+          if ("description" %in% colnames(plot)) {
+            self$metadata[self$metadata$patient.id == plot$patient.id, "description"] <- plot$description
           }
           if ("ref" %in% colnames(plot) & !is.null(plot$ref) & !is.na(plot$ref) ) {
             self$metadata[self$metadata$patient.id == plot$patient.id, "ref"] <- plot$ref
           }
         } else {
-          if ("tags" %in% colnames(plot)) {
-            self$metadata <- rbind(self$metadata, data.frame(patient.id = plot$patient.id, tags = plot$tags, ref = plot$ref), fill = TRUE)
+          if ("description" %in% colnames(plot)) {
+            self$metadata <- rbind(self$metadata, data.frame(patient.id = plot$patient.id, description = plot$description, ref = plot$ref), fill = TRUE)
           } else {
             self$metadata <- rbind(self$metadata, data.frame(patient.id = plot$patient.id, ref = plot$ref), fill = TRUE)
           }
@@ -864,9 +876,49 @@ PGVdb <- R6Class( "PGVdb",
       }
     },
 
+    #' @description 
+    #' List tilesets on higlass server
+    #'
+    #' @return tilesets
+    #'  Data.table containing list of tilesets
+    list_higlass_tilesets = function(endpoint = self$higlass_metadata$endpoint,
+                                    username = self$higlass_metadata$username, 
+                                    password = self$higlass_metadata$password) {
+
+      url <- paste0(endpoint, "api/v1/tilesets/")
+      response <- httr::GET(url,
+                            authenticate(username, password, "basic"),
+                            encode = "multipart"
+      )
+      # Convert the JSON response to a data.table
+      if (response$status_code == 200) {
+        json_content <- httr::content(response, as = "text", encoding="UTF-8")
+        parsed_json <- jsonlite::fromJSON(json_content)
+        count  <- parsed_json$count
+      }
+
+      url <- paste0(endpoint, "api/v1/tilesets/?limit=", count)
+      response <- httr::GET(url,
+                            authenticate(username, password, "basic"),
+                            encode = "multipart"
+      )
+
+      # Convert the JSON response to a data.table
+      if (response$status_code == 200) {
+        json_content <- httr::content(response, as = "text", encoding="UTF-8")
+        parsed_json <- jsonlite::fromJSON(json_content)
+        results <- parsed_json$results
+
+        dt_tilesets <- as.data.table(results)
+        return(dt_tilesets)
+      } else {
+        stop("Failed to retrieve tilesets from the server.")
+      }
+    },
+
     #' @description
     #' Upload file to higlass server
-    #'
+    #' 
     #' @return uuid
     #'  The uuid returned by the response from higlass
     upload_to_higlass = function(endpoint = self$higlass_metadata$endpoint, 
@@ -912,43 +964,35 @@ PGVdb <- R6Class( "PGVdb",
 
       print(paste("UUID:", uuid))
       print(paste("filetype:", filetype))
-      if (filetype == "bigwig") {
-        new_higlass <-  data.table(
-                                   patient.id = patient.id, 
-                                   ref=coordSystem, 
-                                   x = list(list(server = sub("/$", "", endpoint), uuid = uuid)), 
-                                   visible=TRUE
-        )
-        self$add_plots(new_higlass)
-      }
-
       return(uuid)
     },
 
     #' @description
-    #' Remove file in higlass server
+    #' Remove files in higlass server
     #'
     #' @return httr:response
-    delete_from_higlass = function(endpoint = "http://10.1.29.225:41800/", 
-                                   patient.id = "TEST_HIGLASS",
-                                   uuid,
-                                   username = "admin", 
-                                   password = "higlass_test") {
-      # Define the API endpoint
-      url <- paste0(endpoint, "api/v1/tilesets/", uuid, "/")
+    delete_from_higlass = function(
+                                   patient.id = "TEST_ADD",
+                                   endpoint = self$higlass_metadata$endpoint,
+                                   username = self$higlass_metadata$username, 
+                                   password = self$higlass_metadata$password,
+                                   uuids,
+                                   cores = 2
+                                   ) {
+      for (uuid in uuids) {
+        # Define the API endpoint
+        url <- paste0(endpoint, "api/v1/tilesets/", uuid, "/")
 
-      # Create the response object
-      response <- DELETE(
-                         url,
-                         authenticate(username, password, "basic")
-      )
-      response_content <- httr::content(response, "parsed")
-      print(response_content)
+        # Create the response object
+        response <- DELETE(url, authenticate(username, password, "basic"))
 
-      remove_higlass <-  data.table(patient.id = patient.id, server = endpoint, uuid = uuid)
-      self$remove_plots(remove_higlass)
+        response_content <- httr::content(response, "parsed")
+        print(response_content)
+
+        remove_higlass <- data.table(patient.id = patient.id, server = endpoint, uuid = uuid)
+        self$remove_plots(remove_higlass)
+      }
     },
-
 
     #' @description
     #' Download and instantiate a PGV instance with symlinked data
@@ -972,4 +1016,3 @@ PGVdb <- R6Class( "PGVdb",
     }
   )
 )
-
