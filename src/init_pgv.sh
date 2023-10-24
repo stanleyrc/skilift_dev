@@ -18,6 +18,10 @@ else
   git clone "https://github.com/mskilab-org/pgv.git" "$pgv_dir"
 fi
 
+# Remove extra "/"
+datafiles_json=$(echo "$datafiles_json" | tr -s '/')
+settings=$(echo "$settings" | tr -s '/')
+
 echo "Setting up PGV instance with PGVdb data..."
 if [[ "$datafiles_json" != "$pgv_dir/public/datafiles.json" ]]; then
     cp -f "$datafiles_json" "$pgv_dir/public/datafiles.json"

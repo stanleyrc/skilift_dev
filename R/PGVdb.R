@@ -353,6 +353,10 @@ PGVdb <- R6Class( "PGVdb",
             if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source <- 'coverage.arrow'
             }
+            if (is.null(plot$field)) {
+              warning("The column name in GRanges containing scores for scatterplot was not specified, using 'foreground' as default.")
+              plot$field <- "foreground" # Use default value
+            }
           } else if (plot$type == "bigwig") {
             timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
             unique_filename <- paste0(timestamp, '.bw')
@@ -742,6 +746,10 @@ PGVdb <- R6Class( "PGVdb",
 
       if (!("field" %in% names(plot_metadata))) {
           stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
+      }
+
+      if (!(plot_metadata$field %in% names(plot_metadata$x[[1]]))) {
+          stop(warning("Could not find the given 'field' column in the coverage GRanges. Please double check which column in the GRanges contains the coverage scores."))
       }
 
       if (!file.exists(cov_json_path) || plot_metadata$overwrite) {
