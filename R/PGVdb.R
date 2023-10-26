@@ -142,13 +142,13 @@ PGVdb <- R6Class( "PGVdb",
       
       if (!is.null(higlass_metadata)) {
         self$higlass_metadata <- list(
-          endpoint = ifelse(is.null(higlass_metadata$endpoint), "http://10.1.29.225:41800/", higlass_metadata$endpoint),
+          endpoint = ifelse(is.null(higlass_metadata$endpoint), "http://10.1.29.225:41800", higlass_metadata$endpoint),
           username = ifelse(is.null(higlass_metadata$username), "admin", higlass_metadata$username),
           password = ifelse(is.null(higlass_metadata$password), "higlass_test", higlass_metadata$password)
         )
       } else {
         self$higlass_metadata <- list(
-          endpoint = "http://10.1.29.225:41800/",
+          endpoint = "http://10.1.29.225:41800",
           username = "admin",
           password = "higlass_test"
         )
@@ -512,7 +512,7 @@ PGVdb <- R6Class( "PGVdb",
                                           plot <- new_plots[i, ]
                                           if (plot$type == "bigwig") {
                                             uuid <- create_plot_file(plot)
-                                            plot$server <- self$higlass_metadata$endpoint
+                                            plot$server <- gsub("/$", "", self$higlass_metadata$endpoint)
                                             plot$uuid <- uuid
                                             plot$source <- NULL
                                           } else {
@@ -524,13 +524,13 @@ PGVdb <- R6Class( "PGVdb",
         }, mc.cores = cores)
 
         # Assign the updated new_plots object
-        new_plots <- do.call(rbind, new_plots)
+        new_plots <- rbindlist(new_plots, fill=TRUE)
       }
 
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
-        if (!is.null(plot$source)) {
+        if (!is.null(plot$source) && !is.na(plot$source)) {
           source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
           if (!file.exists(source_full_path)) {
             warning("File does not exist: ", source_full_path, " skipping adding to pgvdb...")
@@ -663,6 +663,7 @@ PGVdb <- R6Class( "PGVdb",
     #'
     #' @return NULL.
     validate = function() {
+
       # Check if there are any duplicate columns in self$plots
       if (any(duplicated(colnames(self$plots)))) {
         warning("Duplicate columns found in plots table. Removing duplicate...")
@@ -893,7 +894,8 @@ PGVdb <- R6Class( "PGVdb",
                                     username = self$higlass_metadata$username, 
                                     password = self$higlass_metadata$password) {
 
-      url <- paste0(endpoint, "api/v1/tilesets/")
+      endpoint <- gsub("/$", "", endpoint)
+      url <- paste0(endpoint, "/api/v1/tilesets/")
       response <- httr::GET(url,
                             authenticate(username, password, "basic"),
                             encode = "multipart"
@@ -905,7 +907,7 @@ PGVdb <- R6Class( "PGVdb",
         count  <- parsed_json$count
       }
 
-      url <- paste0(endpoint, "api/v1/tilesets/?limit=", count)
+      url <- paste0(endpoint, "/api/v1/tilesets/?limit=", count)
       response <- httr::GET(url,
                             authenticate(username, password, "basic"),
                             encode = "multipart"
@@ -953,7 +955,8 @@ PGVdb <- R6Class( "PGVdb",
                    'name' = name
       )
 
-      url <- paste0(endpoint, "api/v1/tilesets/")
+      endpoint <- gsub("/$", "", endpoint)
+      url <- paste0(endpoint, "/api/v1/tilesets/")
 
       # Create the response object
       response <- httr::POST(
@@ -987,9 +990,11 @@ PGVdb <- R6Class( "PGVdb",
                                    uuids,
                                    cores = 2
                                    ) {
+
+      endpoint <- gsub("/$", "", endpoint)
       for (uuid in uuids) {
         # Define the API endpoint
-        url <- paste0(endpoint, "api/v1/tilesets/", uuid, "/")
+        url <- paste0(endpoint, "/api/v1/tilesets/", uuid, "/")
 
         # Create the response object
         response <- DELETE(url, authenticate(username, password, "basic"))
