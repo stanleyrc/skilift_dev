@@ -275,6 +275,62 @@ test_that("add_plots works correctly with multiple patients", {
   expect_equal(nrow(pgvdb$plots), 13)
 })
 
+test_that("mixing higlass upload with adding plots works correctly", {
+  pgvdb  <- reset_pgvdb()
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000"
+  # Mix
+  paths  <- c(
+    system.file("extdata", "test_data", "test_higlass_mix_granges1.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test_higlass_mix_granges2.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test_higlass_mix_complex1.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "PGVdb")
+  )
+
+  gg <- system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "PGVdb")
+
+  new_plots <- data.table(
+    patient.id = c("TEST_ADD1", "TEST_ADD2", "TEST_ADD1", "TEST_ADD2"),
+    ref = "hg38_chr",
+    x = paths,
+    field= c("score", "score", NA, NA),
+    type=c("bigwig", "bigwig", NA, NA),
+    visible = TRUE,
+    overwrite = TRUE
+  )
+
+  # gGraphs only
+  paths  <- c(
+    system.file("extdata", "test_data", "test_higlass_mix_complex1.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "PGVdb")
+  )
+
+  new_plots <- data.table(
+    patient.id = c("TEST_ADD1", "TEST_ADD2"),
+    ref = "hg38_chr",
+    x = paths,
+    visible = TRUE,
+    overwrite = TRUE
+  )
+
+
+  # Bigwigs Only
+  paths  <- c(
+    system.file("extdata", "test_data", "test_higlass_mix_granges1.rds", package = "PGVdb"),
+    system.file("extdata", "test_data", "test_higlass_mix_granges2.rds", package = "PGVdb")
+  )
+
+  new_plots <- data.table(
+    patient.id = c("TEST_ADD1", "TEST_ADD2"),
+    ref = "hg38_chr",
+    field= c("score", "score"),
+    type=c("bigwig", "bigwig"),
+    x = paths,
+    visible = TRUE,
+    overwrite = TRUE
+  )
+  pgvdb$add_plots(new_plots)
+}
+
 test_that("remove_plots works correctly", {
   pgvdb <- reset_pgvdb()
   paths  <- c(
@@ -342,7 +398,7 @@ test_that("validate works correctly", {
 
 test_that("listing higlass tilesets works correctly", {
   pgvdb  <- reset_pgvdb()
-  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000"
   tilesets <- pgvdb$list_higlass_tilesets()
   print(tilesets)
 })
@@ -350,7 +406,7 @@ test_that("listing higlass tilesets works correctly", {
 
 test_that("adding to higlass server works correctly", {
   pgvdb <- reset_pgvdb()
-  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000"
   pgvdb$upload_to_higlass(
     datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
     filetype = "chromsizes-tsv",
@@ -370,7 +426,7 @@ test_that("adding to higlass server works correctly", {
 
 test_that("deleting higlass tileset works correctly", {
   pgvdb <- reset_pgvdb()
-  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000/"
+  pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000"
 
   # flush higlass
   tilesets <- pgvdb$list_higlass_tilesets()
@@ -381,6 +437,7 @@ test_that("deleting higlass tileset works correctly", {
   pgvdb$delete_from_higlass(pgvdb$higlass_metadata$endpoint, uuid = uuid[[1]])
   expect_equal(nrow(pgvdb$plots), 10)
 })
+
     
 test_that("init_pgv works correctly", {
   pgvdb <- reset_pgvdb()
