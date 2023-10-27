@@ -41,6 +41,19 @@ test_that("PGVdb initializes correctly", {
   expect_equal(nrow(pgvdb$plots), 10)
 })
 
+test_that("PGVdb initializes from empty datafiles.json", {
+  devtools::load_all(".")
+  datafiles.json <- "/Users/diders01/projects/pgvdb/inst/extdata/pgv/public/datafiles_empty.json"
+  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
+  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
+  default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
+  endpoint <- "http://10.1.29.225:8000/"
+  pgvdb <- PGVdb$new(datafiles.json, datadir, settings, higlass_metadata=list(endpoint=endpoint))
+
+  expect_equal(nrow(pgvdb$metadata), 0)
+  expect_equal(nrow(pgvdb$plots), 0)
+})
+
 test_that("load_json works correctly", {
   pgvdb <- reset_pgvdb()
   expect_error(pgvdb$load_json("bad_path.json"))
@@ -62,6 +75,31 @@ test_that("to_datatable returns correct output", {
   dt_filtered <- pgvdb$to_datatable(list("patient.id", "DEMO"))
 
   expect_equal(nrow(dt_filtered), 10)
+})
+
+test_that("You can add plots to empty datafiles.json", {
+  devtools::load_all(".")
+  pgvdb <- reset_pgvdb()
+  datafiles.json <- "/Users/diders01/projects/pgvdb/inst/extdata/pgv/public/datafiles_empty.json"
+  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
+  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
+  default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
+  endpoint <- "http://10.1.29.225:8000/"
+  pgvdb <- PGVdb$new(datafiles.json, datadir, settings, higlass_metadata=list(endpoint=endpoint))
+
+  new_cov <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg19",
+    tags = c("tags1", "tags2", "tags3"),
+    x = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    field = "cn",
+    visible = TRUE,
+    type = "scatterplot",
+    overwrite = TRUE
+  )
+  pgvdb$add_plots(new_cov)
+  expect_equal(nrow(pgvdb$metadata), 1)
+  expect_equal(nrow(pgvdb$plots), 1)
 })
 
 test_that("add_plots loads from filepath correctly", {
@@ -311,7 +349,6 @@ test_that("mixing higlass upload with adding plots works correctly", {
     visible = TRUE,
     overwrite = TRUE
   )
-
 
   # Bigwigs Only
   paths  <- c(
