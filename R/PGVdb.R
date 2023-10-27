@@ -162,35 +162,67 @@ PGVdb <- R6Class( "PGVdb",
     #'   Datafiles.json file path.
     #' @return NULL.
     load_json = function(datafiles_json_path) {
+      if (!file.exists(datafiles_json_path)) {
+        # If the JSON file does not exist, create an empty file
+        empty_json <- toJSON(list(), auto_unbox = TRUE)
+        # Write the JSON file
+        write(empty_json, file = datafiles_json_path)
+      }
+
       json_data <- jsonlite::fromJSON(datafiles_json_path)
+
+      if (length(json_data) == 0) {
+        # If the JSON file is empty, return an empty data.table with the correct columns
+        self$metadata <- data.table(patient.id = character(),
+                                    ref = character(),
+                                    description = list())
+        setnames(self$metadata, old = names(self$metadata), new = c("patient.id", "ref", "description")) # Rename columns
+
+        self$plots <- data.table(
+                                 patient.id = character(),
+                                 sample = character(),
+                                 type = character(),
+                                 source = character(),
+                                 title = character(),
+                                 visible = logical(),
+                                 figure = character(),
+                                 tag = character(),
+                                 server = character(),
+                                 uuid = character(),
+                                 defaultChartType = character()
+        )
+        self$validate()
+
+        return(invisible())
+      }
 
       # Extract metadata
       metadata_list <- lapply(names(json_data), function(patient_id) {
-        patient_data <- json_data[[patient_id]]
-        ref <- patient_data$reference
-        description <- list(patient_data$description) # Store description as a list
+                                patient_data <- json_data[[patient_id]]
+                                ref <- patient_data$reference
+                                description <- list(patient_data$description) # Store description as a list
 
-        data.table(
-          patient.id = patient_id,
-          ref = ref,
-          description = description
-        )
-      })
+                                data.table(
+                                           patient.id = patient_id,
+                                           ref = ref,
+                                           description = description
+                                )
+                                    })
 
       self$metadata <- rbindlist(metadata_list)
       setnames(self$metadata, old = names(self$metadata), new = c("patient.id", "ref", "description")) # Rename columns
 
       plots_list <- lapply(names(json_data), function(patient_id) {
-        patient_data <- json_data[[patient_id]]
-        patient_plots <- patient_data$plots
+                             patient_data <- json_data[[patient_id]]
+                             patient_plots <- patient_data$plots
 
-        plot_data  <- copy(patient_plots)
+                             plot_data  <- copy(patient_plots)
 
-        data.table(
-          patient.id = rep(patient_id, nrow(plot_data)),
-          plot_data
-        )
-      })
+                             data.table(
+                                        patient.id = rep(patient_id, nrow(plot_data)),
+                                        plot_data
+                             )
+                                    })
 
       self$plots <- rbindlist(plots_list, fill = TRUE)
       self$validate()
@@ -664,70 +696,82 @@ PGVdb <- R6Class( "PGVdb",
     #' @return NULL.
     validate = function() {
 
-      # Check if there are any duplicate columns in self$plots
-      if (any(duplicated(colnames(self$plots)))) {
-        warning("Duplicate columns found in plots table. Removing duplicate...")
-        print(colnames(self$plots))
-        self$plots[, which(duplicated(names(self$plots))) := NULL]
-      }
-      
-      # Check if there are any duplicate columns in self$metadata
-      if (any(duplicated(colnames(self$metadata)))) {
-        warning("Duplicate columns found in plots table. Removing duplicate...")
-        print(colnames(self$metadata))
-        self$metadata[, which(duplicated(names(self$metadata))) := NULL]
-      }
+      plots_empty = nrow(self$plots) == 0
+      metadata_empty = nrow(self$metadata) == 0
 
-      # Check if all patients have at least one plot, otherwise remove patient from metadata
-      patients_without_plots <- self$metadata[!patient.id %in% unique(self$plots$patient.id), patient.id]
-      if (length(patients_without_plots) > 0) {
-        self$metadata <- self$metadata[!patient.id %in% patients_without_plots]
-      }
+      if (!(plots_empty || metadata_empty)) {
+        # Check if there are any duplicate columns in self$plots
+        if (any(duplicated(colnames(self$plots)))) {
+          warning("Duplicate columns found in plots table. Removing duplicate...")
+          print(colnames(self$plots))
+          self$plots[, which(duplicated(names(self$plots))) := NULL]
+        }
 
-      # Check if all source files exist in proper directory and server is not null
-      missing_files <- self$plots[(is.na(server) | is.null(server)) & !file.exists(file.path(self$datadir, patient.id, source)), .(patient.id, source)]
+        # Check if there are any duplicate columns in self$metadata
+        if (any(duplicated(colnames(self$metadata)))) {
+          warning("Duplicate columns found in plots table. Removing duplicate...")
+          print(colnames(self$metadata))
+          self$metadata[, which(duplicated(names(self$metadata))) := NULL]
+        }
 
-      missing_servers <- self$plots[(is.na(source) | is.null(source)) & (is.na(server) | is.null(server) & (is.na(uuid) | is.null(uuid)))]
-      # All plots must have a patient.id and either a source or server and uuid
-      missing_values <- self$plots[
-        (is.na(patient.id) | is.null(patient.id)) |
-        (
-          (is.na(source) | is.null(source)) &
-          (
-            (is.na(server) | is.null(server)) &
-            (is.na(uuid) | is.null(uuid))
-          )
-        ),
-        .SDcols = c("patient.id", "source", "server", "uuid"),
-      ]
+        # Check if all patients have at least one plot, otherwise remove patient from metadata
+        patients_without_plots <- self$metadata[!patient.id %in% unique(self$plots$patient.id), patient.id]
+        if (length(patients_without_plots) > 0) {
+          self$metadata <- self$metadata[!patient.id %in% patients_without_plots]
+        }
 
-      # Construct error message and table with missing source and missing values
-      error_message <- ""
-      missing_data <- data.table()
-      if (nrow(missing_files) > 0) {
-        error_message <- paste(error_message, "Missing Files:\n")
-        error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, sep = " - "), collapse = "\n")
-        missing_data <- rbind(missing_data, missing_files, fill=TRUE)
-      }
-      if (nrow(missing_servers) > 0) {
-        error_message <- paste(error_message, "Missing Servers (or uuids for the servers):\n")
-        error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, sep = " - "), collapse = "\n")
-        missing_data <- rbind(missing_data, missing_servers, fill=TRUE)
-      }
-      if (nrow(missing_values) > 0) {
-        error_message <- paste(error_message, "Missing Values:\n")
-        error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, sep = " - "), collapse = "\n")
-        missing_data <- rbind(missing_data, missing_values, fill=TRUE)
-      }
+        # Check if all source files exist in proper directory and server is not null
+        missing_files <- self$plots[(is.na(server) | is.null(server)) & !file.exists(file.path(self$datadir, patient.id, source)), .(patient.id, source)]
 
-      # Coerce visible to be boolean
-      self$plots$visible = as.logical(self$plots$visible)
+        missing_servers <- self$plots[(is.na(source) | is.null(source)) & (is.na(server) | is.null(server) & (is.na(uuid) | is.null(uuid)))]
+        # All plots must have a patient.id and either a source or server and uuid
+        missing_values <- self$plots[
+                                     (is.na(patient.id) | is.null(patient.id)) |
+                                       (
+                                        (is.na(source) | is.null(source)) &
+                                          (
+                                           (is.na(server) | is.null(server)) &
+                                             (is.na(uuid) | is.null(uuid))
+                                          )
+                                        ),
+                .SDcols = c("patient.id", "source", "server", "uuid"),
+                ]
 
-      # Return error message if there are any missing files or values
-      if (error_message != "") {
-        warning(error_message)
-        print("Returning data.table with the invalid rows...")
-        return(missing_data)
+        # Construct error message and table with missing source and missing values
+        error_message <- ""
+        missing_data <- data.table()
+        if (nrow(missing_files) > 0) {
+          error_message <- paste(error_message, "Missing Files:\n")
+          error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, sep = " - "), collapse = "\n")
+          missing_data <- rbind(missing_data, missing_files, fill=TRUE)
+        }
+        if (nrow(missing_servers) > 0) {
+          error_message <- paste(error_message, "Missing Servers (or uuids for the servers):\n")
+          error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, sep = " - "), collapse = "\n")
+          missing_data <- rbind(missing_data, missing_servers, fill=TRUE)
+        }
+        if (nrow(missing_values) > 0) {
+          error_message <- paste(error_message, "Missing Values:\n")
+          error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, sep = " - "), collapse = "\n")
+          missing_data <- rbind(missing_data, missing_values, fill=TRUE)
+        }
+
+        # Coerce visible to be boolean
+        self$plots$visible = as.logical(self$plots$visible)
+
+        # Return error message if there are any missing files or values
+        if (error_message != "") {
+          warning(error_message)
+          print("Returning data.table with the invalid rows...")
+          return(missing_data)
+        }
+      } else {
+        if (plots_empty) {
+          warning("plots table is empty")
+        }
+        if (metadata_empty) {
+          warning("metadata table is empty")
+        }
       }
     },
 
@@ -749,7 +793,13 @@ PGVdb <- R6Class( "PGVdb",
           stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
       }
 
-      if (!(plot_metadata$field %in% names(plot_metadata$x[[1]]))) {
+      if (is(plot_metadata$x[[1]], "GRanges")) {
+        granges_fields <- colnames(mcols(plot_metadata$x[[1]]))
+      } else {
+        granges_fields <- colnames(mcols(readRDS(plot_metadata$x)))
+      }
+
+      if (!(plot_metadata$field %in% granges_fields)) {
           stop(warning("Could not find the given 'field' column in the coverage GRanges. Please double check which column in the GRanges contains the coverage scores."))
       }
 
