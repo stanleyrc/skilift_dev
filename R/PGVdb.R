@@ -544,9 +544,13 @@ PGVdb <- R6Class( "PGVdb",
                                           plot <- new_plots[i, ]
                                           if (plot$type == "bigwig") {
                                             uuid <- create_plot_file(plot)
-                                            plot$server <- gsub("/$", "", self$higlass_metadata$endpoint)
-                                            plot$uuid <- uuid
-                                            plot$source <- NULL
+                                            if (!(is.na(uuid) || is.null(uuid))) {
+                                              plot$server <- gsub("/$", "", self$higlass_metadata$endpoint)
+                                              plot$uuid <- uuid
+                                              plot$source <- NULL
+                                            } else {
+                                              message("No uuid for plot, skipping adding to plots table")
+                                            }
                                           } else {
                                             create_plot_file(plot)
                                           }
