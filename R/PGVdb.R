@@ -877,21 +877,29 @@ PGVdb <- R6Class( "PGVdb",
               seqlevels(ggraph$nodes$gr)[1], names(seq_lengths)[1]
             ))
           }
-          # sedge.id or other field
+                                        #add maxcn from plot_metadata if exists
+          if("max.cn" %in% colnames(plot_metadata)) {
+              maxcn = plot_metadata$max.cn
+          } else {
+              maxcn = 100
+          }
+                                        # sedge.id or other field
           if ("annotation" %in% colnames(plot_metadata)) {
             # probably check for other cid.field names?
             # field = 'sedge.id'
-            gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-              filename = ggraph_json_path,
-              verbose = TRUE,
-              annotations = unlist(plot_metadata$annotation)
-            # cid.field = field
-            )
+              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+                                                                            filename = ggraph_json_path,
+                                                                            verbose = TRUE,
+                                                                            annotations = unlist(plot_metadata$annotation),
+                                                                            maxcn = maxcn
+                                        # cid.field = field
+                                                                        )
           } else {
-            gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-              filename = ggraph_json_path,
-              verbose = TRUE
-            )
+              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+                                                                            filename = ggraph_json_path,
+                                                                            verbose = TRUE,
+                                                                            maxcn = maxcn
+                                                                        )
           }
         } else {
           warning(plot_metadata$x, " rds read was not a gGraph")
