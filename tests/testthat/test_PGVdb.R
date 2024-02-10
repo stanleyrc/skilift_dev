@@ -6,7 +6,7 @@ setup({
   library(data.table)
   library(jsonlite)
   library(httr)
-  devtools::load_all("../../gGnome/gGnome")
+  devtools::load_all("../../../gGnome")
 })
 
 devtools::load_all(".")
@@ -38,7 +38,7 @@ reset_pgvdb  <- function() {
 test_that("PGVdb initializes correctly", {
   pgvdb <- reset_pgvdb()
   expect_equal(nrow(pgvdb$metadata), 1)
-  expect_equal(nrow(pgvdb$plots), 10)
+  expect_equal(nrow(pgvdb$plots), 13)
 })
 
 test_that("PGVdb initializes from empty datafiles.json", {
@@ -497,3 +497,56 @@ test_that("init_pgv works correctly", {
   pgv_dir  <- "/Users/diders01/projects/pgv_init_test"
   pgvdb$init_pgv(pgv_dir)
 })
+
+### Debugging
+
+test_that("adding arrows in parallel works correctly", {
+  pgvdb <- reset_pgvdb()
+  maska_path = system.file("extdata", "test_data", "maskA_re.rds", package = "PGVdb")
+  maska = readRDS(maska_path)
+  maska$mask = "mask"
+
+  pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "PGVdb")
+  pairs = readRDS(pairs_path)
+  covs.lst = mclapply(pairs$pair, function(pair) {
+    cov_gr = readRDS(pairs[pair,decomposed_cov])
+    jab = readRDS(pairs[pair,complex])
+    cov_gr$foregroundabs = rel2abs(gr=cov_gr,
+      purity = jab$meta$purity,
+      ploidy = jab$meta$ploidy,
+      field="foreground"
+    )
+    cov_gr2 = rebin(cov_gr, 1e4, field = "foregroundabs")
+    cov_gr3 = gr.val(cov_gr2,maska, "mask")
+    cov_gr3 = cov_gr3 %Q% (mask != "mask")
+    cov_gr3$mask = NULL
+    plot_to_add = data.table(patient.id = pair,
+      visible = TRUE,
+      x = list(cov_gr3),
+      type = "scatterplot",
+      field = "foregroundabs",
+      ref="hg38_chr",
+      title = "Coverage rel2abs"
+    )
+    return(plot_to_add)
+  }, mc.cores = 40)
+
+  covs.dt = rbindlist(covs.lst)
+  covs.dt[,ref := "hg19"]
+  covs.dt[,title := "Masked Coverage rel2abs"]
+
+  pgv = getPGV(pgv_sub_folder = "test_pgv/")
+
+  #this runs within 15 seconds
+  pgv$add_plots(covs.dt[1,], cores = 1)
+
+  pgv = getPGV(pgv_sub_folder = "test_pgv/")
+
+  covs.dt[, source := "coverage.arrow"]
+  pgv$add_plots(covs.dt, cores = 30)
+
+  pgv_dir  <- "/Users/diders01/projects/pgv_init_test"
+  pgvdb$init_pgv(pgv_dir)
+
+})
+
