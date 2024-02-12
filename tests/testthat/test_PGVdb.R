@@ -501,7 +501,7 @@ test_that("init_pgv works correctly", {
 ### Debugging
 
 test_that("adding arrows in parallel works correctly", {
-  pgvdb <- reset_pgvdb()
+  pgv <- reset_pgvdb()
   maska_path = system.file("extdata", "test_data", "maskA_re.rds", package = "PGVdb")
   maska = readRDS(maska_path)
   maska$mask = "mask"
@@ -517,7 +517,7 @@ test_that("adding arrows in parallel works correctly", {
       field="foreground"
     )
     cov_gr2 = rebin(cov_gr, 1e4, field = "foregroundabs")
-    cov_gr3 = gr.val(cov_gr2,maska, "mask")
+    cov_gr3 = gr.val(cov_gr2, maska, "mask")
     cov_gr3 = cov_gr3 %Q% (mask != "mask")
     cov_gr3$mask = NULL
     plot_to_add = data.table(patient.id = pair,
@@ -535,18 +535,7 @@ test_that("adding arrows in parallel works correctly", {
   covs.dt[,ref := "hg19"]
   covs.dt[,title := "Masked Coverage rel2abs"]
 
-  pgv = getPGV(pgv_sub_folder = "test_pgv/")
-
-  #this runs within 15 seconds
-  pgv$add_plots(covs.dt[1,], cores = 1)
-
-  pgv = getPGV(pgv_sub_folder = "test_pgv/")
-
-  covs.dt[, source := "coverage.arrow"]
-  pgv$add_plots(covs.dt, cores = 30)
-
-  pgv_dir  <- "/Users/diders01/projects/pgv_init_test"
-  pgvdb$init_pgv(pgv_dir)
-
+  pgv <- reset_pgvdb()
+  pgv$add_plots(covs.dt[1:1000], cores = 40)
 })
 
