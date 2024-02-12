@@ -365,6 +365,9 @@ PGVdb <- R6Class( "PGVdb",
         }
       }
 
+      source_vector <- rep(NA, nrow(new_plots))
+      type_vector <- rep(NA, nrow(new_plots))
+
       # Loop through each row of the plots_to_add table
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
@@ -462,10 +465,17 @@ PGVdb <- R6Class( "PGVdb",
             }
             plot$source <- paste0(base_name, counter, ".", ext)
           }
-          new_plots[i, "source"] <- plot$source
+          if (!is.null(plot$source)) {
+            source_vector[i] <- plot$source
+          }
         }
-        new_plots[i, "type"] <- plot$type
+        if (!is.null(plot$type)) {
+          type_vector[i] <- plot$type
+        }
       } # Break the loop into three pieces to parallize the plot creation
+
+      new_plots$source <- source_vector
+      new_plots$type <- type_vector
 
       # Define the function to create plot files
       create_plot_file <- function(plot, plot_index) {
