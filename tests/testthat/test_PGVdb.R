@@ -6,17 +6,22 @@ setup({
   library(data.table)
   library(jsonlite)
   library(httr)
-  devtools::load_all("../../gGnome/gGnome")
+                                        #  devtools::load_all("../../../gGnome")
+  devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/gGnome_dev_2_11_24")
 })
 
 devtools::load_all(".")
+devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb")
 context("PGVdb")
 
 load_paths <- function() {
-  datafiles.json <- system.file("extdata", "pgv", "public", "datafiles.json", package = "PGVdb")
-  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
-  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
+  ## datafiles.json <- system.file("extdata", "pgv", "public", "datafiles.json", package = "PGVdb")
+  ## datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
+  ## settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
 
+    datafiles.json <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/datafiles0.json"
+    datadir <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/data"
+    settings <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/settings.json"
   list(
     datafiles = datafiles.json,
     datadir = datadir,
@@ -38,14 +43,17 @@ reset_pgvdb  <- function() {
 test_that("PGVdb initializes correctly", {
   pgvdb <- reset_pgvdb()
   expect_equal(nrow(pgvdb$metadata), 1)
-  expect_equal(nrow(pgvdb$plots), 10)
+  expect_equal(nrow(pgvdb$plots), 13)
 })
 
 test_that("PGVdb initializes from empty datafiles.json", {
   devtools::load_all(".")
-  datafiles.json <- "/Users/diders01/projects/pgvdb/inst/extdata/pgv/public/datafiles_empty.json"
-  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
-  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
+  ## datafiles.json <- "/Users/diders01/projects/pgvdb/inst/extdata/pgv/public/datafiles_empty.json"
+  ## datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
+  ## settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
+  datafiles.json <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/datafiles.json"
+  datadir <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/data"
+  settings <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/settings.json"
   default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
   endpoint <- "http://10.1.29.225:8000/"
   pgvdb <- PGVdb$new(datafiles.json, datadir, settings, higlass_metadata=list(endpoint=endpoint))
@@ -497,3 +505,45 @@ test_that("init_pgv works correctly", {
   pgv_dir  <- "/Users/diders01/projects/pgv_init_test"
   pgvdb$init_pgv(pgv_dir)
 })
+
+### Debugging
+
+test_that("adding arrows in parallel works correctly", {
+  pgv <- reset_pgvdb()
+  maska_path = system.file("extdata", "test_data", "maskA_re.rds", package = "PGVdb")
+  maska = readRDS(maska_path)
+  maska$mask = "mask"
+
+  pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "PGVdb")
+  pairs = readRDS(pairs_path)
+  covs.lst = mclapply(pairs$pair, function(pair) {
+    cov_gr = readRDS(pairs[pair,decomposed_cov])
+    jab = readRDS(pairs[pair,complex])
+    cov_gr$foregroundabs = rel2abs(gr=cov_gr,
+      purity = jab$meta$purity,
+      ploidy = jab$meta$ploidy,
+      field="foreground"
+    )
+    cov_gr2 = rebin(cov_gr, 1e4, field = "foregroundabs")
+    cov_gr3 = gr.val(cov_gr2, maska, "mask")
+    cov_gr3 = cov_gr3 %Q% (mask != "mask")
+    cov_gr3$mask = NULL
+    plot_to_add = data.table(patient.id = pair,
+      visible = TRUE,
+      x = list(cov_gr3),
+      type = "scatterplot",
+      field = "foregroundabs",
+      ref="hg38_chr",
+      title = "Coverage rel2abs"
+    )
+    return(plot_to_add)
+  }, mc.cores = 40)
+
+  covs.dt = rbindlist(covs.lst)
+  covs.dt[,ref := "hg19"]
+  covs.dt[,title := "Masked Coverage rel2abs"]
+
+  pgv <- reset_pgvdb()
+  pgv$add_plots(covs.dt[1:1000], cores = 40)
+})
+
