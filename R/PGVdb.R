@@ -347,7 +347,7 @@ PGVdb <- R6Class( "PGVdb",
         patient.id = character(),
         x = list(), # either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
         stringsAsFactors = FALSE
-      )
+        )
 
       if (!all(required_columns %in% names(new_plots))) {
         warning("Required columns not found, creating an empty data.table (called 'empty') with required columns instead...")
@@ -427,10 +427,17 @@ PGVdb <- R6Class( "PGVdb",
               plot$source  <- unique_filename
             }
           } else if (is(rds_object, "gGraph")) {
-            plot$type <- 'genome'
-            if (!"source" %in% names(plot) || is.na(plot$source)) {
-              plot$source <- 'genome.json'
-            }
+              if(is.null(plot$type)) {
+                  warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic")
+              }
+              if (plot$type != "allelic") {
+                  plot$type <- 'genome'
+                  if (!"source" %in% names(plot) || is.na(plot$source)) {
+                      plot$source <- 'genome.json'
+                  }
+              } else {
+                  plot$source <- 'allelic.json'
+              }
           } else if (is(rds_object, "gWalk")) {
             plot$type <- 'walk'
             if (!"source" %in% names(plot) || is.na(plot$source)) {
@@ -466,7 +473,6 @@ PGVdb <- R6Class( "PGVdb",
         }
         new_plots[i, "type"] <- plot$type
       } # Break the loop into three pieces to parallize the plot creation
-
       # Define the function to create plot files
       create_plot_file <- function(plot, plot_index) {
         tryCatch({
@@ -522,7 +528,9 @@ PGVdb <- R6Class( "PGVdb",
               } else {
                 # Use the plot type to determine the conversion function to use
                 if (plot$type == "genome") {
-                  self$create_ggraph_json(plot)
+                    self$create_ggraph_json(plot)
+                } else if (plot$type == "allelic") {
+                    self$create_allelic_json(plot)
                 } else if (plot$type == "scatterplot") {
                   self$create_cov_arrow(plot)
                 } else if (plot$type == "walk") {
@@ -537,7 +545,6 @@ PGVdb <- R6Class( "PGVdb",
           traceback()
         })
       }
-
       if (!any(is.null(plot$source))) {
         # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
@@ -562,7 +569,8 @@ PGVdb <- R6Class( "PGVdb",
         # Assign the updated new_plots object
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
-
+                                        #change allelic to genome for type to render in pgv
+      new_plots[type == "allelic", type := "genome"]
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
@@ -891,14 +899,90 @@ PGVdb <- R6Class( "PGVdb",
                                                                             filename = ggraph_json_path,
                                                                             verbose = TRUE,
                                                                             annotations = unlist(plot_metadata$annotation),
-                                                                            maxcn = maxcn
+                                                                            maxcn = maxcn,
                                         # cid.field = field
                                                                         )
           } else {
               gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
                                                                             filename = ggraph_json_path,
                                                                             verbose = TRUE,
-                                                                            maxcn = maxcn
+                                                                            maxcn = maxcn,
+                                                                        )
+          }
+        } else {
+          warning(plot_metadata$x, " rds read was not a gGraph")
+        }
+      } else {
+        warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+      }
+    },
+
+    #' @description
+    #' Create allelic gGraph JSON file.
+    #'
+    #' @param plot_metadata (`data.table`)\cr 
+    #'   Plot metadata.
+    #'
+    #' @return NULL.
+    create_allelic_json = function(plot_metadata) {
+      ggraph_json_path <- file.path(
+        self$datadir,
+        plot_metadata$patient.id,
+        plot_metadata$source
+      )
+      if (!file.exists(ggraph_json_path) || plot_metadata$overwrite) {
+        if (is(plot_metadata$x[[1]], "gGraph")) {
+          ggraph <- plot_metadata$x[[1]]
+        } else {
+          message(paste0("reading in ", plot_metadata$x))
+          if (grepl(plot_metadata$x, pattern = ".rds")) {
+            ggraph <- readRDS(plot_metadata$x)
+          } else {
+            message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
+            ggraph <- readRDS(plot_metadata$x)
+          }
+        }
+        if (any(class(ggraph) == "gGraph")) {
+          seq_lengths <- gGnome::parse.js.seqlengths(
+            self$settings,
+            js.type = "PGV",
+            ref = plot_metadata$ref
+          )
+          # check for overlap in sequence names
+          ggraph.reduced <- ggraph[seqnames %in% names(seq_lengths)]
+          if (length(ggraph.reduced) == 0) {
+            stop(sprintf(
+              'There is no overlap between the sequence names in the reference
+              used by PGV and the sequences in your gGraph. Here is an
+              example sequence from your gGraph: "%s". And here is an
+              example sequence from the reference used by gGnome.js: "%s"',
+              seqlevels(ggraph$nodes$gr)[1], names(seq_lengths)[1]
+            ))
+          }
+                                        #add maxcn from plot_metadata if exists
+          if("max.cn" %in% colnames(plot_metadata)) {
+              maxcn = plot_metadata$max.cn
+          } else {
+              maxcn = 100
+          }
+                                        # sedge.id or other field
+          if ("annotation" %in% colnames(plot_metadata)) {
+            # probably check for other cid.field names?
+            # field = 'sedge.id'
+              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+                                                                            filename = ggraph_json_path,
+                                                                            verbose = TRUE,
+                                                                            annotations = unlist(plot_metadata$annotation),
+                                                                            maxcn = maxcn,
+                                                                            nfields = "col"
+                                        # cid.field = field
+                                                                        )
+          } else {
+              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+                                                                            filename = ggraph_json_path,
+                                                                            verbose = TRUE,
+                                                                            maxcn = maxcn,
+                                                                            nfields = "col"
                                                                         )
           }
         } else {
