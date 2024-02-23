@@ -19,7 +19,9 @@ for interacting with the database and converting to and from JSON.
 \code{create_cov_arrow()} Create coverage arrow plot JSON
 \code{create_ggraph_json()} Create gGraph JSON
 \code{create_gwalk_json()} Create gWalk JSON
+\code{list_higlass_tilesets()} Upload file to higlass server
 \code{upload_to_higlass()} Upload file to higlass server
+\code{delete_from_higlass()} Upload file to higlass server
 \code{init_pgv()} Download and launch PGV instance
 }
 
@@ -37,7 +39,10 @@ Data table containing plot metadata}
 
 \item{\code{datadir}}{(`character(1)`).}
 
-\item{\code{settings}}{(`charater(1)`).}
+\item{\code{settings}}{(`character(1)`).}
+
+\item{\code{higlass_metadata}}{(`list`)\cr
+Attribute containing HiGlass metadata}
 }
 \if{html}{\out{</div>}}
 }
@@ -61,7 +66,9 @@ Path to the datafiles.json}
 \item \href{#method-PGVdb-validate}{\code{PGVdb$validate()}}
 \item \href{#method-PGVdb-create_cov_arrow}{\code{PGVdb$create_cov_arrow()}}
 \item \href{#method-PGVdb-create_ggraph_json}{\code{PGVdb$create_ggraph_json()}}
+\item \href{#method-PGVdb-create_allelic_json}{\code{PGVdb$create_allelic_json()}}
 \item \href{#method-PGVdb-create_gwalk_json}{\code{PGVdb$create_gwalk_json()}}
+\item \href{#method-PGVdb-list_higlass_tilesets}{\code{PGVdb$list_higlass_tilesets()}}
 \item \href{#method-PGVdb-upload_to_higlass}{\code{PGVdb$upload_to_higlass()}}
 \item \href{#method-PGVdb-delete_from_higlass}{\code{PGVdb$delete_from_higlass()}}
 \item \href{#method-PGVdb-init_pgv}{\code{PGVdb$init_pgv()}}
@@ -74,7 +81,7 @@ Path to the datafiles.json}
 \subsection{Method \code{new()}}{
 Creates a new instance of this [R6][R6::R6Class] class.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$new(datafiles_json_path, datadir, settings)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$new(datafiles_json_path, datadir, settings, higlass_metadata = NULL)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -88,6 +95,9 @@ Data directory path.}
 
 \item{\code{settings}}{(`character(1)`)\cr
 Settings object path.}
+
+\item{\code{higlass_metadata}}{(`list`, optional)\cr
+HiGlass metadata containing endpoint, username, and password.}
 }
 \if{html}{\out{</div>}}
 }
@@ -138,8 +148,8 @@ Convert metadata and plots to a single data table.
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{filter}}{(`character(1)`)\cr
-Filter to apply.}
+\item{\code{filter}}{(`list()`)\cr
+Filter to apply. Consists of two elements: the column to filter on and the string to filter with.}
 }
 \if{html}{\out{</div>}}
 }
@@ -153,17 +163,16 @@ Filter to apply.}
 \subsection{Method \code{add_plots()}}{
 Add new plots to the PGVdb.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$add_plots(plots_to_add, overwrite = FALSE, cores = 2)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$add_plots(plots_to_add, cores = 2)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{plots_to_add}}{(`data.table`)\cr
-Data table of plots to add.}
-
-\item{\code{overwrite}}{(`logical(1)`)\cr
-Overwrite existing files if TRUE.}
+Data table of plots to add. Must have a minimal set of columns: patient.id, x. 
+x is either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
+If adding a new patient, table must include a ref column.}
 
 \item{\code{cores}}{(`number(1)`)\cr
 Number of cores to use for parallel execution}
@@ -217,7 +226,7 @@ NULL.
 \subsection{Method \code{create_cov_arrow()}}{
 Create coverage arrow plot JSON file.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_cov_arrow(plot_metadata, overwrite = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_cov_arrow(plot_metadata)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -225,9 +234,6 @@ Create coverage arrow plot JSON file.
 \describe{
 \item{\code{plot_metadata}}{(`data.table`)\cr 
 Plot metadata.}
-
-\item{\code{overwrite}}{(`logical(1)`)\cr 
-Overwrite if file exists.}
 }
 \if{html}{\out{</div>}}
 }
@@ -241,7 +247,7 @@ NULL.
 \subsection{Method \code{create_ggraph_json()}}{
 Create gGraph JSON file.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_ggraph_json(plot_metadata, overwrite = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_ggraph_json(plot_metadata)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -249,9 +255,27 @@ Create gGraph JSON file.
 \describe{
 \item{\code{plot_metadata}}{(`data.table`)\cr 
 Plot metadata.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PGVdb-create_allelic_json"></a>}}
+\if{latex}{\out{\hypertarget{method-PGVdb-create_allelic_json}{}}}
+\subsection{Method \code{create_allelic_json()}}{
+Create allelic gGraph JSON file.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_allelic_json(plot_metadata)}\if{html}{\out{</div>}}
+}
 
-\item{\code{overwrite}}{(`logical(1)`)\cr 
-Overwrite if file exists.}
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{plot_metadata}}{(`data.table`)\cr 
+Plot metadata.}
 }
 \if{html}{\out{</div>}}
 }
@@ -265,7 +289,7 @@ NULL.
 \subsection{Method \code{create_gwalk_json()}}{
 Create gWalk JSON file
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_gwalk_json(plot_metadata, overwrite = FALSE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_gwalk_json(plot_metadata)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -273,14 +297,29 @@ Create gWalk JSON file
 \describe{
 \item{\code{plot_metadata}}{(`data.table`)\cr 
 Plot metadata.}
-
-\item{\code{overwrite}}{(`logical(1)`)\cr 
-Overwrite if file exists.}
 }
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
 NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PGVdb-list_higlass_tilesets"></a>}}
+\if{latex}{\out{\hypertarget{method-PGVdb-list_higlass_tilesets}{}}}
+\subsection{Method \code{list_higlass_tilesets()}}{
+List tilesets on higlass server
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$list_higlass_tilesets(
+  endpoint = self$higlass_metadata$endpoint,
+  username = self$higlass_metadata$username,
+  password = self$higlass_metadata$password
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+tilesets
+ Data.table containing list of tilesets
 }
 }
 \if{html}{\out{<hr>}}
@@ -290,33 +329,36 @@ NULL.
 Upload file to higlass server
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{PGVdb$upload_to_higlass(
-  endpoint = "http://10.1.29.225:41800/api/v1/tilesets/",
+  endpoint = self$higlass_metadata$endpoint,
+  patient.id = "TEST_HIGLASS",
   datafile,
   filetype,
   datatype,
   coordSystem,
   name,
-  uuid = "",
-  username = "sdider",
-  password = "higlass_test"
+  username = self$higlass_metadata$username,
+  password = self$higlass_metadata$password
 )}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
-httr:response
+uuid
+ The uuid returned by the response from higlass
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-PGVdb-delete_from_higlass"></a>}}
 \if{latex}{\out{\hypertarget{method-PGVdb-delete_from_higlass}{}}}
 \subsection{Method \code{delete_from_higlass()}}{
-Remove file in higlass server
+Remove files in higlass server
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{PGVdb$delete_from_higlass(
-  endpoint = "http://10.1.29.225:41800/api/v1/tilesets/",
-  uuid,
-  username = "sdider",
-  password = "higlass_test"
+  patient.id = "TEST_ADD",
+  endpoint = self$higlass_metadata$endpoint,
+  username = self$higlass_metadata$username,
+  password = self$higlass_metadata$password,
+  uuids,
+  cores = 2
 )}\if{html}{\out{</div>}}
 }
 
