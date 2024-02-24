@@ -367,7 +367,6 @@ PGVdb <- R6Class( "PGVdb",
 
       source_vector <- rep(NA, nrow(new_plots))
       type_vector <- rep(NA, nrow(new_plots))
-
       # Loop through each row of the plots_to_add table
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
@@ -446,6 +445,10 @@ PGVdb <- R6Class( "PGVdb",
             if (!"source" %in% names(plot) || is.na(plot$source)) {
               plot$source <- 'walks.json'
             }
+          } else if (plot$type == "mutations") {
+              if (!"source" %in% names(plot) || is.na(plot$source)) {
+                  plot$source <- 'mutations.json'
+              }
           }
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
@@ -546,6 +549,8 @@ PGVdb <- R6Class( "PGVdb",
                   self$create_cov_arrow(plot)
                 } else if (plot$type == "walk") {
                   self$create_gwalk_json(plot)
+                } else if (plot$type == "mutations") {
+                    self$create_somatic_json(plot)
                 }
               }
             }
@@ -580,8 +585,8 @@ PGVdb <- R6Class( "PGVdb",
         # Assign the updated new_plots object
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
-                                        #change allelic to genome for type to render in pgv
-      new_plots[type == "allelic", type := "genome"]
+                                        #change allelic & mutations to genome for type to render in pgv
+      new_plots[type %in% c("allelic","mutations"), type := "genome"]
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
@@ -1082,6 +1087,63 @@ PGVdb <- R6Class( "PGVdb",
         stop("Failed to retrieve tilesets from the server.")
       }
     },
+      #' @description
+    #' Create allelic gGraph JSON file.
+    #'
+    #' @param plot_metadata (`data.table`)\cr 
+    #'   Plot metadata.
+    #'
+    #' @return NULL.
+  create_somatic_json = function(plot_metadata) {
+      somatic_json_path <- file.path(
+        self$datadir,
+        plot_metadata$patient.id,
+        plot_metadata$source
+      )
+      if (!file.exists(somatic_json_path) || plot_metadata$overwrite) {
+        if (any(class(plot_metadata$x[[1]]) == "data.table")) {
+          mutations.dt <- plot_metadata$x[[1]]
+        } else {
+          message(paste0("reading in ", plot_metadata$x))
+          if (grepl(plot_metadata$x, pattern = ".rds")) {
+            mutations.dt <- readRDS(plot_metadata$x)
+          } else {
+            message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
+            mutations.dt <- readRDS(plot_metadata$x)
+          }
+        }
+          if (any(class(mutations.dt) == "data.table")) {
+              seq_lengths <- gGnome::parse.js.seqlengths(
+                                         self$settings,
+                                         js.type = "PGV",
+                                         ref = plot_metadata$ref
+                                     )
+                                        # check for overlap in sequence names
+              mutations.reduced <- mutations.dt[seqnames %in% names(seq_lengths),]
+              if (length(mutations.reduced) == 0) {
+                  stop(sprintf(
+                      'There is no overlap between the sequence names in the reference
+              used by PGV and the sequences in your mutations. Here is an
+              example sequence from your mutations: "%s". And here is an
+              example sequence from the reference used by gGnome.js: "%s"',
+              mutations$seqnames[1], names(seq_lengths)[1]
+              ))
+              }
+              yfield = plot_metadata$field[1]
+              mutations.dt = mutations.dt[!is.na(get(yfield)),]
+              mutations.dt[start == end, end := end +1]
+              mutations.dt[, strand := NULL]
+              mutations.dt[variant.p != "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; Protein_variant: ", variant.p, "; VAF: ",vaf)]
+              mutations.dt[variant.p == "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; VAF: ",vaf)]
+              dt2json_mut(dt = mutations.dt, ref = plot_metadata$ref,settings = self$settings, meta_data = c("gene", "feature_type","annotation","REF","ALT","variant.c","variant.p","vaf","transcript_type", "impact","rank"), y_col = yfield, file_name = somatic_json_path)
+          } else {
+              warning(plot_metadata$x, " rds read was not mutations")
+          }
+      } else {
+        warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+      }
+    },
+
 
     #' @description
     #' Upload file to higlass server
