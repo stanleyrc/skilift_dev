@@ -2,19 +2,32 @@
 % Please edit documentation in R/plots.R
 \name{create_somatic_json}
 \alias{create_somatic_json}
+\alias{dt2json_mut}
 \title{create_somatic_json}
 \usage{
-create_somatic_json(
-  somatic_snv_cn,
-  out_file,
-  pair,
-  pgv_settings,
-  return_table_pgv = FALSE,
-  meta_keep = NULL,
-  y_col = "est_cn_llrm"
+dt2json_mut(
+  dt,
+  patient.id,
+  ref,
+  settings,
+  file_name = paste(getwd(), "test.json", sep = "/"),
+  meta_data = NULL,
+  y_col = NULL
 )
 }
 \arguments{
+\item{dt}{data.table with seqnames,start and end}
+
+\item{patient.id}{patient id to be added to pgvdb or case reports}
+
+\item{ref}{reference for pgv or case reports}
+
+\item{file_name}{the file the json should be written to}
+
+\item{meta_data}{extra information to add to the json}
+
+\item{y_col}{column to be used for y axis values}
+
 \item{somatic_snv_cn}{somatic copy number data table}
 
 \item{out_file}{where the json should be written}
@@ -26,14 +39,12 @@ create_somatic_json(
 \item{return_table_pgv}{TRUE/FALSE whether to return the data.table to add to pgvdb}
 
 \item{meta_keep}{meta data to write in the json}
-
-\item{y_col}{column to be used for y axis values}
 }
 \value{
 data.table to add to pgv or NULL, depends on return_table_pgv
 }
 \description{
-create_somatic_json
+function to create a mutation json, used in create_somatic_json
 }
 \author{
 Stanley Clarke

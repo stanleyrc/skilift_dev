@@ -12,19 +12,19 @@
 #' @return data.table to add to pgv or NULL, depends on return_table_pgv
 #' @export
 #' @author Stanley Clarke
-create_somatic_json = function(somatic_snv_cn, out_file, pair, pgv_settings, return_table_pgv = FALSE, meta_keep = NULL, y_col = "est_cn_llrm") {
-    som.dt = readRDS(somatic_snv_cn)
-    som.dt = som.dt[!is.na(get(y_col)),]
-    som.dt[start == end, end := end +1]
-    som.dt[, strand := NULL]
-    som.dt[variant.p != "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; Protein_variant: ", variant.p, "; VAF: ",vaf)]
-    som.dt[variant.p == "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; VAF: ",vaf)]
-    dt2json_mut(dt = som.dt, ref = "hg19",settings = pgv_settings, meta_data = meta_keep, y_col = y_col,
-                file_name = out_file)
-    if(return_table_pgv) {
-        dt.add = data.table(patient.id = pair, type = "genome",visible = TRUE, title = "Copy Number Mutations", source = "mutations.json")
-    }
-}
+## create_somatic_json = function(somatic_snv_cn, out_file, pair, pgv_settings, return_table_pgv = FALSE, meta_keep = NULL, y_col = "est_cn_llrm", ref = "hg19") {
+##     som.dt = readRDS(somatic_snv_cn)
+##     som.dt = som.dt[!is.na(get(y_col)),]
+##     som.dt[start == end, end := end +1]
+##     som.dt[, strand := NULL]
+##     som.dt[variant.p != "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; Protein_variant: ", variant.p, "; VAF: ",vaf)]
+##     som.dt[variant.p == "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; VAF: ",vaf)]
+##     dt2json_mut(dt = som.dt, ref = ref,settings = pgv_settings, meta_data = meta_keep, y_col = y_col,
+##                 file_name = out_file)
+##     if(return_table_pgv) {
+##         dt.add = data.table(patient.id = pair, type = "genome",visible = TRUE, title = "Copy Number Mutations", source = "mutations.json")
+##     }
+## }
 
 #' @name dt2json_mut
 #' @title dt2json_mut
@@ -68,13 +68,13 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
     jab = gG(nodes=gr1)
     settings_y = list(y_axis = list(title = "copy number",
                                     visible = TRUE))
-    node.json = gr2dt(jab$nodes$gr[, c("snode.id","y_value",meta_data)])[, .(chromosome = seqnames, startPoint = start, endPoint = end, iid = snode.id,title=snode.id,type="interval", y = y_value, annotation = annotation)]
+    node.dt = gr2dt(jab$nodes$gr[, c("snode.id","y_value",meta_data)])
+    node.json = node.dt[, .(chromosome = seqnames, startPoint = start, endPoint = end, iid = snode.id,title=snode.id,type="interval", y = y_value, annotation = node.dt$annotation)]
     gg.js = list(intervals = node.json, connections = data.table())
     gg.js = c(list(settings = settings_y), gg.js)
     message(paste0("Writing json to ",file_name))
     jsonlite::write_json(gg.js, file_name,
                          pretty=TRUE, auto_unbox=TRUE, digits=4)
-    return(NULL)
 }
 
 #' @name filtered_events_json
@@ -129,26 +129,19 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
             res.cn.gr = GRanges(res.cn)
             res.cn.gr = gr.val(res.cn.gr,jab$nodes$gr,c("cn","cn.low","cn.high"))
             res.cn.dt = as.data.table(res.cn.gr)
-            res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:",round(cn,digits = 3),"; CN Low:",round(cn.low,digits = 3),"; CN High:",round(cn.high,digits = 3))]
+            res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:",round(cn,digits = 3),"; CN Minor:",round(cn.low,digits = 3),"; CN Major:",round(cn.high,digits = 3))]
             res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:",round(cn,digits = 3))]
-            res.cn.dt[,cn := NULL]
-            res.cn.dt[,cn.high := NULL]
-            res.cn.dt[,cn.low := NULL]
-            res.cn.dt[,width := NULL]
-            res.cn.dt[,strand := NULL]
+            res.cn.dt[,c("cn", "cn.high", "cn.low", "width", "strand") := NULL] #make null, already added to Variant
             res.final = rbind(res.mut,res.cn.dt)
         } else {
             res.final = res.mut
-            res.final[,seqnames := NULL]
-            res.final[,start := NULL]
-            res.final[,end := NULL]
+            res.final[,c("seqnames", "start", "end") := NULL]
         }
+        message(paste0("Writing json to ",out_file))
         write_json(res.final, out_file, pretty=TRUE)
         res.final[,sample := pair]
         if(return_table) {
             return(res.final)
-        } else {
-            return(NULL)
         }
     }
 }
@@ -215,12 +208,19 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
     ##Load this case's counts
     ## meta.dt$snv_count = length(read_vcf(vcf))
     vcf.gr = read_vcf(vcf)
-    meta.dt$snv_count = length(vcf.gr %Q% (seqnames %in% seqnames_genome_width))
-    ##Count variants
+    vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
+    meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
+    ## Count svs, want to count junctions as well as svs
+    gg = readRDS(jabba_gg)
+    gg$junctions$dt[type != "ALT",]
     cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
     meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
-                                        #Load jabba_gg and get loh
+    ## count junctions-maybe implement loose later?
     gg = readRDS(jabba_gg)
+    meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+                                        #get loh
+    nodes.dt = gg$nodes$dt
+    nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
     nodes.dt = gg$nodes$dt[seqnames %in% seqnames_loh]
     totalseglen = nodes.dt$width %>% sum()
     if('cn.low' %in% names(nodes.dt)) {
@@ -243,7 +243,8 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
     meta.dt$gamma = kag$gamma
     #add the total seqlengths by using the seqlengths in the jabba object
     nodes.gr = gg$nodes$gr
-    seqlengths.dt = seqinfo(nodes.gr) %>% as.data.table(.,keep.rownames = "seqnames")
+    seqlengths.dt =suppressWarnings(as.data.table(seqinfo(nodes.gr), keep.rownames = "seqnames")) #had to supress, says other arguments ignored
+    seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
     seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
     meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
                                         #add tmb
@@ -478,6 +479,41 @@ walks_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type 
     dt1 = data.table(patient.id = patient_id, 
                      visible = visible,
                      x = x,
+                     type = type,
+                     order = order,
+                     ref = ref,
+                     title = title,
+                     overwrite = overwrite
+                     )
+    return(dt1)
+}
+
+#' @name mutations_temp
+#' @title mutations_temp
+#' @description
+#'
+#' function to create data.table for mutations for pgvdb
+#' 
+#' @param patient_id patient.id to be added to pgvdb
+#' @param order optional entry if you order plots with a column order
+#' @param x mutations object as a list
+#' @param ref reference to use for pgvdb
+#' @param visible TRUE/FALSE whether the plot is hidden or showing in pgv
+#' @param title title of the plot in pgvdb
+#' @param type walk, do not change for this plot type
+#' @param annotation default is list of SVs, make null if no annotations present in object
+#' @param overwrite TRUE/FALSE to overwrite an existing genome json
+#' @param tag optional argument, can be binset to override y spacing in pgv
+#' @return NULL
+#' @export
+#' @author Stanley Clarke
+
+mutations_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, field, type = "mutations", visible = TRUE, title = NA, tag = NA,overwrite = FALSE) {
+    dt1 = data.table(patient.id = patient_id, 
+                     visible = visible,
+                     type = type,
+                     x = x,
+                     field = field,
                      order = order,
                      ref = ref,
                      title = title,
