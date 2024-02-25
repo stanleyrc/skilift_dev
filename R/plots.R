@@ -521,3 +521,78 @@ mutations_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, f
                      )
     return(dt1)
 }
+
+#' @name create_ppfit_json
+#' @title create_ppfit_json
+#' @description
+#'
+#' function to create segmentation plots in case reports
+#' 
+#' @param jabba_rds list object jabba.rds
+#' @param out_file location to write json
+#' @param write_json TRUE/FALSE whether to write the json
+#' @param return_table TRUE/FALSE whether to return the data
+#' @param overwrite TRUE/FALSE whether to overwrite existing file
+#' @param cores cores for JaBbA:::segstats
+#' @return NULL or segstats table
+#' @export
+#' @author Stanley Clarke, Tanubrata Dey
+
+create_ppfit_json = function(jabba_rds, out_file, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1) {
+    if(!overwrite) {
+        if(file.exists(out_file)) {
+            print('Output already exists! - skipping sample')
+            return(NA)
+        }
+    }
+    jabba = readRDS(jabba_rds)
+    #'drcln_cov = readRDS(thisp$decomposed_cov[i])
+    x = jabba_rds %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
+    ## coverage = x$CovFile
+    cov = readRDS(x$CovFile)
+    if ("ratio" %in% names(mcols(cov))) {
+        message(paste0("Raw 'cov.rds' was used as input for JaBbA ",jabba_rds, ", will consider field as 'ratio''\n"))
+        field = "ratio"
+    } else if ("foreground" %in% names(mcols(cov))) {
+        message(paste0("Drycleaned 'drycleaned.cov.rds' was used as input for JaBbA ",jabba_rds, ", will consider field as 'foreground''\n"))
+        field = "foreground"
+    }
+    if(!(field %in% c("ratio","foreground"))) {
+        stop("Cov file is not clear. Ratio nor foreground in the the columns of the coverage file")
+    }
+    segstats = JaBbA:::segstats(jabba$segstats,
+                                cov,
+                                field = field,
+                                prior_weight = 1,
+                                max.chunk = 1e8,
+                                ## subsample = subsample,
+                                mc.cores = cores,
+                                verbose = FALSE,
+                                max.na = as.numeric(x$maxna),
+                                lp = FALSE)
+    segstats = gr2dt(segstats)
+    if (ncol(segstats) == 30) {
+        new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
+                               "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
+                               "edges_out","tile_id","seg_id","passed","raw_mean","raw_var",   
+                               "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
+                               "max_na","loess_var","tau_sq_post","post_var","var","sd")
+        setnames(segstats, old = names(segstats), new = new_names_segstats)
+    } else if (ncol(segstats) == 29) {
+        new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
+                               "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
+                               "edges_out","tile_id","seg_id","raw_mean","raw_var",   
+                               "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
+                               "max_na","loess_var","tau_sq_post","post_var","var","sd")
+        setnames(segstats, old = names(segstats), new = new_names_segstats)
+    } else {
+        stop(paste0("The expected number of columns are 29 or 30 for segstats. The number of columns for this file are: ", nol(segstats)))
+    }
+    if(write_json) {
+        message(paste0("Writing json to ",out_file))
+        write_json(segstats, out_file, pretty = TRUE)
+    }
+    if(return_table) {
+        return(segstats)
+    }
+}
