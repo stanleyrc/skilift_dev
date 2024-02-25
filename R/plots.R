@@ -538,11 +538,13 @@ mutations_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, f
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey
 
-create_ppfit_json = function(jabba_rds, out_file, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1) {
-    if(!overwrite) {
-        if(file.exists(out_file)) {
-            print('Output already exists! - skipping sample')
-            return(NA)
+create_ppfit_json = function(jabba_rds, out_file = NULL, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1) {
+    if(!is.null(out_file)) {
+        if(!overwrite) {
+            if(file.exists(out_file)) {
+                print('Output already exists! - skipping sample')
+                return(NA)
+            }
         }
     }
     jabba = readRDS(jabba_rds)
