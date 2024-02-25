@@ -430,16 +430,16 @@ PGVdb <- R6Class( "PGVdb",
             }
           } else if (is(rds_object, "gGraph")) {
               if(is.null(plot$type)) {
-                  warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic")
+                  warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic. If plotting a ppfit for case reports, specify type as ppfit")
               }
               if (plot$type != "allelic") {
                   plot$type <- 'genome'
                   if (!"source" %in% names(plot) || is.na(plot$source)) {
                       plot$source <- 'genome.json'
                   }
-              } else {
+              } else if (plot$type == "allelic") {
                   plot$source <- 'allelic.json'
-              }
+          }
           } else if (is(rds_object, "gWalk")) {
             plot$type <- 'walk'
             if (!"source" %in% names(plot) || is.na(plot$source)) {
@@ -449,6 +449,8 @@ PGVdb <- R6Class( "PGVdb",
               if (!"source" %in% names(plot) || is.na(plot$source)) {
                   plot$source <- 'mutations.json'
               }
+          } else if (plot$type == "ppfit") {
+              plot$source <- 'ppfit.json'
           }
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
@@ -545,6 +547,8 @@ PGVdb <- R6Class( "PGVdb",
                     self$create_ggraph_json(plot)
                 } else if (plot$type == "allelic") {
                     self$create_allelic_json(plot)
+                } else if (plot$type == "ppfit") {
+                    self$create_ppfit_genome_json(plot)
                 } else if (plot$type == "scatterplot") {
                   self$create_cov_arrow(plot)
                 } else if (plot$type == "walk") {
@@ -586,7 +590,7 @@ PGVdb <- R6Class( "PGVdb",
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
                                         #change allelic & mutations to genome for type to render in pgv
-      new_plots[type %in% c("allelic","mutations"), type := "genome"]
+      new_plots[type %in% c("allelic","mutations","ppfit"), type := "genome"]
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
@@ -1088,7 +1092,7 @@ PGVdb <- R6Class( "PGVdb",
       }
     },
       #' @description
-    #' Create allelic gGraph JSON file.
+    #' Create mutations gGraph JSON file.
     #'
     #' @param plot_metadata (`data.table`)\cr 
     #'   Plot metadata.
@@ -1139,6 +1143,90 @@ PGVdb <- R6Class( "PGVdb",
           } else {
               warning(plot_metadata$x, " rds read was not mutations")
           }
+      } else {
+        warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+      }
+    },
+      #' @description
+    #' Create ppfit gGraph JSON file.
+    #'
+    #' @param plot_metadata (`data.table`)\cr 
+    #'   Plot metadata.
+    #'
+    #' @return NULL.
+  create_ppfit_genome_json = function(plot_metadata) {
+      ppfit_json_path <- file.path(
+        self$datadir,
+        plot_metadata$patient.id,
+        plot_metadata$source
+      )
+      if (!file.exists(ppfit_json_path) || plot_metadata$overwrite) {
+        if (is(plot_metadata$x[[1]], "list")) {
+          ggraph <- plot_metadata$x[[1]]
+        } else {
+          message(paste0("reading in ", plot_metadata$x))
+          if (grepl(plot_metadata$x, pattern = ".rds")) {
+            jabba <- readRDS(plot_metadata$x)
+          } else {
+            message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
+            jabba <- readRDS(plot_metadata$x)
+          }
+        }
+        if (any(class(jabba) == "list")) {
+          seq_lengths <- gGnome::parse.js.seqlengths(
+            self$settings,
+            js.type = "PGV",
+            ref = plot_metadata$ref
+            )
+          ## segstats information          
+          segstats.dt = create_ppfit_json(jabba_rds = plot_metadata$x[1], return_table = TRUE, write_json = FALSE)
+          segstats.dt[, c("chromosome","startPoint","endPoint","width","strand") := NULL]
+          segstats.dt = unique(segstats.dt)
+          gg = gG(jabba = plot_metadata$x[1])
+          nodes.dt = gg$nodes$dt
+          merge.dt = merge.data.table(nodes.dt,segstats.dt, by.x = c("start.ix","end.ix","node.id","cn"), by.y = c("start_ix","end_ix","seg_id","cn"))
+          ggraph = gG(nodes = GRanges(merge.dt), edges = gg$edges$dt)
+          ggraph$set(y.field = "cn")
+          # check for overlap in sequence names
+          ggraph.reduced <- ggraph[seqnames %in% names(seq_lengths)]
+          if (length(ggraph.reduced) == 0) {
+            stop(sprintf(
+              'There is no overlap between the sequence names in the reference
+              used by PGV and the sequences in your gGraph. Here is an
+              example sequence from your gGraph: "%s". And here is an
+              example sequence from the reference used by gGnome.js: "%s"',
+              seqlevels(ggraph$nodes$gr)[1], names(seq_lengths)[1]
+            ))
+          }
+                                        # sedge.id or other field
+          fields.keep =names(segstats.dt) %>% grep("cn",.,invert = TRUE, value = TRUE)
+          if ("annotation" %in% colnames(plot_metadata)) {
+            # probably check for other cid.field names?
+                                        # field = 'sedge.id'
+              ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+              gGnome::refresh(ggraph.reduced)$json(
+                                                  filename = ppfit_json_path,
+                                                  verbose = TRUE,
+                                                  annotations = unlist(plot_metadata$annotation),
+                                                  maxcn = 500,
+                                                  nfields = fields.keep,
+                                                  save = TRUE
+                                        # cid.field = field
+                                              )
+        } else {
+            ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+            browser()
+            gGnome::refresh(ggraph.reduced)$json(
+                                                  filename = ppfit_json_path,
+                                                  verbose = TRUE,
+                                                  maxcn = 500,
+                                                  nfields = fields.keep,
+                                                  save = TRUE
+                                              )
+          }
+        } else {
+          warning(plot_metadata$x, " rds read was not a gGraph")
+        }
       } else {
         warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
       }
