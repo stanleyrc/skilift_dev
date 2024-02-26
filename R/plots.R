@@ -433,6 +433,7 @@ arrow_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, chart
 #' @param ref reference to use for pgvdb
 #' @param visible TRUE/FALSE whether the plot is hidden or showing in pgv
 #' @param title title of the plot in pgvdb
+#' @param max.cn override max cn of 100
 #' @param type genome, can be changed to allelic to render allelic graphs
 #' @param annotation default is list of SVs, make null if no annotations present in object
 #' @param overwrite TRUE/FALSE to overwrite an existing genome json
@@ -440,7 +441,7 @@ arrow_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, chart
 #' @export
 #' @author Stanley Clarke
 
-genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
+genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, max.cn = NULL,annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
                                         #use type = allelic to make a color a genome graph
     dt1 = data.table(patient.id = patient_id,
                      type = type,
@@ -448,6 +449,7 @@ genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type
                      title = title,
                      x = x,
                      ref = ref,
+                     max.cn = max.cn,
                      order = order,
                      annotation = annotation,
                      overwrite = overwrite
@@ -517,6 +519,41 @@ mutations_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, f
                      order = order,
                      ref = ref,
                      title = title,
+                     overwrite = overwrite
+                     )
+    return(dt1)
+}
+
+#' @name ppfit_temp
+#' @title ppfit_temp
+#' @description
+#'
+#' function to create data.table for ppfit for pgvdb
+#' 
+#' @param patient_id patient.id to be added to pgvdb
+#' @param order optional entry if you order plots with a column order
+#' @param x jabba.rds
+#' @param ref reference to use for pgvdb
+#' @param visible TRUE/FALSE whether the plot is hidden or showing in pgv
+#' @param title title of the plot in pgvdb
+#' @param type ppfit, do not change for this plot type
+#' @param annotation default is NULL, currently won't work for ppfit
+#' @param overwrite TRUE/FALSE to overwrite an existing genome json
+#' @param tag optional argument, can be binset to override y spacing in pgv
+#' @return NULL
+#' @export
+#' @author Stanley Clarke
+
+ppfit_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "ppfit", visible = TRUE, title = NA, annotation = NULL, overwrite = FALSE) {
+                                        #use type = allelic to make a color a genome graph
+    dt1 = data.table(patient.id = patient_id,
+                     type = type,
+                     visible = visible,
+                     title = title,
+                     x = x,
+                     ref = ref,
+                     order = order,
+                     annotation = annotation,
                      overwrite = overwrite
                      )
     return(dt1)
@@ -598,3 +635,136 @@ create_ppfit_json = function(jabba_rds, out_file = NULL, write_json = TRUE, over
         return(segstats)
     }
 }
+
+
+#' @name cov_abs
+#' @title cov_abs
+#' @description
+#'
+#' function to run rel2abs on coverage taking either a ggraph or purity & ploidy
+#' 
+#' @param dryclean_cov dryclean coverage
+#' @param jabba_gg optional jabba ggraph. If null, needs purity or ploidy
+#' @param purity optional purity value. If null needs ggraph
+#' @param ploidy optional ploidy value. If null needs ggraph
+#' @param field column in granges to convert with rel2abs
+#' @param new_col new column to add to add for the converted rel2abs
+#' @return NULL or segstats table
+#' @export
+#' @author Stanley Clarke
+cov2abs = function(dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, field = "foreground", new_col = "foregroundabs") {
+    cov_gr = readRDS(dryclean_cov)
+    if(!is.null(jabba_gg)) {
+        gg = readRDS(jabba_gg)
+        purity = gg$meta$purity
+        ploidy = gg$meta$ploidy
+    }
+    if(!is.null(purity) && !is.null(ploidy)) {
+        purity = purity
+        ploidy = ploidy
+    }
+    mcols(cov_gr)[new_col] = rel2abs(gr = cov_gr,
+                                     purity = purity,
+                                     ploidy = ploidy,
+                                     field = field
+                                     )
+    return(cov_gr)
+}
+
+#' @name cov2arrow_pgv
+#' @title cov2arrow_pgv
+#' @description
+#'
+#' function to create arrow with rel2abs from coverage file. Can take a ggraph or specified purity and ploidy to calculate rel2abs
+#' 
+#' @param patient.id patient name to add to pgv
+#' @param dryclean_cov dryclean coverage
+#' @param ref reference for pgv
+#' @param field column in granges to convert with rel2abs
+#' @param jabba_gg optional jabba ggraph. If null, needs purity or ploidy
+#' @param purity optional purity value. If null needs ggraph
+#' @param ploidy optional ploidy value. If null needs ggraph
+#' @param title title for ggraph
+#' @param mask optional mask to use after rebinning
+#' @param title title for ggraph
+#' @param ref reference to use for pgvdb
+#' @param title optional title for plot for pgvdb
+#' @param seq.fix optional seqlengths vector to fix granges seqlengths
+#' @param chart_type default chart type for plot in pgvdb. scatterplot or area
+#' @param visible whether the plot is visible in pgv
+#' @param field column to do rel2abs on
+#' @param new_col new column after rel2abs
+#' @param overwrite whether to overwrite the current bigwig
+#' @param order optional order if using a column order in your pgvdb object to sort
+#' @param binsize size to rebin coverages, default 1e4
+#' @return NULL or segstats table
+#' @export
+#' @author Stanley Clarke
+cov2arrow_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, mask = NULL, ref, title = NA, seq.fix = NULL, chart_type = "scatterplot", visible = TRUE, field = "foreground", new_col = "foregroundabs", overwrite = FALSE, order = NA, binsize = 1e4) {
+    if(!is.null(jabba_gg)) {
+        cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
+    }
+    if(!is.null(purity) && !is.null(ploidy)) {
+        cov_gr = cov2abs(dryclean_cov, purity = purity, ploidy = ploidy)
+    }
+    if(!is.null(mask)) {
+        cov_gr = gr.val(cov_gr,mask, "mask")
+        cov_gr = cov_gr %Q% (is.na(mask))
+        cov_gr$mask = NULL
+    }
+    cov_gr2 = rebin(cov_gr, binsize, field = field)
+    if(length(cov_gr2$foregroundabs[cov_gr2$foregroundabs < 0]) > 0) {
+        cov_gr2$foregroundabs[cov_gr2$foregroundabs < 0] = 0
+    }    
+    add.dt = arrow_temp(patient_id = patient.id, ref = ref, field = field, x = list(cov_gr2), title = title, overwrite = overwrite, order = NA, chart_type = chart_type, visible = visible)
+    return(add.dt)
+}
+
+#' @name cov2bw_pgv
+#' @title cov2bw_pgv
+#' @description
+#'
+#' function to create bigwig with rel2abs from coverage file. Can take a ggraph or specified purity and ploidy to calculate rel2abs
+#' 
+#' @param patient.id patient name to add to pgv
+#' @param dryclean_cov dryclean coverage
+#' @param ref reference for pgv
+#' @param field column in granges to convert with rel2abs
+#' @param jabba_gg optional jabba ggraph. If null, needs purity or ploidy
+#' @param purity optional purity value. If null needs ggraph
+#' @param ploidy optional ploidy value. If null needs ggraph
+#' @param mask mask to remove coverages from
+#' @param title title for ggraph
+#' @param ref reference to use for pgvdb
+#' @param title optional title for plot for pgvdb
+#' @param seq.fix optional seqlengths vector to fix granges seqlengths
+#' @param chart_type default chart type for plot in pgvdb. scatterplot or area
+#' @param visible whether the plot is visible in pgv
+#' @param field column to do rel2abs on
+#' @param new_col new column after rel2abs
+#' @param overwrite whether to overwrite the current bigwig
+#' @param order optional order if using a column order in your pgvdb object to sort
+#' @param mask optional mask to use after rebinning
+#' @return NULL or segstats table
+#' @export
+#' @author Stanley Clarke
+
+## function to not rebin using higlass but mask
+cov2bw_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, mask = NULL, ref, title = NA, seq.fix = NULL, chart_type = "scatterplot", visible = TRUE, field = "foreground", new_col = "foregroundabs", overwrite = FALSE, order = NA) {
+    cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
+    if(!is.null(mask)) {
+        cov_gr = gr.val(cov_gr,mask, "mask")
+        cov_gr = cov_gr %Q% (is.na(mask))
+        cov_gr$mask = NULL
+    }
+    if(length(cov_gr$foregroundabs[cov_gr$foregroundabs < 0]) > 0) {
+        cov_gr$foregroundabs[cov_gr$foregroundabs < 0] = 0
+    }
+    if(!is.null(seq.fix)) {
+        ## fix seqlengths to specified seqlengths
+        cov_gr = GRanges(as.data.table(cov_gr),seqlengths = seq.fix) %>% trim()
+    }
+    add.dt = bw_temp(patient_id = patient.id, ref = ref, field = new_col, x = list(cov_gr), title = title, overwrite = overwrite, order = NA, chart_type = chart_type, visible = visible)
+    return(add.dt)
+}
+

@@ -566,7 +566,7 @@ PGVdb <- R6Class( "PGVdb",
         })
       }
       if (!any(is.null(plot$source))) {
-        # Use mclapply to create the plot files in parallel
+                                        # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
                                           plot <- new_plots[i, ]
                                           if (plot$type == "bigwig") {
@@ -1215,7 +1215,6 @@ PGVdb <- R6Class( "PGVdb",
                                               )
         } else {
             ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-            browser()
             gGnome::refresh(ggraph.reduced)$json(
                                                   filename = ppfit_json_path,
                                                   verbose = TRUE,
