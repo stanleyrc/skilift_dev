@@ -280,7 +280,6 @@ strelka_qc = function(strelkaqc_filtered_rds, outfile, write_json = TRUE, return
     strelka.qc = readRDS(strelkaqc_filtered_rds) %>% as.data.table
     sq = strelka.qc[ ,.(CHROM,POS,REF,ALT,T_DP,N_DP,MQ,VAF_T, somatic_EVS)]
     names(sq) = c("chromosome", "position", "reference", "alternate", "tumor_depth", "normal_depth", "mapping_quality", "tumor_VAF", "somatic_EVS")
-    setnames(sq, old = names(sq), new = new_names_sq)
     if(write_json) {
                                         #write the json
         message(paste0("Writing json to ",outfile))
