@@ -195,14 +195,31 @@ dlrs = function(x) {
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
 
-meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic_vcf, tumor_type_final, disease, primary_site, inferred_sex, karyograph, seqnames_loh = c(1:22), seqnames_genome_width = c(1:22,"X","Y"), write_json = TRUE, overwrite = FALSE, return_table = FALSE) {
-    if(!overwrite) {
+meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic_vcf, tumor_type, disease, primary_site, inferred_sex, karyograph, seqnames_loh = c(1:22), seqnames_genome_width = c(1:22,"X","Y"), write_json = TRUE, overwrite = FALSE, return_table = FALSE, make_dir = FALSE) {
+    if(!overwrite && write_json == TRUE) {
         if(file.exists(out_file)) {
-            print('Output already exists! - skipping sample')
+            print(paste0('Output already exists! - skipping sample ',pair))
             return(NA)
         }
     }
-    meta.dt = data.table(pair = pair, tumor_type_final = tumor_type_final, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
+    ## check if directory exists
+    ## get folder
+    split_file_path = strsplit(out_file, "/")[[1]]
+    folder_path = paste0(split_file_path[1:(length(split_file_path)-1)], collapse = "/")
+    if(!make_dir) {
+        if(!file.exists(folder_path)) {
+            print(paste0('Folder does not exist; skipping sample ', pair,". Use make_dir = TRUE to make directory"))
+            return(NA)
+        }
+    }
+    if(make_dir) {
+        if(!file.exists(folder_path)) {
+            cmd = paste0("mkdir -p ", folder_path)
+            print(paste0('Making directory ', folder_path))
+            system(cmd)
+        }
+    }
+    meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type_final = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
     #get derivate log ratio spread
     meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
     ##Load this case's counts
@@ -212,12 +229,14 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
     meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
     ## Count svs, want to count junctions as well as svs
     gg = readRDS(jabba_gg)
-    gg$junctions$dt[type != "ALT",]
-    cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
-    meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
-    ## count junctions-maybe implement loose later?
+    ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
+    ## meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
+    ## count just junctions plus loose divided by 2, for sv counts for now
     gg = readRDS(jabba_gg)
+    ## meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
     meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+    meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+    meta.dt[,sv_count := (junction_count + (loose_count / 2))]
                                         #get loh
     nodes.dt = gg$nodes$dt
     nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
