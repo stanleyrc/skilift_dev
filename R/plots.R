@@ -191,6 +191,7 @@ dlrs = function(x) {
 #' @param write_json TRUE/FALSE to write the json
 #' @param overwrite TRUE/FALSE to overwrite the present json
 #' @param return_table TRUE/FALSE to return the data.table output
+#' @param make_dir TRUE/FALSE make the directory for the patient sample if it does not exists
 #' @return data.table or NULL
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
@@ -593,7 +594,7 @@ ppfit_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type 
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey
 
-create_ppfit_json = function(jabba_rds, out_file = NULL, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1) {
+create_ppfit_json = function(jabba_gg, path_obj, out_file = NULL, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1) {
     if(!is.null(out_file)) {
         if(!overwrite) {
             if(file.exists(out_file)) {
@@ -602,22 +603,30 @@ create_ppfit_json = function(jabba_rds, out_file = NULL, write_json = TRUE, over
             }
         }
     }
-    jabba = readRDS(jabba_rds)
     #'drcln_cov = readRDS(thisp$decomposed_cov[i])
-    x = jabba_rds %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
+    ##make this work with complex where the cov file was not an input and with jabba_gg
+    ## x = path_obj %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
+    inputs.dt = path_obj %>% sniff %>% inputs
+    if(!any(grepl("CovFile", names(inputs.dt)))) {
+        x = inputs.dt$jabba %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+    } else {
+        x = path_obj %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+    }
     ## coverage = x$CovFile
     cov = readRDS(x$CovFile)
     if ("ratio" %in% names(mcols(cov))) {
-        message(paste0("Raw 'cov.rds' was used as input for JaBbA ",jabba_rds, ", will consider field as 'ratio''\n"))
+        message(paste0("Raw 'cov.rds' was used as input for JaBbA ",path_obj, ", will consider field as 'ratio''\n"))
         field = "ratio"
     } else if ("foreground" %in% names(mcols(cov))) {
-        message(paste0("Drycleaned 'drycleaned.cov.rds' was used as input for JaBbA ",jabba_rds, ", will consider field as 'foreground''\n"))
+        message(paste0("Drycleaned 'drycleaned.cov.rds' was used as input for JaBbA ",path_obj, ", will consider field as 'foreground''\n"))
         field = "foreground"
     }
     if(!(field %in% c("ratio","foreground"))) {
         stop("Cov file is not clear. Ratio nor foreground in the the columns of the coverage file")
     }
-    segstats = JaBbA:::segstats(jabba$segstats,
+    ##need to replace NaN with NA or JaBbA:::segstats breaks
+    cov$ratio = gsub("NaN",NA,cov$ratio) %>% as.numeric
+    segstats = JaBbA:::segstats(jabba_gg$nodes$gr,
                                 cov,
                                 field = field,
                                 prior_weight = 1,
@@ -628,23 +637,24 @@ create_ppfit_json = function(jabba_rds, out_file = NULL, write_json = TRUE, over
                                 max.na = as.numeric(x$maxna),
                                 lp = FALSE)
     segstats = gr2dt(segstats)
-    if (ncol(segstats) == 30) {
-        new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
-                               "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
-                               "edges_out","tile_id","seg_id","passed","raw_mean","raw_var",   
-                               "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
-                               "max_na","loess_var","tau_sq_post","post_var","var","sd")
-        setnames(segstats, old = names(segstats), new = new_names_segstats)
-    } else if (ncol(segstats) == 29) {
-        new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
-                               "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
-                               "edges_out","tile_id","seg_id","raw_mean","raw_var",   
-                               "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
-                               "max_na","loess_var","tau_sq_post","post_var","var","sd")
-        setnames(segstats, old = names(segstats), new = new_names_segstats)
-    } else {
-        stop(paste0("The expected number of columns are 29 or 30 for segstats. The number of columns for this file are: ", nol(segstats)))
-    }
+    names(segstats) = gsub("\\.","_",names(segstats))
+    ## if (ncol(segstats) == 30) {
+    ##     new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
+    ##                            "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
+    ##                            "edges_out","tile_id","seg_id","passed","raw_mean","raw_var",   
+    ##                            "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
+    ##                            "max_na","loess_var","tau_sq_post","post_var","var","sd")
+    ##     setnames(segstats, old = names(segstats), new = new_names_segstats)
+    ## } else if (ncol(segstats) == 29) {
+    ##     new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
+    ##                            "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
+    ##                            "edges_out","tile_id","seg_id","raw_mean","raw_var",   
+    ##                            "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
+    ##                            "max_na","loess_var","tau_sq_post","post_var","var","sd")
+    ##     setnames(segstats, old = names(segstats), new = new_names_segstats)
+    ## } else {
+    ##     stop(paste0("The expected number of columns are 29 or 30 for segstats. The number of columns for this file are: ", nol(segstats)))
+    ## }
     if(write_json) {
         message(paste0("Writing json to ",out_file))
         write_json(segstats, out_file, pretty = TRUE)
