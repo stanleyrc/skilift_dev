@@ -432,14 +432,16 @@ PGVdb <- R6Class( "PGVdb",
               if(is.null(plot$type)) {
                   warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic. If plotting a ppfit for case reports, specify type as ppfit")
               }
-              if (plot$type != "allelic") {
+              if (!(plot$type %in% c("allelic","ppfit"))) {
                   plot$type <- 'genome'
                   if (!"source" %in% names(plot) || is.na(plot$source)) {
                       plot$source <- 'genome.json'
                   }
               } else if (plot$type == "allelic") {
                   plot$source <- 'allelic.json'
-          }
+              } else if (plot$type == "ppfit") {
+                  plot$source <- 'ppfit.json'
+              }
           } else if (is(rds_object, "gWalk")) {
             plot$type <- 'walk'
             if (!"source" %in% names(plot) || is.na(plot$source)) {
@@ -449,8 +451,6 @@ PGVdb <- R6Class( "PGVdb",
               if (!"source" %in% names(plot) || is.na(plot$source)) {
                   plot$source <- 'mutations.json'
               }
-          } else if (plot$type == "ppfit") {
-              plot$source <- 'ppfit.json'
           }
         } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
@@ -1166,26 +1166,29 @@ PGVdb <- R6Class( "PGVdb",
         } else {
           message(paste0("reading in ", plot_metadata$x))
           if (grepl(plot_metadata$x, pattern = ".rds")) {
-            jabba <- readRDS(plot_metadata$x)
+            ggraph <- readRDS(plot_metadata$x)
           } else {
             message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-            jabba <- readRDS(plot_metadata$x)
+            ggraph <- readRDS(plot_metadata$x)
           }
         }
-        if (any(class(jabba) == "list")) {
+        if (any(class(ggraph) == "gGraph")) {
           seq_lengths <- gGnome::parse.js.seqlengths(
             self$settings,
             js.type = "PGV",
             ref = plot_metadata$ref
             )
           ## segstats information          
-          segstats.dt = create_ppfit_json(jabba_rds = plot_metadata$x[1], return_table = TRUE, write_json = FALSE)
-          segstats.dt[, c("chromosome","startPoint","endPoint","width","strand") := NULL]
-          segstats.dt = unique(segstats.dt)
-          gg = gG(jabba = plot_metadata$x[1])
-          nodes.dt = gg$nodes$dt
-          merge.dt = merge.data.table(nodes.dt,segstats.dt, by.x = c("start.ix","end.ix","node.id","cn"), by.y = c("start_ix","end_ix","seg_id","cn"))
-          ggraph = gG(nodes = GRanges(merge.dt), edges = gg$edges$dt)
+          ## segstats.dt = create_ppfit_json(jabba_gg = plot_metadata$x[1], return_table = TRUE, write_json = FALSE)
+          segstats.dt = create_ppfit_json(jabba_gg = ggraph, path_obj = plot_metadata$x, return_table = TRUE, write_json = FALSE)
+          segstats.gr = GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim
+          ggraph2 = gG(nodes = segstats.gr, edges = gg$edges$dt)
+          ## segstats.dt[, c("chromosome","startPoint","endPoint","width","strand") := NULL]
+          ## segstats.dt = unique(segstats.dt)
+          ## gg = gG(jabba = plot_metadata$x[1])
+          ## nodes.dt = gg$nodes$dt
+          ## merge.dt = merge.data.table(nodes.dt,segstats.dt, by.x = c("start.ix","end.ix","node.id","cn"), by.y = c("start_ix","end_ix","seg_id","cn"))
+          ## ggraph = gG(nodes = GRanges(merge.dt), edges = gg$edges$dt)
           ggraph$set(y.field = "cn")
           # check for overlap in sequence names
           ggraph.reduced <- ggraph[seqnames %in% names(seq_lengths)]
