@@ -327,10 +327,10 @@ strelka_qc = function(strelkaqc_filtered_rds, outfile, write_json = TRUE, return
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
 
-create_distributions = function(case_reports_data_folder,common_folder, filter_patients = NULL) {
+create_distributions = function(case_reports_data_folder,common_folder, filter_patients = NULL, write_jsons = TRUE) {
     files.lst = list.files(case_reports_data_folder)
     files.lst = grep("data",files.lst,invert=TRUE, value = TRUE)
-    meta.dt = data.table(meta_json = paste0(case_reports_data_folder,files.lst,"/metadata.json"), patient_id = file.lst)
+    meta.dt = data.table(meta_json = paste0(case_reports_data_folder,files.lst,"/metadata.json"), patient_id = files.lst)
     meta.dt = meta.dt[file.exists(meta_json),]
     if(!is.null(filter_patients)) {
         meta.dt = meta.dt[patient_id %in% filter_patients,]
@@ -342,9 +342,9 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
                                         #snv distribution json
     snv.dt = jsons.dt[,.(pair, snv_count,tumor_type_final)] %>% setnames(.,c("pair","value","tumor_type_final_mod"))
                                         #sv distribution json
-    sv.dt = jsons.dt[,.(pair, sv_count)] %>% setnames(.,c("pair","value"))
+    sv.dt = jsons.dt[,.(pair, sv_count, tumor_type_final)] %>% setnames(.,c("pair","value","tumor_type"))
     sv.dt[,id := 1:.N]
-    sv.dt = sv.dt[,.(id,pair,value)]
+    sv.dt = sv.dt[,.(id,pair,value, tumor_type)]
                                         #loh
     loh.dt = jsons.dt[,.(pair, tumor_type_final,loh_fraction,loh_seglen,loh_total_genome)] %>% setnames(.,c("pair","tumor_type","value","LOH_seg_len","genome_width"))
                                         #ploidy
@@ -355,15 +355,25 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
     cov_var.dt = jsons.dt[,.(pair, tumor_type_final, dlrs)] %>% setnames(.,c("pair","tumor_type_final_mod","value"))
                                         #tmb
     tmb.dt = jsons.dt[,.(pair, tmb, tumor_type_final)] %>% setnames(.,c("pair","tmb","tumor_type_final"))
+    ##temporary fix to make names more consistant
+    snv.dt[, tumor_type := tumor_type_final_mod]
+    ploidy.dt[, tumor_type := tumor_type_final]
+    purity.dt[, tumor_type := tumor_type_final]
+    cov_var.dt[, tumor_type := tumor_type_final_mod]
+    tmb.dt[, tumor_type := tumor_type_final]
+    if(write_jsons == TRUE) {
                                         #writing jsons
-    message(paste0("writing jsons to ",common_folder))
-    write_json(snv.dt,paste0(common_folder,"/snvCount.json"),pretty = TRUE)
-    write_json(sv.dt,paste0(common_folder,"/svCount.json"),pretty = TRUE)
-    write_json(loh.dt,paste0(common_folder,"/lohFraction.json"),pretty = TRUE)
-    write_json(ploidy.dt,paste0(common_folder,"/ploidy.json"),pretty = TRUE)
-    write_json(purity.dt,paste0(common_folder,"/purity.json"),pretty = TRUE)
-    write_json(cov_var.dt,paste0(common_folder,"/coverageVariance.json"),pretty = TRUE)
-    write_json(tmb.dt,paste0(common_folder,"/tmb.json"),pretty = TRUE)
+        message(paste0("writing jsons to ",common_folder))
+        write_json(snv.dt,paste0(common_folder,"/snvCount.json"),pretty = TRUE)
+        write_json(sv.dt,paste0(common_folder,"/svCount.json"),pretty = TRUE)
+        write_json(loh.dt,paste0(common_folder,"/lohFraction.json"),pretty = TRUE)
+        write_json(ploidy.dt,paste0(common_folder,"/ploidy.json"),pretty = TRUE)
+        write_json(purity.dt,paste0(common_folder,"/purity.json"),pretty = TRUE)
+        write_json(cov_var.dt,paste0(common_folder,"/coverageVariance.json"),pretty = TRUE)
+        write_json(tmb.dt,paste0(common_folder,"/tmb.json"),pretty = TRUE)
+    } else {
+        return(list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt))
+    }
 }
 
 
