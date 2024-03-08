@@ -912,23 +912,35 @@ PGVdb <- R6Class( "PGVdb",
               maxcn = 100
           }
                                         # sedge.id or other field
+          if("col" %in% names(mcols(ggraph$nodes$gr))) { 
+              nfields = "col"
+          } else {
+              nfields = NULL
+          }
           if ("annotation" %in% colnames(plot_metadata)) {
+              annotations = unlist(plot_metadata$annotation)
+          } else {
+              annotations = NULL
+          }
+          ## if ("annotation" %in% colnames(plot_metadata)) {
             # probably check for other cid.field names?
             # field = 'sedge.id'
-              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-                                                                            filename = ggraph_json_path,
-                                                                            verbose = TRUE,
-                                                                            annotations = unlist(plot_metadata$annotation),
-                                                                            maxcn = maxcn,
+          gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+                                                                        filename = ggraph_json_path,
+                                                                        verbose = TRUE,
+                                                                        annotations = annotations,
+                                                                        maxcn = maxcn,
+                                                                        nfields = nfields
                                         # cid.field = field
-                                                                        )
-          } else {
-              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-                                                                            filename = ggraph_json_path,
-                                                                            verbose = TRUE,
-                                                                            maxcn = maxcn,
-                                                                        )
-          }
+                                                                    )
+          ## } else {
+          ##     gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+          ##                                                                   filename = ggraph_json_path,
+          ##                                                                   verbose = TRUE,
+          ##                                                                   maxcn = maxcn,
+          ##                                                                   nfields = nfields
+          ##                                                               )
+          ## }
         } else {
           warning(plot_metadata$x, " rds read was not a gGraph")
         }
