@@ -617,8 +617,10 @@ create_ppfit_json = function(jabba_gg, path_obj, out_file = NULL, write_json = T
     ##make this work with complex where the cov file was not an input and with jabba_gg
     ## x = path_obj %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
     inputs.dt = path_obj %>% sniff %>% inputs
-    if(!any(grepl("CovFile", names(inputs.dt)))) {
+    if(!any(grepl("CovFile", names(inputs.dt))) & any(grepl("jabba", names(inputs.dt)))) {
         x = inputs.dt$jabba %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+    } else if (!any(grepl("CovFile", names(inputs.dt))) & any(grepl("jab", names(inputs.dt)))) {
+        x = inputs.dt$jab %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
     } else {
         x = path_obj %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
     }
@@ -635,7 +637,11 @@ create_ppfit_json = function(jabba_gg, path_obj, out_file = NULL, write_json = T
         stop("Cov file is not clear. Ratio nor foreground in the the columns of the coverage file")
     }
     ##need to replace NaN with NA or JaBbA:::segstats breaks
-    cov$ratio = gsub("NaN",NA,cov$ratio) %>% as.numeric
+    if(field == "ratio") {
+        cov$ratio = gsub("NaN",NA,cov$ratio) %>% as.numeric
+    } else if (field == "foreground") {
+        cov$foreground = gsub("NaN",NA,cov$foreground) %>% as.numeric
+    }
     segstats = JaBbA:::segstats(jabba_gg$nodes$gr,
                                 cov,
                                 field = field,
@@ -741,9 +747,10 @@ cov2abs = function(dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, 
 cov2arrow_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, mask = NULL, ref, title = NA, seq.fix = NULL, chart_type = "scatterplot", visible = TRUE, field = "foreground", new_col = "foregroundabs", overwrite = FALSE, order = NA, binsize = 1e4) {
     if(!is.null(jabba_gg)) {
         cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
-    }
-    if(!is.null(purity) && !is.null(ploidy)) {
+    } else if(!is.null(purity) && !is.null(ploidy)) {
         cov_gr = cov2abs(dryclean_cov, purity = purity, ploidy = ploidy)
+    } else {
+        cov_gr = readRDS(dryclean_cov)
     }
     if(!is.null(mask)) {
         cov_gr = gr.val(cov_gr,mask, "mask")
@@ -789,7 +796,14 @@ cov2arrow_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NUL
 
 ## function to not rebin using higlass but mask
 cov2bw_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, mask = NULL, ref, title = NA, seq.fix = NULL, chart_type = "scatterplot", visible = TRUE, field = "foreground", new_col = "foregroundabs", overwrite = FALSE, order = NA) {
-    cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
+    if(!is.null(jabba_gg)) {
+        cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
+    } else if(!is.null(purity) && !is.null(ploidy)) {
+        cov_gr = cov2abs(dryclean_cov, purity = purity, ploidy = ploidy)
+    } else {
+        cov_gr = readRDS(dryclean_cov)
+    }
+    ## cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
     if(!is.null(mask)) {
         cov_gr = gr.val(cov_gr,mask, "mask")
         cov_gr = cov_gr %Q% (is.na(mask))

@@ -997,26 +997,51 @@ PGVdb <- R6Class( "PGVdb",
           } else {
               maxcn = 100
           }
-                                        # sedge.id or other field
           if ("annotation" %in% colnames(plot_metadata)) {
-            # probably check for other cid.field names?
-            # field = 'sedge.id'
-              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-                                                                            filename = ggraph_json_path,
-                                                                            verbose = TRUE,
-                                                                            annotations = unlist(plot_metadata$annotation),
-                                                                            maxcn = maxcn,
-                                                                            nfields = "col"
-                                        # cid.field = field
-                                                                        )
+              annotations = unlist(plot_metadata$annotation)
           } else {
-              gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-                                                                            filename = ggraph_json_path,
-                                                                            verbose = TRUE,
-                                                                            maxcn = maxcn,
-                                                                            nfields = "col"
-                                                                        )
+              annotations = NULL
           }
+          
+
+                                        # sedge.id or other field
+          ## if ("annotation" %in% colnames(plot_metadata)) {
+            # probably check for other cid.field names?
+                                        # field = 'sedge.id'
+          gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+                                                                        filename = ggraph_json_path,
+                                                                        verbose = TRUE,
+                                                                        annotations = annotations,
+                                                                        maxcn = maxcn,
+                                                                        nfields = "col",
+                                                                        save = TRUE,
+                                                                        offset = TRUE
+                                        # cid.field = field
+                                                                    )
+          ## for(x in 1:length(gg.js$intervals)) {
+          ##     col1 = gg.js$intervals[[x]]$metadata$color
+          ##     if(gg.js$intervals[[x]]$y != 0) {
+          ##         if(col1 == "#0000FF80") {
+          ##             gg.js$intervals[[x]]$y = gg.js$intervals[[x]]$y + 0.1
+          ##         } else if(col1 == "#FF000080") {
+          ##             gg.js$intervals[[x]]$y = gg.js$intervals[[x]]$y - 0.1
+          ##         }
+          ##     }
+          ## }
+
+          ## } else {
+          ##     gg.js = gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+          ##                                                                   verbose = TRUE,
+          ##                                                                   maxcn = maxcn,
+          ##                                                                   nfields = "col",
+          ##                                                                   save = FALSE
+          ##                                                                   )
+          ##     ## filename = ggraph_json_path,
+          ## }
+          ##temporary fix for adding padding to allelic graphs for major and minor- should probably be implented into ggnome
+          #major : "#0000FF80"
+          #minor : "#FF000080"
+          
         } else {
           warning(plot_metadata$x, " rds read was not a gGraph")
         }
@@ -1194,23 +1219,23 @@ PGVdb <- R6Class( "PGVdb",
           ## segstats.dt = create_ppfit_json(jabba_gg = plot_metadata$x[1], return_table = TRUE, write_json = FALSE)
           segstats.dt = create_ppfit_json(jabba_gg = ggraph, path_obj = plot_metadata$x, return_table = TRUE, write_json = FALSE)
           segstats.gr = GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim
-          ggraph2 = gG(nodes = segstats.gr, edges = gg$edges$dt)
+          ggraph2 = gG(nodes = segstats.gr, edges = ggraph$edges$dt)
           ## segstats.dt[, c("chromosome","startPoint","endPoint","width","strand") := NULL]
           ## segstats.dt = unique(segstats.dt)
           ## gg = gG(jabba = plot_metadata$x[1])
           ## nodes.dt = gg$nodes$dt
           ## merge.dt = merge.data.table(nodes.dt,segstats.dt, by.x = c("start.ix","end.ix","node.id","cn"), by.y = c("start_ix","end_ix","seg_id","cn"))
           ## ggraph = gG(nodes = GRanges(merge.dt), edges = gg$edges$dt)
-          ggraph$set(y.field = "cn")
+          ggraph2$set(y.field = "cn")
           # check for overlap in sequence names
-          ggraph.reduced <- ggraph[seqnames %in% names(seq_lengths)]
+          ggraph.reduced <- ggraph2[seqnames %in% names(seq_lengths)]
           if (length(ggraph.reduced) == 0) {
             stop(sprintf(
               'There is no overlap between the sequence names in the reference
               used by PGV and the sequences in your gGraph. Here is an
               example sequence from your gGraph: "%s". And here is an
               example sequence from the reference used by gGnome.js: "%s"',
-              seqlevels(ggraph$nodes$gr)[1], names(seq_lengths)[1]
+              seqlevels(ggraph.reduced$nodes$gr)[1], names(seq_lengths)[1]
             ))
           }
                                         # sedge.id or other field
