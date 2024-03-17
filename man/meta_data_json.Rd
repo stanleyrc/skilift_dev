@@ -11,7 +11,7 @@ meta_data_json(
   jabba_gg,
   vcf,
   svaba_somatic_vcf,
-  tumor_type_final,
+  tumor_type,
   disease,
   primary_site,
   inferred_sex,
@@ -20,7 +20,8 @@ meta_data_json(
   seqnames_genome_width = c(1:22, "X", "Y"),
   write_json = TRUE,
   overwrite = FALSE,
-  return_table = FALSE
+  return_table = FALSE,
+  make_dir = FALSE
 )
 }
 \arguments{
@@ -35,8 +36,6 @@ meta_data_json(
 \item{vcf}{path to strelka vcf to get snv count}
 
 \item{svaba_somatic_vcf}{path to svaba somatic vcf for getting sv count}
-
-\item{tumor_type_final}{tumor type abbreviation of the sample}
 
 \item{disease}{full length tumor type}
 
@@ -55,6 +54,10 @@ meta_data_json(
 \item{overwrite}{TRUE/FALSE to overwrite the present json}
 
 \item{return_table}{TRUE/FALSE to return the data.table output}
+
+\item{make_dir}{TRUE/FALSE make the directory for the patient sample if it does not exists}
+
+\item{tumor_type_final}{tumor type abbreviation of the sample}
 }
 \value{
 data.table or NULL

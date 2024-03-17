@@ -5,8 +5,9 @@
 \title{create_ppfit_json}
 \usage{
 create_ppfit_json(
-  jabba_rds,
-  out_file,
+  jabba_gg,
+  path_obj,
+  out_file = NULL,
   write_json = TRUE,
   overwrite = FALSE,
   return_table = FALSE,
@@ -14,8 +15,6 @@ create_ppfit_json(
 )
 }
 \arguments{
-\item{jabba_rds}{list object jabba.rds}
-
 \item{out_file}{location to write json}
 
 \item{write_json}{TRUE/FALSE whether to write the json}
@@ -25,6 +24,8 @@ create_ppfit_json(
 \item{return_table}{TRUE/FALSE whether to return the data}
 
 \item{cores}{cores for JaBbA:::segstats}
+
+\item{jabba_rds}{list object jabba.rds}
 }
 \value{
 NULL or segstats table
