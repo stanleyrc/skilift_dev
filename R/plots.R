@@ -93,7 +93,7 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey
 
-filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv", return_table = FALSE) {
+filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv", temp_fix = FALSE,return_table = FALSE) {
     ##Driver CNA windows
     ##Load details from oncotable
     ot = readRDS(oncotable)
@@ -131,6 +131,10 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
             res.cn.dt = as.data.table(res.cn.gr)
             res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:",round(cn,digits = 3),"; CN Minor:",round(cn.low,digits = 3),"; CN Major:",round(cn.high,digits = 3))]
             res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:",round(cn,digits = 3))]
+            if(temp_fix) {
+                res.cn.dt = res.cn.dt[!(type == "homdel" & cn != 0),]
+                res.cn.dt = res.cn.dt[!(type == "amp" & cn <= 2),]
+            }
             res.cn.dt[,c("cn", "cn.high", "cn.low", "width", "strand") := NULL] #make null, already added to Variant
             res.final = rbind(res.mut,res.cn.dt)
         } else {
@@ -225,9 +229,12 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
     meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
     ##Load this case's counts
     ## meta.dt$snv_count = length(read_vcf(vcf))
-    vcf.gr = read_vcf(vcf)
-    vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
-    meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
+    snv.counts.dt = strelka2counts(vcf)
+    meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
+    meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    ## vcf.gr = read_vcf(vcf)
+    ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
+    ## meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
     ## Count svs, want to count junctions as well as svs
     gg = readRDS(jabba_gg)
     ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
@@ -269,6 +276,7 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
     meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
                                         #add tmb
     meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
+    meta.dt[,tmb := round(tmb, digits = 3)]
     if(write_json) {
                                         #write the json
         message(paste0("Writing json to ",out_file))
@@ -280,6 +288,67 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
     } else {
         return(meta.dt)
     }
+}
+
+#' @name strelka2counts
+#' @title strelka2counts
+#' @description
+#' takes in a strelka vcf and returns a data.table with total count and count of variants with normal vaf greater than 0
+#' 
+#' @param vcf patient id to be added to pgvdb or case reports
+#' @param seqnames_genome_width chromosomes to count variants in
+#' @return data.table
+#' @export
+#' @author Stanley Clarke, Tanubrata Dey
+strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {
+    somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#',col.names=c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","NORMAL","TUMOR")) %>% as.data.table
+    ##strip chr
+    somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
+    ##
+    sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
+    sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU","INDEL") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+    sub.vcf[REF == "A" & ALT == "T", c("ref_count","alt_count") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "A" & ALT == "C", c("ref_count","alt_count") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "A" & ALT == "G", c("ref_count","alt_count") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "C" & ALT == "T", c("ref_count","alt_count") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "C" & ALT == "A", c("ref_count","alt_count") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "C" & ALT == "G", c("ref_count","alt_count") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "G" & ALT == "T", c("ref_count","alt_count") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "G" & ALT == "C", c("ref_count","alt_count") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "G" & ALT == "A", c("ref_count","alt_count") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "T" & ALT == "A", c("ref_count","alt_count") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "T" & ALT == "C", c("ref_count","alt_count") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "T" & ALT == "G", c("ref_count","alt_count") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+    sub.vcf[is.na(ref_count), ref_count := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
+    sub.vcf[is.na(alt_count), alt_count := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
+    sub.vcf[, ref_count := as.numeric(ref_count)]
+    sub.vcf[, alt_count := as.numeric(alt_count)]
+    sub.vcf[, normal_vaf := alt_count / (ref_count + alt_count)]
+    ##now tumor vaf
+    sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU","INDEL") := tstrsplit(TUMOR, ":", fixed = TRUE)]
+    sub.vcf[REF == "A" & ALT == "T", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "A" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "A" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "C" & ALT == "T", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "C" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "C" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "G" & ALT == "T", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "G" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "G" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "T" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "T" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[REF == "T" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
+    sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+    sub.vcf[is.na(ref_count_tumor), ref_count_tumor := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
+    sub.vcf[is.na(alt_count_tumor), alt_count_tumor := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
+    sub.vcf[, ref_count_tumor := as.numeric(ref_count_tumor)]
+    sub.vcf[, alt_count_tumor := as.numeric(alt_count_tumor)]
+    sub.vcf[, tumor_vaf := alt_count_tumor / (ref_count_tumor + alt_count_tumor)]
+    snv_count = nrow(sub.vcf)
+    snv_count_normal_vaf_greater0 = nrow(sub.vcf[normal_vaf > 0,])
+    return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
+                      counts = c(snv_count, snv_count_normal_vaf_greater0)))
 }
 
 
@@ -354,7 +423,7 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
                                         #coverage variance
     cov_var.dt = jsons.dt[,.(pair, tumor_type_final, dlrs)] %>% setnames(.,c("pair","tumor_type_final_mod","value"))
                                         #tmb
-    tmb.dt = jsons.dt[,.(pair, tmb, tumor_type_final)] %>% setnames(.,c("pair","tmb","tumor_type_final"))
+    tmb.dt = jsons.dt[,.(pair, tmb, tumor_type_final)] %>% setnames(.,c("pair","value","tumor_type_final"))
     ##temporary fix to make names more consistant
     snv.dt[, tumor_type := tumor_type_final_mod]
     ploidy.dt[, tumor_type := tumor_type_final]
