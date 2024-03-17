@@ -12,6 +12,7 @@ genome_temp(
   type = "genome",
   visible = TRUE,
   title = NA,
+  max.cn = NULL,
   annotation = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "dup",
     "pyrgo", "rigma", "simple", "tic", "tyfonas")),
   overwrite = FALSE
@@ -31,6 +32,8 @@ genome_temp(
 \item{visible}{TRUE/FALSE whether the plot is hidden or showing in pgv}
 
 \item{title}{title of the plot in pgvdb}
+
+\item{max.cn}{override max cn of 100}
 
 \item{annotation}{default is list of SVs, make null if no annotations present in object}
 

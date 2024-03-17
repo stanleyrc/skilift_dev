@@ -11,6 +11,7 @@ filtered_events_json(
   out_file,
   cgc_file =
     "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv",
+  temp_fix = FALSE,
   return_table = FALSE
 )
 }

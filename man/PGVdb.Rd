@@ -70,6 +70,7 @@ Path to the datafiles.json}
 \item \href{#method-PGVdb-create_gwalk_json}{\code{PGVdb$create_gwalk_json()}}
 \item \href{#method-PGVdb-list_higlass_tilesets}{\code{PGVdb$list_higlass_tilesets()}}
 \item \href{#method-PGVdb-create_somatic_json}{\code{PGVdb$create_somatic_json()}}
+\item \href{#method-PGVdb-create_ppfit_genome_json}{\code{PGVdb$create_ppfit_genome_json()}}
 \item \href{#method-PGVdb-upload_to_higlass}{\code{PGVdb$upload_to_higlass()}}
 \item \href{#method-PGVdb-delete_from_higlass}{\code{PGVdb$delete_from_higlass()}}
 \item \href{#method-PGVdb-init_pgv}{\code{PGVdb$init_pgv()}}
@@ -327,9 +328,30 @@ tilesets
 \if{html}{\out{<a id="method-PGVdb-create_somatic_json"></a>}}
 \if{latex}{\out{\hypertarget{method-PGVdb-create_somatic_json}{}}}
 \subsection{Method \code{create_somatic_json()}}{
-Create allelic gGraph JSON file.
+Create mutations gGraph JSON file.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_somatic_json(plot_metadata)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{plot_metadata}}{(`data.table`)\cr 
+Plot metadata.}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-PGVdb-create_ppfit_genome_json"></a>}}
+\if{latex}{\out{\hypertarget{method-PGVdb-create_ppfit_genome_json}{}}}
+\subsection{Method \code{create_ppfit_genome_json()}}{
+Create ppfit gGraph JSON file.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{PGVdb$create_ppfit_genome_json(plot_metadata)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
