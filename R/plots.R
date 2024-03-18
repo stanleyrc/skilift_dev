@@ -277,6 +277,20 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
                                         #add tmb
     meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
     meta.dt[,tmb := round(tmb, digits = 3)]
+    ## temporary replace names with human readable names so as we add names we remember what they refer to (makes it easier for Charalampos so there is no need for a conversion file
+    meta.dt[, TMB := tmb]
+    meta.dt[, "SNV Count" := snv_count]
+    meta.dt[, "SNV Count with normal VAF greater than 0" := snv_count_normal_vaf_greater0]
+    meta.dt[, "SV Count" := sv_count]
+    meta.dt[, "Loose End Count" := loose_count]
+    meta.dt[, "Junction Count" := junction_count]
+    meta.dt[, "LOH Fraction" := loh_fraction]
+    meta.dt[, "Coverage Variance" := dlrs]
+    ## snv_meta = list("SNV Count" = meta.dt$snv_count,"Junction Count" = meta.dt$junction_count)
+    ## meta.dt[, SV_Meta := list(mget(c("Loose End Count", "Junction Count")))]
+    ## meta.dt[, SNV_Meta := list(mget(c("SNV Count","SNV Count with normal VAF greater than 0")))]
+    ## meta.dt[, SNV_Meta := list(snv_meta)]
+    ####
     if(write_json) {
                                         #write the json
         message(paste0("Writing json to ",out_file))
