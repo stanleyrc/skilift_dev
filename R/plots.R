@@ -371,23 +371,86 @@ strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_ret
 }
 
 
+#' @name parse_vcf_strelka2
+#' @title parse_vcf_strelka2
+#' @description
+#' takes in a strelka vcf and returns a data.table format of the vcf file with required fields for strelka_qc function
+#' 
+#' @param vcf patient id to be added to pgvdb or case reports
+#' @param seqnames_genome_width chromosomes to count variants in
+#' @return data.table
+#' @export
+#' @author Tanubrata Dey, Stanley Clarke
+parse_vcf_strelka2 = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {                                                                                                          
+    somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#',col.names=c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","NORMAL","TUMOR")) %>% as.data.table
+    ##strip chr                                                                                                                                                                    
+    somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]                                                                                                                          
+    ## normal counts and VAF                                                                                                                                                                            
+    sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]                                                                                                              
+    sub.vcf[, somatic_EVS := as.numeric(gsub(".*SomaticEVS=([^;]+).*", "\\1", INFO))]                                                                                              
+    sub.vcf[, MQ := as.numeric(gsub(".*MQ=([^;]+).*", "\\1", INFO))]                                                                                                               
+    sub.vcf[, c("N_DP", "N_FDP", "N_SDP", "N_SUBDP", "N_AU", "N_CU", "N_GU", "N_TU","N_INDEL") := tstrsplit(NORMAL, ":", fixed = TRUE)]                                            
+    sub.vcf[REF == "A" & ALT == "T", c("ref_count_N","alt_count_N") := c(tstrsplit(N_AU, ",", fixed = TRUE, keep = 1), tstrsplit(N_TU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "A" & ALT == "C", c("ref_count_N","alt_count_N") := c(tstrsplit(N_AU, ",", fixed = TRUE, keep = 1), tstrsplit(N_CU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "A" & ALT == "G", c("ref_count_N","alt_count_N") := c(tstrsplit(N_AU, ",", fixed = TRUE, keep = 1), tstrsplit(N_GU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "C" & ALT == "T", c("ref_count_N","alt_count_N") := c(tstrsplit(N_CU, ",", fixed = TRUE, keep = 1), tstrsplit(N_TU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "C" & ALT == "A", c("ref_count_N","alt_count_N") := c(tstrsplit(N_CU, ",", fixed = TRUE, keep = 1), tstrsplit(N_AU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "C" & ALT == "G", c("ref_count_N","alt_count_N") := c(tstrsplit(N_CU, ",", fixed = TRUE, keep = 1), tstrsplit(N_GU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "G" & ALT == "T", c("ref_count_N","alt_count_N") := c(tstrsplit(N_GU, ",", fixed = TRUE, keep = 1), tstrsplit(N_TU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "G" & ALT == "C", c("ref_count_N","alt_count_N") := c(tstrsplit(N_GU, ",", fixed = TRUE, keep = 1), tstrsplit(N_CU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "G" & ALT == "A", c("ref_count_N","alt_count_N") := c(tstrsplit(N_GU, ",", fixed = TRUE, keep = 1), tstrsplit(N_AU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "T" & ALT == "A", c("ref_count_N","alt_count_N") := c(tstrsplit(N_TU, ",", fixed = TRUE, keep = 1), tstrsplit(N_AU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "T" & ALT == "C", c("ref_count_N","alt_count_N") := c(tstrsplit(N_TU, ",", fixed = TRUE, keep = 1), tstrsplit(N_CU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "T" & ALT == "G", c("ref_count_N","alt_count_N") := c(tstrsplit(N_TU, ",", fixed = TRUE, keep = 1), tstrsplit(N_GU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[, c("N_DP", "N_DP2", "N_TAR", "N_TIR", "N_TOR", "N_DP50", "N_FDP50", "N_SUBDP50", "N_BCN50") := tstrsplit(NORMAL, ":", fixed = TRUE)]                                  
+    sub.vcf[is.na(ref_count_N), ref_count_N := tstrsplit(N_TAR, ",", fixed = TRUE, keep = 1)]                                                                                      
+    sub.vcf[is.na(alt_count_N), alt_count_N := tstrsplit(N_TIR, ",", fixed = TRUE, keep = 1)]                                                                                      
+    sub.vcf[, ref_count_N := as.numeric(ref_count_N)]                                                                                                                              
+    sub.vcf[, alt_count_N := as.numeric(alt_count_N)]                                                                                                                              
+    sub.vcf[, VAF_N := alt_count_N / (ref_count_N + alt_count_N)]                                                                                                                  
+    sub.vcf[, c("N_FDP","N_SDP","N_SUBDP","N_AU","N_CU","N_GU","N_TU","N_INDEL","N_DP2","N_TAR","N_TIR","N_TOR","N_DP50","N_FDP50","N_SUBDP50","N_BCN50")] = NULL                  
+    ## tumor counts and VAF                                                                                                                                                       
+    sub.vcf[, c("T_DP", "T_FDP", "T_SDP", "T_SUBDP", "T_AU", "T_CU", "T_GU", "T_TU","T_INDEL") := tstrsplit(TUMOR, ":", fixed = TRUE)]                                             
+    sub.vcf[REF == "A" & ALT == "T", c("ref_count_T","alt_count_T") := c(tstrsplit(T_AU, ",", fixed = TRUE, keep = 1), tstrsplit(T_TU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "A" & ALT == "C", c("ref_count_T","alt_count_T") := c(tstrsplit(T_AU, ",", fixed = TRUE, keep = 1), tstrsplit(T_CU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "A" & ALT == "G", c("ref_count_T","alt_count_T") := c(tstrsplit(T_AU, ",", fixed = TRUE, keep = 1), tstrsplit(T_GU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "C" & ALT == "T", c("ref_count_T","alt_count_T") := c(tstrsplit(T_CU, ",", fixed = TRUE, keep = 1), tstrsplit(T_TU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "C" & ALT == "A", c("ref_count_T","alt_count_T") := c(tstrsplit(T_CU, ",", fixed = TRUE, keep = 1), tstrsplit(T_AU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "C" & ALT == "G", c("ref_count_T","alt_count_T") := c(tstrsplit(T_CU, ",", fixed = TRUE, keep = 1), tstrsplit(T_GU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "G" & ALT == "T", c("ref_count_T","alt_count_T") := c(tstrsplit(T_GU, ",", fixed = TRUE, keep = 1), tstrsplit(T_TU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "G" & ALT == "C", c("ref_count_T","alt_count_T") := c(tstrsplit(T_GU, ",", fixed = TRUE, keep = 1), tstrsplit(T_CU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "G" & ALT == "A", c("ref_count_T","alt_count_T") := c(tstrsplit(T_GU, ",", fixed = TRUE, keep = 1), tstrsplit(T_AU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "T" & ALT == "A", c("ref_count_T","alt_count_T") := c(tstrsplit(T_TU, ",", fixed = TRUE, keep = 1), tstrsplit(T_AU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "T" & ALT == "C", c("ref_count_T","alt_count_T") := c(tstrsplit(T_TU, ",", fixed = TRUE, keep = 1), tstrsplit(T_CU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[REF == "T" & ALT == "G", c("ref_count_T","alt_count_T") := c(tstrsplit(T_TU, ",", fixed = TRUE, keep = 1), tstrsplit(T_GU, ",", fixed = TRUE, keep = 1)),]             
+    sub.vcf[, c("T_DP", "T_DP2", "T_TAR", "T_TIR", "T_TOR", "T_DP50", "T_FDP50", "T_SUBDP50", "T_BCN50") := tstrsplit(TUMOR, ":", fixed = TRUE)]                                   
+    sub.vcf[is.na(ref_count_T), ref_count_T := tstrsplit(T_TAR, ",", fixed = TRUE, keep = 1)]                                                                                      
+    sub.vcf[is.na(alt_count_T), alt_count_T := tstrsplit(T_TIR, ",", fixed = TRUE, keep = 1)]                                                                                      
+    sub.vcf[, ref_count_T := as.numeric(ref_count_T)]                                                                                                                              
+    sub.vcf[, alt_count_T := as.numeric(alt_count_T)]                                                                                                                              
+    sub.vcf[, VAF_T := alt_count_T / (ref_count_T + alt_count_T)]                                                                                                                  
+    sub.vcf[, c("T_FDP","T_SDP","T_SUBDP","T_AU","T_CU","T_GU","T_TU","T_INDEL","T_DP2","T_TAR","T_TIR","T_TOR","T_DP50","T_FDP50","T_SUBDP50","T_BCN50")] = NULL                  
+    return(sub.vcf)                                                                                                                                                                
+}
+
+
 #' @name strelka_qc
 #' @title strelka_qc
 #' @description
 #'
 #' function to create json for strelka qc plotting in case reports
 #' 
-#' @param strelkaqc_filtered_rds path to an rds of filtered strelka output
+#' @param path to strelka2 vcf file to be used 
+#' @param chromosomes to select for. default: c(1:22,"X","Y")
 #' @param outfile path to write json
 #' @param write_json TRUE/FALSE whether to write the json
 #' @param return_table TRUE/FALSE whether to return the data
 #' @return NULL
 #' @export 
 #' @author Tanubrata Dey
-strelka_qc = function(strelkaqc_filtered_rds, outfile, write_json = TRUE, return_table = TRUE) {
-    strelka.qc = readRDS(strelkaqc_filtered_rds) %>% as.data.table
-    sq = strelka.qc[ ,.(CHROM,POS,REF,ALT,T_DP,N_DP,MQ,VAF_T, somatic_EVS)]
-    names(sq) = c("chromosome", "position", "reference", "alternate", "tumor_depth", "normal_depth", "mapping_quality", "tumor_VAF", "somatic_EVS")
+strelka_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, write_json = TRUE, return_table = TRUE) {
+    sq = parse_vcf_strelka2(vcf, seqnames_genome_width = seqnames_genome_width) %>% dplyr::select(CHROM,POS,REF,ALT,FILTER,T_DP,N_DP, alt_count_N, alt_count_T, MQ,VAF_T, somatic_EVS)
+    names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","mapping_quality", "tumor_VAF", "somatic_EVS")
     if(write_json) {
                                         #write the json
         message(paste0("Writing json to ",outfile))
