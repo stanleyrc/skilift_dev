@@ -354,7 +354,7 @@ strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_ret
     sub.vcf[REF == "T" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
     sub.vcf[REF == "T" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
     sub.vcf[REF == "T" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+    sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(TUMOR, ":", fixed = TRUE)]
     sub.vcf[is.na(ref_count_tumor), ref_count_tumor := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
     sub.vcf[is.na(alt_count_tumor), alt_count_tumor := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
     sub.vcf[, ref_count_tumor := as.numeric(ref_count_tumor)]
