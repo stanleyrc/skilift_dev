@@ -311,10 +311,11 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
 #' 
 #' @param vcf patient id to be added to pgvdb or case reports
 #' @param seqnames_genome_width chromosomes to count variants in
+#' @param type_return counts or dt, if counts returns counts for snv and snv count with a normal vaf greater than 0. If dt, returns the parsed vcf
 #' @return data.table
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey
-strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {
+strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_return = "counts") {
     somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#',col.names=c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","NORMAL","TUMOR")) %>% as.data.table
     ##strip chr
     somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
@@ -359,10 +360,14 @@ strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {
     sub.vcf[, ref_count_tumor := as.numeric(ref_count_tumor)]
     sub.vcf[, alt_count_tumor := as.numeric(alt_count_tumor)]
     sub.vcf[, tumor_vaf := alt_count_tumor / (ref_count_tumor + alt_count_tumor)]
-    snv_count = nrow(sub.vcf)
-    snv_count_normal_vaf_greater0 = nrow(sub.vcf[normal_vaf > 0,])
-    return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
-                      counts = c(snv_count, snv_count_normal_vaf_greater0)))
+    if(type_return == "counts") {
+        snv_count = nrow(sub.vcf)
+        snv_count_normal_vaf_greater0 = nrow(sub.vcf[normal_vaf > 0,])
+        return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
+                          counts = c(snv_count, snv_count_normal_vaf_greater0)))
+    } else if (type_return == "dt") {
+        return(sub.vcf)
+    }
 }
 
 
