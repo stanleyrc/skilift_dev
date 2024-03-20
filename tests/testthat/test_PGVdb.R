@@ -760,3 +760,18 @@ test_that("metadata json created", {
     expect_true(all(file.exists(files)))
 })
 
+
+##create strelka_qc() test
+test_that("strelka.qc.json created", {
+    pgvdb = getPGV() ## just used to get path for output
+    pair = test.meta.pairs$pair
+    out.file = gsub("settings.json","test_strelka.qc.json",pgvdb$settings)
+    strelka.qc = strelka_qc(vcf = test.meta.pairs[pair,svaba_somatic_vcf],
+			    seqnames_genome_width = c(1:22,"X","Y"),
+                            outfile = out.file,
+                            write_json = TRUE,
+                            return_table = TRUE)
+    expect_true(file.exists(out.file))
+})
+
+
