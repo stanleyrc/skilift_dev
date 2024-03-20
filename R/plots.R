@@ -523,11 +523,39 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
         write_json(cov_var.dt,paste0(common_folder,"/coverageVariance.json"),pretty = TRUE)
         write_json(tmb.dt,paste0(common_folder,"/tmb.json"),pretty = TRUE)
     } else {
-        return(list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt))
+        ## return(list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt))
+        json.lst = list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt)
+        names(json.lst) = c("snvCount", "svCount","lohFraction", "ploidy", "purity", "coverageVariance", "tmb")
+        return(json.lst)
     }
 }
 
 
+#' @name load_distributions
+#' @title load_distributions
+#' @description
+#'
+#' function to read in distributions files, same format returned as create_distributions with write_jsons = FALSE
+#' 
+#' @param common_folder path to a folder to write all 7 jsons
+#' @param filter_pateints list of samples to filter on to read in the distributions
+#' @return NULL
+#' @export
+#' @author Stanley Clarke
+load_distributions = function(common_folder, filter_patients = NULL) {
+    files.lst = paste0(common_folder, c("coverageVariance.json", "lohFraction.json", "ploidy.json", "purity.json", "snvCount.json", "svCount.json", "tmb.json"))
+    files.dt = data.table(name = c("coverageVariance", "lohFraction", "ploidy", "purity", "snvCount", "svCount", "tmb"), file = files.lst)
+    json.lst = lapply(setNames(nm = files.dt$name), function(name1) {
+        file1 = files.dt[name == name1,]$file
+        if(!is.null(filter_patients)) {
+            json.dt = as.data.table(fromJSON(file1))
+            json.sub.dt = json.dt[pair %in% filter_patients,]
+            return(json.sub.dt)
+        }
+        return(as.data.table(fromJSON(file1)))
+    })
+    return(json.lst)
+}
 
 
 #' @name bw_temp
