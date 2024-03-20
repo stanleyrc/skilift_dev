@@ -432,11 +432,13 @@ PGVdb <- R6Class( "PGVdb",
               if(is.null(plot$type)) {
                   warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic. If plotting a ppfit for case reports, specify type as ppfit")
               }
-              if (!(plot$type %in% c("allelic","ppfit"))) {
+              if (is.null(plot$type)) {
                   plot$type <- 'genome'
                   if (!"source" %in% names(plot) || is.na(plot$source)) {
                       plot$source <- 'genome.json'
                   }
+              } else if (plot$type == "genome") {
+                  plot$source <- 'genome.json'
               } else if (plot$type == "allelic") {
                   plot$source <- 'allelic.json'
               } else if (plot$type == "ppfit") {
