@@ -465,6 +465,63 @@ strelka_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, wri
 }
 
 
+#' @name parse_vcf_SAGE
+#' @title parse_vcf_SAGE
+#' @description
+#' takes in a SAGE vcf and returns a data.table format of the vcf file with required fields for SAGE_qc function
+#' 
+#' @param vcf patient id to be added to pgvdb or case reports
+#' @param seqnames_genome_width chromosomes to count variants in
+#' @return data.table
+#' @export
+#' @author Tanubrata Dey, Stanley Clarke
+parse_vcf_SAGE = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {                                                                            
+  somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#',col.names=c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","tumor","normal")) %>% as.data.table
+  ##strip chr                                                      
+  somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]            
+  sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
+  sub.vcf[, TIER := gsub(".*TIER=([^;]+).*", "\\1", INFO)]         
+  sub.vcf[, trinuc := gsub(".*TNC=([^;]+).*", "\\1", INFO)]
+  sub.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP","T_SB") := tstrsplit(tumor, ":", fixed = TRUE)]
+  sub.vcf[, c("ref_count_T", "alt_count_T") := tstrsplit(T_AD, ",", fixed = TRUE)]
+  sub.vcf[, ref_count_T := as.numeric(ref_count_T)]
+  sub.vcf[, alt_count_T := as.numeric(alt_count_T)]
+  sub.vcf[, VAF_T := as.numeric(VAF_T)]
+  sub.vcf[, c("T_GT","T_AD","T_DP","T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP")] = NULL 
+  sub.vcf[, c("N_GT", "N_ABQ", "N_AD", "VAF_N", "N_DP", "N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP","N_SB") := tstrsplit(normal, ":", fixed = TRUE)]
+  sub.vcf[, c("ref_count_N", "alt_count_N") := tstrsplit(N_AD, ",", fixed = TRUE)]
+  sub.vcf[, c("N_GT","N_AD","N_DP","N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP")] = NULL
+  sub.vcf[, ref_count_N := as.numeric(ref_count_N)]
+  sub.vcf[, alt_count_N := as.numeric(alt_count_N)]
+  sub.vcf[, VAF_N := as.numeric(VAF_N)]
+  return(sub.vcf)
+}                                                                                                                                
+
+
+#' @name SAGEcounts
+#' @title SAGEcounts
+#' @description
+#' takes in a SAGE vcf and returns a data.table with total count and count of variants with normal vaf greater than 0
+#' 
+#' @param vcf patient id to be added to pgvdb or case reports
+#' @param seqnames_genome_width chromosomes to count variants in
+#' @param type_return counts or dt, if counts returns counts for snv and snv count with a normal vaf greater than 0. If dt, returns the parsed vcf
+#' @return data.table
+#' @export
+#' @author Tanubrata Dey, Stanley Clarke
+SAGEcounts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_return = "counts") {
+  sub.vcf = parse_vcf_SAGE(vcf, seqnames_genome_width = seqnames_genome_width)
+  if(type_return == "counts") {
+    snv_count = nrow(sub.vcf)
+    snv_count_normal_vaf_greater0 = nrow(sub.vcf[VAF_N > 0,])
+    return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
+                          counts = c(snv_count, snv_count_normal_vaf_greater0)))
+    } else if (type_return == "dt") {
+        return(sub.vcf)
+    }
+}
+
+
 #' @name create_distributions
 #' @title create_distributions
 #' @description
