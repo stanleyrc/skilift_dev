@@ -5,20 +5,23 @@
 \title{strelka_qc}
 \usage{
 strelka_qc(
-  strelkaqc_filtered_rds,
+  vcf,
+  seqnames_genome_width = c(1:22, "X", "Y"),
   outfile,
   write_json = TRUE,
   return_table = TRUE
 )
 }
 \arguments{
-\item{strelkaqc_filtered_rds}{path to an rds of filtered strelka output}
-
 \item{outfile}{path to write json}
 
 \item{write_json}{TRUE/FALSE whether to write the json}
 
 \item{return_table}{TRUE/FALSE whether to return the data}
+
+\item{path}{to strelka2 vcf file to be used}
+
+\item{chromosomes}{to select for. default: c(1:22,"X","Y")}
 }
 \description{
 function to create json for strelka qc plotting in case reports
