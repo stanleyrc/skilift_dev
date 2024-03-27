@@ -7,7 +7,7 @@ gr2bw = function(gr, chrom_lengths, score_col_name, output_filepath) {
     } else {
         stop("GRanges is null")
     }
-    #check whether seqlengths are longer than seqlengths
+                                        #check whether seqlengths are longer than seqlengths
     if(any(bw.gr@seqinfo@seqlengths > chrom_lengths[seqnames %in% names(seqlengths(bw.gr))]$end)) {
         warning(paste0("The seqlengths of your GRanges are longer than the seqlengths of ref. \nAre you sure you are using the correct ref? \nprinting and returning seqlengths of ref..."))
         print(chrom_lengths)
