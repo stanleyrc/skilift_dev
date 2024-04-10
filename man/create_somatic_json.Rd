@@ -5,6 +5,8 @@
 \alias{dt2json_mut}
 \title{create_somatic_json}
 \usage{
+create_somatic_json(plot_metadata, datadir, settings)
+
 dt2json_mut(
   dt,
   patient.id,
@@ -16,6 +18,9 @@ dt2json_mut(
 )
 }
 \arguments{
+\item{plot_metadata}{(`data.table`)\cr 
+Plot metadata.}
+
 \item{dt}{data.table with seqnames,start and end}
 
 \item{patient.id}{patient id to be added to pgvdb or case reports}
@@ -41,9 +46,13 @@ dt2json_mut(
 \item{meta_keep}{meta data to write in the json}
 }
 \value{
+NULL.
+
 data.table to add to pgv or NULL, depends on return_table_pgv
 }
 \description{
+Create mutations gGraph JSON file.
+
 function to create a mutation json, used in create_somatic_json
 }
 \author{
