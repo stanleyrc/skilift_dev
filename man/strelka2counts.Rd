@@ -4,12 +4,18 @@
 \alias{strelka2counts}
 \title{strelka2counts}
 \usage{
-strelka2counts(vcf, seqnames_genome_width = c(1:22, "X", "Y"))
+strelka2counts(
+  vcf,
+  seqnames_genome_width = c(1:22, "X", "Y"),
+  type_return = "counts"
+)
 }
 \arguments{
 \item{vcf}{patient id to be added to pgvdb or case reports}
 
 \item{seqnames_genome_width}{chromosomes to count variants in}
+
+\item{type_return}{counts or dt, if counts returns counts for snv and snv count with a normal vaf greater than 0. If dt, returns the parsed vcf}
 }
 \value{
 data.table

@@ -1,10 +1,10 @@
-# PGVdb
-Faciliates easier loading and manipulation of genomic data for use with [PGV](https://github.com/mskilab-org/pgv).
+# Skilift
+Faciliates easier loading and manipulation of genomic data for use with [PGV](https://github.com/mskilab-org/pgv) and[Case Reports](https://github.com/mskilab-org/case-report).
 
 # Installation
-- To install directly from github: `devtools::install_github("mskilab-org/pgvdb")`
+- To install directly from github: `devtools::install_github("mskilab-org/skilift")`
 - To install from source:
-    1. `git clone https://github.com/mskilab-org/pgvdb.git`
+    1. `git clone https://github.com/mskilab-org/skilift.git`
     2. `devtools::load_all("path/to/clone")`
 
 # Usage
@@ -12,20 +12,51 @@ The PGVdb class manages a database of patient metadata and genomic plot data. It
 
 The key methods allow converting to/from JSON for data storage, validating the data, adding/removing plots, and generating plot JSON for visualization. The metadata and plots are stored as data tables for easy manipulation.
 
+The conversion methods can also be used in isolation without having to instantiate a PGVdb object. 
+This is useful for generating JSON files for use with Case Reports.
+
 ## Methods
+The following methods are for the PGVdb class:
 - `initialize(datafiles_json_path, datadir, settings)`: Initialize a new PGVdb object
 
 - `update_datafiles_json()`: Update JSON data files on disk 
 
 - `to_datatable(filter)`: Convert to a single data table, apply optional filter
 
-- `add_plots(new_plots_dt)`: Add new plots 
+- `add_plots(new_plots_dt)`: Add new plots to PGV
 
 - `remove_plots(plots_to_remove_dt)`: Remove plots
 
 - `list_higlass_tilesets(endpoint, username, password)`: List bigwig tilesets on higlass
 
 - `validate()`: Validate metadata and plots
+
+Methods for converting to JSON:
+plot_metadata is a data table containing plot metadata and should have the following columns:
+    - `patient.id`: Patient identifier (e.g '0124')
+    - `source`: output datafile json filename (e.g complex.json)
+    - `x`: filepath to the RDS object with the raw data (e.g ~/gg.rds)
+    - `overwrite`: Whether to overwrite existing plot files
+    - `ref`: Reference genome (e.g 'hg38')
+
+datadir is the parent directory of the sample directory where the raw data file is stored 
+e.g if the data file is stored in `data/0124/gg.rds` then the datadir is `data/`
+
+settings is the path to the settings file (you can use the pgv one). It's required for parsing seqlengths
+
+- create_ggraph_json(plot_metadata, datadir, settings)
+
+- create_allelic_json(plot_metadata, datadir, settings)
+
+- create_gwalk_json(plot_metadata, datadir, settings)
+
+- create_somatic_json(plot_metadata, datadir, settings)
+
+- create_ppfit_genome_json(plot_metadata, datadir, settings)
+
+- create_distributions(case_reports_data_folder, common_folder, filter_patients = NULL, write_jsons = TRUE)
+
+- create_ppfit_json(jabba_gg, path_obj, out_file = NULL, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1)
 
 ## Fields
 

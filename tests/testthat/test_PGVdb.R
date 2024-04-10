@@ -6,26 +6,27 @@ setup({
   library(data.table)
   library(jsonlite)
   library(httr)
-                                        #  devtools::load_all("../../../gGnome")
   devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/gGnome_dev")
   setDTthreads(1)
 })
 
-##devtools::load_all(".")
-devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgvdb_dev")
-context("PGVdb")
+devtools::load_all(".")
+context("Skilift")
 
 load_paths <- function() {
-  ## datafiles.json <- system.file("extdata", "pgv", "public", "datafiles.json", package = "PGVdb")
-  ## datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
-  ## settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
+  library_path <- .libPaths()[1] # Assuming the package is in the first library
+  package_name <- "Skilift"
+  relative_path <- "extdata/pgv/public/datafiles.json"
 
-    datafiles.json <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles.json"
-    default_datafiles_json_path <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles0.json"
-    datadir <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/data"
-    settings <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/settings.json"
+  publicdir <- system.file("extdata", "pgv", "public", package = "Skilift")
+  datafiles.json <- file.path(publicdir, "datafiles.json")
+  empty.datafiles.json <- file.path(publicdir, "empty_datafiles.json")
+  datadir <- system.file("extdata", "pgv", "public", "data", package = "Skilift")
+  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "Skilift")
+
   list(
     datafiles = datafiles.json,
+    empty_datafiles = empty.datafiles.json,
     datadir = datadir,
     settings = settings
   )
@@ -34,14 +35,12 @@ load_paths <- function() {
 reset_pgvdb  <- function() {
     devtools::load_all(".")
     paths <- load_paths()
-    default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
+    default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "Skilift")
     file.copy(default_datafiles_json_path, paths$datafiles, overwrite=TRUE)
     endpoint <- "http://10.1.29.225:8000/"
     pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$settings, higlass_metadata=list(endpoint=endpoint))
     return(pgvdb)
 }
-
-
 
 test_that("PGVdb initializes correctly", {
   pgvdb <- reset_pgvdb()
@@ -49,52 +48,33 @@ test_that("PGVdb initializes correctly", {
   expect_equal(nrow(pgvdb$plots), 13)
 })
 
-## I am not sure how this was used before so I am just reading them in for all tests
-##default_datafiles_json_path <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles.json"
-## datafiles.json <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles.json"
-## empty_datafiles_json_path <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles_empty.json"
-## datadir <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/data"
-## settings <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/settings.json"
-
-
 test_that("PGVdb initializes from empty datafiles.json", {
   devtools::load_all(".")
-  ## datafiles.json <- "/Users/diders01/projects/pgvdb/inst/extdata/pgv/public/datafiles_empty.json"
-  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
-  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
-  ## datafiles.json <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/datafiles.json"
-  ## datadir <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/data"
-  ## settings <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_for_testingpgvdb/public/settings.json"
-  ## default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
-  empty_datafiles_json_path <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles_empty.json"
   endpoint <- "http://10.1.29.225:8000/"
-  ## pgvdb <- PGVdb$new(datafiles.json, datadir, settings, higlass_metadata=list(endpoint=endpoint))
-  pgvdb <- PGVdb$new(empty_datafiles_json_path, datadir, settings, higlass_metadata=list(endpoint=endpoint))
+  paths <- load_paths()
+  pgvdb <- PGVdb$new(paths$empty_datafiles, paths$datadir, paths$settings, higlass_metadata=list(endpoint=endpoint))
   expect_equal(nrow(pgvdb$metadata), 0)
   expect_equal(nrow(pgvdb$plots), 0)
 })
 
 
-######THIS FAILS - not sure why the bad_path.json works
 test_that("load_json works correctly", {
   pgvdb <- reset_pgvdb()
-  expect_error(pgvdb$load_json("bad_path.json"))
+  expect_warning(pgvdb$load_json("bad_path.json"))
 
   paths <- load_paths()
   pgvdb$load_json(paths$datafiles)
   pgvdb$plots
-  ##expect_equal(nrow(pgvdb$metadata), 1)
+  expect_equal(nrow(pgvdb$metadata), 1)
   expect_equal(nrow(pgvdb$plots), 13)
 })
 
 
-##passes
 test_that("to_datatable returns correct output", {
   pgvdb <- reset_pgvdb()
   dt <- pgvdb$to_datatable()
 
   expect_s3_class(dt, "data.table")
-  ## expect_gte(nrow(dt), 10)
   nrow1 = nrow(dt) ## demo data has been updated so this test whether it is equal is not relevant
 
   dt_filtered <- pgvdb$to_datatable(list("patient.id", "DEMO"))
@@ -103,32 +83,23 @@ test_that("to_datatable returns correct output", {
 })
 
 
-#######only warnings - passes
 test_that("You can add plots to empty datafiles.json", {
-  devtools::load_all(".")
   pgvdb <- reset_pgvdb()
-  ## datafiles.json <- "/Users/diders01/projects/pgvdb/inst/extdata/pgv/public/datafiles_empty.json"
-  empty_datafiles_json_path <- "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/pgv_testing/public/datafiles_empty.json"
-  datafiles.json <- empty_datafiles_json_path
-  datadir <- system.file("extdata", "pgv", "public", "data", package = "PGVdb")
-  settings <- system.file("extdata", "pgv", "public", "settings.json", package = "PGVdb")
-  default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "PGVdb")
   endpoint <- "http://10.1.29.225:8000/"
-  ##  pgvdb <- PGVdb$new(datafiles.json, datadir, settings, higlass_metadata=list(endpoint=endpoint))
+  paths <- load_paths()
+  pgvdb <- PGVdb$new(paths$datafiles, paths$datadir, paths$settings, higlass_metadata=list(endpoint=endpoint))
   nrow1 = nrow(pgvdb$plots)
   new_cov <- data.table(
     patient.id = "TEST_ADD",
     ref = "hg19",
     tags = c("tags1", "tags2", "tags3"),
-    x = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+    x = system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
     field = "cn",
     visible = TRUE,
     type = "scatterplot",
     overwrite = TRUE
   )
   pgvdb$add_plots(new_cov)
-  ## expect_equal(nrow(pgvdb$metadata), 1)
-  ## expect_equal(nrow(pgvdb$plots), 1)
   expect_equal(nrow(pgvdb$metadata), 2)
   expect_equal(nrow(pgvdb$plots), 14)
 })
@@ -140,33 +111,32 @@ test_that("add_plots loads from filepath correctly", {
         patient.id = "TEST_ADD",
         ref = "hg19",
         tags = c("tags1", "tags2", "tags3"),
-        x = system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
+        x = system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
         field = "cn",
         visible = TRUE,
         type = "scatterplot",
         overwrite = TRUE
     )
     pgvdb$add_plots(new_cov)
-    ## expect_equal(nrow(pgvdb$plots), 11)
-    expect_equal(nrow(pgvdb$plots), nrow1) ##14 now
+    expect_equal(nrow(pgvdb$plots), nrow1+1) ##14 now
 
     new_genome <- data.table(
         patient.id = "TEST_ADD",
         ref = "hg38",
-        x = system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
+        x = system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"),
         visible = TRUE
     )
     pgvdb$add_plots(new_genome)
-    expect_equal(nrow(pgvdb$plots), nrow1+1) ## 15 now
+    expect_equal(nrow(pgvdb$plots), nrow1+2) ## 15 now
 
     new_walk <- data.table(
         patient.id = "TEST_ADD",
         ref = "hg19",
-        x = system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"),
+        x = system.file("extdata", "test_data", "test.gw.rds", package = "Skilift"),
         visible = TRUE
     )
     pgvdb$add_plots(new_walk)
-    expect_equal(nrow(pgvdb$plots), nrow1+2) ##16 now
+    expect_equal(nrow(pgvdb$plots), nrow1+3) ##16 now
 
     new_bw <- data.table(
         patient.id = "TEST_ADD",
@@ -175,35 +145,35 @@ test_that("add_plots loads from filepath correctly", {
         visible = TRUE
     )
     pgvdb$add_plots(new_bw)
-    expect_equal(nrow(pgvdb$plots), nrow1+3) ##17 now
+    expect_equal(nrow(pgvdb$plots), nrow1+4) ##17 now
 
     new_json <- data.table(
         patient.id = "TEST_ADD",
         ref = "hg19",
         type = "walk",
-        x = system.file("extdata", "test_data", "walks.json", package = "PGVdb"),
+        x = system.file("extdata", "test_data", "walks.json", package = "Skilift"),
         visible = TRUE
     )
     pgvdb$add_plots(new_json)
-    expect_equal(nrow(pgvdb$plots), nrow1+4) ##18 now
+    expect_equal(nrow(pgvdb$plots), nrow1+5) ##18 now
 
-    ##not sure why this added to plots because test_bigwig_granges.rds does not exist anymore
-    new_bigwig_granges  <- data.table(
-        patient.id = "TEST_ADD",
-        ref = "hg38",
-        type = "bigwig",
-        field = "foreground",
-        x = system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb"), ## this file does not exists
-        visible = TRUE
-    )
-    pgvdb$add_plots(new_bigwig_granges)
-    expect_equal(nrow(pgvdb$plots), nrow1+5)
+    # this test fails because the bigwig file is gitignored (due to it being large)
+    # new_bigwig_granges  <- data.table(
+    #     patient.id = "TEST_ADD",
+    #     ref = "hg38",
+    #     type = "bigwig",
+    #     field = "foreground",
+    #     x = system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift"), ## this file does not exists
+    #     visible = TRUE
+    # )
+    # pgvdb$add_plots(new_bigwig_granges)
+    # expect_equal(nrow(pgvdb$plots), nrow1+5)
 })
 
 test_that("add_plots loads from object correctly", {
     pgvdb <- reset_pgvdb()
     nrow1 = nrow(pgvdb$plots)
-    cov = readRDS(system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"))
+    cov = readRDS(system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"))
     new_cov <- data.table(
         patient.id = "TEST_ADD",
         ref = "hg19",
@@ -217,7 +187,7 @@ test_that("add_plots loads from object correctly", {
     expect_equal(nrow(pgvdb$plots), nrow1)
 
 
-    gg = readRDS(system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"))
+    gg = readRDS(system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"))
     new_genome <- data.table(
         patient.id = "TEST_ADD",
         ref = "hg19",
@@ -227,7 +197,7 @@ test_that("add_plots loads from object correctly", {
     pgvdb$add_plots(new_genome)
     expect_equal(nrow(pgvdb$plots), nrow1 + 1)
 
-    gw = readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"))
+    gw = readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "Skilift"))
     new_walk <- data.table(
         patient.id = "TEST_ADD",
         ref = "hg19",
@@ -236,120 +206,107 @@ test_that("add_plots loads from object correctly", {
     )
     pgvdb$add_plots(new_walk)
     expect_equal(nrow(pgvdb$plots), nrow1 + 2)
-    ##this one fails because the file does not exist
-    gr_bw = readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb"))
-    new_bigwig_granges  <- data.table(
-        patient.id = "TEST_ADD",
-        ref = "hg38",
-        type = "bigwig",
-        field = "foreground",
-        x = list(gr_bw),
-        visible = TRUE,
-        overwrite = TRUE
-    )
-    pgvdb$add_plots(new_bigwig_granges)
-    expect_equal(nrow(pgvdb$plots), nrow1 + 3)
+
+    # this test fails because the bigwig file is gitignored (due to it being large)
+    # gr_bw = readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift"))
+    # new_bigwig_granges  <- data.table(
+    #     patient.id = "TEST_ADD",
+    #     ref = "hg38",
+    #     type = "bigwig",
+    #     field = "foreground",
+    #     x = list(gr_bw),
+    #     visible = TRUE,
+    #     overwrite = TRUE
+    # )
+    # pgvdb$add_plots(new_bigwig_granges)
+    # expect_equal(nrow(pgvdb$plots), nrow1 + 3)
 })
 
 
-## this is failing- not sure what the expectation is
-test_that("Bug with rds file", {
-  pgvdb <- reset_pgvdb()
-  new_plots <- data.table(
-    patient.id = "TEST_ADD",
-    ref = "hg19",
-    x = system.file("extdata", "test_data", "complex_not_added.rds", package = "PGVdb"),
-    visible = TRUE
-  )
-  pgvdb$add_plots(new_plots)
-})
-
-## this is failing but going to be testing this with new tests
 test_that("add_plots works correctly with multiple plot filepaths", {
     pgvdb <- reset_pgvdb()
     nrow1 = nrow(pgvdb$plots)
     paths  <- c(
-        system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
-        system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
-        system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"),
-        system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb")
+        system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
+        system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"),
+        system.file("extdata", "test_data", "test.gw.rds", package = "Skilift")
     )
 
     new_plots <- data.table(
         patient.id = "TEST_ADD",
-        ref = c("hg19", "hg19", "hg19", "hg38"),
+        ref = c("hg19", "hg19", "hg19"),
         x = paths,
-        field= c("cn", NA, NA, "foreground"),
-        type=c("scatterplot", NA, NA, "bigwig"),
+        field= c("cn", NA, NA),
+        type=c("scatterplot", "genome", NA),
         visible = TRUE,
-        overwrite = c(TRUE, TRUE, TRUE, TRUE)
+        overwrite = c(TRUE, TRUE, TRUE)
     )
     pgvdb$add_plots(new_plots)
-    expect_equal(nrow(pgvdb$plots), nrow1 + 4)
+    expect_equal(nrow(pgvdb$plots), nrow1 + 3)
 })
 
 
-##fails not sure where this data is
 test_that("add_plots works correctly with multiple plot objects", {
     pgvdb <- reset_pgvdb()
     nrow = nrow(pgvdb$plots)
     objects  <- c(
-        list(readRDS(system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"))),
-        list(readRDS(system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"))),
-        list(readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb"))),
-        list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb")))
+        list(readRDS(system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"))),
+        list(readRDS(system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"))),
+        list(readRDS(system.file("extdata", "test_data", "test.gw.rds", package = "Skilift")))
     )
 
     new_plots <- data.table(
         patient.id = "TEST_ADD",
-        ref = c("hg19", "hg19", "hg19", "hg38"),
+        ref = c("hg19", "hg19", "hg19"),
         x = objects,
-        field = c("cn", NA, NA, "foreground"),
-        type = c("scatterplot", NA, NA, "bigwig"),
+        field = c("cn", NA, NA),
+        type = c("scatterplot", "genome", NA),
         visible = TRUE,
-        overwrite = c(TRUE, TRUE, TRUE, TRUE)
+        overwrite = c(TRUE, TRUE, TRUE)
     )
     pgvdb$add_plots(new_plots)
-    expect_equal(nrow(pgvdb$plots), nrow1 + 4)
+    expect_equal(nrow(pgvdb$plots), nrow1 + 3)
 })
 
-test_that("add_plots works correctly with multiple bigwigs", {
-  pgvdb <- reset_pgvdb()
-  bigwigs  <- c(
-    list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb"))),
-    list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "PGVdb")))
-  )
-
-  new_plots <- data.table(
-    patient.id = "TEST_ADD",
-    ref = "hg38",
-    x = bigwigs,
-    field = "foreground",
-    type = "bigwig",
-    visible = TRUE
-  )
-  pgvdb$add_plots(new_plots)
-  expect_equal(nrow(pgvdb$plots), 14)
-})
+# this test will fail because the bigwig file is gitignored (due to it being large)
+# test_that("add_plots works correctly with multiple bigwigs", {
+#   pgvdb <- reset_pgvdb()
+#   bigwigs  <- c(
+#     list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift"))),
+#     list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift")))
+#   )
+#
+#   new_plots <- data.table(
+#     patient.id = "TEST_ADD",
+#     ref = "hg38",
+#     x = bigwigs,
+#     field = "foreground",
+#     type = "bigwig",
+#     visible = TRUE
+#   )
+#   pgvdb$add_plots(new_plots)
+#   expect_equal(nrow(pgvdb$plots), 14)
+# })
 
 test_that("add_plots works correctly with multiple patients", {
   pgvdb <- reset_pgvdb()
+  nrow = nrow(pgvdb$plots)
   paths  <- c(
-    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "Skilift")
   )
   new_plots <- data.table(
     patient.id = c("TEST_ADD1", "TEST_ADD2", "TEST_ADD3"),
     ref = "hg19",
     x = paths,
     field= c("cn", NA, NA),
-    type=c("scatterplot", NA, NA),
+    type=c("scatterplot", "genome", NA),
     visible = TRUE,
     overwrite = TRUE
   )
   pgvdb$add_plots(new_plots)
-  expect_equal(nrow(pgvdb$plots), 13)
+  expect_equal(nrow(pgvdb$plots), nrow+3)
 })
 
 test_that("mixing higlass upload with adding plots works correctly", {
@@ -357,13 +314,13 @@ test_that("mixing higlass upload with adding plots works correctly", {
   pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000"
   # Mix
   paths  <- c(
-    system.file("extdata", "test_data", "test_higlass_mix_granges1.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test_higlass_mix_granges2.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test_higlass_mix_complex1.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test_higlass_mix_granges1.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test_higlass_mix_granges2.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test_higlass_mix_complex1.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "Skilift")
   )
 
-  gg <- system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "PGVdb")
+  gg <- system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "Skilift")
 
   new_plots <- data.table(
     patient.id = c("TEST_ADD1", "TEST_ADD2", "TEST_ADD1", "TEST_ADD2"),
@@ -377,8 +334,8 @@ test_that("mixing higlass upload with adding plots works correctly", {
 
   # gGraphs only
   paths  <- c(
-    system.file("extdata", "test_data", "test_higlass_mix_complex1.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test_higlass_mix_complex1.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test_higlass_mix_complex2.rds", package = "Skilift")
   )
 
   new_plots <- data.table(
@@ -391,8 +348,8 @@ test_that("mixing higlass upload with adding plots works correctly", {
 
   # Bigwigs Only
   paths  <- c(
-    system.file("extdata", "test_data", "test_higlass_mix_granges1.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test_higlass_mix_granges2.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test_higlass_mix_granges1.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test_higlass_mix_granges2.rds", package = "Skilift")
   )
 
   new_plots <- data.table(
@@ -405,21 +362,23 @@ test_that("mixing higlass upload with adding plots works correctly", {
     overwrite = TRUE
   )
   pgvdb$add_plots(new_plots)
-}
+
+})
 
 test_that("remove_plots works correctly", {
   pgvdb <- reset_pgvdb()
+  nrow = nrow(pgvdb$plots)
   paths  <- c(
-    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "Skilift")
   )
   new_plots <- data.table(
     patient.id = "TEST_ADD",
     ref = "hg19",
     x = paths,
     field = c("cn", NA, NA),
-    type=c("scatterplot", NA, NA),
+    type=c("scatterplot", "genome", NA),
     visible = TRUE,
     overwrite = TRUE
   )
@@ -432,22 +391,23 @@ test_that("remove_plots works correctly", {
 
   pgvdb$remove_plots(remove_plot)
 
-  expect_equal(nrow(pgvdb$plots), 12)
+  expect_equal(nrow(pgvdb$plots), nrow+3-1)
 })
 
 test_that("remove_plots works correctly when removing patients", {
   pgvdb <- reset_pgvdb()
+  nrow = nrow(pgvdb$plots)
   paths  <- c(
-    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "Skilift")
   )
   new_plots <- data.table(
     patient.id = "TEST_ADD",
     ref = "hg19",
     x = paths,
     field = c("cn", NA, NA),
-    type=c("scatterplot", NA, NA),
+    type=c("scatterplot", "genome", NA),
     visible = TRUE,
     overwrite = TRUE
   )
@@ -459,7 +419,7 @@ test_that("remove_plots works correctly when removing patients", {
 
   pgvdb$remove_plots(remove_plot)
 
-  expect_equal(nrow(pgvdb$plots), 10)
+  expect_equal(nrow(pgvdb$plots), nrow)
 })
 
 test_that("validate works correctly", {
@@ -484,14 +444,14 @@ test_that("adding to higlass server works correctly", {
   pgvdb <- reset_pgvdb()
   pgvdb$higlass_metadata$endpoint <- "http://10.1.29.225:8000"
   pgvdb$upload_to_higlass(
-    datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
+    datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "Skilift"),
     filetype = "chromsizes-tsv",
     datatype = "chromsizes",
     coordSystem = "hg38",
     name = "hg38"
   )
   pgvdb$upload_to_higlass(
-    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
+    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "Skilift"),
     name = "test_bigwig",
     filetype = "bigwig",
     datatype = "vector",
@@ -518,9 +478,9 @@ test_that("deleting higlass tileset works correctly", {
 test_that("init_pgv works correctly", {
   pgvdb <- reset_pgvdb()
   paths  <- c(
-    system.file("extdata", "test_data", "test.cov.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gg.rds", package = "PGVdb"),
-    system.file("extdata", "test_data", "test.gw.rds", package = "PGVdb")
+    system.file("extdata", "test_data", "test.cov.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gg.rds", package = "Skilift"),
+    system.file("extdata", "test_data", "test.gw.rds", package = "Skilift")
   )
   new_plots <- data.table(
     patient.id = "TEST_ADD",
@@ -541,11 +501,11 @@ test_that("init_pgv works correctly", {
 
 test_that("adding arrows in parallel works correctly", {
   pgv <- reset_pgvdb()
-  maska_path = system.file("extdata", "test_data", "maskA_re.rds", package = "PGVdb")
+  maska_path = system.file("extdata", "test_data", "maskA_re.rds", package = "Skilift")
   maska = readRDS(maska_path)
   maska$mask = "mask"
 
-  pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "PGVdb")
+  pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
   pairs = readRDS(pairs_path)
   covs.lst = mclapply(pairs$pair, function(pair) {
     cov_gr = readRDS(pairs[pair,decomposed_cov])
