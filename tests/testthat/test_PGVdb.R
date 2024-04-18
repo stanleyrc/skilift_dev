@@ -565,7 +565,7 @@ devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/gGnome_
 context("PGVdb")
 
 getPGV = function() {
-    public_dir = "~/git/pgv_testing/public/"
+    public_dir = "~/../sclarke/git/pgv_testing/public/"
     json_file = paste0(public_dir,"datafiles.json")
     datadir = paste0(public_dir,"data/")
     settings = paste0(public_dir,"settings.json")
@@ -688,6 +688,7 @@ test_that("metadata json created", {
     pgvdb = getPGV() ## just used to get path for output
     pair = test.meta.pairs$pair
     out.file = gsub("settings.json","test_metadata.json",pgvdb$settings)
+    ##out.file = "~/git/test_metadata.json"
     meta.dt = meta_data_json(pair = pair,
                              out_file = out.file,
                              coverage = test.meta.pairs[pair,decomposed_cov],
@@ -695,7 +696,8 @@ test_that("metadata json created", {
                              svaba_somatic_vcf = test.meta.pairs[pair,svaba_somatic_vcf],
                              seqnames_loh = c(1:22),
                              karyograph = test.meta.pairs[pair,karyograph_rds],
-                             vcf = test.meta.pairs[pair,strelka2_somatic_filtered_variants],
+                             strelka2_vcf = test.meta.pairs[pair,strelka2_somatic_filtered_variants],
+                             sage_vcf = test.meta.pairs[pair,sage_somatic_variants],
                              tumor_type = test.meta.pairs[pair,tumor_type_final],
                              disease = test.meta.pairs[pair,disease],
                              primary_site = test.meta.pairs[pair,primary_site_simple],
