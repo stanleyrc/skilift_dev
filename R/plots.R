@@ -676,7 +676,8 @@ dlrs = function(x) {
 #' @param out_file path to write json
 #' @param coverage path dryclean coverage output
 #' @param jabba_gg path to JaBbA output ggraph or complex
-#' @param vcf path to strelka vcf to get snv count
+#' @param strelka2_vcf path to strelka vcf to get snv count
+#' @param sage_vcf path to SAGE vcf to get snv count (if present)
 #' @param svaba_somatic_vcf path to svaba somatic vcf for getting sv count
 #' @param tumor_type_final tumor type abbreviation of the sample
 #' @param disease full length tumor type
@@ -693,7 +694,7 @@ dlrs = function(x) {
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
 
-meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic_vcf, tumor_type, disease, primary_site, inferred_sex, karyograph, seqnames_loh = c(1:22), seqnames_genome_width = c(1:22,"X","Y"), write_json = TRUE, overwrite = FALSE, return_table = FALSE, make_dir = FALSE) {
+meta_data_json = function(pair, out_file, coverage, jabba_gg, strelka2_vcf, sage_vcf = NULL, svaba_somatic_vcf, tumor_type, disease, primary_site, inferred_sex, karyograph, seqnames_loh = c(1:22), seqnames_genome_width = c(1:22,"X","Y"), write_json = TRUE, overwrite = FALSE, return_table = FALSE, make_dir = FALSE) {
     if(!overwrite && write_json == TRUE) {
         if(file.exists(out_file)) {
             print(paste0('Output already exists! - skipping sample ',pair))
@@ -716,15 +717,23 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, vcf, svaba_somatic
             print(paste0('Making directory ', folder_path))
             system(cmd)
         }
-    }
+    } 
     meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type_final = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
     #get derivate log ratio spread
     meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
     ##Load this case's counts
     ## meta.dt$snv_count = length(read_vcf(vcf))
-    snv.counts.dt = strelka2counts(vcf)
+    snv.counts.dt = strelka2counts(strelka2_vcf, seqnames_genome_width = seqnames_genome_width)
     meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
     meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    if(is.null(sage_vcf) || sage_vcf == "") {
+        warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
+    } else {
+        print("Found SAGE vcf, will keep both Strelka2 and SAGE in meta file")
+        sage.snv.counts.dt = SAGEcounts(sage_vcf, seqnames_genome_width = seqnames_genome_width)
+        meta.dt$sage_snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
+        meta.dt$sage_snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    }
     ## vcf.gr = read_vcf(vcf)
     ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
     ## meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
@@ -968,27 +977,45 @@ strelka_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, wri
 #' @return data.table
 #' @export
 #' @author Tanubrata Dey, Stanley Clarke
-parse_vcf_SAGE = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {                                                                            
-  somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#',col.names=c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","tumor","normal")) %>% as.data.table
-  ##strip chr                                                      
-  somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]            
+parse_vcf_SAGE = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {
+  somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#') %>% as.data.table
+  if (ncol(somatic.filtered.vcf)==11) {
+    colnames(somatic.filtered.vcf) = c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","tumor","normal")
+    ##strip chr                                                      
+    somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
+    sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
+    sub.vcf[, TIER := gsub(".*TIER=([^;]+).*", "\\1", INFO)]
+    sub.vcf[, trinuc := gsub(".*TNC=([^;]+).*", "\\1", INFO)]
+    sub.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP","T_SB") := tstrsplit(tumor, ":", fixed = TRUE)]
+    sub.vcf[, c("ref_count_T", "alt_count_T") := tstrsplit(T_AD, ",", fixed = TRUE)]
+    sub.vcf[, ref_count_T := as.numeric(ref_count_T)]
+    sub.vcf[, alt_count_T := as.numeric(alt_count_T)]
+    sub.vcf[, VAF_T := as.numeric(VAF_T)]
+    sub.vcf[, c("T_GT","T_AD","T_DP","T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP")] = NULL
+    sub.vcf[, c("N_GT", "N_ABQ", "N_AD", "VAF_N", "N_DP", "N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP","N_SB") := tstrsplit(normal, ":", fixed = TRUE)]
+    sub.vcf[, c("ref_count_N", "alt_count_N") := tstrsplit(N_AD, ",", fixed = TRUE)]
+    sub.vcf[, c("N_GT","N_AD","N_DP","N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP")] = NULL
+  sub.vcf[, ref_count_N := as.numeric(ref_count_N)]
+  sub.vcf[, alt_count_N := as.numeric(alt_count_N)]
+  sub.vcf[, VAF_N := as.numeric(VAF_N)]
+  } else if (ncol(somatic.filtered.vcf)==10) {
+    colnames(somatic.filtered.vcf) = c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","tumor")
+    ##strip chr                                                      
+  somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
   sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
-  sub.vcf[, TIER := gsub(".*TIER=([^;]+).*", "\\1", INFO)]         
+  sub.vcf[, TIER := gsub(".*TIER=([^;]+).*", "\\1", INFO)]
   sub.vcf[, trinuc := gsub(".*TNC=([^;]+).*", "\\1", INFO)]
   sub.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP","T_SB") := tstrsplit(tumor, ":", fixed = TRUE)]
   sub.vcf[, c("ref_count_T", "alt_count_T") := tstrsplit(T_AD, ",", fixed = TRUE)]
   sub.vcf[, ref_count_T := as.numeric(ref_count_T)]
   sub.vcf[, alt_count_T := as.numeric(alt_count_T)]
   sub.vcf[, VAF_T := as.numeric(VAF_T)]
-  sub.vcf[, c("T_GT","T_AD","T_DP","T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP")] = NULL 
-  sub.vcf[, c("N_GT", "N_ABQ", "N_AD", "VAF_N", "N_DP", "N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP","N_SB") := tstrsplit(normal, ":", fixed = TRUE)]
-  sub.vcf[, c("ref_count_N", "alt_count_N") := tstrsplit(N_AD, ",", fixed = TRUE)]
-  sub.vcf[, c("N_GT","N_AD","N_DP","N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP")] = NULL
-  sub.vcf[, ref_count_N := as.numeric(ref_count_N)]
-  sub.vcf[, alt_count_N := as.numeric(alt_count_N)]
-  sub.vcf[, VAF_N := as.numeric(VAF_N)]
+  sub.vcf[, c("T_GT","T_AD","T_DP","T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP")] = NULL
+  } else {
+    stop("SAGE VCF has unknown format, is it broken?")
+  }
   return(sub.vcf)
-}                                                                                                                                
+}
 
 
 #' @name SAGEcounts
@@ -1006,9 +1033,15 @@ SAGEcounts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_return 
   sub.vcf = parse_vcf_SAGE(vcf, seqnames_genome_width = seqnames_genome_width)
   if(type_return == "counts") {
     snv_count = nrow(sub.vcf)
-    snv_count_normal_vaf_greater0 = nrow(sub.vcf[VAF_N > 0,])
-    return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
-                          counts = c(snv_count, snv_count_normal_vaf_greater0)))
+    if ("VAF_N" %in% colnames(sub.vcf)){
+        snv_count_normal_vaf_greater0 = nrow(sub.vcf[VAF_N > 0,])
+        return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
+                              counts = c(snv_count, snv_count_normal_vaf_greater0)))
+        } else {
+        print("Tumor only run VCF provided, no VAF_N present.")
+        return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
+                              counts = c(snv_count, NA)))
+        }
     } else if (type_return == "dt") {
         return(sub.vcf)
     }
