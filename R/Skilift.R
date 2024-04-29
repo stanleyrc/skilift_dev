@@ -54,6 +54,8 @@ Skilift <- R6Class("Skilift",
     #' @description
     #' Creates a new instance of this [R6][R6::R6Class] class.
     #'
+    #' @param public_dir (`character(1)`)\cr
+    #'   Public or build directory path.
     #' @param datafiles_json_path (`character(1)`)\cr
     #'   JSON file path.
     #' @param datadir (`character(1)`)\cr
@@ -62,12 +64,39 @@ Skilift <- R6Class("Skilift",
     #'   Settings object path.
     #' @param higlass_metadata (`list`, optional)\cr
     #'   HiGlass metadata containing endpoint, username, and password.
-    initialize = function(datafiles_json_path, datadir, settings, higlass_metadata = NULL) {
-      private$datafiles_json_path <- datafiles_json_path
-      self$load_json(datafiles_json_path)
-      self$datadir <- datadir
-      self$settings <- settings
+    initialize = function(
+      public_dir = NULL,
+      datafiles_json_path = NULL,
+      datadir = NULL,
+      settings = NULL,
+      higlass_metadata = NULL
+    ) {
+      if (!is.null(public_dir) && dir.exists(public_dir)) {
+        # Check if the specific paths exist within the public_dir
+        potential_datadir <- file.path(public_dir, "data")
+        potential_settings <- file.path(public_dir, "settings.json")
+        potential_datafiles_json_path <- file.path(public_dir, "datafiles.json")
+        
+        # Set paths to public_dir children if they exist, otherwise use the arguments provided
+        self$datadir <- if (dir.exists(potential_datadir)) potential_datadir else datadir
+        self$settings <- if (file.exists(potential_settings)) potential_settings else settings
+        private$datafiles_json_path <- if (file.exists(potential_datafiles_json_path)) potential_datafiles_json_path else datafiles_json_path
+      } else {
+        # Use the values passed in the initialize method
+        self$datadir <- datadir
+        self$settings <- settings
+        private$datafiles_json_path <- datafiles_json_path
+      }
       
+      # Check if the necessary parameters are provided or derived from public_dir
+      if (is.null(self$datadir) || is.null(self$settings) || is.null(private$datafiles_json_path)) {
+        stop("datadir, settings, and datafiles_json_path must be provided or derivable from public_dir")
+      }
+
+      # Load the JSON data
+      self$load_json(private$datafiles_json_path)
+      
+      # Handle higlass_metadata
       if (!is.null(higlass_metadata)) {
         self$higlass_metadata <- list(
           endpoint = ifelse(is.null(higlass_metadata$endpoint), "http://10.1.29.225:41800", higlass_metadata$endpoint),
