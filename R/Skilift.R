@@ -1,13 +1,13 @@
 source("src/higlass_and_ggraph.R")  # import auxiliary functions for import datatables and granges bigwigs
 
-#' @title PGVdb Object
+#' @title Skilift Object
 #'
 #' @description
-#' Class representing a PGV database. Contains metadata, plots, and methods
+#' Class representing a PGV/Case-reports database. Contains metadata, plots, and methods
 #' for interacting with the database and converting to and from JSON.
 #'
 #' @section Methods:
-#' \code{initialize()} Initialize the PGVdb object
+#' \code{initialize()} Initialize the Skilift object
 #' \code{load_json()} Load data from JSON file into metadata and plots
 #' \code{update_datafiles_json()} Update the JSON data files
 #' \code{to_datatable()} Convert metadata and plots to a single data table
@@ -26,7 +26,7 @@ source("src/higlass_and_ggraph.R")  # import auxiliary functions for import data
 #' @import R6
 #' @import httr
 #' @import data.table
-PGVdb <- R6Class( "PGVdb",
+Skilift <- R6Class("Skilift",
   private = list(
     #' @field datafiles_json_path (`character(1)`)
     #' Path to the datafiles.json
@@ -162,7 +162,7 @@ PGVdb <- R6Class( "PGVdb",
     update_datafiles_json = function() {
       missing_data <- self$validate()
       if (!is.null(missing_data)) {
-        stop(warning("Did not update datafiles because of malformed pgvdb object."))
+        stop(warning("Did not update datafiles because of malformed Skilift object."))
       }
 
       datafiles_json_path <- private$datafiles_json_path
@@ -244,7 +244,7 @@ PGVdb <- R6Class( "PGVdb",
           subset_plots <- self$plots[grepl(filter_string, self$plots[[column_name]])]
           filtered_datatable <- merge(self$metadata, subset_plots, by = "patient.id")
         } else {
-          stop(paste("Column", column_name, "not found in PGVdb."))
+          stop(paste("Column", column_name, "not found in Skilift"))
         }
       } else {
         filtered_datatable <- merge(self$metadata, self$plots, by = "patient.id")
@@ -254,7 +254,7 @@ PGVdb <- R6Class( "PGVdb",
     },
 
     #' @description
-    #' Add new plots to the PGVdb.
+    #' Add new plots to the Skilift
     #'
     #' @param plots_to_add (`data.table`)\cr
     #'  Data table of plots to add. Must have a minimal set of columns: patient.id, x. 
@@ -527,7 +527,7 @@ PGVdb <- R6Class( "PGVdb",
         if (!is.null(plot$source) && !is.na(plot$source)) {
           source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
           if (!file.exists(source_full_path)) {
-            warning("File does not exist: ", source_full_path, " skipping adding to pgvdb...")
+            warning("File does not exist: ", source_full_path, " skipping adding to Skilift")
             next
           }
         }
@@ -565,7 +565,7 @@ PGVdb <- R6Class( "PGVdb",
     },
 
     #' @description
-    #' Remove plots from the PGVdb.
+    #' Remove plots from the Skilift
     #'
     #' @param plots_to_remove (`data.table`)\cr 
     #'   Data table of plots to remove
@@ -622,8 +622,8 @@ PGVdb <- R6Class( "PGVdb",
         }
       }
 
-      # Remove plots from PGVdb$plots
-      print("Removing plots from PGVdb...")
+      # Remove plots from Skilift$plots
+      print("Removing plots from Skilift")
       initial_rows <- nrow(self$plots)
 
       if (is_remove_patients) {
@@ -871,7 +871,7 @@ PGVdb <- R6Class( "PGVdb",
     #'
     #' @return NULL
     init_pgv = function(pgv_dir, build = FALSE) {
-      init_script_path  <- system.file("src", "init_pgv.sh", package="PGVdb")
+      init_script_path  <- system.file("src", "init_pgv.sh", package="Skilift")
       # Check if node is installed
       cmd <- paste("which", "node")
       is_installed <- length(system(cmd, intern = TRUE)) != 0
