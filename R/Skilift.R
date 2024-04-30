@@ -322,23 +322,73 @@ Skilift <- R6Class("Skilift",
         }
       }
 
-      source_vector <- rep(NA, nrow(new_plots))
-      type_vector <- rep(NA, nrow(new_plots))
-      # Loop through each row of the plots_to_add table
-      for (i in seq_len(nrow(new_plots))) {
-        plot <- new_plots[i, ]
+      handle_granges <- function(plot) {
+        if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
+          warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
+          return(NULL)
+        }
+        if (plot$type == "scatterplot") {
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- 'coverage.arrow'
+          }
+          if (is.null(plot$field)) {
+            warning("The column name in GRanges containing scores for scatterplot was not specified, using 'foreground' as default.")
+            plot$field <- "foreground" # Use default value
+          }
+        } else if (plot$type == "bigwig") {
+          timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
+          unique_filename <- paste0(timestamp, '.bw')
+          plot$source  <- unique_filename
+        }
+        return(plot)
+      }
 
-        # Check if patient dir exists, if not, create patient directory
-        patient_dir <- file.path(self$datadir, plot$patient.id)
-        if (!dir.exists(patient_dir)) {
-          warning(paste("Patient directory does not exist. Creating a directory for new patient: ", plot$patient.id))
-          dir.create(patient_dir)
+      handle_gobject = function(gobject, plot) {
+        # GRanges
+        if (is(gobject, "GRanges")) {
+          plot <- handle_granges(plot)
+        # gGraph
+        } else if (is(gobject, "gGraph")) {
+          if (is.null(plot$type)) {
+            warning("Plot type for gGraph has not been specified, using default type: 'genome'. If plotting an allelic graph, ppfit, or mutations plot, specify type as 'allelic', 'ppfit', or 'mutations' respectively.")
+            plot$type <- 'genome'
+          }
+
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- switch(plot$type,
+            "genome" = 'genome.json',
+            "allelic" = 'allelic.json',
+            "ppfit" = 'ppfit.json',
+            "mutations" = 'mutations.json',
+            'genome.json') # default case
+          }
+        # gWalk
+        } else if (is(gobject, "gWalk")) {
+          plot$type <- 'walk'
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- 'walks.json'
+          }
+        }
+        return(plot)
+      }
+
+      handle_gtrack = function(gtrack_obj, plot) {
+        gtrack_data <- gtrack_obj@data[[1]]
+        if (is.null(gtrack_data) || length(gtrack_data) == 0) {
+          warning("No data found in gTrack gRanges This plot will be skipped.")
+          return(NULL)
         }
 
-        if (is(plot$x[[1]], "GRanges")) {
+        is_scatterplot = gtrack_obj$circles
+        is_barplot = gtrack_obj$bars
+        is_small_scatterplot = length(gtrack_data) <= 200000
+        is_bigwig = !is_small_scatterplot || is_barplot
+        is_ggraph = length(gtrack_obj@edges[[1]]) != 0
+
+        if (is_scatterplot) {
           if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
-            warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
-            next
+            plot$type = is_bigwig ? "bigwig" : "scatterplot"
+            warning("Plot type not specified for gTrack scatterplot. Using default type based on number of ranges (<200k will produce an scatterplot arrow, otherwise a bigwig): ", plot$type, ". To override, specify type='scatterplot' or type='bigwig'.")
           }
           if (plot$type == "scatterplot") {
             if (!"source" %in% names(plot) || is.na(plot$source)) {
@@ -353,65 +403,51 @@ Skilift <- R6Class("Skilift",
             unique_filename <- paste0(timestamp, '.bw')
             plot$source  <- unique_filename
           }
-        } else if (is(plot$x[[1]], "gGraph")) {
-          plot$type <- 'genome'
-          if (!"source" %in% names(plot) || is.na(plot$source)) {
-            plot$source <- 'genome.json'
-          }
-        } else if (is(plot$x[[1]], "gWalk")) {
-          plot$type <- 'walk'
-          if (!"source" %in% names(plot) || is.na(plot$source)) {
-            plot$source <- 'walks.json'
-          }
-        } else if (is.list(plot$x) && length(plot$x[[1]]) == 2) {
+        }
+
+        return(plot)
+      }
+
+      source_vector <- rep(NA, nrow(new_plots))
+      type_vector <- rep(NA, nrow(new_plots))
+      x_vector <- vector("list", nrow(new_plots))  # Initialize as a list
+
+      # Loop through each row of the plots_to_add table
+      for (i in seq_len(nrow(new_plots))) {
+        plot <- new_plots[i, ]
+
+        # Check if patient dir exists, if not, create patient directory
+        patient_dir <- file.path(self$datadir, plot$patient.id)
+        if (!dir.exists(patient_dir)) {
+          warning(paste("Patient directory does not exist. Creating a directory for new patient: ", plot$patient.id))
+          dir.create(patient_dir)
+        }
+        
+        if (is(plot$x, "list")) {
+          is_plot_gtrack <- is(plot$x[[1]], "gTrack")
+          is_plot_gobject <- is(plot$x[[1]], "GRanges") || is(plot$x[[1]], "gGraph") || is(plot$x[[1]], "gWalk")
+          is_plot_higlass <- length(plot$x) == 2 && all(sapply(plot$x, is.character))
+        } else {
+          is_plot_json <- file.exists(plot$x) && tools::file_ext(plot$x) == 'json'
+          is_plot_rds <- file.exists(plot$x) && tools::file_ext(plot$x) == 'rds'
+        }
+
+        # gTrack
+        if (is_plot_gtrack) {
+          plot <- handle_gtrack(plot$x[[1]], plot)
+          plot$x <- list(plot$x[[1]]@data)
+        # GRanges, gGraph, gWalk
+        } else if (is_plot_gobject) {
+          plot <- handle_gobject(plot$x[[1]], plot)
+        # higlass
+        } else if (is_plot_higlass) {
           plot$type <- 'bigwig'
           plot$server <- plot$x[[1]][[1]]
           plot$uuid  <- plot$x[[1]][[2]]
           new_plots[i, "server"] <- plot$server
           new_plots[i, "uuid"] <- plot$uuid
-        } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'rds') {
-          rds_object <- readRDS(plot$x)
-          if (is(rds_object, "GRanges")) {
-            if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
-              warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
-              next
-            }
-            if (plot$type == "scatterplot") {
-              if (!"source" %in% names(plot) || is.na(plot$source)) {
-                plot$source <- 'coverage.arrow'
-              }
-            } else if (plot$type == "bigwig") {
-              timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
-              unique_filename <- paste0(timestamp, '.bw')
-              plot$source  <- unique_filename
-            }
-          } else if (is(rds_object, "gGraph")) {
-              if(is.null(plot$type)) {
-                  warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic. If plotting a ppfit for case reports, specify type as ppfit")
-              }
-              if (is.null(plot$type)) {
-                  plot$type <- 'genome'
-                  if (!"source" %in% names(plot) || is.na(plot$source)) {
-                      plot$source <- 'genome.json'
-                  }
-              } else if (plot$type == "genome") {
-                  plot$source <- 'genome.json'
-              } else if (plot$type == "allelic") {
-                  plot$source <- 'allelic.json'
-              } else if (plot$type == "ppfit") {
-                  plot$source <- 'ppfit.json'
-              }
-          } else if (is(rds_object, "gWalk")) {
-            plot$type <- 'walk'
-            if (!"source" %in% names(plot) || is.na(plot$source)) {
-              plot$source <- 'walks.json'
-            }
-          } else if (plot$type == "mutations") {
-              if (!"source" %in% names(plot) || is.na(plot$source)) {
-                  plot$source <- 'mutations.json'
-              }
-          }
-        } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
+        # json
+        } else if (is_plot_json) {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
             warning("Type must be specified by the user for JSON files. This plot will be skipped.")
             next
@@ -420,6 +456,18 @@ Skilift <- R6Class("Skilift",
               plot$source  <- basename(plot$x)
             }
           }
+        # rds
+        } else if (is_plot_rds) {
+          rds_object <- readRDS(plot$x)
+          if (is(rds_object, "gTrack")) {
+            plot <- handle_gtrack(rds_object, plot)
+          } else if (is(rds_object, "GRanges") || is(rds_object, "gGraph") || is(rds_object, "gWalk")) {
+            plot <- handle_gobject(rds_object, plot)
+          }
+        }
+
+        if (is.null(plot)) {
+          next
         }
 
         # Check if source already exists, if so, increment
@@ -443,10 +491,15 @@ Skilift <- R6Class("Skilift",
         if (!is.null(plot$type)) {
           type_vector[i] <- plot$type
         }
+        if (!is.null(plot$x)) {
+          print(plot$x)
+          x_vector[[i]] <- plot$x
+        }
       } # Break the loop into three pieces to parallize the plot creation
 
       new_plots$source <- source_vector
       new_plots$type <- type_vector
+      new_plots$x <- x_vector
 
       # Define the function to create plot files
       create_plot_file <- function(plot, plot_index) {
@@ -481,7 +534,8 @@ Skilift <- R6Class("Skilift",
               gr2bw(gr = bigwig_grange,
                     output_filepath = plot_file,
                     score_col_name = score_col_name,
-                    chrom_lengths = chrom_lengths)
+                    chrom_lengths = chrom_lengths
+              )
 
               # Call upload_to_higlass function with parameters
               uuid <- self$upload_to_higlass(patient.id = plot$patient.id,
@@ -497,33 +551,27 @@ Skilift <- R6Class("Skilift",
                 file.remove(plot_file)
               }
               return(uuid)
-            } else {
-              if (grepl("\\.json$", plot$x)) {
+            } else if (grepl("\\.json$", plot$x)) {
                 file.copy(plot$x, plot_file)
-              } else {
+            } else {
                 # Use the plot type to determine the conversion function to use
-                if (plot$type == "genome") {
-                  create_ggraph_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "allelic") {
-                  create_allelic_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "ppfit") {
-                  create_ppfit_genome_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "scatterplot") {
-                  create_cov_arrow(plot, self$datadir, self$settings)
-                } else if (plot$type == "walk") {
-                  create_gwalk_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "mutations") {
-                  create_somatic_json(plot, self$datadir, self$settings)
-                }
-              }
+                switch(plot$type,
+                "genome" = create_ggraph_json(plot, self$datadir, self$settings),
+                "allelic" = create_allelic_json(plot, self$datadir, self$settings),
+                "ppfit" = create_ppfit_genome_json(plot, self$datadir, self$settings),
+                "scatterplot" = create_cov_arrow(plot, self$datadir, self$settings),
+                "walk" = create_gwalk_json(plot, self$datadir, self$settings),
+                "mutations" = create_somatic_json(plot, self$datadir, self$settings)
+              )
             }
           }
         }, error = function(e) {
-          message("Error in creating plot file: ", e$message)
-          print(e)
-          traceback()
-        })
+            message("Error in creating plot file: ", e$message)
+            print(e)
+            traceback()
+          })
       }
+
       if (!any(is.null(plot$source))) {
                                         # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
@@ -549,7 +597,7 @@ Skilift <- R6Class("Skilift",
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
                                         #change allelic & mutations to genome for type to render in pgv
-      new_plots[type %in% c("allelic","mutations","ppfit"), type := "genome"]
+      new_plots[type %in% c("allelic", "mutations", "ppfit"), type := "genome"]
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
