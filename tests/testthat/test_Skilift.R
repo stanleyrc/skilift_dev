@@ -117,7 +117,7 @@ test_that("You can add plots to empty datafiles.json", {
   skilift <- reset_skilift()
   endpoint <- "http://10.1.29.225:8000/"
   paths <- load_paths()
-  skilift <- skilift$new(paths$datafiles, paths$datadir, paths$settings, higlass_metadata=list(endpoint=endpoint))
+  skilift <- Skilift$new(public_dir=paths$publicdir, higlass_metadata=list(endpoint=endpoint))
   nrow1 = nrow(skilift$plots)
   new_cov <- data.table(
     patient.id = "TEST_ADD",
@@ -129,7 +129,7 @@ test_that("You can add plots to empty datafiles.json", {
     type = "scatterplot",
     overwrite = TRUE
   )
-  skilift$add_plots(new_cov)
+  suppressWarnings({skilift$add_plots(new_cov)})
   expect_equal(nrow(skilift$metadata), 2)
   expect_equal(nrow(skilift$plots), 14)
 })
@@ -252,6 +252,50 @@ test_that("add_plots loads from object correctly", {
     # expect_equal(nrow(skilift$plots), nrow1 + 3)
 })
 
+test_that("add_plots loads from gtrack object correctly", {
+    skilift <- reset_skilift()
+    nrow1 = nrow(skilift$plots)
+    cov = readRDS(system.file("extdata", "test_data", "cov_gtrack.rds", package = "Skilift"))
+    new_cov <- data.table(
+        patient.id = "TEST_ADD",
+        ref = "hg19",
+        x = list(cov),
+        field = "seg.mean",
+        type = "scatterplot",
+        visible = TRUE,
+        overwrite = TRUE
+    )
+    skilift$add_plots(new_cov)
+    expect_equal(nrow(skilift$plots), nrow1)
+
+    # gGenome gtrack not yet implemented
+    # gg_gt = readRDS(system.file("extdata", "test_data", "ggraph_gtrack.rds", package = "Skilift"))
+    # seqlengths = seqlengths(gg_gt@data[[1]])
+    # nodes = gg_gt@data[[1]]
+    # edges = gg_gt@edges[[1]]
+    # new_genome <- data.table(
+    #     patient.id = "TEST_ADD",
+    #     ref = "hg19",
+    #     x = list(gg),
+    #     visible = TRUE
+    # )
+    # skilift$add_plots(new_genome)
+    # expect_equal(nrow(skilift$plots), nrow1 + 1)
+
+    skilift <- reset_skilift()
+    gt_bw = readRDS(system.file("extdata", "test_data", "bigwig_gtrack.rds", package = "Skilift"))
+    new_bigwig_granges  <- data.table(
+        patient.id = "TEST_ADD",
+        ref = "hg38",
+        type = "bigwig",
+        field = "seg.mean",
+        x = list(gt_bw),
+        visible = TRUE,
+        overwrite = TRUE
+    )
+    skilift$add_plots(new_bigwig_granges)
+    expect_equal(nrow(skilift$plots), nrow1 + 2)
+})
 
 test_that("add_plots works correctly with multiple plot filepaths", {
     skilift <- reset_skilift()
