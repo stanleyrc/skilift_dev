@@ -953,8 +953,10 @@ parse_vcf_strelka2 = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {
 strelka_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, write_json = TRUE, return_table = TRUE) {
     sq = parse_vcf_strelka2(vcf, seqnames_genome_width = seqnames_genome_width) %>% dplyr::select(CHROM,POS,REF,ALT,FILTER,T_DP,N_DP, alt_count_N, alt_count_T, MQ,VAF_T, somatic_EVS)
     names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","mapping_quality", "tumor_VAF", "somatic_EVS")
+    consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","mapping_quality", "tumor_vaf", "somatic_EVS")
+    sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
     if(write_json) {
-                                        #write the json
+    ##write the json
         message(paste0("Writing json to ",outfile))
         write_json(sq,outfile,pretty = TRUE)
         if(return_table) {
@@ -1045,6 +1047,46 @@ SAGEcounts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_return 
     } else if (type_return == "dt") {
         return(sub.vcf)
     }
+}
+
+
+#' @name sage_qc
+#' @title sage_qc
+#' @description
+#'
+#' function to create json for sage qc plotting in case reports
+#' 
+#' @param path to sage vcf file to be used (paired T-N/ Tumor only) 
+#' @param chromosomes to select for. default: c(1:22,"X","Y")
+#' @param outfile path to write json
+#' @param write_json TRUE/FALSE whether to write the json
+#' @param return_table TRUE/FALSE whether to return the data
+#' @return NULL
+#' @export 
+#' @author Tanubrata Dey
+sage_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, write_json = TRUE, return_table = TRUE) {
+  sq = parse_vcf_SAGE(vcf, seqnames_genome_width = seqnames_genome_width)
+  if ("VAF_N" %in% colnames(sq)) {
+    sq = sq %>% dplyr::select(CHROM,POS,REF,ALT,FILTER,T_DP,N_DP, alt_count_N, alt_count_T, T_ABQ,VAF_T, VAF_N)
+    names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","tumor_abq", "tumor_vaf", "normal_vaf")
+    consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","tumor_abq", "tumor_vaf", "normal_vaf")
+    sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
+  } else {
+    sq = sq %>% dplyr::select(CHROM,POS,REF,ALT,FILTER,T_DP, alt_count_T, T_ABQ,VAF_T)
+    names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "tumor_alt_counts","tumor_abq", "tumor_vaf")
+    consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_vaf")
+    sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
+  }
+  if(write_json) {
+  ##write the json
+    message(paste0("Writing json to ",outfile))
+    write_json(sq,outfile,pretty = TRUE)
+    if(return_table) {
+      return(sq)
+    }
+  } else {
+    return(sq)
+  }
 }
 
 
