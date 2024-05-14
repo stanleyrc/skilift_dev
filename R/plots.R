@@ -955,6 +955,7 @@ strelka_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, wri
     names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","mapping_quality", "tumor_VAF", "somatic_EVS")
     consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","mapping_quality", "tumor_vaf", "somatic_EVS")
     sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
+    sq[, uid := .I]
     if(write_json) {
     ##write the json
         message(paste0("Writing json to ",outfile))
@@ -1077,6 +1078,7 @@ sage_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, write_
     consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_vaf")
     sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
   }
+  sq[, uid := .I]
   if(write_json) {
   ##write the json
     message(paste0("Writing json to ",outfile))
