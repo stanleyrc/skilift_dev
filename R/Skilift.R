@@ -410,7 +410,8 @@ Skilift <- R6Class("Skilift",
 
       source_vector <- rep(NA, nrow(new_plots))
       type_vector <- rep(NA, nrow(new_plots))
-      x_vector <- vector("list", nrow(new_plots))  # Initialize as a list
+      x_vector <- rep(NA, nrow(new_plots))  # Initialize as a list
+      # x_vector <- vector("list", nrow(new_plots))  # Initialize as a list
 
       # Loop through each row of the plots_to_add table
       for (i in seq_len(nrow(new_plots))) {
@@ -423,6 +424,11 @@ Skilift <- R6Class("Skilift",
           dir.create(patient_dir)
         }
         
+        is_plot_gtrack <- FALSE
+        is_plot_gobject <- FALSE
+        is_plot_higlass <- FALSE
+        is_plot_json <- FALSE
+        is_plot_rds <- FALSE
         if (is(plot$x, "list")) {
           is_plot_gtrack <- is(plot$x[[1]], "gTrack")
           is_plot_gobject <- is(plot$x[[1]], "GRanges") || is(plot$x[[1]], "gGraph") || is(plot$x[[1]], "gWalk")
@@ -492,14 +498,19 @@ Skilift <- R6Class("Skilift",
           type_vector[i] <- plot$type
         }
         if (!is.null(plot$x)) {
-          print(plot$x)
-          x_vector[[i]] <- plot$x
+          if (is(plot$x, "list")) {
+            x_vector[[i]] <- plot$x[[1]]
+          } else {
+            x_vector[[i]] <- plot$x
+          }
         }
       } # Break the loop into three pieces to parallize the plot creation
 
       new_plots$source <- source_vector
       new_plots$type <- type_vector
       new_plots$x <- x_vector
+      print('new_plots')
+      print(new_plots)
 
       # Define the function to create plot files
       create_plot_file <- function(plot, plot_index) {
