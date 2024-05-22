@@ -26,12 +26,19 @@ datadir=$(echo "$datadir" | tr -s '/')
 pgv_dir=$(echo "$pgv_dir" | tr -s '/')
 
 echo "Setting up PGV instance with PGVdb data..."
-if [[ "$datafiles_json" != "$pgv_dir/public/datafiles.json" ]]; then
-    cp -f "$datafiles_json" "$pgv_dir/public/datafiles.json"
+
+# Coerce paths to absolute paths
+datafiles_json_abs=$(realpath "$datafiles_json")
+pgv_datafiles_json_abs=$(realpath "$pgv_dir/public/datafiles.json")
+settings_abs=$(realpath "$settings")
+pgv_settings_json_abs=$(realpath "$pgv_dir/public/settings.json")
+
+if [[ "$datafiles_json_abs" != "$pgv_datafiles_json_abs" ]]; then
+    cp -f "$datafiles_json_abs" "$pgv_datafiles_json_abs"
 fi
 
-if [[ "$settings" != "$pgv_dir/public/settings.json" ]]; then
-    cp -f "$settings" "$pgv_dir/public/settings.json"
+if [[ "$settings_abs" != "$pgv_settings_json_abs" ]]; then
+    cp -f "$settings_abs" "$pgv_settings_json_abs"
 fi
 
 origin_directory=$datadir
