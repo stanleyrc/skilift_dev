@@ -6,7 +6,7 @@ setup({
   library(data.table)
   library(jsonlite)
   library(httr)
-  devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/gGnome_dev")
+  devtools::load_all("~/git/gGnome")
   setDTthreads(1)
 })
 
@@ -187,17 +187,18 @@ test_that("add_plots loads from filepath correctly", {
     skilift$add_plots(new_json)
     expect_equal(nrow(skilift$plots), nrow1+5) ##18 now
 
-    # this test fails because the bigwig file is gitignored (due to it being large)
-    # new_bigwig_granges  <- data.table(
-    #     patient.id = "TEST_ADD",
-    #     ref = "hg38",
-    #     type = "bigwig",
-    #     field = "foreground",
-    #     x = system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift"), ## this file does not exists
-    #     visible = TRUE
-    # )
-    # skilift$add_plots(new_bigwig_granges)
-    # expect_equal(nrow(skilift$plots), nrow1+5)
+    # this test will fail outside of the nygc hpc because the bigwig file is gitignored (due to it being large)
+    skilift <- reset_skilift()
+    new_bigwig_granges  <- data.table(
+        patient.id = "TEST_ADD",
+        ref = "hg38",
+        type = "bigwig",
+        field = "foreground",
+        x = file.path("/gpfs/commons/groups/imielinski_lab/home/sdider/Projects/skilift/skilift/inst/extdata/test_data/test_bigwig_granges.rds"), 
+        visible = TRUE
+    )
+    skilift$add_plots(new_bigwig_granges)
+    expect_equal(nrow(skilift$plots), nrow1+5)
 })
 
 test_that("add_plots loads from object correctly", {
@@ -237,19 +238,21 @@ test_that("add_plots loads from object correctly", {
     skilift$add_plots(new_walk)
     expect_equal(nrow(skilift$plots), nrow1 + 2)
 
-    # this test fails because the bigwig file is gitignored (due to it being large)
-    # gr_bw = readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift"))
-    # new_bigwig_granges  <- data.table(
-    #     patient.id = "TEST_ADD",
-    #     ref = "hg38",
-    #     type = "bigwig",
-    #     field = "foreground",
-    #     x = list(gr_bw),
-    #     visible = TRUE,
-    #     overwrite = TRUE
-    # )
-    # skilift$add_plots(new_bigwig_granges)
-    # expect_equal(nrow(skilift$plots), nrow1 + 3)
+    # this test fails outside of the nygc hpc because the bigwig file is gitignored (due to it being large)
+
+    bw_gr_rds_path = file.path("/gpfs/commons/groups/imielinski_lab/home/sdider/Projects/skilift/skilift/inst/extdata/test_data/test_bigwig_granges.rds")
+    gr_bw = readRDS(bw_gr_rds_path)
+    new_bigwig_granges  <- data.table(
+        patient.id = "TEST_ADD",
+        ref = "hg38",
+        type = "bigwig",
+        field = "foreground",
+        x = list(gr_bw),
+        visible = TRUE,
+        overwrite = TRUE
+    )
+    skilift$add_plots(new_bigwig_granges)
+    expect_equal(nrow(skilift$plots), nrow1 + 3)
 })
 
 test_that("add_plots loads from gtrack object correctly", {
@@ -266,7 +269,7 @@ test_that("add_plots loads from gtrack object correctly", {
         overwrite = TRUE
     )
     skilift$add_plots(new_cov)
-    expect_equal(nrow(skilift$plots), nrow1)
+    expect_equal(nrow(skilift$plots), nrow1 + 1)
 
     # gGenome gtrack not yet implemented
     # gg_gt = readRDS(system.file("extdata", "test_data", "ggraph_gtrack.rds", package = "Skilift"))
@@ -342,25 +345,27 @@ test_that("add_plots works correctly with multiple plot objects", {
     expect_equal(nrow(skilift$plots), nrow1 + 3)
 })
 
-# this test will fail because the bigwig file is gitignored (due to it being large)
-# test_that("add_plots works correctly with multiple bigwigs", {
-#   skilift <- reset_skilift()
-#   bigwigs  <- c(
-#     list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift"))),
-#     list(readRDS(system.file("extdata", "test_data", "test_bigwig_granges.rds", package = "Skilift")))
-#   )
-#
-#   new_plots <- data.table(
-#     patient.id = "TEST_ADD",
-#     ref = "hg38",
-#     x = bigwigs,
-#     field = "foreground",
-#     type = "bigwig",
-#     visible = TRUE
-#   )
-#   skilift$add_plots(new_plots)
-#   expect_equal(nrow(skilift$plots), 14)
-# })
+# this test will fail outside of the nygc hpc because the bigwig file is gitignored (due to it being large)
+test_that("add_plots works correctly with multiple bigwigs", {
+  skilift <- reset_skilift()
+
+  bw_gr_rds_path = file.path("/gpfs/commons/groups/imielinski_lab/home/sdider/Projects/skilift/skilift/inst/extdata/test_data/test_bigwig_granges.rds")
+  bigwigs  <- c(
+    list(readRDS(bw_gr_rds_path)),
+    list(readRDS(bw_gr_rds_path))
+  )
+
+  new_plots <- data.table(
+    patient.id = "TEST_ADD",
+    ref = "hg38",
+    x = bigwigs,
+    field = "foreground",
+    type = "bigwig",
+    visible = TRUE
+  )
+  skilift$add_plots(new_plots)
+  expect_equal(nrow(skilift$plots), 14)
+})
 
 test_that("add_plots works correctly with multiple patients", {
   skilift <- reset_skilift()
@@ -571,6 +576,13 @@ test_that("init_pgv works correctly", {
   skilift$init_pgv(pgv_dir)
 })
 
+test_that("you can mix pgv and case-report datafiles/datadir", {
+  skilift <- reset_skilift()
+  skilift <- Skilift$new(public_dir = pgv_public_dir, datadir=casereport_datadir, higlass_metadata=list(endpoint=endpoint))
+
+})
+
+
 ### Debugging
 
 test_that("adding arrows in parallel works correctly", {
@@ -615,8 +627,6 @@ test_that("adding arrows in parallel works correctly", {
 
 
 
-
-
 #########Stanley new tests
 ## reset to demo here
 library(JaBbA) ## was not working to load later - said gGnome could not be found- never had this happen so loaded here
@@ -648,12 +658,13 @@ getPGV = function() {
     return(pgv)
 }
 
-test.pairs = readRDS("/gpfs/commons/home/sclarke/git/skilift_test_data/test_pairs.rds")
-setkey(test.pairs,pair)
-hg19.seq = readRDS("/gpfs/commons/home/sclarke/git/skilift_test_data/hg19.seq") #for bigwigs
+# Prepare pairs table
+test_pairs = readRDS("/gpfs/commons/home/sclarke/git/pgvdb_test_data/test_pairs.rds")
+setkey(test_pairs, pair)
+hg19_seq = readRDS("/gpfs/commons/home/sclarke/git/pgvdb_test_data/hg19.seq") #for bigwigs
 
-test.meta.pairs = readRDS("/gpfs/commons/home/sclarke/git/skilift_test_data/test.meta_pairs.rds")
-setkey(test.meta.pairs,pair)
+test_meta_pairs = readRDS("/gpfs/commons/home/sclarke/git/pgvdb_test_data/test.meta_pairs.rds")
+setkey(test_meta_pairs, pair)
 
 
 ##################################################################################################################################################################################################################
@@ -661,7 +672,7 @@ setkey(test.meta.pairs,pair)
 test_that("genome graphs add correctly using template ", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    genomes.add = genome_temp(patient_id = test.pairs$pair, x = test.pairs$jabba_gg, annotation = NULL, ref = "hg19", order = NULL)
+    genomes.add = genome_temp(patient_id = test_pairs$pair, x = test_pairs$jabba_gg, annotation = NULL, ref = "hg19", order = NULL)
     skilift$add_plots(genomes.add, cores = 5)
     expect_equal(nrow(skilift$plots), nrow1 + 5)
 })
@@ -670,7 +681,7 @@ test_that("genome graphs add correctly using template with type = NULL ", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
     ## add without type to make sure genome is added as type
-    genomes.add = genome_temp(patient_id = test.pairs$pair, x = test.pairs$jabba_gg, annotation = NULL, ref = "hg19", order = NULL, type = NULL)
+    genomes.add = genome_temp(patient_id = test_pairs$pair, x = test_pairs$jabba_gg, annotation = NULL, ref = "hg19", order = NULL, type = NULL)
     skilift$add_plots(genomes.add, cores = 5)
     expect_equal(nrow(skilift$plots), nrow1 + 5)
 })
@@ -678,7 +689,7 @@ test_that("genome graphs add correctly using template with type = NULL ", {
 test_that("genome graphs with annotations (events output) get added correctly", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    genomes.add = genome_temp(patient_id = test.pairs$pair, x = test.pairs$complex, ref = "hg19", order = NULL)
+    genomes.add = genome_temp(patient_id = test_pairs$pair, x = test_pairs$complex, ref = "hg19", order = NULL)
     skilift$add_plots(genomes.add, cores = 5)
     expect_equal(nrow(skilift$plots), nrow1 + 5)
 })
@@ -687,12 +698,12 @@ test_that("genome graphs with annotations (events output) get added correctly", 
 test_that("coverage plots as arrows get uploaded correctly", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    add.lst = mclapply(test.pairs$pair, function(pair) {
-        add.dt = cov2arrow_pgv(patient.id = pair, dryclean_cov = test.pairs[pair,tumor_dryclean_cov], ref = "hg19")
+    add.lst = mclapply(test_pairs$pair, function(pair) {
+        add.dt = cov2arrow_pgv(patient.id = pair, dryclean_cov = test_pairs[pair,tumor_dryclean_cov], ref = "hg19")
         return(add.dt)
     }, mc.cores = 5)
     rebin.cov.dt = rbindlist(add.lst)
-    ## genomes.add = arrow_temp(patient_id = test.pairs$pair, x = test.pairs$tumor_dryclean_cov, ref = "hg19", order = NULL)
+    ## genomes.add = arrow_temp(patient_id = test_pairs$pair, x = test_pairs$tumor_dryclean_cov, ref = "hg19", order = NULL)
     skilift$add_plots(rebin.cov.dt, cores = 5)
     expect_equal(nrow(skilift$plots), nrow1 + 5)
 })
@@ -701,8 +712,8 @@ test_that("coverage plots as arrows get uploaded correctly", {
 test_that("coverage plots as bigwigs upload correctly", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    pair = test.pairs$pair[1]
-    cov.gr = readRDS(test.pairs[pair,tumor_dryclean_cov])
+    pair = test_pairs$pair[1]
+    cov.gr = readRDS(test_pairs[pair,tumor_dryclean_cov])
     cov.gr2 = as.data.table(cov.gr) %>% GRanges(.,seqlengths = hg19.seq) %>% trim ## only works when trimmming - should implement into upload itself but may make it slower?
     bw.add = bw_temp(patient_id = pair, x = list(cov.gr2), ref = "hg19", order = NULL)
     skilift$add_plots(bw.add, cores = 1)
@@ -715,7 +726,7 @@ test_that("ppfit plots upload correctly", {
     library(Flow); library(skitools) ## skitools needed for one function (dirr)
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    ppfit.add = ppfit_temp(patient_id = test.pairs$pair, x = test.pairs$balanced_gg, ref = "hg19")
+    ppfit.add = ppfit_temp(patient_id = test_pairs$pair, x = test_pairs$balanced_gg, ref = "hg19")
     skilift$add_plots(ppfit.add, cores = 5)
     expect_equal(nrow(skilift$plots), nrow1 + 5)
 })
@@ -725,7 +736,7 @@ test_that("ppfit plots upload correctly", {
 test_that("allelic plots upload correctly", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    allelic.add = genome_temp(patient_id = test.pairs$pair, x = test.pairs$balanced_gg_rds, ref = "hg19", type = "allelic", annotation = NULL)
+    allelic.add = genome_temp(patient_id = test_pairs$pair, x = test_pairs$balanced_gg_rds, ref = "hg19", type = "allelic", annotation = NULL)
     allelic.add = allelic.add[c(1,3:5),] ## I double checked this but for some reason the second test sample balanced_gg_rds is not actually an allelic graph so it fails (it's good that it failed but not for tests)
     skilift$add_plots(allelic.add, cores = 4)
     expect_equal(nrow(skilift$plots), nrow1 + 4)
@@ -735,7 +746,7 @@ test_that("allelic plots upload correctly", {
 test_that("mutation plots upload correctly", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
-    mutations.add = mutations_temp(patient_id = test.pairs$pair,field = "total_copies", x = test.pairs$somatic_snv_cn, ref = "hg19")
+    mutations.add = mutations_temp(patient_id = test_pairs$pair,field = "total_copies", x = test_pairs$somatic_snv_cn, ref = "hg19")
     skilift$add_plots(mutations.add, cores = 5)
     expect_equal(nrow(skilift$plots), nrow1 + 5)
 })
@@ -745,11 +756,11 @@ test_that("mutation plots upload correctly", {
 
 test_that("filtered events jsons created", {
     skilift = getPGV() ## just used to get path for output
-    pair = test.meta.pairs$pair
+    pair = test_meta_pairs$pair
     out.file = gsub("settings.json","test_filtered_events.json",skilift$settings)
     filtered_events_json(pair = pair,
-                     oncotable = test.meta.pairs[pair,oncotable],
-                     jabba_gg = test.meta.pairs[pair,complex],
+                     oncotable = test_meta_pairs[pair,oncotable],
+                     jabba_gg = test_meta_pairs[pair,complex],
                      out_file = out.file,
                      cgc_file = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv",
                      temp_fix = TRUE)
@@ -760,20 +771,20 @@ test_that("filtered events jsons created", {
 
 test_that("metadata json created", {
     skilift = getPGV() ## just used to get path for output
-    pair = test.meta.pairs$pair
+    pair = test_meta_pairs$pair
     out.file = gsub("settings.json","test_metadata.json",skilift$settings)
     meta.dt = meta_data_json(pair = pair,
                              out_file = out.file,
-                             coverage = test.meta.pairs[pair,decomposed_cov],
-                             jabba_gg = test.meta.pairs[pair,complex],
-                             svaba_somatic_vcf = test.meta.pairs[pair,svaba_somatic_vcf],
+                             coverage = test_meta_pairs[pair,decomposed_cov],
+                             jabba_gg = test_meta_pairs[pair,complex],
+                             svaba_somatic_vcf = test_meta_pairs[pair,svaba_somatic_vcf],
                              seqnames_loh = c(1:22),
-                             karyograph = test.meta.pairs[pair,karyograph_rds],
-                             vcf = test.meta.pairs[pair,strelka2_somatic_filtered_variants],
-                             tumor_type = test.meta.pairs[pair,tumor_type_final],
-                             disease = test.meta.pairs[pair,disease],
-                             primary_site = test.meta.pairs[pair,primary_site_simple],
-                             inferred_sex = test.meta.pairs[pair,inferred_sex],
+                             karyograph = test_meta_pairs[pair,karyograph_rds],
+                             vcf = test_meta_pairs[pair,strelka2_somatic_filtered_variants],
+                             tumor_type = test_meta_pairs[pair,tumor_type_final],
+                             disease = test_meta_pairs[pair,disease],
+                             primary_site = test_meta_pairs[pair,primary_site_simple],
+                             inferred_sex = test_meta_pairs[pair,inferred_sex],
                              seqnames_genome_width = c(1:22,"X","Y"),
                              write_json = TRUE,
                              overwrite = FALSE)
@@ -783,7 +794,7 @@ test_that("metadata json created", {
 ##create distributions
 test_that("metadata json created", {
     skilift = getPGV() ## just used to get path for output
-    pair = test.meta.pairs$pair
+    pair = test_meta_pairs$pair
     input.folder = "/gpfs/commons/groups/imielinski_lab/home/sclarke/git/skilift_test_data/case_report_data/"
     out.folder = gsub("settings.json","test_distributions_output",skilift$settings)
     cmd = paste0("mkdir ",out.folder)

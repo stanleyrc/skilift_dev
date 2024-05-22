@@ -73,24 +73,25 @@ Skilift <- R6Class("Skilift",
     ) {
       if (!is.null(public_dir) && dir.exists(public_dir)) {
         # Check if the specific paths exist within the public_dir
-        potential_datadir <- file.path(public_dir, "data")
-        potential_settings <- file.path(public_dir, "settings.json")
-        potential_datafiles_json_path <- file.path(public_dir, "datafiles.json")
-        
-        # Set paths to public_dir children if they exist, otherwise use the arguments provided
-        self$datadir <- if (dir.exists(potential_datadir)) potential_datadir else datadir
-        self$settings <- if (file.exists(potential_settings)) potential_settings else settings
-        private$datafiles_json_path <- if (file.exists(potential_datafiles_json_path)) potential_datafiles_json_path else datafiles_json_path
-      } else {
-        # Use the values passed in the initialize method
-        self$datadir <- datadir
-        self$settings <- settings
-        private$datafiles_json_path <- datafiles_json_path
-      }
+        self$datadir <- file.path(public_dir, "data")
+        self$settings <- file.path(public_dir, "settings.json")
+        private$datafiles_json_path <- file.path(public_dir, "datafiles.json")
+      } 
+
+      # Overwrite the derived paths if provided as arguments
+      self$datadir <- if (!is.null(datadir)) datadir else self$datadir
+      self$settings <- if (!is.null(settings)) settings else self$settings
+      private$datafiles_json_path <- if (!is.null(datafiles_json_path)) datafiles_json_path else private$datafiles_json_path
       
-      # Check if the necessary parameters are provided or derived from public_dir
+      # Make sure all required paths are non-null 
       if (is.null(self$datadir) || is.null(self$settings) || is.null(private$datafiles_json_path)) {
+        print(private$datafiles_json_path)
         stop("datadir, settings, and datafiles_json_path must be provided or derivable from public_dir")
+      }
+
+      # Make sure all required paths exist
+      if (!dir.exists(self$datadir) || !file.exists(self$settings) || !file.exists(private$datafiles_json_path)) {
+        stop("datadir, settings, and datafiles.json must all exist")
       }
 
       # Load the JSON data
@@ -417,6 +418,11 @@ Skilift <- R6Class("Skilift",
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
 
+        if (is.null(plot)) {
+          warning("Plot is NULL. Skipping...")
+          next
+        }
+
         # Check if patient dir exists, if not, create patient directory
         patient_dir <- file.path(self$datadir, plot$patient.id)
         if (!dir.exists(patient_dir)) {
@@ -470,11 +476,10 @@ Skilift <- R6Class("Skilift",
           } else if (is(rds_object, "GRanges") || is(rds_object, "gGraph") || is(rds_object, "gWalk")) {
             plot <- handle_gobject(rds_object, plot)
           }
+        } else {
+          stop("Invalid file/object. File must be a valid GRanges, gGraph, gWalk, gTrack, JSON, or .rds file. Please check your extension and/or filetype and make sure the file/object exists.")
         }
 
-        if (is.null(plot)) {
-          next
-        }
 
         # Check if source already exists, if so, increment
         if (!is.null(plot$source)) {
@@ -498,11 +503,7 @@ Skilift <- R6Class("Skilift",
           type_vector[i] <- plot$type
         }
         if (!is.null(plot$x)) {
-          if (is(plot$x, "list")) {
-            x_vector[[i]] <- plot$x[[1]]
-          } else {
-            x_vector[[i]] <- plot$x
-          }
+          x_vector[[i]] <- plot$x
         }
       } # Break the loop into three pieces to parallize the plot creation
 
@@ -792,17 +793,17 @@ Skilift <- R6Class("Skilift",
         missing_data <- data.table()
         if (nrow(missing_files) > 0) {
           error_message <- paste(error_message, "Missing Files:\n")
-          error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, sep = " - "), collapse = "\n")
+          error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, "\n", sep = "\t"), collapse = "\n")
           missing_data <- rbind(missing_data, missing_files, fill=TRUE)
         }
         if (nrow(missing_servers) > 0) {
           error_message <- paste(error_message, "Missing Servers (or uuids for the servers):\n")
-          error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, sep = " - "), collapse = "\n")
+          error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, "\n", sep = "\t"), collapse = "\n")
           missing_data <- rbind(missing_data, missing_servers, fill=TRUE)
         }
         if (nrow(missing_values) > 0) {
           error_message <- paste(error_message, "Missing Values:\n")
-          error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, sep = " - "), collapse = "\n")
+          error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, "\n", sep = "\t"), collapse = "\n")
           missing_data <- rbind(missing_data, missing_values, fill=TRUE)
         }
 
