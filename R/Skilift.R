@@ -1,13 +1,13 @@
 source("src/higlass_and_ggraph.R")  # import auxiliary functions for import datatables and granges bigwigs
 
-#' @title PGVdb Object
+#' @title Skilift Object
 #'
 #' @description
-#' Class representing a PGV database. Contains metadata, plots, and methods
+#' Class representing a PGV/Case-reports database. Contains metadata, plots, and methods
 #' for interacting with the database and converting to and from JSON.
 #'
 #' @section Methods:
-#' \code{initialize()} Initialize the PGVdb object
+#' \code{initialize()} Initialize the Skilift object
 #' \code{load_json()} Load data from JSON file into metadata and plots
 #' \code{update_datafiles_json()} Update the JSON data files
 #' \code{to_datatable()} Convert metadata and plots to a single data table
@@ -26,7 +26,7 @@ source("src/higlass_and_ggraph.R")  # import auxiliary functions for import data
 #' @import R6
 #' @import httr
 #' @import data.table
-PGVdb <- R6Class( "PGVdb",
+Skilift <- R6Class("Skilift",
   private = list(
     #' @field datafiles_json_path (`character(1)`)
     #' Path to the datafiles.json
@@ -54,6 +54,8 @@ PGVdb <- R6Class( "PGVdb",
     #' @description
     #' Creates a new instance of this [R6][R6::R6Class] class.
     #'
+    #' @param public_dir (`character(1)`)\cr
+    #'   Public or build directory path.
     #' @param datafiles_json_path (`character(1)`)\cr
     #'   JSON file path.
     #' @param datadir (`character(1)`)\cr
@@ -62,12 +64,40 @@ PGVdb <- R6Class( "PGVdb",
     #'   Settings object path.
     #' @param higlass_metadata (`list`, optional)\cr
     #'   HiGlass metadata containing endpoint, username, and password.
-    initialize = function(datafiles_json_path, datadir, settings, higlass_metadata = NULL) {
-      private$datafiles_json_path <- datafiles_json_path
-      self$load_json(datafiles_json_path)
-      self$datadir <- datadir
-      self$settings <- settings
+    initialize = function(
+      public_dir = NULL,
+      datafiles_json_path = NULL,
+      datadir = NULL,
+      settings = NULL,
+      higlass_metadata = NULL
+    ) {
+      if (!is.null(public_dir) && dir.exists(public_dir)) {
+        # Check if the specific paths exist within the public_dir
+        self$datadir <- file.path(public_dir, "data")
+        self$settings <- file.path(public_dir, "settings.json")
+        private$datafiles_json_path <- file.path(public_dir, "datafiles.json")
+      } 
+
+      # Overwrite the derived paths if provided as arguments
+      self$datadir <- if (!is.null(datadir)) datadir else self$datadir
+      self$settings <- if (!is.null(settings)) settings else self$settings
+      private$datafiles_json_path <- if (!is.null(datafiles_json_path)) datafiles_json_path else private$datafiles_json_path
       
+      # Make sure all required paths are non-null 
+      if (is.null(self$datadir) || is.null(self$settings) || is.null(private$datafiles_json_path)) {
+        print(private$datafiles_json_path)
+        stop("datadir, settings, and datafiles_json_path must be provided or derivable from public_dir")
+      }
+
+      # Make sure all required paths exist
+      if (!dir.exists(self$datadir) || !file.exists(self$settings) || !file.exists(private$datafiles_json_path)) {
+        stop("datadir, settings, and datafiles.json must all exist")
+      }
+
+      # Load the JSON data
+      self$load_json(private$datafiles_json_path)
+      
+      # Handle higlass_metadata
       if (!is.null(higlass_metadata)) {
         self$higlass_metadata <- list(
           endpoint = ifelse(is.null(higlass_metadata$endpoint), "http://10.1.29.225:41800", higlass_metadata$endpoint),
@@ -162,7 +192,7 @@ PGVdb <- R6Class( "PGVdb",
     update_datafiles_json = function() {
       missing_data <- self$validate()
       if (!is.null(missing_data)) {
-        stop(warning("Did not update datafiles because of malformed pgvdb object."))
+        stop(warning("Did not update datafiles because of malformed Skilift object."))
       }
 
       datafiles_json_path <- private$datafiles_json_path
@@ -244,7 +274,7 @@ PGVdb <- R6Class( "PGVdb",
           subset_plots <- self$plots[grepl(filter_string, self$plots[[column_name]])]
           filtered_datatable <- merge(self$metadata, subset_plots, by = "patient.id")
         } else {
-          stop(paste("Column", column_name, "not found in PGVdb."))
+          stop(paste("Column", column_name, "not found in Skilift"))
         }
       } else {
         filtered_datatable <- merge(self$metadata, self$plots, by = "patient.id")
@@ -254,7 +284,7 @@ PGVdb <- R6Class( "PGVdb",
     },
 
     #' @description
-    #' Add new plots to the PGVdb.
+    #' Add new plots to the Skilift
     #'
     #' @param plots_to_add (`data.table`)\cr
     #'  Data table of plots to add. Must have a minimal set of columns: patient.id, x. 
@@ -293,23 +323,73 @@ PGVdb <- R6Class( "PGVdb",
         }
       }
 
-      source_vector <- rep(NA, nrow(new_plots))
-      type_vector <- rep(NA, nrow(new_plots))
-      # Loop through each row of the plots_to_add table
-      for (i in seq_len(nrow(new_plots))) {
-        plot <- new_plots[i, ]
+      handle_granges <- function(plot) {
+        if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
+          warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
+          return(NULL)
+        }
+        if (plot$type == "scatterplot") {
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- 'coverage.arrow'
+          }
+          if (is.null(plot$field)) {
+            warning("The column name in GRanges containing scores for scatterplot was not specified, using 'foreground' as default.")
+            plot$field <- "foreground" # Use default value
+          }
+        } else if (plot$type == "bigwig") {
+          timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
+          unique_filename <- paste0(timestamp, '.bw')
+          plot$source  <- unique_filename
+        }
+        return(plot)
+      }
 
-        # Check if patient dir exists, if not, create patient directory
-        patient_dir <- file.path(self$datadir, plot$patient.id)
-        if (!dir.exists(patient_dir)) {
-          warning(paste("Patient directory does not exist. Creating a directory for new patient: ", plot$patient.id))
-          dir.create(patient_dir)
+      handle_gobject = function(gobject, plot) {
+        # GRanges
+        if (is(gobject, "GRanges")) {
+          plot <- handle_granges(plot)
+        # gGraph
+        } else if (is(gobject, "gGraph")) {
+          if (is.null(plot$type)) {
+            warning("Plot type for gGraph has not been specified, using default type: 'genome'. If plotting an allelic graph, ppfit, or mutations plot, specify type as 'allelic', 'ppfit', or 'mutations' respectively.")
+            plot$type <- 'genome'
+          }
+
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- switch(plot$type,
+            "genome" = 'genome.json',
+            "allelic" = 'allelic.json',
+            "ppfit" = 'ppfit.json',
+            "mutations" = 'mutations.json',
+            'genome.json') # default case
+          }
+        # gWalk
+        } else if (is(gobject, "gWalk")) {
+          plot$type <- 'walk'
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- 'walks.json'
+          }
+        }
+        return(plot)
+      }
+
+      handle_gtrack = function(gtrack_obj, plot) {
+        gtrack_data <- gtrack_obj@data[[1]]
+        if (is.null(gtrack_data) || length(gtrack_data) == 0) {
+          warning("No data found in gTrack gRanges This plot will be skipped.")
+          return(NULL)
         }
 
-        if (is(plot$x[[1]], "GRanges")) {
+        is_scatterplot = gtrack_obj$circles
+        is_barplot = gtrack_obj$bars
+        is_small_scatterplot = length(gtrack_data) <= 200000
+        is_bigwig = !is_small_scatterplot || is_barplot
+        is_ggraph = length(gtrack_obj@edges[[1]]) != 0
+
+        if (is_scatterplot) {
           if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
-            warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
-            next
+            plot$type = is_bigwig ? "bigwig" : "scatterplot"
+            warning("Plot type not specified for gTrack scatterplot. Using default type based on number of ranges (<200k will produce an scatterplot arrow, otherwise a bigwig): ", plot$type, ". To override, specify type='scatterplot' or type='bigwig'.")
           }
           if (plot$type == "scatterplot") {
             if (!"source" %in% names(plot) || is.na(plot$source)) {
@@ -324,65 +404,62 @@ PGVdb <- R6Class( "PGVdb",
             unique_filename <- paste0(timestamp, '.bw')
             plot$source  <- unique_filename
           }
-        } else if (is(plot$x[[1]], "gGraph")) {
-          plot$type <- 'genome'
-          if (!"source" %in% names(plot) || is.na(plot$source)) {
-            plot$source <- 'genome.json'
-          }
-        } else if (is(plot$x[[1]], "gWalk")) {
-          plot$type <- 'walk'
-          if (!"source" %in% names(plot) || is.na(plot$source)) {
-            plot$source <- 'walks.json'
-          }
-        } else if (is.list(plot$x) && length(plot$x[[1]]) == 2) {
+        }
+
+        return(plot)
+      }
+
+      source_vector <- rep(NA, nrow(new_plots))
+      type_vector <- rep(NA, nrow(new_plots))
+      x_vector <- rep(NA, nrow(new_plots))  # Initialize as a list
+      # x_vector <- vector("list", nrow(new_plots))  # Initialize as a list
+
+      # Loop through each row of the plots_to_add table
+      for (i in seq_len(nrow(new_plots))) {
+        plot <- new_plots[i, ]
+
+        if (is.null(plot)) {
+          warning("Plot is NULL. Skipping...")
+          next
+        }
+
+        # Check if patient dir exists, if not, create patient directory
+        patient_dir <- file.path(self$datadir, plot$patient.id)
+        if (!dir.exists(patient_dir)) {
+          warning(paste("Patient directory does not exist. Creating a directory for new patient: ", plot$patient.id))
+          dir.create(patient_dir)
+        }
+        
+        is_plot_gtrack <- FALSE
+        is_plot_gobject <- FALSE
+        is_plot_higlass <- FALSE
+        is_plot_json <- FALSE
+        is_plot_rds <- FALSE
+        if (is(plot$x, "list")) {
+          is_plot_gtrack <- is(plot$x[[1]], "gTrack")
+          is_plot_gobject <- is(plot$x[[1]], "GRanges") || is(plot$x[[1]], "gGraph") || is(plot$x[[1]], "gWalk")
+          is_plot_higlass <- length(plot$x) == 2 && all(sapply(plot$x, is.character))
+        } else {
+          is_plot_json <- file.exists(plot$x) && tools::file_ext(plot$x) == 'json'
+          is_plot_rds <- file.exists(plot$x) && tools::file_ext(plot$x) == 'rds'
+        }
+
+        # gTrack
+        if (is_plot_gtrack) {
+          plot <- handle_gtrack(plot$x[[1]], plot)
+          plot$x <- list(plot$x[[1]]@data)
+        # GRanges, gGraph, gWalk
+        } else if (is_plot_gobject) {
+          plot <- handle_gobject(plot$x[[1]], plot)
+        # higlass
+        } else if (is_plot_higlass) {
           plot$type <- 'bigwig'
           plot$server <- plot$x[[1]][[1]]
           plot$uuid  <- plot$x[[1]][[2]]
           new_plots[i, "server"] <- plot$server
           new_plots[i, "uuid"] <- plot$uuid
-        } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'rds') {
-          rds_object <- readRDS(plot$x)
-          if (is(rds_object, "GRanges")) {
-            if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
-              warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
-              next
-            }
-            if (plot$type == "scatterplot") {
-              if (!"source" %in% names(plot) || is.na(plot$source)) {
-                plot$source <- 'coverage.arrow'
-              }
-            } else if (plot$type == "bigwig") {
-              timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
-              unique_filename <- paste0(timestamp, '.bw')
-              plot$source  <- unique_filename
-            }
-          } else if (is(rds_object, "gGraph")) {
-              if(is.null(plot$type)) {
-                  warning("Plot type is not specific, using genome. If plotting an allelic graph, specific type as allelic. If plotting a ppfit for case reports, specify type as ppfit")
-              }
-              if (is.null(plot$type)) {
-                  plot$type <- 'genome'
-                  if (!"source" %in% names(plot) || is.na(plot$source)) {
-                      plot$source <- 'genome.json'
-                  }
-              } else if (plot$type == "genome") {
-                  plot$source <- 'genome.json'
-              } else if (plot$type == "allelic") {
-                  plot$source <- 'allelic.json'
-              } else if (plot$type == "ppfit") {
-                  plot$source <- 'ppfit.json'
-              }
-          } else if (is(rds_object, "gWalk")) {
-            plot$type <- 'walk'
-            if (!"source" %in% names(plot) || is.na(plot$source)) {
-              plot$source <- 'walks.json'
-            }
-          } else if (plot$type == "mutations") {
-              if (!"source" %in% names(plot) || is.na(plot$source)) {
-                  plot$source <- 'mutations.json'
-              }
-          }
-        } else if (file.exists(plot$x) && tools::file_ext(plot$x) == 'json') {
+        # json
+        } else if (is_plot_json) {
           if (!"type" %in% names(plot) || is.na(plot$type)) {
             warning("Type must be specified by the user for JSON files. This plot will be skipped.")
             next
@@ -391,7 +468,18 @@ PGVdb <- R6Class( "PGVdb",
               plot$source  <- basename(plot$x)
             }
           }
+        # rds
+        } else if (is_plot_rds) {
+          rds_object <- readRDS(plot$x)
+          if (is(rds_object, "gTrack")) {
+            plot <- handle_gtrack(rds_object, plot)
+          } else if (is(rds_object, "GRanges") || is(rds_object, "gGraph") || is(rds_object, "gWalk")) {
+            plot <- handle_gobject(rds_object, plot)
+          }
+        } else {
+          stop("Invalid file/object. File must be a valid GRanges, gGraph, gWalk, gTrack, JSON, or .rds file. Please check your extension and/or filetype and make sure the file/object exists.")
         }
+
 
         # Check if source already exists, if so, increment
         if (!is.null(plot$source)) {
@@ -414,10 +502,16 @@ PGVdb <- R6Class( "PGVdb",
         if (!is.null(plot$type)) {
           type_vector[i] <- plot$type
         }
+        if (!is.null(plot$x)) {
+          x_vector[[i]] <- plot$x
+        }
       } # Break the loop into three pieces to parallize the plot creation
 
       new_plots$source <- source_vector
       new_plots$type <- type_vector
+      new_plots$x <- x_vector
+      print('new_plots')
+      print(new_plots)
 
       # Define the function to create plot files
       create_plot_file <- function(plot, plot_index) {
@@ -452,7 +546,8 @@ PGVdb <- R6Class( "PGVdb",
               gr2bw(gr = bigwig_grange,
                     output_filepath = plot_file,
                     score_col_name = score_col_name,
-                    chrom_lengths = chrom_lengths)
+                    chrom_lengths = chrom_lengths
+              )
 
               # Call upload_to_higlass function with parameters
               uuid <- self$upload_to_higlass(patient.id = plot$patient.id,
@@ -468,33 +563,27 @@ PGVdb <- R6Class( "PGVdb",
                 file.remove(plot_file)
               }
               return(uuid)
-            } else {
-              if (grepl("\\.json$", plot$x)) {
+            } else if (grepl("\\.json$", plot$x)) {
                 file.copy(plot$x, plot_file)
-              } else {
+            } else {
                 # Use the plot type to determine the conversion function to use
-                if (plot$type == "genome") {
-                  create_ggraph_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "allelic") {
-                  create_allelic_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "ppfit") {
-                  create_ppfit_genome_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "scatterplot") {
-                  create_cov_arrow(plot, self$datadir, self$settings)
-                } else if (plot$type == "walk") {
-                  create_gwalk_json(plot, self$datadir, self$settings)
-                } else if (plot$type == "mutations") {
-                  create_somatic_json(plot, self$datadir, self$settings)
-                }
-              }
+                switch(plot$type,
+                "genome" = create_ggraph_json(plot, self$datadir, self$settings),
+                "allelic" = create_allelic_json(plot, self$datadir, self$settings),
+                "ppfit" = create_ppfit_genome_json(plot, self$datadir, self$settings),
+                "scatterplot" = create_cov_arrow(plot, self$datadir, self$settings),
+                "walk" = create_gwalk_json(plot, self$datadir, self$settings),
+                "mutations" = create_somatic_json(plot, self$datadir, self$settings)
+              )
             }
           }
         }, error = function(e) {
-          message("Error in creating plot file: ", e$message)
-          print(e)
-          traceback()
-        })
+            message("Error in creating plot file: ", e$message)
+            print(e)
+            traceback()
+          })
       }
+
       if (!any(is.null(plot$source))) {
                                         # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
@@ -520,14 +609,14 @@ PGVdb <- R6Class( "PGVdb",
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
                                         #change allelic & mutations to genome for type to render in pgv
-      new_plots[type %in% c("allelic","mutations","ppfit"), type := "genome"]
+      new_plots[type %in% c("allelic", "mutations", "ppfit"), type := "genome"]
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
         plot <- new_plots[i, ]
         if (!is.null(plot$source) && !is.na(plot$source)) {
           source_full_path  <- file.path(self$datadir, plot$patient.id, plot$source)
           if (!file.exists(source_full_path)) {
-            warning("File does not exist: ", source_full_path, " skipping adding to pgvdb...")
+            warning("File does not exist: ", source_full_path, " skipping adding to Skilift")
             next
           }
         }
@@ -565,7 +654,7 @@ PGVdb <- R6Class( "PGVdb",
     },
 
     #' @description
-    #' Remove plots from the PGVdb.
+    #' Remove plots from the Skilift
     #'
     #' @param plots_to_remove (`data.table`)\cr 
     #'   Data table of plots to remove
@@ -622,8 +711,8 @@ PGVdb <- R6Class( "PGVdb",
         }
       }
 
-      # Remove plots from PGVdb$plots
-      print("Removing plots from PGVdb...")
+      # Remove plots from Skilift$plots
+      print("Removing plots from Skilift")
       initial_rows <- nrow(self$plots)
 
       if (is_remove_patients) {
@@ -704,17 +793,17 @@ PGVdb <- R6Class( "PGVdb",
         missing_data <- data.table()
         if (nrow(missing_files) > 0) {
           error_message <- paste(error_message, "Missing Files:\n")
-          error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, sep = " - "), collapse = "\n")
+          error_message <- paste(error_message, paste(missing_files$patient.id, missing_files$source, "\n", sep = "\t"), collapse = "\n")
           missing_data <- rbind(missing_data, missing_files, fill=TRUE)
         }
         if (nrow(missing_servers) > 0) {
           error_message <- paste(error_message, "Missing Servers (or uuids for the servers):\n")
-          error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, sep = " - "), collapse = "\n")
+          error_message <- paste(error_message, paste(missing_servers$patient.id, missing_servers$server, missing_servers$uuid, "\n", sep = "\t"), collapse = "\n")
           missing_data <- rbind(missing_data, missing_servers, fill=TRUE)
         }
         if (nrow(missing_values) > 0) {
           error_message <- paste(error_message, "Missing Values:\n")
-          error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, sep = " - "), collapse = "\n")
+          error_message <- paste(error_message, paste(missing_values$patient.id, missing_values$source, "\n", sep = "\t"), collapse = "\n")
           missing_data <- rbind(missing_data, missing_values, fill=TRUE)
         }
 
@@ -871,7 +960,7 @@ PGVdb <- R6Class( "PGVdb",
     #'
     #' @return NULL
     init_pgv = function(pgv_dir, build = FALSE) {
-      init_script_path  <- system.file("src", "init_pgv.sh", package="PGVdb")
+      init_script_path  <- system.file("src", "init_pgv.sh", package="Skilift")
       # Check if node is installed
       cmd <- paste("which", "node")
       is_installed <- length(system(cmd, intern = TRUE)) != 0
