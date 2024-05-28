@@ -649,7 +649,7 @@ devtools::load_all("/gpfs/commons/groups/imielinski_lab/home/sclarke/git/gGnome_
 context("skilift")
 
 getPGV = function() {
-    public_dir = "~/git/pgv_testing/public/"
+    public_dir = "~/../sclarke/git/pgv_testing/public/"
     json_file = paste0(public_dir,"datafiles.json")
     datadir = paste0(public_dir,"data/")
     settings = paste0(public_dir,"settings.json")
@@ -779,12 +779,13 @@ test_that("metadata json created", {
                              jabba_gg = test_meta_pairs[pair,complex],
                              svaba_somatic_vcf = test_meta_pairs[pair,svaba_somatic_vcf],
                              seqnames_loh = c(1:22),
-                             karyograph = test_meta_pairs[pair,karyograph_rds],
-                             vcf = test_meta_pairs[pair,strelka2_somatic_filtered_variants],
-                             tumor_type = test_meta_pairs[pair,tumor_type_final],
-                             disease = test_meta_pairs[pair,disease],
-                             primary_site = test_meta_pairs[pair,primary_site_simple],
-                             inferred_sex = test_meta_pairs[pair,inferred_sex],
+                             karyograph = test.meta.pairs[pair,karyograph_rds],
+                             strelka2_vcf = test.meta.pairs[pair,strelka2_somatic_filtered_variants],
+                             sage_vcf = test.meta.pairs[pair,sage_somatic_variants],
+                             tumor_type = test.meta.pairs[pair,tumor_type_final],
+                             disease = test.meta.pairs[pair,disease],
+                             primary_site = test.meta.pairs[pair,primary_site_simple],
+                             inferred_sex = test.meta.pairs[pair,inferred_sex],
                              seqnames_genome_width = c(1:22,"X","Y"),
                              write_json = TRUE,
                              overwrite = FALSE)
@@ -804,4 +805,19 @@ test_that("metadata json created", {
     files = paste0(out.folder,"/",c("coverageVariance.json", "ploidy.json", "snvCount.json", "tmb.json", "lohFraction.json", "purity.json", "svCount.json"))
     expect_true(all(file.exists(files)))
 })
+
+
+##create strelka_qc() test
+test_that("strelka.qc.json created", {
+    pgvdb = getPGV() ## just used to get path for output
+    pair = test.meta.pairs$pair
+    out.file = gsub("settings.json","test_strelka.qc.json",pgvdb$settings)
+    strelka.qc = strelka_qc(vcf = test.meta.pairs[pair,svaba_somatic_vcf],
+			    seqnames_genome_width = c(1:22,"X","Y"),
+                            outfile = out.file,
+                            write_json = TRUE,
+                            return_table = TRUE)
+    expect_true(file.exists(out.file))
+})
+
 
