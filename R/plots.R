@@ -85,10 +85,17 @@ create_cov_arrow = function(plot_metadata, datadir, settings) {
         stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
     }
 
-    if (is(plot_metadata$x[[1]], "GRanges")) {
-        granges_fields <- colnames(mcols(plot_metadata$x[[1]]))
-    } else {
-        granges_fields <- colnames(mcols(readRDS(plot_metadata$x)))
+    # check if the input is a GRanges or a list of GRanges
+    is_granges <- is(plot_metadata$x[[1]], "GRanges")
+    is_list <- is(plot_metadata$x[[1]], "list")
+    if (is_list) {
+        plot_metadata$x <- plot_metadata$x[[1]][[1]]
+    } else if (is_granges) {
+        plot_metadata$x <- plot_metadata$x[[1]]
+    }
+
+    if (is(plot_metadata$x, "GRanges")) {
+        granges_fields <- colnames(mcols(plot_metadata$x))
     }
 
     if (!(plot_metadata$field %in% granges_fields)) {
@@ -96,8 +103,8 @@ create_cov_arrow = function(plot_metadata, datadir, settings) {
     }
 
     if (!file.exists(cov_json_path) || plot_metadata$overwrite) {
-        if (is(plot_metadata$x[[1]], "GRanges")) {
-            cov2arrowPGV(plot_metadata$x[[1]],
+        if (is(plot_metadata$x, "GRanges")) {
+            cov2arrowPGV(plot_metadata$x,
                 field = plot_metadata$field,
                 meta.js = settings,
                 ref = plot_metadata$ref,
@@ -694,7 +701,26 @@ dlrs = function(x) {
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
 
-meta_data_json = function(pair, out_file, coverage, jabba_gg, strelka2_vcf, sage_vcf = NULL, svaba_somatic_vcf, tumor_type, disease, primary_site, inferred_sex, karyograph, seqnames_loh = c(1:22), seqnames_genome_width = c(1:22,"X","Y"), write_json = TRUE, overwrite = FALSE, return_table = FALSE, make_dir = FALSE) {
+meta_data_json = function(
+    pair,
+    out_file,
+    coverage,
+    jabba_gg,
+    strelka2_vcf,
+    sage_vcf = NULL,
+    svaba_somatic_vcf,
+    tumor_type,
+    disease,
+    primary_site,
+    inferred_sex,
+    karyograph,
+    seqnames_loh = c(1:22),
+    seqnames_genome_width = c(1:22,"X","Y"),
+    write_json = TRUE,
+    overwrite = FALSE,
+    return_table = FALSE,
+    make_dir = FALSE
+) {
     if(!overwrite && write_json == TRUE) {
         if(file.exists(out_file)) {
             print(paste0('Output already exists! - skipping sample ',pair))
@@ -738,7 +764,7 @@ meta_data_json = function(pair, out_file, coverage, jabba_gg, strelka2_vcf, sage
     ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
     ## meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
     ## Count svs, want to count junctions as well as svs
-    gg = readRDS(jabba_gg)
+    # gg = readRDS(jabba_gg)
     ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
     ## meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
     ## count just junctions plus loose divided by 2, for sv counts for now
