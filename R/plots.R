@@ -691,6 +691,8 @@ dlrs = function(x) {
 #' @param primary_site primary site of tumor
 #' @param inferred_sex sex of the patient
 #' @param karyograph JaBbA outputted karygraph
+#' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
+#' @param sbs_deconstructSigs path to rds output from deconstructSigs
 #' @param seqnames_loh chromosomes to be used to calculate LOH
 #' @param seqnames_genome_width chromosomes to be used to calculate tmb
 #' @param write_json TRUE/FALSE to write the json
@@ -704,16 +706,18 @@ dlrs = function(x) {
 meta_data_json = function(
     pair,
     out_file,
-    coverage,
-    jabba_gg,
-    strelka2_vcf,
+    coverage = NULL,
+    jabba_gg = NULL,
+    strelka2_vcf = NULL,
     sage_vcf = NULL,
-    svaba_somatic_vcf,
-    tumor_type,
-    disease,
-    primary_site,
-    inferred_sex,
-    karyograph,
+    svaba_somatic_vcf = NULL,
+    tumor_type = NULL,
+    disease = NULL,
+    primary_site = NULL,
+    inferred_sex = NULL,
+    karyograph = NULL,
+    indel_sigprofiler = NULL,
+    sbs_deconstructSigs = NULL,
     seqnames_loh = c(1:22),
     seqnames_genome_width = c(1:22,"X","Y"),
     write_json = TRUE,
@@ -743,15 +747,35 @@ meta_data_json = function(
             print(paste0('Making directory ', folder_path))
             system(cmd)
         }
-    } 
-    meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type_final = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
-    #get derivate log ratio spread
-    meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
+    }
+
+    meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
+
+    meta.dt = data.table(pair = pair)
+    if(!is.null(tumor_type)) {
+        meta.dt[, tumor_type := tumor_type]
+    }
+    if(!is.null(disease)) {
+        meta.dt[, disease := disease]
+    }
+    if(!is.null(primary_site)) {
+        meta.dt[, primary_site := primary_site]
+    }
+    if(!is.null(inferred_sex)) {
+        meta.dt[, inferred_sex := inferred_sex]
+    }
+    
+    ##get derivate log ratio spread
+    if(!is.null(coverage)) {
+        meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
+    }
     ##Load this case's counts
     ## meta.dt$snv_count = length(read_vcf(vcf))
-    snv.counts.dt = strelka2counts(strelka2_vcf, seqnames_genome_width = seqnames_genome_width)
-    meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
-    meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    if(!is.null(strelka2_vcf)) {
+        snv.counts.dt = strelka2counts(strelka2_vcf, seqnames_genome_width = seqnames_genome_width)
+        meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
+        meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    }
     if(is.null(sage_vcf) || sage_vcf == "") {
         warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
     } else {
@@ -767,62 +791,63 @@ meta_data_json = function(
     # gg = readRDS(jabba_gg)
     ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
     ## meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
-    ## count just junctions plus loose divided by 2, for sv counts for now
-    gg = readRDS(jabba_gg)
-    ## meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-    meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-    meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
-    meta.dt[,sv_count := (junction_count + (loose_count / 2))]
+    if(!is.null(jabba_gg)) {
+        ## count just junctions plus loose divided by 2, for sv counts for now
+        gg = readRDS(jabba_gg)
+        ## meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+        meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+        meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+        meta.dt[,sv_count := (junction_count + (loose_count / 2))]
                                         #get loh
-    nodes.dt = gg$nodes$dt
-    nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
-    nodes.dt = gg$nodes$dt[seqnames %in% seqnames_loh]
-    totalseglen = nodes.dt$width %>% sum()
-    if('cn.low' %in% names(nodes.dt)) {
-        LOHsegs = nodes.dt[cn.low==0,] %>% .[cn.high >0] %>% .$width %>% sum()
-        ## LOH
-        LOH_frc = LOHsegs/totalseglen
-        meta.dt[,loh_fraction := LOH_frc]
-        meta.dt[,loh_seglen := LOHsegs]
-        meta.dt[,loh_total_genome := totalseglen]
-    } else {
-        meta.dt$loh_fraction = 'Not Allelic Jabba'
-    }
-    #add purity and ploidy
-    meta.dt$purity = gg$meta$purity
-    meta.dt$ploidy = gg$meta$ploidy
+        nodes.dt = gg$nodes$dt
+        nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
+        nodes.dt = gg$nodes$dt[seqnames %in% seqnames_loh]
+        totalseglen = nodes.dt$width %>% sum()
 
-    #' Load beta/gamma for karyograph
-    kag = readRDS(karyograph)
-    meta.dt$beta = kag$beta
-    meta.dt$gamma = kag$gamma
-    #add the total seqlengths by using the seqlengths in the jabba object
-    nodes.gr = gg$nodes$gr
-    seqlengths.dt =suppressWarnings(as.data.table(seqinfo(nodes.gr), keep.rownames = "seqnames")) #had to supress, says other arguments ignored
-    seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
-    seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
-    meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
-                                        #add tmb
-    meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
-    meta.dt[,tmb := round(tmb, digits = 3)]
-    ## temporary replace names with human readable names so as we add names we remember what they refer to (makes it easier for Charalampos so there is no need for a conversion file
-    ## meta.dt[, TMB := tmb]
-    ## meta.dt[, "SNV Count" := snv_count]
-    ## meta.dt[, "SNV Count with normal VAF greater than 0" := snv_count_normal_vaf_greater0]
-    ## meta.dt[, "SV Count" := sv_count]
-    ## meta.dt[, "Loose End Count" := loose_count]
-    ## meta.dt[, "Junction Count" := junction_count]
-    ## meta.dt[, "LOH Fraction" := loh_fraction]
-    ## meta.dt[, "Coverage Variance" := dlrs]
-    ## snv_meta = list("SNV Count" = meta.dt$snv_count,"Junction Count" = meta.dt$junction_count)
-    ## meta.dt[, SV_Meta := list(mget(c("Loose End Count", "Junction Count")))]
-    ## meta.dt[, SNV_Meta := list(mget(c("SNV Count","SNV Count with normal VAF greater than 0")))]
-    ## meta.dt[, SNV_Meta := list(snv_meta)]
-    ####
+        if('cn.low' %in% names(nodes.dt)) {
+            LOHsegs = nodes.dt[cn.low==0,] %>% .[cn.high >0] %>% .$width %>% sum()
+            ## LOH
+            LOH_frc = LOHsegs/totalseglen
+            meta.dt[,loh_fraction := LOH_frc]
+            meta.dt[,loh_seglen := LOHsegs]
+            meta.dt[,loh_total_genome := totalseglen]
+        } else {
+            meta.dt$loh_fraction = 'Not Allelic Jabba'
+        }
+        ##add purity and ploidy
+        meta.dt$purity = gg$meta$purity
+        meta.dt$ploidy = gg$meta$ploidy
+        ##add the total seqlengths by using the seqlengths in the jabba object
+        nodes.gr = gg$nodes$gr
+        seqlengths.dt =suppressWarnings(as.data.table(seqinfo(nodes.gr), keep.rownames = "seqnames")) #had to supress, says other arguments ignored
+        seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
+        seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
+        meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
+
+    }
+    ## Load beta/gamma for karyograph
+    if(!is.null(karyograph)) {
+        kag = readRDS(karyograph)
+        meta.dt$beta = kag$beta
+        meta.dt$gamma = kag$gamma
+    }
+    ##add tmb
+    if(("snv_count" %in% names(meta.dt)) & ("total_genome_length" %in% names(meta.dt))) {
+        meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
+        meta.dt[,tmb := round(tmb, digits = 3)]
+    }
+    if(!is.null(sbs_deconstructSigs)) {
+        signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = pair)
+        meta.dt$signatures = list(as.list(signatures))
+    }
+    if(!is.null(indel_sigprofiler)) {
+        deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = pair)
+        meta.dt$deletionInsertion = list(as.list(deletionInsertion))
+    }
     if(write_json) {
-                                        #write the json
+        ##write the json
         message(paste0("Writing json to ",out_file))
-        write_json(meta.dt,out_file,pretty = TRUE)
+        write_json(meta.dt,out_file,pretty = TRUE, auto_unbox=TRUE)
         if(return_table) {
             return(meta.dt)
         }
@@ -1652,3 +1677,59 @@ cov2bw_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, 
     return(add.dt)
 }
 
+#' @name indels_sigprofiler2meta
+#' @title indels_sigprofiler2meta
+#' @description
+#' function to generate metadata indel signature list from sigprofiler output
+#'
+#' @param indel_file path to Assignment_Solution_Activities.txt, output of sigprofiler
+#' @param sample sample or pair name-needed to subset to the correct sample
+#' 
+#' @return 
+#' @export
+#' @author Sukanya Panja, Stanley Clarke
+indels_sigprofiler2meta = function(indel_file, sample) {
+    ## indel signatures first
+    indel_sig = fread(indel_file)
+    indel_sig = indel_sig[grepl(sample, Samples),]
+    indel_sig[, pair := gsub("_somatic","",Samples)]
+    rownames(indel_sig) = gsub("_somatic","",rownames(indel_sig))
+    indel_sig[,Samples := NULL]
+    indel_sig_avg = copy(indel_sig)
+    indel_sig_avg[, pair := NULL]
+    row_sum = indel_sig_avg %>% rowSums()
+    indels.dt = melt.data.table(indel_sig_avg, measure.vars = names(indel_sig_avg)) %>% setnames(.,c("signature","value"))
+    indels.dt[, avg_value := value / row_sum]
+    indels.vect = indels.dt$avg_value
+    names(indels.vect) = indels.dt$signature
+    ## indels = list(deletionInsertion = as.list(sigs.vect))
+    ## indels = indels.vect
+    return(indels.vect)
+}
+
+
+#' @name sbs_sigprofiler2meta
+#' @title sbs_sigprofiler2meta
+#' @description
+#' generates list of SBS signatures from the output of deconstruct sigs to add to metadata
+#'
+#' @param sbs_file path to rds outpyut from deconstructSigs
+#' @param sample sample or pair name-needed to subset to the correct sample
+#' 
+#' @return 
+#' @export
+#' @author Sukanya Panja, Stanley Clarke
+sbs_deconstructSigs2meta = function(sbs_file, sample) {
+    sig_file = readRDS(sbs_file)
+    weights = as.data.table(sig_file$weights)
+    weights = t(weights)
+    sigs.dt = as.data.table(weights, keep.rownames = "Signature") %>% setnames(.,c("Signature","weights"))
+    sigs.dt[, Signature := gsub("Signature.","SBS", Signature)]
+    sigs.vect = sigs.dt$weights
+    names(sigs.vect) = sigs.dt$Signature
+    ##pair.vect = sample
+    ##names(pair.vect) = "pair"
+    ##sigs.vect = c(pair.vect,sigs.vect)
+    ## signatures = list(signatures = as.list(sigs.vect))
+    return(sigs.vect)
+}
