@@ -8,7 +8,9 @@ create_distributions(
   case_reports_data_folder,
   common_folder,
   filter_patients = NULL,
-  write_jsons = TRUE
+  write_jsons = TRUE,
+  make_sub_folders = TRUE,
+  cores = 1
 )
 }
 \arguments{

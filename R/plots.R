@@ -693,6 +693,7 @@ dlrs = function(x) {
 #' @param karyograph JaBbA outputted karygraph
 #' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
 #' @param sbs_deconstructSigs path to rds output from deconstructSigs
+#' @param sbs_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler 
 #' @param seqnames_loh chromosomes to be used to calculate LOH
 #' @param seqnames_genome_width chromosomes to be used to calculate tmb
 #' @param write_json TRUE/FALSE to write the json
@@ -717,6 +718,7 @@ meta_data_json = function(
     inferred_sex = NULL,
     karyograph = NULL,
     indel_sigprofiler = NULL,
+    sbs_sigprofiler = NULL,
     sbs_deconstructSigs = NULL,
     seqnames_loh = c(1:22),
     seqnames_genome_width = c(1:22,"X","Y"),
@@ -749,7 +751,7 @@ meta_data_json = function(
         }
     }
 
-    meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
+    ## meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
 
     meta.dt = data.table(pair = pair)
     if(!is.null(tumor_type)) {
@@ -836,14 +838,25 @@ meta_data_json = function(
         meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
         meta.dt[,tmb := round(tmb, digits = 3)]
     }
+    ## add signatures that are present
     if(!is.null(sbs_deconstructSigs)) {
         signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = pair)
         meta.dt$signatures = list(as.list(signatures))
+        meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
     }
     if(!is.null(indel_sigprofiler)) {
         deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = pair)
-        meta.dt$deletionInsertion = list(as.list(deletionInsertion))
+        meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
+        meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
+        meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
     }
+
+    if(!is.null(sbs_sigprofiler)) {
+        signatures = sbs_sigprofiler2meta(sbs_file = sbs_sigprofiler, sample = pair)
+        meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
+        meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
+    }
+    ## end add signatures
     if(write_json) {
         ##write the json
         message(paste0("Writing json to ",out_file))
@@ -1156,7 +1169,28 @@ sage_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, write_
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
 
-create_distributions = function(case_reports_data_folder,common_folder, filter_patients = NULL, write_jsons = TRUE) {
+create_distributions = function(case_reports_data_folder,common_folder, filter_patients = NULL, write_jsons = TRUE, make_sub_folders = TRUE, cores = 1) {
+    case_reports_data_folder = paste0(case_reports_data_folder,"/")  ## just add a slash in case not added
+    common_folder = paste0(common_folder,"/")  ## just add a slash in case not added
+    if(write_jsons) {
+        if(!file.exists(common_folder)) {
+            stop("common_folder does not exist. Make the directory first")
+        }
+        ## folder_paths = paste0(common_folder,c("signatures","signatures/sbs","signatures/sbs_deconstructsigs","signatures/insertionDeletion","signatures/insertionDeletion_sigprofilerassignment/","signatures/insertionDeletion_counts_sigprofilerassignment/", "signatures/sbs_counts_deconstructsigs", "signatures/sbs_deconstructsigs/"))
+        folder_paths = paste0(common_folder,c("signatures/sbs/", "signatures/deconstructsigs_sbs_fraction/", "signatures/insertionDeletion/", "signatures/sigprofiler_indel_fraction/", "signatures/sigprofiler_indel_count/", "signatures/sigprofiler_sbs_count/", "signatures/sigprofiler_sbs_fraction/"))
+        ## make the subfolders if they do not exist
+        if(make_sub_folders) {
+            if(!all(file.exists(folder_paths))) {
+                empty.lst = mclapply(folder_paths, function(folder_path) {
+                    cmd = paste0("mkdir -p ", folder_path)
+                    print(paste0('Making directory ', folder_path))
+                    system(cmd)
+                    return(NULL)
+                }, mc.cores = cores)
+            }
+        }
+    }
+    ## get files from case reports folder and subset if filter_pateints
     files.lst = list.files(case_reports_data_folder)
     files.lst = grep("data",files.lst,invert=TRUE, value = TRUE)
     meta.dt = data.table(meta_json = paste0(case_reports_data_folder,files.lst,"/metadata.json"), patient_id = files.lst)
@@ -1164,34 +1198,62 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
     if(!is.null(filter_patients)) {
         meta.dt = meta.dt[patient_id %in% filter_patients,]
     }
-    jsons.lst = lapply(1:nrow(meta.dt), function(x) {
-        json.dt = jsonlite::read_json(meta.dt$meta_json[x],simplifyVector = TRUE)
-    })
+    
+    jsons.lst = mclapply(1:nrow(meta.dt), function(x) {
+        meta.sub.dt = meta.dt[x,]
+        read_meta_data_json(meta_json = meta.sub.dt$meta_json, patient_id = meta.sub.dt$patient_id)
+    },mc.cores = cores)
     jsons.dt = rbindlist(jsons.lst, fill = TRUE)
-                                        #snv distribution json
-    snv.dt = jsons.dt[,.(pair, snv_count,tumor_type_final)] %>% setnames(.,c("pair","value","tumor_type_final_mod"))
-                                        #sv distribution json
-    sv.dt = jsons.dt[,.(pair, sv_count, tumor_type_final)] %>% setnames(.,c("pair","value","tumor_type"))
-    sv.dt[,id := 1:.N]
-    sv.dt = sv.dt[,.(id,pair,value, tumor_type)]
-                                        #loh
-    loh.dt = jsons.dt[,.(pair, tumor_type_final,loh_fraction,loh_seglen,loh_total_genome)] %>% setnames(.,c("pair","tumor_type","value","LOH_seg_len","genome_width"))
-                                        #ploidy
-    ploidy.dt = jsons.dt[,.(pair, tumor_type_final, ploidy, purity)] %>% setnames(.,c("pair","tumor_type_final","value","purity"))
-                                        #purity
-    purity.dt = jsons.dt[,.(pair, tumor_type_final, ploidy, purity)] %>% setnames(.,c("pair","tumor_type_final","ploidy","value"))
-                                        #coverage variance
-    cov_var.dt = jsons.dt[,.(pair, tumor_type_final, dlrs)] %>% setnames(.,c("pair","tumor_type_final_mod","value"))
-                                        #tmb
-    tmb.dt = jsons.dt[,.(pair, tmb, tumor_type_final)] %>% setnames(.,c("pair","value","tumor_type_final"))
-    ##temporary fix to make names more consistant
-    snv.dt[, tumor_type := tumor_type_final_mod]
-    ploidy.dt[, tumor_type := tumor_type_final]
-    purity.dt[, tumor_type := tumor_type_final]
-    cov_var.dt[, tumor_type := tumor_type_final_mod]
-    tmb.dt[, tumor_type := tumor_type_final]
+    if("snv_count" %in% names(jsons.dt)) {
+        ##snv distribution json
+        snv.dt = jsons.dt[,.(pair, snv_count,tumor_type)] %>% setnames(.,c("pair","value","tumor_type"))
+    } else {
+        snv.dt = NULL
+    }
+    if("sv_count" %in% names(jsons.dt)) {
+        ##sv distribution json
+        sv.dt = jsons.dt[,.(pair, sv_count, tumor_type)] %>% setnames(.,c("pair","value","tumor_type"))
+        sv.dt[,id := 1:.N]
+        sv.dt = sv.dt[,.(id,pair,value, tumor_type)]
+    } else {
+        sv.dt = NULL
+    }
+    if(all(c("log_fraction","loh_seglen","loh_total_genome") %in% names(jsons.dt))) {
+        ##loh
+        loh.dt = jsons.dt[,.(pair, tumor_type,loh_fraction,loh_seglen,loh_total_genome)] %>% setnames(.,c("pair","tumor_type","value","LOH_seg_len","genome_width"))
+    } else {
+        loh.dt = NULL
+    }
+    
+    if("ploidy" %in% names(jsons.dt)) {
+        ##ploidy
+        ploidy.dt = jsons.dt[,.(pair, tumor_type, ploidy, purity)] %>% setnames(.,c("pair","tumor_type","value","purity"))
+    } else {
+        ploidy.dt = NULL
+    }
+    if("purity" %in% names(jsons.dt)) {
+        ##purity
+        purity.dt = jsons.dt[,.(pair, tumor_type, ploidy, purity)] %>% setnames(.,c("pair","tumor_type","ploidy","value"))
+    } else {
+        purity.dt = NULL
+    }
+    if("dlrs" %in% names(jsons.dt)) {
+        ##coverage variance
+        cov_var.dt = jsons.dt[,.(pair, tumor_type, dlrs)] %>% setnames(.,c("pair","tumor_type_mod","value"))
+    } else {
+        cov_var.dt = NULL
+    }
+    if("tmb" %in% names(jsons.dt)) {
+        ##tmb
+        tmb.dt = jsons.dt[,.(pair, tmb, tumor_type)] %>% setnames(.,c("pair","value","tumor_type"))
+    } else {
+        tmb.dt = NULL
+    }
+########################################################################################################################################
+    ## convert the signatures to data.tables that can be outputted for the distributions
+    sigs.lst = convert_signature_meta_json(jsons.dt = jsons.dt, cores = cores)
     if(write_jsons == TRUE) {
-                                        #writing jsons
+        ##writing jsons
         message(paste0("writing jsons to ",common_folder))
         write_json(snv.dt,paste0(common_folder,"/snvCount.json"),pretty = TRUE)
         write_json(sv.dt,paste0(common_folder,"/svCount.json"),pretty = TRUE)
@@ -1200,10 +1262,44 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
         write_json(purity.dt,paste0(common_folder,"/purity.json"),pretty = TRUE)
         write_json(cov_var.dt,paste0(common_folder,"/coverageVariance.json"),pretty = TRUE)
         write_json(tmb.dt,paste0(common_folder,"/tmb.json"),pretty = TRUE)
+        ## write distribution files for all distributions
+        write_signature_jsons(signatures_list = sigs.lst, common_folder = common_folder, cores = cores)
     } else {
+        ## start of returning all the distributions if write_jsons != TRUE
+        ## return the different signatures if they exist on returning
+        if("deconstruct_sigs.dt" %in% names(sigs.lst)) {
+            deconstruct_sigs.dt = sigs.lst[["deconstruct_sigs.dt"]]
+        } else {
+            deconstruct_sigs.dt = NULL
+        }
+        
+        if("sigprofilerassignment_indels.dt" %in% names(sigs.lst)) {
+            sigprofilerassignment_indels.dt = sigs.lst[["sigprofilerassignment_indels.dt"]]
+        } else {
+            sigprofilerassignment_indels.dt = NULL
+        }
+        
+        if("sigprofilerassignment_indels_counts.dt" %in% names(sigs.lst)) {
+            sigprofilerassignment_indels_counts.dt = sigs.lst[["sigprofilerassignment_indels_counts.dt"]]
+        } else {
+            sigprofilerassignment_indels_counts.dt = NULL
+        }
+        
+        if("sigprofilerassignment_sbs_counts.dt" %in% names(sigs.lst)) {
+            sigprofilerassignment_sbs_counts.dt = sigs.lst[["sigprofilerassignment_sbs_counts.dt"]]
+        } else {
+            sigprofilerassignment_sbs_counts.dt = NULL
+        }
+        
+        if("sigprofilerassignment_sbs.dt" %in% names(sigs.lst)) {
+            sigprofilerassignment_sbs.dt = sigs.lst[["sigprofilerassignment_sbs.dt"]]
+        } else {
+            sigprofilerassignment_sbs.dt = NULL
+        }
         ## return(list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt))
-        json.lst = list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt)
-        names(json.lst) = c("snvCount", "svCount","lohFraction", "ploidy", "purity", "coverageVariance", "tmb")
+        json.lst = list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt,deconstruct_sigs.dt, sigprofilerassignment_indels.dt,sigprofilerassignment_indels_counts.dt,sigprofilerassignment_sbs_counts.dt,sigprofilerassignment_sbs.dt)
+        ## names(json.lst) = c("snvCount", "svCount","lohFraction", "ploidy", "purity", "coverageVariance", "tmb", "deconstruct_sigs","sigprofilerassignment_indels","sigprofilerassignment_indels_counts.dt", "sigprofilerassignment_sbs_counts.dt", "sigprofilerassignment_sbs.dt")
+        names(json.lst) = c("snvCount", "svCount","lohFraction", "ploidy", "purity", "coverageVariance", "tmb", "sbs","sigprofiler_indel_fraction","sigprofiler_indel_count", "sigprofiler_sbs_count", "sigprofiler_sbs_fraction")
         return(json.lst)
     }
 }
@@ -1693,7 +1789,6 @@ indels_sigprofiler2meta = function(indel_file, sample) {
     indel_sig = fread(indel_file)
     indel_sig = indel_sig[grepl(sample, Samples),]
     indel_sig[, pair := gsub("_somatic","",Samples)]
-    rownames(indel_sig) = gsub("_somatic","",rownames(indel_sig))
     indel_sig[,Samples := NULL]
     indel_sig_avg = copy(indel_sig)
     indel_sig_avg[, pair := NULL]
@@ -1702,14 +1797,16 @@ indels_sigprofiler2meta = function(indel_file, sample) {
     indels.dt[, avg_value := value / row_sum]
     indels.vect = indels.dt$avg_value
     names(indels.vect) = indels.dt$signature
-    ## indels = list(deletionInsertion = as.list(sigs.vect))
-    ## indels = indels.vect
-    return(indels.vect)
+    indels_counts.vect = indels.dt$value
+    names(indels_counts.vect) = indels.dt$signature
+    indels.lst = list(indels.vect,indels_counts.vect)
+    names(indels.lst) = c("indel_fraction","indel_count")
+    return(indels.lst)
 }
 
 
-#' @name sbs_sigprofiler2meta
-#' @title sbs_sigprofiler2meta
+#' @name sbs_deconstructSigs2meta
+#' @title sbs_deconstructSigs2meta
 #' @description
 #' generates list of SBS signatures from the output of deconstruct sigs to add to metadata
 #'
@@ -1733,3 +1830,261 @@ sbs_deconstructSigs2meta = function(sbs_file, sample) {
     ## signatures = list(signatures = as.list(sigs.vect))
     return(sigs.vect)
 }
+
+
+#' @name sbs_sigprofiler2meta
+#' @title sbs_sigprofiler2meta
+#' @description
+#' generates list of SBS signature counts and percentages from the output of deconstruct sigs to add to metadata
+#'
+#' @param sbs_file path to Assignment_Solution_Activities.txt, output of sigprofiler
+#' @param sample sample or pair name-needed to subset to the correct sample
+#' 
+#' @return list of length 2, first being the signatures as a fraction and second being signatures as counts
+#' @export
+#' @author Stanley Clarke
+sbs_sigprofiler2meta = function(sbs_file, sample) {
+    sig.dt = fread(sbs_file)
+    sig.dt[, pair := gsub("_somatic","",Samples)]
+    sig.dt = sig.dt[pair == sample,]
+    sig.dt[,Samples := NULL]
+    sig.dt_avg = copy(sig.dt)
+    sig.dt_avg[, pair := NULL]
+    row_sum = sig.dt_avg %>% rowSums()
+    sigs.dt = melt.data.table(sig.dt_avg, measure.vars = names(sig.dt_avg)) %>% setnames(.,c("signature","value"))
+    sigs.dt[, avg_value := value / row_sum]
+    sigs.vect = sigs.dt$avg_value
+    names(sigs.vect) = sigs.dt$signature
+    sigs_counts.vect = sigs.dt$value
+    names(sigs_counts.vect) = sigs.dt$signature
+    sigs.lst = list(sigs.vect,sigs_counts.vect)
+    names(sigs.lst) = c("sbs_fraction","sbs_count")
+    return(sigs.lst)
+}
+
+
+#' @name read_meta_data_json
+#' @title read_meta_data_json
+#' @description
+#' Reads in meta data jsons and gets signatures that are lists into the correct list format in the data.table. Used in create_distributions
+#'
+#' @param meta_json path to metadata.json for case reports
+#' @param patient_id sample name for metadata_json
+#' 
+#' @return data.table of the metadata.json for each sample
+#' @export
+#' @author Stanley Clarke
+read_meta_data_json = function(meta_json, patient_id) {
+    json.dt = as.data.table(jsonlite::read_json(meta_json,simplifyVector = TRUE)) ## have to change from this to work with signatures
+    keep_cols = names(json.dt) %>% grep("signatures|deletionInsertion|sigprofiler|deconstructsigs",., value = TRUE, invert = TRUE)
+    json.dt = json.dt[,..keep_cols]
+    json.lst = jsonlite::read_json(meta_json,simplifyVector = FALSE)
+    if(!is.null(json.lst[[1]]$signatures)) {
+        json.dt$signatures = list(json.lst[[1]]$signatures)
+    }
+    if(!is.null(json.lst[[1]]$deletionInsertion)) {
+        json.dt$deletionInsertion = list(json.lst[[1]]$deletionInsertion)
+    }
+    if(!is.null(json.lst[[1]]$deconstructsigs_sbs_fraction)) {
+        json.dt$deconstructsigs_sbs_fraction = list(json.lst[[1]]$deconstructsigs_sbs_fraction)
+    }
+    if(!is.null(json.lst[[1]]$sigprofiler_indel_fraction)) {
+        json.dt$sigprofiler_indel_fraction = list(json.lst[[1]]$sigprofiler_indel_fraction)
+    }
+    if(!is.null(json.lst[[1]]$sigprofiler_indel_count)) {
+        json.dt$sigprofiler_indel_count = list(json.lst[[1]]$sigprofiler_indel_count)
+    }
+    if(!is.null(json.lst[[1]]$sigprofiler_sbs_fraction)) {
+        json.dt$sigprofiler_sbs_fraction = list(json.lst[[1]]$sigprofiler_sbs_fraction)
+    }
+    if(!is.null(json.lst[[1]]$sigprofiler_sbs_count)) {
+        json.dt$sigprofiler_sbs_count = list(json.lst[[1]]$sigprofiler_sbs_count)
+    }
+    return(json.dt)
+}
+
+#' @name convert_signature_meta_json
+#' @title convert_signature_meta_json
+#' @description
+#' converts signatures from the list objects in the meta data to data.tables to write jsons for distributions. Used in create_distributions
+#'
+#' @param jsons.dt json dt after using read_meta_data_json
+#' @param cores cores for generating each signature
+#' @return list object with all of the signature distribution data.tables
+#' @export
+#' @author Stanley Clarke
+convert_signature_meta_json = function(jsons.dt, cores = 1) {
+    ## signatures-sbs deconstruct sigs ## in column signatures but also in deconstructsigs_sbs_fraction
+    if("signatures" %in% names(jsons.dt)) {
+        jsons.dt2 = copy(jsons.dt)
+        jsons.dt2[, length_signatures := sapply(signatures, function(x) length(unlist(x)))]
+        jsons.dt2 = jsons.dt2[length_signatures != 0,]
+        sigs.lst = mclapply(1:nrow(jsons.dt2), function(x) {
+            jsons.sub.dt2 = jsons.dt2[x,]
+            sigs.dt = jsons.sub.dt2$signatures[[1]] %>% as.data.table()
+            sigs.dt[, pair := jsons.sub.dt2$pair]
+            sigs.dt[, tumor_type := jsons.sub.dt2$tumor_type]
+            return(sigs.dt)
+        }, mc.cores = cores)
+        deconstruct_sigs.dt = rbindlist(sigs.lst, fill = TRUE)
+    }
+    ## signatures-indels sigprofiler assignment## in column deletionInsertion and sigprofiler_indel_fraction
+    if("deletionInsertion" %in% names(jsons.dt)) {
+        jsons.dt2 = copy(jsons.dt)
+        jsons.dt2[, length_signatures := sapply(deletionInsertion, function(x) length(unlist(x)))]
+        jsons.dt2 = jsons.dt2[length_signatures != 0,]
+        sigs.lst = mclapply(1:nrow(jsons.dt2), function(x) {
+            jsons.sub.dt2 = jsons.dt2[x,]
+            sigs.dt = jsons.sub.dt2$deletionInsertion[[1]] %>% as.data.table()
+            sigs.dt[, pair := jsons.sub.dt2$pair]
+            sigs.dt[, tumor_type := jsons.sub.dt2$tumor_type]
+            return(sigs.dt)
+        }, mc.cores = cores)
+        sigprofilerassignment_indels.dt = rbindlist(sigs.lst, fill = TRUE)
+    }
+    ## signatures-indel counts sigprofiler assignment
+    if("sigprofiler_indel_count" %in% names(jsons.dt)) {
+        jsons.dt2 = copy(jsons.dt)
+        jsons.dt2[, length_signatures := sapply(sigprofiler_indel_count, function(x) length(unlist(x)))]
+        jsons.dt2 = jsons.dt2[length_signatures != 0,]
+        sigs.lst = mclapply(1:nrow(jsons.dt2), function(x) {
+            jsons.sub.dt2 = jsons.dt2[x,]
+            sigs.dt = jsons.sub.dt2$sigprofiler_indel_count[[1]] %>% as.data.table()
+            sigs.dt[, pair := jsons.sub.dt2$pair]
+            sigs.dt[, tumor_type := jsons.sub.dt2$tumor_type]
+            return(sigs.dt)
+        }, mc.cores = cores)
+        sigprofilerassignment_indels_counts.dt = rbindlist(sigs.lst, fill = TRUE)
+    } else {
+        sigprofilerassignment_indels_counts.dt = NULL
+    }
+    ## signatures-sigprofiler sbs fraction
+    if("sigprofiler_sbs_fraction"  %in% names(jsons.dt)) {
+        jsons.dt2 = copy(jsons.dt)
+        jsons.dt2[, length_signatures := sapply(sigprofiler_sbs_fraction, function(x) length(unlist(x)))]
+        jsons.dt2 = jsons.dt2[length_signatures != 0,]
+        sigs.lst = mclapply(1:nrow(jsons.dt2), function(x) {
+            jsons.sub.dt2 = jsons.dt2[x,]
+            sigs.dt = jsons.sub.dt2$sigprofiler_sbs_fraction[[1]] %>% as.data.table()
+            sigs.dt[, pair := jsons.sub.dt2$pair]
+            sigs.dt[, tumor_type := jsons.sub.dt2$tumor_type]
+            return(sigs.dt)
+        }, mc.cores = cores)
+        sigprofilerassignment_sbs.dt = rbindlist(sigs.lst, fill = TRUE)
+    } else {
+        sigprofilerassignment_sbs.dt = NULL
+    }
+    
+    ## signatures-sigprofiler sbs count
+    if("sigprofiler_sbs_count"  %in% names(jsons.dt)) {
+        jsons.dt2 = copy(jsons.dt)
+        jsons.dt2[, length_signatures := sapply(sigprofiler_sbs_count, function(x) length(unlist(x)))]
+        jsons.dt2 = jsons.dt2[length_signatures != 0,]
+        sigs.lst = mclapply(1:nrow(jsons.dt2), function(x) {
+            jsons.sub.dt2 = jsons.dt2[x,]
+            sigs.dt = jsons.sub.dt2$sigprofiler_sbs_count[[1]] %>% as.data.table()
+            sigs.dt[, pair := jsons.sub.dt2$pair]
+            sigs.dt[, tumor_type := jsons.sub.dt2$tumor_type]
+            return(sigs.dt)
+        }, mc.cores = cores)
+        sigprofilerassignment_sbs_count.dt = rbindlist(sigs.lst, fill = TRUE)
+    } else {
+        sigprofilerassignment_sbs_count.dt = NULL
+    }
+    ## create list object to return
+    list_return = list(deconstruct_sigs.dt, sigprofilerassignment_indels.dt, sigprofilerassignment_indels_counts.dt, sigprofilerassignment_sbs.dt, sigprofilerassignment_sbs_count.dt)
+    names(list_return) = c("deconstruct_sigs.dt", "sigprofilerassignment_indels.dt", "sigprofilerassignment_indels_counts.dt", "sigprofilerassignment_sbs.dt", "sigprofilerassignment_sbs_counts.dt")
+    return(list_return)
+}
+
+
+#' @name write_signature_jsons
+#' @title write_signature_jsons
+#' @description
+#' writes the different distribution jsons for signatures from the list outputted by convert_signature_meta_json
+#'
+#' @param signatures_list list outputted from convert_sign
+#' @param common_folder location of the signatures folder
+#' @param cores cores for generating the signature distribution files
+#' @return NULL
+#' @export
+#' @author Stanley Clarke
+
+## write_signature_jsons(sigs.lst, signatures_folder)
+## signatures_list = sigs.lst
+## signatures_folder = paste0(common_folder,"signatures")
+write_signature_jsons = function(signatures_list, common_folder, cores = 1) {
+    names_list = names(signatures_list)
+    ## deconstruct sigs dt- added to main SBS and SBS_deconstructsigs
+    if("deconstruct_sigs.dt" %in% names(signatures_list)) {
+        deconstruct_sigs.dt = signatures_list[["deconstruct_sigs.dt"]]
+        signatures_add = names(deconstruct_sigs.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
+        empty.lst = mclapply(signatures_add, function(sig) {
+            cols_keep = c("pair","tumor_type",sig)
+            sig.dt = deconstruct_sigs.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
+            sig.dt[,sig := sig]
+            write_json(sig.dt,paste0(common_folder,"signatures/sbs/",sig,".json"),pretty = TRUE) ## deconstruct sigs as default for signatures at the moment
+            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_deconstructsigs/",sig,".json"),pretty = TRUE)
+            write_json(sig.dt,paste0(common_folder,"signatures/deconstructsigs_sbs_fraction/",sig,".json"),pretty = TRUE)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+    ## sigprofiler assignment indels-added to main insertionDeletion and insertionDeletion_sigprofilerassignment
+    if("sigprofilerassignment_indels.dt" %in% names(signatures_list)) {
+        sigprofilerassignment_indels.dt = signatures_list[["sigprofilerassignment_indels.dt"]]
+        ## write indel signatures- sigprofilerassignment
+        indels_add = names(sigprofilerassignment_indels.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
+        empty.lst = mclapply(indels_add, function(sig) {
+            cols_keep = c("pair","tumor_type",sig)
+            sig.dt = sigprofilerassignment_indels.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
+            sig.dt[,sig := sig]
+            write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion/",sig,".json"),pretty = TRUE) ## deconstruct sigs as default for signatures at the moment
+            ## write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion_sigprofilerassignment/",sig,".json"),pretty = TRUE)
+            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_indel_fraction/",sig,".json"),pretty = TRUE)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+    ## sigprofiler assignment indels counts-added to insertionDeletion_counts_sigprofilerassignment
+    if("sigprofilerassignment_indels_counts.dt" %in% names(signatures_list)) {
+        sigprofilerassignment_indels_counts.dt = signatures_list[["sigprofilerassignment_indels_counts.dt"]]
+        ## write indel signatures- sigprofilerassignment
+        indels_add = names(sigprofilerassignment_indels_counts.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
+        empty.lst = mclapply(indels_add, function(sig) {
+            cols_keep = c("pair","tumor_type",sig)
+            sig.dt = sigprofilerassignment_indels_counts.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
+            sig.dt[,sig := sig]
+            ## write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion_counts_sigprofilerassignment/",sig,".json"),pretty = TRUE)
+            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_indel_count/",sig,".json"),pretty = TRUE)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+    ## sigprofiler assignment sbs counts - added to sbs_counts_deconstructsigs
+    if("sigprofilerassignment_sbs_counts.dt" %in% names(signatures_list)) {
+        sigprofilerassignment_sbs_counts.dt = signatures_list[["sigprofilerassignment_sbs_counts.dt"]]
+        ## write indel signatures- sigprofilerassignment
+        sbs_add = names(sigprofilerassignment_sbs_counts.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
+        empty.lst = mclapply(sbs_add, function(sig) {
+            cols_keep = c("pair","tumor_type",sig)
+            sig.dt = sigprofilerassignment_sbs_counts.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
+            sig.dt[,sig := sig]
+            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_counts_deconstructsigs/",sig,".json"),pretty = TRUE)
+            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_sbs_count/",sig,".json"),pretty = TRUE)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+    ## sigprofiler assignment sbs counts - added to sbs_deconstructsigs
+    if("sigprofilerassignment_sbs.dt" %in% names(signatures_list)) {
+        sigprofilerassignment_sbs.dt = signatures_list[["sigprofilerassignment_sbs.dt"]]
+        ## write indel signatures- sigprofilerassignment
+        sbs_add = names(sigprofilerassignment_sbs.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
+        empty.lst = mclapply(sbs_add, function(sig) {
+            cols_keep = c("pair","tumor_type",sig)
+            sig.dt = sigprofilerassignment_sbs.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
+            sig.dt[,sig := sig]
+            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_deconstructsigs/",sig,".json"),pretty = TRUE)
+            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_sbs_fraction/",sig,".json"),pretty = TRUE)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+}
+

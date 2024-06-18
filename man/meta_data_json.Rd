@@ -7,15 +7,19 @@
 meta_data_json(
   pair,
   out_file,
-  coverage,
-  jabba_gg,
-  vcf,
-  svaba_somatic_vcf,
-  tumor_type,
-  disease,
-  primary_site,
-  inferred_sex,
-  karyograph,
+  coverage = NULL,
+  jabba_gg = NULL,
+  strelka2_vcf = NULL,
+  sage_vcf = NULL,
+  svaba_somatic_vcf = NULL,
+  tumor_type = NULL,
+  disease = NULL,
+  primary_site = NULL,
+  inferred_sex = NULL,
+  karyograph = NULL,
+  indel_sigprofiler = NULL,
+  sbs_sigprofiler = NULL,
+  sbs_deconstructSigs = NULL,
   seqnames_loh = c(1:22),
   seqnames_genome_width = c(1:22, "X", "Y"),
   write_json = TRUE,
@@ -33,7 +37,9 @@ meta_data_json(
 
 \item{jabba_gg}{path to JaBbA output ggraph or complex}
 
-\item{vcf}{path to strelka vcf to get snv count}
+\item{strelka2_vcf}{path to strelka vcf to get snv count}
+
+\item{sage_vcf}{path to SAGE vcf to get snv count (if present)}
 
 \item{svaba_somatic_vcf}{path to svaba somatic vcf for getting sv count}
 
@@ -44,6 +50,12 @@ meta_data_json(
 \item{inferred_sex}{sex of the patient}
 
 \item{karyograph}{JaBbA outputted karygraph}
+
+\item{indel_sigprofiler}{path to Assignment_Solution_Activities.txt, output of sigprofiler}
+
+\item{sbs_sigprofiler}{path to Assignment_Solution_Activities.txt, output of sigprofiler}
+
+\item{sbs_deconstructSigs}{path to rds output from deconstructSigs}
 
 \item{seqnames_loh}{chromosomes to be used to calculate LOH}
 
@@ -67,5 +79,4 @@ function to create the meta data summary json for case reports
 }
 \author{
 Stanley Clarke, Tanubrata Dey, Joel Rosiene
-Load beta/gamma for karyograph
 }
