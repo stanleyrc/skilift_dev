@@ -419,83 +419,87 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
 #'
 #' @return NULL.
 create_ppfit_genome_json = function(plot_metadata, datadir, settings) {
-    ppfit_json_path <- file.path(
-        datadir,
-        plot_metadata$patient.id,
-        plot_metadata$source
-    )
+  ppfit_json_path <- file.path(
+    datadir,
+    plot_metadata$patient.id,
+    plot_metadata$source
+  )
+  tryCatch({
     if (!file.exists(ppfit_json_path) || plot_metadata$overwrite) {
-        if (is(plot_metadata$x[[1]], "list")) {
-            ggraph <- plot_metadata$x[[1]]
+      if (is(plot_metadata$x[[1]], "list")) {
+        ggraph <- plot_metadata$x[[1]]
+      } else {
+        message(paste0("reading in ", plot_metadata$x))
+        if (grepl(plot_metadata$x, pattern = ".rds")) {
+          ggraph <- readRDS(plot_metadata$x)
         } else {
-            message(paste0("reading in ", plot_metadata$x))
-            if (grepl(plot_metadata$x, pattern = ".rds")) {
-                ggraph <- readRDS(plot_metadata$x)
-            } else {
-                message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-                ggraph <- readRDS(plot_metadata$x)
-            }
+          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
+          ggraph <- readRDS(plot_metadata$x)
         }
-        if (any(class(ggraph) == "gGraph")) {
-            seq_lengths <- gGnome::parse.js.seqlengths(
-                settings,
-                js.type = "PGV",
-                ref = plot_metadata$ref
-            )
-            ## segstats information          
-            ## segstats.dt = create_ppfit_json(jabba_gg = plot_metadata$x[1], return_table = TRUE, write_json = FALSE)
-            segstats.dt = create_ppfit_json(jabba_gg = ggraph, path_obj = plot_metadata$x, return_table = TRUE, write_json = FALSE)
-            segstats.gr = GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim
-            ggraph2 = gG(nodes = segstats.gr, edges = ggraph$edges$dt)
-            ## segstats.dt[, c("chromosome","startPoint","endPoint","width","strand") := NULL]
-            ## segstats.dt = unique(segstats.dt)
-            ## gg = gG(jabba = plot_metadata$x[1])
-            ## nodes.dt = gg$nodes$dt
-            ## merge.dt = merge.data.table(nodes.dt,segstats.dt, by.x = c("start.ix","end.ix","node.id","cn"), by.y = c("start_ix","end_ix","seg_id","cn"))
-            ## ggraph = gG(nodes = GRanges(merge.dt), edges = gg$edges$dt)
-            ggraph2$set(y.field = "cn")
-            # check for overlap in sequence names
-            ggraph.reduced <- ggraph2[seqnames %in% names(seq_lengths)]
-            if (length(ggraph.reduced) == 0) {
-                stop(sprintf(
-                    'There is no overlap between the sequence names in the reference
+      }
+      if (any(class(ggraph) == "gGraph")) {
+        seq_lengths <- gGnome::parse.js.seqlengths(
+                                 settings,
+                                 js.type = "PGV",
+                                 ref = plot_metadata$ref
+                               )
+        colnames_check = c("start_ix", "end_ix", "eslack_in", "eslack_out", "edges_in", "edges_out", "tile_id", "seg_id", "snode_id", "loose_left", "loose_right", "loose_cn_left", "loose_cn_right", "node_id", "raw_mean", "raw_var", "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", "wbins_ok", "mean", "bad", "max_na", "loess_var", "tau_sq_post", "post_var", "var", "sd")
+        if(all(colnames_check %in% names(ggraph$nodes$dt))) {
+          ggraph2 = ggraph
+          fields.keep = c(colnames_check,"seqnames", "start", "end", "strand", "width", "loose", "index")
+        } else {
+          ## segstats information          
+          segstats.dt = create_ppfit_json(jabba_gg = ggraph, path_obj = plot_metadata$x, return_table = TRUE, write_json = FALSE)
+          segstats.gr = GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim
+          ggraph2 = gG(nodes = segstats.gr, edges = ggraph$edges$dt)
+          fields.keep =names(segstats.dt) %>% grep("cn",.,invert = TRUE, value = TRUE)
+        }
+        ggraph2$set(y.field = "cn")
+        ## check for overlap in sequence names
+        ggraph.reduced <- ggraph2[seqnames %in% names(seq_lengths)]
+        if (length(ggraph.reduced) == 0) {
+          stop(sprintf(
+            'There is no overlap between the sequence names in the reference
                     used by PGV and the sequences in your gGraph. Here is an
                     example sequence from your gGraph: "%s". And here is an
                     example sequence from the reference used by gGnome.js: "%s"',
-                    seqlevels(ggraph.reduced$nodes$gr)[1], names(seq_lengths)[1]
-                ))
-            }
-            # sedge.id or other field
-            fields.keep =names(segstats.dt) %>% grep("cn",.,invert = TRUE, value = TRUE)
-            if ("annotation" %in% colnames(plot_metadata)) {
-                # probably check for other cid.field names?
-                # field = 'sedge.id'
-                ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-                gGnome::refresh(ggraph.reduced)$json(
-                    filename = ppfit_json_path,
-                    verbose = TRUE,
-                    annotations = unlist(plot_metadata$annotation),
-                    maxcn = 500,
-                    nfields = fields.keep,
-                    save = TRUE
-                    # cid.field = field
-                )
-            } else {
-                ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
-                gGnome::refresh(ggraph.reduced)$json(
-                    filename = ppfit_json_path,
-                    verbose = TRUE,
-                    maxcn = 500,
-                    nfields = fields.keep,
-                    save = TRUE
-                )
-            }
-        } else {
-            warning(plot_metadata$x, " rds read was not a gGraph")
+            seqlevels(ggraph.reduced$nodes$gr)[1], names(seq_lengths)[1]
+          ))
         }
+                                        # sedge.id or other field
+        if ("annotation" %in% colnames(plot_metadata)) {
+                                        # probably check for other cid.field names?
+                                        # field = 'sedge.id'
+          ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+          gGnome::refresh(ggraph.reduced)$json(
+                                            filename = ppfit_json_path,
+                                            verbose = TRUE,
+                                            annotations = unlist(plot_metadata$annotation),
+                                            maxcn = 500,
+                                            nfields = fields.keep,
+                                            save = TRUE
+                                        # cid.field = field
+                                          )
+        } else {
+          ## gGnome::refresh(ggraph[seqnames %in% names(seq_lengths)])$json(
+          gGnome::refresh(ggraph.reduced)$json(
+                                            filename = ppfit_json_path,
+                                            verbose = TRUE,
+                                            maxcn = 500,
+                                            nfields = fields.keep,
+                                            save = TRUE
+                                          )
+        }
+      } else {
+        warning(plot_metadata$x, " rds read was not a gGraph")
+      }
     } else {
-        warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+      warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
     }
+  }, error = function(e) {
+    message("Error in creating ppfit plot for sample: ",plot_metadata$patient.id, "\n JaBbA:::segstats needs to be run or provided first")
+    print(e)
+  })
 }
 
 #' @name create_somatic_json
