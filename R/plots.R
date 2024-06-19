@@ -845,7 +845,7 @@ meta_data_json = function(
     ## add signatures that are present
     if(!is.null(sbs_deconstructSigs)) {
         signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = pair)
-        meta.dt$signatures = list(as.list(signatures))
+        ## meta.dt$signatures = list(as.list(signatures)) # Changed default to sigprofiler
         meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
     }
     if(!is.null(indel_sigprofiler)) {
@@ -859,6 +859,7 @@ meta_data_json = function(
         signatures = sbs_sigprofiler2meta(sbs_file = sbs_sigprofiler, sample = pair)
         meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
         meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
+        meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
     }
     ## end add signatures
     if(write_json) {
@@ -2027,7 +2028,7 @@ write_signature_jsons = function(signatures_list, common_folder, cores = 1) {
             cols_keep = c("pair","tumor_type",sig)
             sig.dt = deconstruct_sigs.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
             sig.dt[,sig := sig]
-            write_json(sig.dt,paste0(common_folder,"signatures/sbs/",sig,".json"),pretty = TRUE) ## deconstruct sigs as default for signatures at the moment
+            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs/",sig,".json"),pretty = TRUE) ## deconstruct sigs as default for signatures at the moment
             ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_deconstructsigs/",sig,".json"),pretty = TRUE)
             write_json(sig.dt,paste0(common_folder,"signatures/deconstructsigs_sbs_fraction/",sig,".json"),pretty = TRUE)
             return(NULL)
@@ -2042,7 +2043,7 @@ write_signature_jsons = function(signatures_list, common_folder, cores = 1) {
             cols_keep = c("pair","tumor_type",sig)
             sig.dt = sigprofilerassignment_indels.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
             sig.dt[,sig := sig]
-            write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion/",sig,".json"),pretty = TRUE) ## deconstruct sigs as default for signatures at the moment
+            write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion/",sig,".json"),pretty = TRUE) ##  sigprofiler default for ins/del at the moment
             ## write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion_sigprofilerassignment/",sig,".json"),pretty = TRUE)
             write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_indel_fraction/",sig,".json"),pretty = TRUE)
             return(NULL)
@@ -2087,6 +2088,7 @@ write_signature_jsons = function(signatures_list, common_folder, cores = 1) {
             sig.dt[,sig := sig]
             ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_deconstructsigs/",sig,".json"),pretty = TRUE)
             write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_sbs_fraction/",sig,".json"),pretty = TRUE)
+            write_json(sig.dt,paste0(common_folder,"signatures/sbs/",sig,".json"),pretty = TRUE) ## sigprofiler as default for signatures at the moment
             return(NULL)
         }, mc.cores = cores)
     }
