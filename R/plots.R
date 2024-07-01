@@ -443,7 +443,7 @@ create_ppfit_genome_json = function(plot_metadata, datadir, settings) {
                                  js.type = "PGV",
                                  ref = plot_metadata$ref
                                )
-        colnames_check = c("start_ix", "end_ix", "eslack_in", "eslack_out", "edges_in", "edges_out", "tile_id", "seg_id", "snode_id", "loose_left", "loose_right", "loose_cn_left", "loose_cn_right", "node_id", "raw_mean", "raw_var", "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", "wbins_ok", "mean", "bad", "max_na", "loess_var", "tau_sq_post", "post_var", "var", "sd")
+        colnames_check = c("start_ix", "end_ix", "eslack_in", "eslack_out", "edges_in", "edges_out", "tile_id", "snode_id", "loose_left", "loose_right", "loose_cn_left", "loose_cn_right", "node_id", "raw_mean", "raw_var", "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", "wbins_ok", "mean", "bad", "max_na", "loess_var", "tau_sq_post", "post_var", "var", "sd")
         if(all(colnames_check %in% names(ggraph$nodes$dt))) {
           ggraph2 = ggraph
           fields.keep = c(colnames_check,"seqnames", "start", "end", "strand", "width", "loose", "index")
