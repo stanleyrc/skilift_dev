@@ -754,7 +754,6 @@ meta_data_json = function(
             system(cmd)
         }
     }
-
     ## meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
 
     meta.dt = data.table(pair = pair)
@@ -849,6 +848,7 @@ meta_data_json = function(
         meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
     }
     if(!is.null(indel_sigprofiler)) {
+        ## browser()
         deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = pair)
         meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
@@ -1792,9 +1792,9 @@ cov2bw_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, 
 indels_sigprofiler2meta = function(indel_file, sample) {
     ## indel signatures first
     indel_sig = fread(indel_file)
-    indel_sig = indel_sig[grepl(sample, Samples),]
     indel_sig[, pair := gsub("_somatic","",Samples)]
     indel_sig[,Samples := NULL]
+    indel_sig = indel_sig[pair == sample,]
     indel_sig_avg = copy(indel_sig)
     indel_sig_avg[, pair := NULL]
     row_sum = indel_sig_avg %>% rowSums()
