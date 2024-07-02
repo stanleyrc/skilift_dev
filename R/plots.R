@@ -1428,7 +1428,7 @@ arrow_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, chart
 #' @export
 #' @author Stanley Clarke
 
-genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, max.cn = NULL,annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
+genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, max.cn = NULL,annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','cpxdm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
                                         #use type = allelic to make a color a genome graph
     dt1 = data.table(patient.id = patient_id,
                      type = type,
