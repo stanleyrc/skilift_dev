@@ -1122,6 +1122,8 @@ sage_qc = function(
     ref = as.character(ref(vcf))
     alt = as.character(unlist(alt(vcf)))
     filter = as.character(fixed(vcf)$FILTER)
+    qual = as.numeric(fixed(vcf)$QUAL)
+
     # Extract depth and allele count information from the genotype (geno) slot
     geno_data = geno(vcf)
     normal = colnames(geno_data$DP)[1]
@@ -1144,6 +1146,7 @@ sage_qc = function(
             reference = ref,
             alternate = alt,
             filter = filter,
+            mapping_quality = qual,
             tumor_depth = T_DP,
             normal_depth = N_DP,
             normal_alt_counts = alt_count_N,
@@ -1161,6 +1164,7 @@ sage_qc = function(
             reference = ref,
             alternate = alt,
             filter = filter,
+            mapping_quality = qual,
             tumor_depth = T_DP,
             tumor_alt_counts = alt_count_T,
             tumor_abq = T_ABQ,
