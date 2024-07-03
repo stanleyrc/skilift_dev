@@ -1,3 +1,5 @@
+library(VariantAnnotation)
+
 #' @name cov2arrowPGV
 #' @description
 #'
@@ -711,6 +713,7 @@ dlrs = function(x) {
 meta_data_json = function(
     pair,
     out_file,
+    genome = "hg19",
     coverage = NULL,
     jabba_gg = NULL,
     strelka2_vcf = NULL,
@@ -785,7 +788,7 @@ meta_data_json = function(
         warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
     } else {
         print("Found SAGE vcf, will keep both Strelka2 and SAGE in meta file")
-        sage.snv.counts.dt = SAGEcounts(sage_vcf, seqnames_genome_width = seqnames_genome_width)
+        sage.snv.counts.dt = sage_count(sage_vcf, genome=genome)
         meta.dt$sage_snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
         meta.dt$sage_snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
@@ -1038,85 +1041,41 @@ strelka_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, wri
     }
 }
 
-
-#' @name parse_vcf_SAGE
-#' @title parse_vcf_SAGE
-#' @description
-#' takes in a SAGE vcf and returns a data.table format of the vcf file with required fields for SAGE_qc function
-#' 
-#' @param vcf patient id to be added to pgvdb or case reports
-#' @param seqnames_genome_width chromosomes to count variants in
-#' @return data.table
-#' @export
-#' @author Tanubrata Dey, Stanley Clarke
-parse_vcf_SAGE = function(vcf, seqnames_genome_width = c(1:22,"X","Y")) {
-  somatic.filtered.vcf = read.delim(vcf,header=F,comment.char='#') %>% as.data.table
-  if (ncol(somatic.filtered.vcf)==11) {
-    colnames(somatic.filtered.vcf) = c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","normal","tumor")
-    ##strip chr                                                      
-    somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
-    sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
-    sub.vcf[, TIER := gsub(".*TIER=([^;]+).*", "\\1", INFO)]
-    sub.vcf[, trinuc := gsub(".*TNC=([^;]+).*", "\\1", INFO)]
-    sub.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP","T_SB") := tstrsplit(tumor, ":", fixed = TRUE)]
-    sub.vcf[, c("ref_count_T", "alt_count_T") := tstrsplit(T_AD, ",", fixed = TRUE)]
-    sub.vcf[, ref_count_T := as.numeric(ref_count_T)]
-    sub.vcf[, alt_count_T := as.numeric(alt_count_T)]
-    sub.vcf[, VAF_T := as.numeric(VAF_T)]
-    sub.vcf[, c("T_GT","T_AD","T_DP","T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP")] = NULL
-    sub.vcf[, c("N_GT", "N_ABQ", "N_AD", "VAF_N", "N_DP", "N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP","N_SB") := tstrsplit(normal, ":", fixed = TRUE)]
-    sub.vcf[, c("ref_count_N", "alt_count_N") := tstrsplit(N_AD, ",", fixed = TRUE)]
-    sub.vcf[, c("N_GT","N_AD","N_DP","N_RABQ", "N_RAD", "N_RC_CNT","N_RC_IPC","N_RC_JIT", "N_RC_QUAL", "N_RDP")] = NULL
-  sub.vcf[, ref_count_N := as.numeric(ref_count_N)]
-  sub.vcf[, alt_count_N := as.numeric(alt_count_N)]
-  sub.vcf[, VAF_N := as.numeric(VAF_N)]
-  } else if (ncol(somatic.filtered.vcf)==10) {
-    colnames(somatic.filtered.vcf) = c("CHROM","POS","ID","REF","ALT","QUAL","FILTER","INFO","FORMAT","tumor")
-    ##strip chr                                                      
-  somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
-  sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
-  sub.vcf[, TIER := gsub(".*TIER=([^;]+).*", "\\1", INFO)]
-  sub.vcf[, trinuc := gsub(".*TNC=([^;]+).*", "\\1", INFO)]
-  sub.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP","T_SB") := tstrsplit(tumor, ":", fixed = TRUE)]
-  sub.vcf[, c("ref_count_T", "alt_count_T") := tstrsplit(T_AD, ",", fixed = TRUE)]
-  sub.vcf[, ref_count_T := as.numeric(ref_count_T)]
-  sub.vcf[, alt_count_T := as.numeric(alt_count_T)]
-  sub.vcf[, VAF_T := as.numeric(VAF_T)]
-  sub.vcf[, c("T_GT","T_AD","T_DP","T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP")] = NULL
-  } else {
-    stop("SAGE VCF has unknown format, is it broken?")
-  }
-  return(sub.vcf)
-}
-
-
-#' @name SAGEcounts
-#' @title SAGEcounts
+#' @name sage_count
+#' @title sage_count
 #' @description
 #' takes in a SAGE vcf and returns a data.table with total count and count of variants with normal vaf greater than 0
 #' 
-#' @param vcf patient id to be added to pgvdb or case reports
-#' @param seqnames_genome_width chromosomes to count variants in
-#' @param type_return counts or dt, if counts returns counts for snv and snv count with a normal vaf greater than 0. If dt, returns the parsed vcf
+#' @param vcf_path Path to the SAGE VCF file
+#' @param genome Reference genome name (e.g., "hg19", "hg38")
 #' @return data.table
 #' @export
-#' @author Tanubrata Dey, Stanley Clarke
-SAGEcounts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_return = "counts") {
-  sub.vcf = parse_vcf_SAGE(vcf, seqnames_genome_width = seqnames_genome_width)
-  if(type_return == "counts") {
-    snv_count = nrow(sub.vcf)
-    if ("VAF_N" %in% colnames(sub.vcf)){
-        snv_count_normal_vaf_greater0 = nrow(sub.vcf[VAF_N > 0,])
-        return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
-                              counts = c(snv_count, snv_count_normal_vaf_greater0)))
-        } else {
-        print("Tumor only run VCF provided, no VAF_N present.")
-        return(data.table(category = c("snv_count","snv_count_normal_vaf_greater0"),
-                              counts = c(snv_count, NA)))
-        }
-    } else if (type_return == "dt") {
-        return(sub.vcf)
-    }
+#' @author Shihab Dider, Tanubrata Dey
+sage_count = function(
+    vcf_path,
+    genome
+) {
+  vcf = readVcf(vcf_path, genome)
+  
+  # Filter for PASS variants
+  pass_variants = fixed(vcf)$FILTER == "PASS"
+  vcf = vcf[pass_variants, ]
+  
+  snv_count = length(vcf)
+  
+  # Extract VAF_N from the genotype (geno) slot
+  geno_data = geno(vcf)
+  
+  if ("normal" %in% colnames(geno_data$DP)) {
+    VAF_N = as.numeric(geno_data$AF[, "normal"])
+    snv_count_normal_vaf_greater0 = sum(VAF_N > 0, na.rm = TRUE)
+    return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
+                      counts = c(snv_count, snv_count_normal_vaf_greater0)))
+  } else {
+    print("Tumor only run VCF provided, no VAF_N present.")
+    return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
+                      counts = c(snv_count, NA)))
+  }
 }
 
 
@@ -1126,38 +1085,90 @@ SAGEcounts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_return 
 #'
 #' function to create json for sage qc plotting in case reports
 #' 
-#' @param path to sage vcf file to be used (paired T-N/ Tumor only) 
-#' @param chromosomes to select for. default: c(1:22,"X","Y")
-#' @param outfile path to write json
-#' @param write_json TRUE/FALSE whether to write the json
+#' @param vcf_path Path to sage VCF file to be used (paired T-N/ Tumor only)
+#' @param genome Reference genome name (e.g., "hg19", "hg38")
+#' @param outfile Path to write JSON
+#' @param write_json TRUE/FALSE whether to write the JSON
 #' @param return_table TRUE/FALSE whether to return the data
 #' @return NULL
 #' @export 
-#' @author Tanubrata Dey
-sage_qc = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), outfile, write_json = TRUE, return_table = TRUE) {
-  sq = parse_vcf_SAGE(vcf, seqnames_genome_width = seqnames_genome_width)
-  if ("VAF_N" %in% colnames(sq)) {
-    sq = sq %>% dplyr::select(CHROM,POS,REF,ALT,FILTER,T_DP,N_DP, alt_count_N, alt_count_T, T_ABQ,VAF_T, VAF_N)
-    names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","tumor_abq", "tumor_vaf", "normal_vaf")
-    consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts","tumor_abq", "tumor_vaf", "normal_vaf")
-    sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
-  } else {
-    sq = sq %>% dplyr::select(CHROM,POS,REF,ALT,FILTER,T_DP, alt_count_T, T_ABQ,VAF_T)
-    names(sq) = c("chromosome", "position", "reference", "alternate", "filter","tumor_depth", "tumor_alt_counts","tumor_abq", "tumor_vaf")
-    consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_vaf")
-    sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
-  }
-  sq[, id := .I]
-  if(write_json) {
-  ##write the json
-    message(paste0("Writing json to ",outfile))
-    write_json(sq,outfile,pretty = TRUE)
-    if(return_table) {
-      return(sq)
+#' @author Shihab Dider, Tanubrata Dey, Stanley Clarke
+sage_qc = function(
+    vcf_path,
+    genome,
+    outfile,
+    write_json = TRUE,
+    return_table = TRUE
+) {
+    vcf = readVcf(vcf_path, genome)
+
+    # Filter for PASS variants
+    pass_variants = fixed(vcf)$FILTER == "PASS"
+    vcf = vcf[pass_variants, ]
+
+    # Extract necessary information from VCF object
+    chrom = as.character(seqnames(rowRanges(vcf)))
+    pos = start(rowRanges(vcf))
+    ref = as.character(ref(vcf))
+    alt = as.character(unlist(alt(vcf)))
+    filter = as.character(fixed(vcf)$FILTER)
+    # Extract depth and allele count information from the genotype (geno) slot
+    geno_data = geno(vcf)
+    T_DP = as.numeric(geno_data$DP[, "tumor"])
+    alt_count_T = sapply(geno_data$AD[, "tumor"], function(x) as.numeric(x[2]))  # Extract the second element for alternate allele depth
+    T_ABQ = as.numeric(geno_data$ABQ[, "tumor"])
+    VAF_T = as.numeric(geno_data$AF[, "tumor"])
+
+    # Check if normal sample data exists
+    if ("normal" %in% colnames(geno_data$DP)) {
+        N_DP = as.numeric(geno_data$DP[, "normal"])
+        alt_count_N = sapply(geno_data$AD[, "normal"], function(x) as.numeric(x[2]))  # Extract the second element for alternate allele depth
+        VAF_N = as.numeric(geno_data$AF[, "normal"])
+
+        sq = data.table(
+            chromosome = chrom,
+            position = pos,
+            reference = ref,
+            alternate = alt,
+            filter = filter,
+            tumor_depth = T_DP,
+            normal_depth = N_DP,
+            normal_alt_counts = alt_count_N,
+            tumor_alt_counts = alt_count_T,
+            tumor_abq = T_ABQ,
+            tumor_vaf = VAF_T,
+            normal_vaf = VAF_N
+        )
+
+        consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts", "tumor_abq", "tumor_vaf", "normal_vaf")
+    } else {
+        sq = data.table(
+            chromosome = chrom,
+            position = pos,
+            reference = ref,
+            alternate = alt,
+            filter = filter,
+            tumor_depth = T_DP,
+            tumor_alt_counts = alt_count_T,
+            tumor_abq = T_ABQ,
+            tumor_vaf = VAF_T
+        )
+
+        consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_vaf")
     }
-  } else {
-    return(sq)
-  }
+
+    sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
+    sq[, id := .I]
+
+    if(write_json) {
+        message(paste0("Writing json to ", outfile))
+        write_json(sq, outfile, pretty = TRUE)
+        if(return_table) {
+            return(sq)
+        }
+    } else {
+        return(sq)
+    }
 }
 
 
