@@ -1152,11 +1152,11 @@ sage_qc = function(
             normal_alt_counts = alt_count_N,
             tumor_alt_counts = alt_count_T,
             tumor_abq = T_ABQ,
-            tumor_VAF = VAF_T,
+            tumor_vaf = VAF_T,
             normal_vaf = VAF_N
         )
 
-        consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts", "tumor_abq", "tumor_VAF", "normal_vaf")
+        consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts", "tumor_abq", "tumor_vaf", "normal_vaf")
     } else {
         sq = data.table(
             chromosome = chrom,
@@ -1168,10 +1168,10 @@ sage_qc = function(
             tumor_depth = T_DP,
             tumor_alt_counts = alt_count_T,
             tumor_abq = T_ABQ,
-            tumor_VAF = VAF_T
+            tumor_vaf = VAF_T
         )
 
-        consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_VAF")
+        consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_vaf")
     }
 
     sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
