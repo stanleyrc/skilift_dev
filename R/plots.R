@@ -787,10 +787,10 @@ meta_data_json = function(
     if(is.null(sage_vcf) || sage_vcf == "") {
         warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
     } else {
-        print("Found SAGE vcf, will keep both Strelka2 and SAGE in meta file")
+        print("Found SAGE vcf, will use SAGE counts in meta file over Strelka2...")
         sage.snv.counts.dt = sage_count(sage_vcf, genome=genome)
-        meta.dt$sage_snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
-        meta.dt$sage_snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+        meta.dt$snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
+        meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
     ## vcf.gr = read_vcf(vcf)
     ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
@@ -1122,6 +1122,8 @@ sage_qc = function(
     ref = as.character(ref(vcf))
     alt = as.character(unlist(alt(vcf)))
     filter = as.character(fixed(vcf)$FILTER)
+    qual = as.numeric(fixed(vcf)$QUAL)
+
     # Extract depth and allele count information from the genotype (geno) slot
     geno_data = geno(vcf)
     normal = colnames(geno_data$DP)[1]
@@ -1144,16 +1146,17 @@ sage_qc = function(
             reference = ref,
             alternate = alt,
             filter = filter,
+            mapping_quality = qual,
             tumor_depth = T_DP,
             normal_depth = N_DP,
             normal_alt_counts = alt_count_N,
             tumor_alt_counts = alt_count_T,
             tumor_abq = T_ABQ,
-            tumor_vaf = VAF_T,
+            tumor_VAF = VAF_T,
             normal_vaf = VAF_N
         )
 
-        consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts", "tumor_abq", "tumor_vaf", "normal_vaf")
+        consider_numeric = c("tumor_depth", "normal_depth", "normal_alt_counts", "tumor_alt_counts", "tumor_abq", "tumor_VAF", "normal_vaf")
     } else {
         sq = data.table(
             chromosome = chrom,
@@ -1161,13 +1164,14 @@ sage_qc = function(
             reference = ref,
             alternate = alt,
             filter = filter,
+            mapping_quality = qual,
             tumor_depth = T_DP,
             tumor_alt_counts = alt_count_T,
             tumor_abq = T_ABQ,
-            tumor_vaf = VAF_T
+            tumor_VAF = VAF_T
         )
 
-        consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_vaf")
+        consider_numeric = c("tumor_depth", "tumor_alt_counts", "tumor_abq", "tumor_VAF")
     }
 
     sq[, (consider_numeric) := lapply(.SD, as.numeric), .SDcols = consider_numeric]
