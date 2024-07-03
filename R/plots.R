@@ -1223,7 +1223,7 @@ create_distributions = function(case_reports_data_folder,common_folder, filter_p
     } else {
         sv.dt = NULL
     }
-    if(all(c("log_fraction","loh_seglen","loh_total_genome") %in% names(jsons.dt))) {
+    if(all(c("loh_fraction","loh_seglen","loh_total_genome") %in% names(jsons.dt))) {
         ##loh
         loh.dt = jsons.dt[,.(pair, tumor_type,loh_fraction,loh_seglen,loh_total_genome)] %>% setnames(.,c("pair","tumor_type","value","LOH_seg_len","genome_width"))
     } else {
@@ -1428,7 +1428,7 @@ arrow_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, chart
 #' @export
 #' @author Stanley Clarke
 
-genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, max.cn = NULL,annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
+genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, max.cn = NULL,annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','cpxdm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
                                         #use type = allelic to make a color a genome graph
     dt1 = data.table(patient.id = patient_id,
                      type = type,
