@@ -13,8 +13,8 @@ genome_temp(
   visible = TRUE,
   title = NA,
   max.cn = NULL,
-  annotation = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "dup",
-    "pyrgo", "rigma", "simple", "tic", "tyfonas")),
+  annotation = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm",
+    "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas")),
   overwrite = FALSE
 )
 }
