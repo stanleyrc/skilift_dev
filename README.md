@@ -1,5 +1,5 @@
 # Skilift
-Faciliates easier loading and manipulation of genomic data for use with [PGV](https://github.com/mskilab-org/pgv) and[Case Reports](https://github.com/mskilab-org/case-report).
+Faciliates easier loading and manipulation of genomic data for use with [PGV](https://github.com/mskilab-org/pgv) and[Case Report](https://github.com/mskilab-org/case-report).
 
 # Installation
 - To install directly from github: `devtools::install_github("mskilab-org/skilift")`
@@ -8,16 +8,16 @@ Faciliates easier loading and manipulation of genomic data for use with [PGV](ht
     2. `devtools::load_all("path/to/clone")`
 
 # Usage
-The PGVdb class manages a database of patient metadata and genomic plot data. It provides an interface to load, update, query, and manipulate the database programmatically.
+The Skilift class manages a database of patient metadata and genomic plot data. It provides an interface to load, update, query, and manipulate the database programmatically.
 
 The key methods allow converting to/from JSON for data storage, validating the data, adding/removing plots, and generating plot JSON for visualization. The metadata and plots are stored as data tables for easy manipulation.
 
-The conversion methods can also be used in isolation without having to instantiate a PGVdb object. 
+The conversion methods can also be used in isolation without having to instantiate a Skilift object. 
 This is useful for generating JSON files for use with Case Reports.
 
 ## Methods
-The following methods are for the PGVdb class:
-- `initialize(datafiles_json_path, datadir, settings)`: Initialize a new PGVdb object
+The following methods are for the Skilift class:
+- `initialize(datafiles_json_path, datadir, settings)`: Initialize a new Skilift object
 
 - `update_datafiles_json()`: Update JSON data files on disk 
 
@@ -72,10 +72,10 @@ settings is the path to the settings file (you can use the pgv one). It's requir
 
 ### Constructor
 ```r
-pgvdb <- PGVdb$new(datafiles_json_path, datadir, settings)
+pgvdb <- Skilift$new(datafiles_json_path, datadir, settings)
 ```
 
-Create a new PGVdb object by passing the path to the datafiles.json, data directory, and settings file.
+Create a new Skilift object by passing the path to the datafiles.json, data directory, and settings file.
 
 ### update_datafiles_json
 ```r
@@ -201,7 +201,7 @@ first, before uploading other files.
 endpoint <- "http://10.1.29.225:8000/api/v1/tilesets/" # dev endpoint
 pgvdb$upload_to_higlass(
     endpoint,
-    datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "PGVdb"),
+    datafile = system.file("extdata", "test_data", "chromSizes.tsv", package = "Skilift"),
     filetype = "chromsizes-tsv",
     datatype = "chromsizes",
     coordSystem = "hg38",
@@ -213,7 +213,7 @@ pgvdb$upload_to_higlass(
 
 pgvdb$upload_to_higlass(
     endpoint,
-    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "PGVdb"),
+    datafile = system.file("extdata", "test_data", "higlass_test_bigwig.bw", package = "Skilift"),
     name = "test_bigwig",
     filetype = "bigwig",
     datatype = "vector",

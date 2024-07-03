@@ -4,28 +4,22 @@
 \alias{sage_qc}
 \title{sage_qc}
 \usage{
-sage_qc(
-  vcf,
-  seqnames_genome_width = c(1:22, "X", "Y"),
-  outfile,
-  write_json = TRUE,
-  return_table = TRUE
-)
+sage_qc(vcf_path, genome, outfile, write_json = TRUE, return_table = TRUE)
 }
 \arguments{
-\item{outfile}{path to write json}
+\item{vcf_path}{Path to sage VCF file to be used (paired T-N/ Tumor only)}
 
-\item{write_json}{TRUE/FALSE whether to write the json}
+\item{genome}{Reference genome name (e.g., "hg19", "hg38")}
+
+\item{outfile}{Path to write JSON}
+
+\item{write_json}{TRUE/FALSE whether to write the JSON}
 
 \item{return_table}{TRUE/FALSE whether to return the data}
-
-\item{path}{to sage vcf file to be used (paired T-N/ Tumor only)}
-
-\item{chromosomes}{to select for. default: c(1:22,"X","Y")}
 }
 \description{
 function to create json for sage qc plotting in case reports
 }
 \author{
-Tanubrata Dey
+Shihab Dider, Tanubrata Dey, Stanley Clarke
 }

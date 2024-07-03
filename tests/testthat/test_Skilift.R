@@ -582,6 +582,20 @@ test_that("you can mix pgv and case-report datafiles/datadir", {
 
 })
 
+### json generation methods
+
+# Sage
+test_that("sage methods work correctly", {
+  pgv <- reset_skilift()
+  test_meta_pairs = readRDS("/gpfs/commons/home/sclarke/git/pgvdb_test_data/test.meta_pairs.rds")
+  sage_vcf_gz = test_meta_pairs[1]$sage_somatic_variants
+  sage_dt = sage_qc(sage_vcf_gz, "hg19", write_json = FALSE, return_table = TRUE)
+  sage_count = sage_count(sage_vcf_gz, "hg19")
+
+  expect_true(!is.null(sage_dt) && length(sage_dt) > 0)
+  expect_true(!is.null(sage_count) && length(sage_count) > 0)
+})
+
 
 ### Debugging
 
@@ -743,6 +757,7 @@ test_that("allelic plots upload correctly", {
 })
 
 
+
 test_that("mutation plots upload correctly", {
     skilift = getPGV()
     nrow1 = nrow(skilift$plots)
@@ -768,6 +783,8 @@ test_that("filtered events jsons created", {
 })
 
 
+somatic.filtered.vcf = read.delim(test_meta_pairs$sage_somatic_variants, header=F,comment.char='#') %>% as.data.table
+sub.vcf = somatic.filtered.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_RABQ", "T_RAD", "T_RC_CNT","T_RC_IPC","T_RC_JIT", "T_RC_QUAL", "T_RDP","T_SB") := tstrsplit(V11, ":", fixed = TRUE)]
 
 test_that("metadata json created", {
     skilift = getPGV() ## just used to get path for output
