@@ -1055,27 +1055,29 @@ sage_count = function(
     vcf_path,
     genome
 ) {
-  vcf = readVcf(vcf_path, genome)
-  
-  # Filter for PASS variants
-  pass_variants = fixed(vcf)$FILTER == "PASS"
-  vcf = vcf[pass_variants, ]
-  
-  snv_count = length(vcf)
-  
-  # Extract VAF_N from the genotype (geno) slot
-  geno_data = geno(vcf)
-  
-  if ("normal" %in% colnames(geno_data$DP)) {
-    VAF_N = as.numeric(geno_data$AF[, "normal"])
-    snv_count_normal_vaf_greater0 = sum(VAF_N > 0, na.rm = TRUE)
-    return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
-                      counts = c(snv_count, snv_count_normal_vaf_greater0)))
-  } else {
-    print("Tumor only run VCF provided, no VAF_N present.")
-    return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
-                      counts = c(snv_count, NA)))
-  }
+    vcf = readVcf(vcf_path, genome)
+
+    # Filter for PASS variants
+    pass_variants = fixed(vcf)$FILTER == "PASS"
+    vcf = vcf[pass_variants, ]
+
+    snv_count = length(vcf)
+
+    # Extract VAF_N from the genotype (geno) slot
+    geno_data = geno(vcf)
+    normal = colnames(geno_data$DP)[1]
+    tumor = colnames(geno_data$DP)[2]
+
+    if (normal %in% colnames(geno_data$DP)) {
+        VAF_N = as.numeric(geno_data$AF[, normal])
+        snv_count_normal_vaf_greater0 = sum(VAF_N > 0, na.rm = TRUE)
+        return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
+            counts = c(snv_count, snv_count_normal_vaf_greater0)))
+    } else {
+        print("Tumor only run VCF provided, no VAF_N present.")
+        return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
+            counts = c(snv_count, NA)))
+    }
 }
 
 
@@ -1114,16 +1116,19 @@ sage_qc = function(
     filter = as.character(fixed(vcf)$FILTER)
     # Extract depth and allele count information from the genotype (geno) slot
     geno_data = geno(vcf)
-    T_DP = as.numeric(geno_data$DP[, "tumor"])
-    alt_count_T = sapply(geno_data$AD[, "tumor"], function(x) as.numeric(x[2]))  # Extract the second element for alternate allele depth
-    T_ABQ = as.numeric(geno_data$ABQ[, "tumor"])
-    VAF_T = as.numeric(geno_data$AF[, "tumor"])
+    normal = colnames(geno_data$DP)[1]
+    tumor = colnames(geno_data$DP)[2]
+
+    T_DP = as.numeric(geno_data$DP[, tumor])
+    alt_count_T = sapply(geno_data$AD[, tumor], function(x) as.numeric(x[2]))  # Extract the second element for alternate allele depth
+    T_ABQ = as.numeric(geno_data$ABQ[, tumor])
+    VAF_T = as.numeric(geno_data$AF[, tumor])
 
     # Check if normal sample data exists
-    if ("normal" %in% colnames(geno_data$DP)) {
-        N_DP = as.numeric(geno_data$DP[, "normal"])
-        alt_count_N = sapply(geno_data$AD[, "normal"], function(x) as.numeric(x[2]))  # Extract the second element for alternate allele depth
-        VAF_N = as.numeric(geno_data$AF[, "normal"])
+    if (normal %in% colnames(geno_data$DP)) {
+        N_DP = as.numeric(geno_data$DP[, normal])
+        alt_count_N = sapply(geno_data$AD[, normal], function(x) as.numeric(x[2]))  # Extract the second element for alternate allele depth
+        VAF_N = as.numeric(geno_data$AF[, normal])
 
         sq = data.table(
             chromosome = chrom,
