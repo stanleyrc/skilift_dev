@@ -7,6 +7,7 @@
 meta_data_json(
   pair,
   out_file,
+  genome = "hg19",
   coverage = NULL,
   jabba_gg = NULL,
   strelka2_vcf = NULL,
