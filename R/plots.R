@@ -787,10 +787,10 @@ meta_data_json = function(
     if(is.null(sage_vcf) || sage_vcf == "") {
         warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
     } else {
-        print("Found SAGE vcf, will keep both Strelka2 and SAGE in meta file")
+        print("Found SAGE vcf, will use SAGE counts in meta file over Strelka2...")
         sage.snv.counts.dt = sage_count(sage_vcf, genome=genome)
-        meta.dt$sage_snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
-        meta.dt$sage_snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+        meta.dt$snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
+        meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
     ## vcf.gr = read_vcf(vcf)
     ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
@@ -856,6 +856,10 @@ meta_data_json = function(
         meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
+    } else {
+        meta.dt$deletionInsertion = list()
+        meta.dt$sigprofiler_indel_fraction = list()
+        meta.dt$sigprofiler_indel_count = list()
     }
 
     if(!is.null(sbs_sigprofiler)) {
@@ -863,6 +867,10 @@ meta_data_json = function(
         meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
         meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
         meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
+    } else {
+        meta.dt$sigprofiler_sbs_fraction = list()
+        meta.dt$sigprofiler_sbs_count = list()
+        meta.dt$signatures = list()
     }
     ## end add signatures
     if(write_json) {

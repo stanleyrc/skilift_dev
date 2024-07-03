@@ -788,6 +788,7 @@ sub.vcf = somatic.filtered.vcf[, c("T_GT", "T_ABQ", "T_AD", "VAF_T", "T_DP", "T_
 
 test_that("metadata json created", {
     skilift = getPGV() ## just used to get path for output
+    skilift <- reset_skilift()
     pair = test_meta_pairs$pair
     out.file = gsub("settings.json","test_metadata.json",skilift$settings)
     meta.dt = meta_data_json(pair = pair,
@@ -796,19 +797,18 @@ test_that("metadata json created", {
                              jabba_gg = test_meta_pairs[pair,complex],
                              svaba_somatic_vcf = test_meta_pairs[pair,svaba_somatic_vcf],
                              seqnames_loh = c(1:22),
-                             karyograph = test.meta.pairs[pair,karyograph_rds],
-                             strelka2_vcf = test.meta.pairs[pair,strelka2_somatic_filtered_variants],
-                             sage_vcf = test.meta.pairs[pair,sage_somatic_variants],
-                             tumor_type = test.meta.pairs[pair,tumor_type_final],
-                             disease = test.meta.pairs[pair,disease],
-                             primary_site = test.meta.pairs[pair,primary_site_simple],
-                             inferred_sex = test.meta.pairs[pair,inferred_sex],
+                             karyograph = test_meta_pairs[pair,karyograph_rds],
+                             strelka2_vcf = test_meta_pairs[pair,strelka2_somatic_filtered_variants],
+                             sage_vcf = test_meta_pairs[pair,sage_somatic_variants],
+                             tumor_type = test_meta_pairs[pair,tumor_type_final],
+                             disease = test_meta_pairs[pair,disease],
+                             primary_site = test_meta_pairs[pair,primary_site_simple],
+                             inferred_sex = test_meta_pairs[pair,inferred_sex],
                              seqnames_genome_width = c(1:22,"X","Y"),
                              write_json = TRUE,
                              overwrite = FALSE)
     expect_true(file.exists(out.file))
 })
-
 ##create distributions
 test_that("metadata json created", {
     skilift = getPGV() ## just used to get path for output
