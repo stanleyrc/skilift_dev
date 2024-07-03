@@ -856,6 +856,10 @@ meta_data_json = function(
         meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
+    } else {
+        meta.dt$deletionInsertion = list()
+        meta.dt$sigprofiler_indel_fraction = list()
+        meta.dt$sigprofiler_indel_count = list()
     }
 
     if(!is.null(sbs_sigprofiler)) {
@@ -863,6 +867,10 @@ meta_data_json = function(
         meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
         meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
         meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
+    } else {
+        meta.dt$sigprofiler_sbs_fraction = list()
+        meta.dt$sigprofiler_sbs_count = list()
+        meta.dt$signatures = list()
     }
     ## end add signatures
     if(write_json) {
