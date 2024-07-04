@@ -582,7 +582,7 @@ test_that("you can mix pgv and case-report datafiles/datadir", {
 
 })
 
-### json generation methods
+### plot generation methods
 
 # Sage
 test_that("sage methods work correctly", {
@@ -596,6 +596,27 @@ test_that("sage methods work correctly", {
   expect_true(!is.null(sage_count) && length(sage_count) > 0)
 })
 
+# hetsnps.arrow
+test_that("hetsnps.arrow generation works correctly", {
+    pgv <- reset_skilift()
+    pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
+    pairs = readRDS(pairs_path)
+    het_pileups_wgs_path = pairs[1]$het_pileups_wgs
+    subset.hets.gr = subset_hetsnps(het_pileups_wgs=het_pileups_wgs_path, mask=NULL)
+    genome.add = arrow_temp(
+        patient_id = pairs[1,pair],
+        x = list(subset.hets.gr),
+        ref = "hg19",
+        field = "count",
+        title = "HET SNPS SUBSETTED",
+        order = 50
+    )
+
+    genome.add$source = "hetsnps.arrow"
+
+    pgv$add_plots(genome.add, cores = 40)
+    expect_equal(nrow(pgv$plots), 14)
+})
 
 ### Debugging
 
