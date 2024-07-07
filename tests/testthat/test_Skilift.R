@@ -602,7 +602,7 @@ test_that("hetsnps.arrow generation works correctly", {
     pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
     pairs = readRDS(pairs_path)
     het_pileups_wgs_path = pairs[1]$het_pileups_wgs
-    subset.hets.gr = subset_hetsnps(het_pileups_wgs=het_pileups_wgs_path, mask=NULL)
+    subset.hets.gr = subsample_hetsnps(het_pileups_wgs=het_pileups_wgs_path)
     genome.add = arrow_temp(
         patient_id = pairs[1,pair],
         x = list(subset.hets.gr),
@@ -616,6 +616,35 @@ test_that("hetsnps.arrow generation works correctly", {
 
     pgv$add_plots(genome.add, cores = 40)
     expect_equal(nrow(pgv$plots), 14)
+})
+
+test_that("mutation catalog generation works correctly", {
+    pgv <- reset_skilift()
+    indel_matrix = "~/../spanja/Projects/casereports/clinical_ip/output/ID/clinical_ip.ID28.all"
+    create_mutations_catalog_json(
+        sig_matrix_path=indel_matrix,
+        is_indel=TRUE,
+        output_dir="./test_mut_catalog/"
+    )
+    sbs_matrix = "~/../spanja/Projects/casereports/clinical_ip/output/SBS/clinical_ip.SBS96.all"
+    create_mutations_catalog_json(
+        sig_matrix_path=sbs_matrix,
+        is_indel=TRUE,
+        output_dir="./test_mut_catalog/"
+    )
+
+    indel_matrix_test = "~/Projects/nf-casereports/tests/test_runs/chr21_test_results/signatures/sigprofilerassignment/somatic/JTS-1501_T_vs_JTS-1501_N/sig_inputs/output/ID/Input_vcffiles.ID28.all"
+    create_mutations_catalog_json(
+        sig_matrix_path=indel_matrix_test,
+        is_indel=TRUE,
+        output_dir="./test_mut_catalog_2/"
+    )
+    sbs_matrix_test = "~/Projects/nf-casereports/tests/test_runs/chr21_test_results/signatures/sigprofilerassignment/somatic/JTS-1501_T_vs_JTS-1501_N/sig_inputs/output/SBS/Input_vcffiles.SBS96.all"
+    create_mutations_catalog_json(
+        sig_matrix_path=sbs_matrix_test,
+        is_indel=FALSE,
+        output_dir="./test_mut_catalog_2/"
+    )
 })
 
 ### Debugging
