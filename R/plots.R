@@ -1060,6 +1060,59 @@ dlrs = function(x) {
 }
 
 
+#' @name create_mutations_catalog_json
+#' @title create_mutations_catalog_json
+#' @description
+#'
+#' Builds the mutations catalog for case reports using the output of sigprofiler matrix generator
+#' 
+#' @param sig_matrix_path Path to either the SBS or ID matrix
+#' @param is_indel Boolean to indicate if the matrix is for indels
+#' @param output_dir directory to write the jsons, will create directory for each patient id
+#' @return 
+#' @export
+#' @author Shihab Dider, Sukanya Panja
+create_mutations_catalog_json = function(
+    sig_matrix_path,
+    is_indel,
+    output_dir
+) {
+    sig_matrix = fread(sig_matrix_path)
+    sig_matrix_dt = as.data.frame(sig_matrix)
+    rownames(sig_matrix_dt) = sig_matrix_dt$MutationType
+    print(ncol(sig_matrix_dt))
+    if (ncol(sig_matrix_dt) > 2) {
+        sig_matrix_dt = sig_matrix_dt[, -1]
+    }
+    samp = colnames(sig_matrix_dt)
+    tnc_mut = list()
+    for(i in 1:ncol(sig_matrix_dt)) {
+        pair = samp[i]
+        samp_data = as.data.frame(sig_matrix_dt[,i])
+        samp_data$tnc = rownames(sig_matrix_dt)
+        samp_data$id = 1:nrow(samp_data)
+
+        if (is_indel) {
+            dt_colnames = c("id", "insdel", "mutations")
+            catalog_file_name = "id_mutation_catalog.json"
+        } else {
+            dt_colnames = c("id", "mutations", "tnc")
+            catalog_file_name = "mutation_catalog.json"
+        }
+        colnames(samp_data) = dt_colnames
+        samp_data = samp_data[, dt_colnames]
+        pair_data <- list(pair = pair, data = samp_data)
+        system(paste("mkdir -p", paste0(output_dir, "/", pair)))
+        mut_path = paste0(output_dir, "/", pair)
+        write_json(
+            pair_data,
+            paste0(mut_path, "/", catalog_file_name),
+            pretty=TRUE,
+            auto_unbox=TRUE
+        )
+    }
+}
+
 #' @name meta_data_json
 #' @title meta_data_json
 #' @description
@@ -1281,7 +1334,14 @@ meta_data_json = function(
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
 
-create_distributions = function(case_reports_data_folder,common_folder, filter_patients = NULL, write_jsons = TRUE, make_sub_folders = TRUE, cores = 1) {
+create_distributions = function(
+    case_reports_data_folder,
+    common_folder,
+    filter_patients = NULL,
+    write_jsons = TRUE,
+    make_sub_folders = TRUE,
+    cores = 1
+) {
     case_reports_data_folder = paste0(case_reports_data_folder,"/")  ## just add a slash in case not added
     common_folder = paste0(common_folder,"/")  ## just add a slash in case not added
     if(write_jsons) {
