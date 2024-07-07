@@ -69,6 +69,84 @@ cov2arrowPGV = function(cov,
     return(output_file)
 }
 
+#' @name grab.hets
+#' @title grab.hets
+#'
+#' @description
+#'
+#' returns allele gtrack given sites.txt from het pileup
+#'
+#' @param agt.fname (character) path to sites.txt
+#' @param min.frac (numeric) between 0 and 1, min frequency in normal to count as het site
+#' @param max.frac (numeric) between 0 and 1, max frequency in normal to count as het site
+#' 
+#' @return allele gTrack
+grab.hets = function(agt.fname = NULL,
+                     min.frac = 0.2,
+                     max.frac = 0.8)
+{
+    if (is.null(agt.fname) || !file.exists(agt.fname)) {
+        stop("agt.fname does not exist")
+    }
+
+    ## prepare and filter
+    agt.dt = fread(agt.fname)[alt.frac.n > min.frac & alt.frac.n < max.frac,]
+    ## add major and minor
+    agt.dt[, which.major := ifelse(alt.count.t > ref.count.t, "alt", "ref")]
+    agt.dt[, major.count := ifelse(which.major == "alt", alt.count.t, ref.count.t)]
+    agt.dt[, minor.count := ifelse(which.major == "alt", ref.count.t, alt.count.t)]
+
+    ## melt the data frame
+    agt.melted = rbind(agt.dt[, .(seqnames, start, end, count = major.count, allele = "major")],
+                       agt.dt[, .(seqnames, start, end, count = minor.count, allele = "minor")]
+                       )
+
+    ## make GRanges
+    agt.gr = dt2gr(agt.melted[, .(seqnames, start, end, count, allele)])
+
+    return (agt.gr)
+}
+
+#' @name subsample_hetsnps
+#' @title subsample_hetsnps
+#' @description subsets the hetsnps to masked unique sites and colors by major/minor allele
+#'
+#' @param het_pileups_wgs sites.txt from het pileup
+#' @param mask rds file with masked regions
+#' @param sample_size number of snps to randomly sample
+#' @export
+#' @author Jonathan Rafailov, Shihab Dider
+subsample_hetsnps = function(
+    het_pileups_wgs,
+    mask=NULL,
+    sample_size = 100000
+) {
+    if (is.null(het_pileups_wgs)) {
+        stop("het_pileups_wgs does not exist")
+    }
+    if (is.null(mask)) {
+        warning("mask does not exist, using default mask included with package.")
+        maska_path = system.file("extdata", "data", "maskA_re.rds", package = "Skilift")
+        maska = readRDS(maska_path)
+    }
+
+    hets.gr <- grab.hets(het_pileups_wgs)
+    hets.gr = gr.val(hets.gr, maska, "mask")
+    hets.gr = hets.gr %Q% (is.na(mask))
+    hets.gr$mask = NULL
+    # lets call major blue and minor red
+    hets.gr$col <- c("major" = "red", "minor" = "blue")[hets.gr$allele]
+
+    #lets subset a random amount of SNPS so we're under 250k points
+    unique.snps = unique(gr2dt(hets.gr)[,.(seqnames, start,end)])
+    n_snps = nrow(unique.snps)
+    snps.to.include = unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
+    subset.hets.gr = hets.gr %&% snps.to.include
+
+    return(hets.gr)
+}
+
+
 #' @description
 #' Create coverage arrow plot JSON file.
 #'
@@ -413,6 +491,7 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
         warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
     }
 }
+
 #' @description
 #' Create ppfit gGraph JSON file.
 #'
@@ -653,236 +732,6 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
         if(return_table) {
             return(res.final)
         }
-    }
-}
-
-#' @name dlrs
-#' @title derivative log ratio spread
-#' @description
-#'
-#' function to get the dlrs for coverage data
-#' used in meta_data_json
-#' 
-#' @param x foreground from dryclean
-#' @return dlrs
-#' @export
-#' @author Joel Rosiene
-dlrs = function(x) {
-    nx = length(x)
-    if (nx<3) {
-        stop("Vector length>2 needed for computation")
-    }
-    tmp = embed(x,2)
-    diffs = tmp[,2]-tmp[,1]
-    dlrs = IQR(diffs,na.rm=TRUE)/(sqrt(2)*1.34)
-    return(dlrs)
-}
-
-
-#' @name meta_data_json
-#' @title meta_data_json
-#' @description
-#'
-#' function to create the meta data summary json for case reports
-#' 
-#' @param pair patient id to be added to pgvdb or case reports
-#' @param out_file path to write json
-#' @param coverage path dryclean coverage output
-#' @param jabba_gg path to JaBbA output ggraph or complex
-#' @param strelka2_vcf path to strelka vcf to get snv count
-#' @param sage_vcf path to SAGE vcf to get snv count (if present)
-#' @param svaba_somatic_vcf path to svaba somatic vcf for getting sv count
-#' @param tumor_type_final tumor type abbreviation of the sample
-#' @param disease full length tumor type
-#' @param primary_site primary site of tumor
-#' @param inferred_sex sex of the patient
-#' @param karyograph JaBbA outputted karygraph
-#' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
-#' @param sbs_deconstructSigs path to rds output from deconstructSigs
-#' @param sbs_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler 
-#' @param seqnames_loh chromosomes to be used to calculate LOH
-#' @param seqnames_genome_width chromosomes to be used to calculate tmb
-#' @param write_json TRUE/FALSE to write the json
-#' @param overwrite TRUE/FALSE to overwrite the present json
-#' @param return_table TRUE/FALSE to return the data.table output
-#' @param make_dir TRUE/FALSE make the directory for the patient sample if it does not exists
-#' @return data.table or NULL
-#' @export
-#' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
-
-meta_data_json = function(
-    pair,
-    out_file,
-    genome = "hg19",
-    coverage = NULL,
-    jabba_gg = NULL,
-    strelka2_vcf = NULL,
-    sage_vcf = NULL,
-    svaba_somatic_vcf = NULL,
-    tumor_type = NULL,
-    disease = NULL,
-    primary_site = NULL,
-    inferred_sex = NULL,
-    karyograph = NULL,
-    indel_sigprofiler = NULL,
-    sbs_sigprofiler = NULL,
-    sbs_deconstructSigs = NULL,
-    seqnames_loh = c(1:22),
-    seqnames_genome_width = c(1:22,"X","Y"),
-    write_json = TRUE,
-    overwrite = FALSE,
-    return_table = FALSE,
-    make_dir = FALSE
-) {
-    if(!overwrite && write_json == TRUE) {
-        if(file.exists(out_file)) {
-            print(paste0('Output already exists! - skipping sample ',pair))
-            return(NA)
-        }
-    }
-    ## check if directory exists
-    ## get folder
-    split_file_path = strsplit(out_file, "/")[[1]]
-    folder_path = paste0(split_file_path[1:(length(split_file_path)-1)], collapse = "/")
-    if(!make_dir) {
-        if(!file.exists(folder_path)) {
-            print(paste0('Folder does not exist; skipping sample ', pair,". Use make_dir = TRUE to make directory"))
-            return(NA)
-        }
-    }
-    if(make_dir) {
-        if(!file.exists(folder_path)) {
-            cmd = paste0("mkdir -p ", folder_path)
-            print(paste0('Making directory ', folder_path))
-            system(cmd)
-        }
-    }
-    ## meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
-
-    meta.dt = data.table(pair = pair)
-    if(!is.null(tumor_type)) {
-        meta.dt[, tumor_type := tumor_type]
-    }
-    if(!is.null(disease)) {
-        meta.dt[, disease := disease]
-    }
-    if(!is.null(primary_site)) {
-        meta.dt[, primary_site := primary_site]
-    }
-    if(!is.null(inferred_sex)) {
-        meta.dt[, inferred_sex := inferred_sex]
-    }
-    
-    ##get derivate log ratio spread
-    if(!is.null(coverage)) {
-        meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
-    }
-    ##Load this case's counts
-    ## meta.dt$snv_count = length(read_vcf(vcf))
-    if(!is.null(strelka2_vcf)) {
-        snv.counts.dt = strelka2counts(strelka2_vcf, seqnames_genome_width = seqnames_genome_width)
-        meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
-        meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
-    }
-    if(is.null(sage_vcf) || sage_vcf == "") {
-        warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
-    } else {
-        print("Found SAGE vcf, will use SAGE counts in meta file over Strelka2...")
-        sage.snv.counts.dt = sage_count(sage_vcf, genome=genome)
-        meta.dt$snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
-        meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
-    }
-    ## vcf.gr = read_vcf(vcf)
-    ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
-    ## meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
-    ## Count svs, want to count junctions as well as svs
-    # gg = readRDS(jabba_gg)
-    ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
-    ## meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
-    if(!is.null(jabba_gg)) {
-        ## count just junctions plus loose divided by 2, for sv counts for now
-        gg = readRDS(jabba_gg)
-        ## meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-        meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-        meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
-        meta.dt[,sv_count := (junction_count + (loose_count / 2))]
-                                        #get loh
-        nodes.dt = gg$nodes$dt
-        nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
-        nodes.dt = gg$nodes$dt[seqnames %in% seqnames_loh]
-        totalseglen = nodes.dt$width %>% sum()
-
-        if('cn.low' %in% names(nodes.dt)) {
-            LOHsegs = nodes.dt[cn.low==0,] %>% .[cn.high >0] %>% .$width %>% sum()
-            ## LOH
-            LOH_frc = LOHsegs/totalseglen
-            meta.dt[,loh_fraction := LOH_frc]
-            meta.dt[,loh_seglen := LOHsegs]
-            meta.dt[,loh_total_genome := totalseglen]
-        } else {
-            meta.dt$loh_fraction = 'Not Allelic Jabba'
-        }
-        ##add purity and ploidy
-        meta.dt$purity = gg$meta$purity
-        meta.dt$ploidy = gg$meta$ploidy
-        ##add the total seqlengths by using the seqlengths in the jabba object
-        nodes.gr = gg$nodes$gr
-        seqlengths.dt =suppressWarnings(as.data.table(seqinfo(nodes.gr), keep.rownames = "seqnames")) #had to supress, says other arguments ignored
-        seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
-        seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
-        meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
-
-    }
-    ## Load beta/gamma for karyograph
-    if(!is.null(karyograph)) {
-        kag = readRDS(karyograph)
-        meta.dt$beta = kag$beta
-        meta.dt$gamma = kag$gamma
-    }
-    ##add tmb
-    if(("snv_count" %in% names(meta.dt)) & ("total_genome_length" %in% names(meta.dt))) {
-        meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
-        meta.dt[,tmb := round(tmb, digits = 3)]
-    }
-    ## add signatures that are present
-    if(!is.null(sbs_deconstructSigs)) {
-        signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = pair)
-        ## meta.dt$signatures = list(as.list(signatures)) # Changed default to sigprofiler
-        meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
-    }
-    if(!is.null(indel_sigprofiler)) {
-        ## browser()
-        deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = pair)
-        meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
-        meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
-        meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
-    } else {
-        meta.dt$deletionInsertion = list()
-        meta.dt$sigprofiler_indel_fraction = list()
-        meta.dt$sigprofiler_indel_count = list()
-    }
-
-    if(!is.null(sbs_sigprofiler)) {
-        signatures = sbs_sigprofiler2meta(sbs_file = sbs_sigprofiler, sample = pair)
-        meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
-        meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
-        meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
-    } else {
-        meta.dt$sigprofiler_sbs_fraction = list()
-        meta.dt$sigprofiler_sbs_count = list()
-        meta.dt$signatures = list()
-    }
-    ## end add signatures
-    if(write_json) {
-        ##write the json
-        message(paste0("Writing json to ",out_file))
-        write_json(meta.dt,out_file,pretty = TRUE, auto_unbox=TRUE)
-        if(return_table) {
-            return(meta.dt)
-        }
-        
-    } else {
-        return(meta.dt)
     }
 }
 
@@ -1188,6 +1037,236 @@ sage_qc = function(
     }
 }
 
+#' @name dlrs
+#' @title derivative log ratio spread
+#' @description
+#'
+#' function to get the dlrs for coverage data
+#' used in meta_data_json
+#' 
+#' @param x foreground from dryclean
+#' @return dlrs
+#' @export
+#' @author Joel Rosiene
+dlrs = function(x) {
+    nx = length(x)
+    if (nx<3) {
+        stop("Vector length>2 needed for computation")
+    }
+    tmp = embed(x,2)
+    diffs = tmp[,2]-tmp[,1]
+    dlrs = IQR(diffs,na.rm=TRUE)/(sqrt(2)*1.34)
+    return(dlrs)
+}
+
+
+#' @name meta_data_json
+#' @title meta_data_json
+#' @description
+#'
+#' function to create the meta data summary json for case reports
+#' 
+#' @param pair patient id to be added to pgvdb or case reports
+#' @param out_file path to write json
+#' @param coverage path dryclean coverage output
+#' @param jabba_gg path to JaBbA output ggraph or complex
+#' @param strelka2_vcf path to strelka vcf to get snv count
+#' @param sage_vcf path to SAGE vcf to get snv count (if present)
+#' @param svaba_somatic_vcf path to svaba somatic vcf for getting sv count
+#' @param tumor_type_final tumor type abbreviation of the sample
+#' @param disease full length tumor type
+#' @param primary_site primary site of tumor
+#' @param inferred_sex sex of the patient
+#' @param karyograph JaBbA outputted karygraph
+#' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
+#' @param sbs_deconstructSigs path to rds output from deconstructSigs
+#' @param sbs_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler 
+#' @param seqnames_loh chromosomes to be used to calculate LOH
+#' @param seqnames_genome_width chromosomes to be used to calculate tmb
+#' @param write_json TRUE/FALSE to write the json
+#' @param overwrite TRUE/FALSE to overwrite the present json
+#' @param return_table TRUE/FALSE to return the data.table output
+#' @param make_dir TRUE/FALSE make the directory for the patient sample if it does not exists
+#' @return data.table or NULL
+#' @export
+#' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
+
+meta_data_json = function(
+    pair,
+    out_file,
+    genome = "hg19",
+    coverage = NULL,
+    jabba_gg = NULL,
+    strelka2_vcf = NULL,
+    sage_vcf = NULL,
+    svaba_somatic_vcf = NULL,
+    tumor_type = NULL,
+    disease = NULL,
+    primary_site = NULL,
+    inferred_sex = NULL,
+    karyograph = NULL,
+    indel_sigprofiler = NULL,
+    sbs_sigprofiler = NULL,
+    sbs_deconstructSigs = NULL,
+    seqnames_loh = c(1:22),
+    seqnames_genome_width = c(1:22,"X","Y"),
+    write_json = TRUE,
+    overwrite = FALSE,
+    return_table = FALSE,
+    make_dir = FALSE
+) {
+    if(!overwrite && write_json == TRUE) {
+        if(file.exists(out_file)) {
+            print(paste0('Output already exists! - skipping sample ',pair))
+            return(NA)
+        }
+    }
+    ## check if directory exists
+    ## get folder
+    split_file_path = strsplit(out_file, "/")[[1]]
+    folder_path = paste0(split_file_path[1:(length(split_file_path)-1)], collapse = "/")
+    if(!make_dir) {
+        if(!file.exists(folder_path)) {
+            print(paste0('Folder does not exist; skipping sample ', pair,". Use make_dir = TRUE to make directory"))
+            return(NA)
+        }
+    }
+    if(make_dir) {
+        if(!file.exists(folder_path)) {
+            cmd = paste0("mkdir -p ", folder_path)
+            print(paste0('Making directory ', folder_path))
+            system(cmd)
+        }
+    }
+    ## meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
+
+    meta.dt = data.table(pair = pair)
+    if(!is.null(tumor_type)) {
+        meta.dt[, tumor_type := tumor_type]
+    }
+    if(!is.null(disease)) {
+        meta.dt[, disease := disease]
+    }
+    if(!is.null(primary_site)) {
+        meta.dt[, primary_site := primary_site]
+    }
+    if(!is.null(inferred_sex)) {
+        meta.dt[, inferred_sex := inferred_sex]
+    }
+    
+    ##get derivate log ratio spread
+    if(!is.null(coverage)) {
+        meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
+    }
+    ##Load this case's counts
+    ## meta.dt$snv_count = length(read_vcf(vcf))
+    if(!is.null(strelka2_vcf)) {
+        snv.counts.dt = strelka2counts(strelka2_vcf, seqnames_genome_width = seqnames_genome_width)
+        meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
+        meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    }
+    if(is.null(sage_vcf) || sage_vcf == "") {
+        warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
+    } else {
+        print("Found SAGE vcf, will use SAGE counts in meta file over Strelka2...")
+        sage.snv.counts.dt = sage_count(sage_vcf, genome=genome)
+        meta.dt$snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
+        meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
+    }
+    ## vcf.gr = read_vcf(vcf)
+    ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
+    ## meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
+    ## Count svs, want to count junctions as well as svs
+    # gg = readRDS(jabba_gg)
+    ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
+    ## meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
+    if(!is.null(jabba_gg)) {
+        ## count just junctions plus loose divided by 2, for sv counts for now
+        gg = readRDS(jabba_gg)
+        ## meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+        meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+        meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+        meta.dt[,sv_count := (junction_count + (loose_count / 2))]
+                                        #get loh
+        nodes.dt = gg$nodes$dt
+        nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
+        nodes.dt = gg$nodes$dt[seqnames %in% seqnames_loh]
+        totalseglen = nodes.dt$width %>% sum()
+
+        if('cn.low' %in% names(nodes.dt)) {
+            LOHsegs = nodes.dt[cn.low==0,] %>% .[cn.high >0] %>% .$width %>% sum()
+            ## LOH
+            LOH_frc = LOHsegs/totalseglen
+            meta.dt[,loh_fraction := LOH_frc]
+            meta.dt[,loh_seglen := LOHsegs]
+            meta.dt[,loh_total_genome := totalseglen]
+        } else {
+            meta.dt$loh_fraction = 'Not Allelic Jabba'
+        }
+        ##add purity and ploidy
+        meta.dt$purity = gg$meta$purity
+        meta.dt$ploidy = gg$meta$ploidy
+        ##add the total seqlengths by using the seqlengths in the jabba object
+        nodes.gr = gg$nodes$gr
+        seqlengths.dt =suppressWarnings(as.data.table(seqinfo(nodes.gr), keep.rownames = "seqnames")) #had to supress, says other arguments ignored
+        seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
+        seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
+        meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
+
+    }
+    ## Load beta/gamma for karyograph
+    if(!is.null(karyograph)) {
+        kag = readRDS(karyograph)
+        meta.dt$beta = kag$beta
+        meta.dt$gamma = kag$gamma
+    }
+    ##add tmb
+    if(("snv_count" %in% names(meta.dt)) & ("total_genome_length" %in% names(meta.dt))) {
+        meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
+        meta.dt[,tmb := round(tmb, digits = 3)]
+    }
+    ## add signatures that are present
+    if(!is.null(sbs_deconstructSigs)) {
+        signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = pair)
+        ## meta.dt$signatures = list(as.list(signatures)) # Changed default to sigprofiler
+        meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
+    }
+    if(!is.null(indel_sigprofiler)) {
+        ## browser()
+        deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = pair)
+        meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
+        meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
+        meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
+    } else {
+        meta.dt$deletionInsertion = list()
+        meta.dt$sigprofiler_indel_fraction = list()
+        meta.dt$sigprofiler_indel_count = list()
+    }
+
+    if(!is.null(sbs_sigprofiler)) {
+        signatures = sbs_sigprofiler2meta(sbs_file = sbs_sigprofiler, sample = pair)
+        meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
+        meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
+        meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
+    } else {
+        meta.dt$sigprofiler_sbs_fraction = list()
+        meta.dt$sigprofiler_sbs_count = list()
+        meta.dt$signatures = list()
+    }
+    ## end add signatures
+    if(write_json) {
+        ##write the json
+        message(paste0("Writing json to ",out_file))
+        write_json(meta.dt,out_file,pretty = TRUE, auto_unbox=TRUE)
+        if(return_table) {
+            return(meta.dt)
+        }
+        
+    } else {
+        return(meta.dt)
+    }
+}
+
 
 #' @name create_distributions
 #' @title create_distributions
@@ -1385,7 +1464,18 @@ load_distributions = function(common_folder, filter_patients = NULL) {
 #' @export
 #' @author Stanley Clarke
 
-bw_temp = function(patient_id = NA,order = NA, x = list(NA), ref = NA, chart_type = "area", visible = TRUE, title = NA, type = "bigwig", field = "foreground", overwrite = FALSE) {
+bw_temp = function(
+    patient_id = NA,
+    order = NA,
+    x = list(NA),
+    ref = NA,
+    chart_type = "area",
+    visible = TRUE,
+    title = NA,
+    type = "bigwig",
+    field = "foreground",
+    overwrite = FALSE
+) {
     dt1 = data.table(patient.id = patient_id,
                      visible = visible,
                      x = x,
@@ -1421,7 +1511,18 @@ bw_temp = function(patient_id = NA,order = NA, x = list(NA), ref = NA, chart_typ
 #' @export
 #' @author Stanley Clarke
 
-arrow_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, chart_type = "scatterplot", visible = TRUE, title = NA, type = "scatterplot", field = "foreground", overwrite = FALSE) {
+arrow_temp = function(
+    patient_id = NA,
+    order = NA,
+    x = list(NA),
+    ref = NA,
+    chart_type = "scatterplot",
+    visible = TRUE,
+    title = NA,
+    type = "scatterplot",
+    field = "foreground",
+    overwrite = FALSE
+) {
     dt1 = data.table(patient.id = patient_id,
                      visible = visible,
                      x = x,
@@ -1456,7 +1557,18 @@ arrow_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, chart
 #' @export
 #' @author Stanley Clarke
 
-genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "genome", visible = TRUE, title = NA, max.cn = NULL,annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','cpxdm','dup','pyrgo','rigma','simple','tic','tyfonas')), overwrite = FALSE) {
+genome_temp = function(
+    patient_id = NA,
+    order = NA,
+    x = list(NA),
+    ref = NA,
+    type = "genome",
+    visible = TRUE,
+    title = NA,
+    max.cn = NULL,
+    annotation = list(c('bfb','chromoplexy','chromothripsis','del','dm','cpxdm','dup','pyrgo','rigma','simple','tic','tyfonas')),
+    overwrite = FALSE
+) {
                                         #use type = allelic to make a color a genome graph
     dt1 = data.table(patient.id = patient_id,
                      type = type,
@@ -1492,7 +1604,17 @@ genome_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type
 #' @export
 #' @author Stanley Clarke
 
-walks_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "walk", visible = TRUE, title = NA, tag = NA,overwrite = FALSE) {
+walks_temp = function(
+    patient_id = NA,
+    order = NA,
+    x = list(NA),
+    ref = NA,
+    type = "walk",
+    visible = TRUE,
+    title = NA,
+    tag = NA,
+    overwrite = FALSE
+) {
     dt1 = data.table(patient.id = patient_id, 
                      visible = visible,
                      x = x,
@@ -1525,7 +1647,18 @@ walks_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type 
 #' @export
 #' @author Stanley Clarke
 
-mutations_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, field, type = "mutations", visible = TRUE, title = NA, tag = NA,overwrite = FALSE) {
+mutations_temp = function(
+    patient_id = NA,
+    order = NA,
+    x = list(NA),
+    ref = NA,
+    field,
+    type = "mutations",
+    visible = TRUE,
+    title = NA,
+    tag = NA,
+    overwrite = FALSE
+) {
     dt1 = data.table(patient.id = patient_id, 
                      visible = visible,
                      type = type,
@@ -1559,7 +1692,17 @@ mutations_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, f
 #' @export
 #' @author Stanley Clarke
 
-ppfit_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type = "ppfit", visible = TRUE, title = NA, annotation = NULL, overwrite = FALSE) {
+ppfit_temp = function(
+    patient_id = NA,
+    order = NA,
+    x = list(NA),
+    ref = NA,
+    type = "ppfit",
+    visible = TRUE,
+    title = NA,
+    annotation = NULL,
+    overwrite = FALSE
+) {
                                         #use type = allelic to make a color a genome graph
     dt1 = data.table(patient.id = patient_id,
                      type = type,
@@ -1590,7 +1733,15 @@ ppfit_temp = function(patient_id = NA, order = NA, x = list(NA), ref = NA, type 
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey
 
-create_ppfit_json = function(jabba_gg, path_obj, out_file = NULL, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1) {
+create_ppfit_json = function(
+    jabba_gg,
+    path_obj,
+    out_file = NULL,
+    write_json = TRUE,
+    overwrite = FALSE,
+    return_table = FALSE,
+    cores = 1
+) {
     if(!is.null(out_file)) {
         if(!overwrite) {
             if(file.exists(out_file)) {
@@ -1682,7 +1833,14 @@ create_ppfit_json = function(jabba_gg, path_obj, out_file = NULL, write_json = T
 #' @return NULL or segstats table
 #' @export
 #' @author Stanley Clarke
-cov2abs = function(dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, field = "foreground", new_col = "foregroundabs") {
+cov2abs = function(
+    dryclean_cov,
+    jabba_gg = NULL,
+    purity = NULL,
+    ploidy = NULL,
+    field = "foreground",
+    new_col = "foregroundabs"
+) {
     cov_gr = readRDS(dryclean_cov)
     if(!is.null(jabba_gg)) {
         gg = readRDS(jabba_gg)
@@ -1730,7 +1888,24 @@ cov2abs = function(dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, 
 #' @return NULL or segstats table
 #' @export
 #' @author Stanley Clarke
-cov2arrow_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, mask = NULL, ref, title = NA, seq.fix = NULL, chart_type = "scatterplot", visible = TRUE, field = "foreground", new_col = "foregroundabs", overwrite = FALSE, order = NA, binsize = 1e4) {
+cov2arrow_pgv = function(
+    patient.id,
+    dryclean_cov,
+    jabba_gg = NULL,
+    purity = NULL,
+    ploidy = NULL,
+    mask = NULL,
+    ref,
+    title = NA,
+    seq.fix = NULL,
+    chart_type = "scatterplot",
+    visible = TRUE,
+    field = "foreground",
+    new_col = "foregroundabs",
+    overwrite = FALSE,
+    order = NA,
+    binsize = 1e4
+) {
     if(!is.null(jabba_gg)) {
         cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
     } else if(!is.null(purity) && !is.null(ploidy)) {
@@ -1781,7 +1956,23 @@ cov2arrow_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NUL
 #' @author Stanley Clarke
 
 ## function to not rebin using higlass but mask
-cov2bw_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, ploidy = NULL, mask = NULL, ref, title = NA, seq.fix = NULL, chart_type = "scatterplot", visible = TRUE, field = "foreground", new_col = "foregroundabs", overwrite = FALSE, order = NA) {
+cov2bw_pgv = function(
+    patient.id,
+    dryclean_cov,
+    jabba_gg = NULL,
+    purity = NULL,
+    ploidy = NULL,
+    mask = NULL,
+    ref,
+    title = NA,
+    seq.fix = NULL,
+    chart_type = "scatterplot",
+    visible = TRUE,
+    field = "foreground",
+    new_col = "foregroundabs",
+    overwrite = FALSE,
+    order = NA
+) {
     if(!is.null(jabba_gg)) {
         cov_gr = cov2abs(dryclean_cov, jabba_gg, field = field, new_col = new_col)
     } else if(!is.null(purity) && !is.null(ploidy)) {
@@ -1802,7 +1993,17 @@ cov2bw_pgv = function(patient.id, dryclean_cov, jabba_gg = NULL, purity = NULL, 
         ## fix seqlengths to specified seqlengths
         cov_gr = GRanges(as.data.table(cov_gr),seqlengths = seq.fix) %>% trim()
     }
-    add.dt = bw_temp(patient_id = patient.id, ref = ref, field = new_col, x = list(cov_gr), title = title, overwrite = overwrite, order = NA, chart_type = chart_type, visible = visible)
+    add.dt = bw_temp(
+        patient_id = patient.id,
+        ref = ref,
+        field = new_col,
+        x = list(cov_gr),
+        title = title,
+        overwrite = overwrite,
+        order = NA,
+        chart_type = chart_type,
+        visible = visible
+    )
     return(add.dt)
 }
 
