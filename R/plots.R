@@ -1,4 +1,5 @@
 library(VariantAnnotation)
+library(skitools)
 
 #' @name cov2arrowPGV
 #' @description
@@ -621,7 +622,7 @@ create_ppfit_genome_json = function(plot_metadata, datadir, settings) {
         warning(plot_metadata$x, " rds read was not a gGraph")
       }
     } else {
-      warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+      warning("file ", ppfit_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
     }
   }, error = function(e) {
     message("Error in creating ppfit plot for sample: ",plot_metadata$patient.id, "\n JaBbA:::segstats needs to be run or provided first")
@@ -706,6 +707,82 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
     message(paste0("Writing json to ",file_name))
     jsonlite::write_json(gg.js, file_name,
                          pretty=TRUE, auto_unbox=TRUE, digits=4)
+}
+
+
+#' @name create_oncotable
+#' @title create_oncotable
+#' @description
+#'
+#' function to create oncotable for use with filtered_events_json
+#' 
+#' @param pair patient id 
+#' @param annotated_bcf bcf with variant annotations (snpeff)
+#' @param signature_counts output of Signatures task (optional)
+#' @param jabba_simple jabba.simple.rds from JaBbA
+#' @param fusions output of fusions task
+#' @param events output of events task 
+#' @param gencode file to gencode annotations (uses v29lift37 by default)
+#' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
+#' @param outdir path to directory in which to write oncotable outputs
+#' @return data.table or NULL
+#' @export
+#' @author Shihab Dider, Joel Rosiene
+create_oncotable = function(
+    pair,
+    annotated_bcf,
+    signature_counts = NULL,
+    fusions,
+    jabba_simple,
+    events,
+    gencode = NULL,
+    amp_thresh_multiplier = NULL,
+    outdir
+) {
+    tumors = data.table(
+      id = pair,
+      annotated_bcf = annotated_bcf,
+      signature_counts = signature_counts,
+      fusions = fusions,
+      jabba_rds = jabba_simple,
+      complex = events
+    )
+    setkey(tumors, id)
+
+    if (system("which bcftools", intern = TRUE) == "") {
+      stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
+    } else {
+      message("bcftools is available.")
+    }
+
+    if (is.null(gencode)) {
+        warning("path to gencode was not passed, setting to default ~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds")
+        gencode = "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds"
+    }
+
+    if (is.null(amp_thresh_multiplier)) {
+        warning("amp_thres_multiplier was not passed, setting to default 1.5")
+        amp_thresh_multiplier = 1.5
+    }
+
+    ploidy = readRDS(jabba_simple)$ploidy
+    amp_thresh = amp_thresh_multiplier*ploidy
+    message(paste("using amp.thresh of", amp_thresh))
+
+    oncotable = skitools::oncotable(
+      tumors,
+      gencode = gencode,
+      filter = "PASS",
+      verbose = TRUE,
+      amp.thresh=amp_thresh
+    )
+
+    if (!dir.exists(outdir)) {
+        dir.create(outdir, recursive=TRUE)
+    }
+
+    saveRDS(oncotable, paste0(outdir, "/", "oncotable.rds"))
+    fwrite(oncotable, paste0(outdir, "/", "oncotable.txt"))
 }
 
 #' @name filtered_events_json
@@ -1146,10 +1223,10 @@ create_mutations_catalog_json = function(
         }
         pair_data <- list(pair = pair, data = samp_data)
         system(paste("mkdir -p", paste0(output_dir, "/", pair)))
-        mut_path = paste0(output_dir, "/", pair)
+        output_path = paste0(output_dir, "/", catalog_file_name)
         write_json(
             pair_data,
-            paste0(mut_path, "/", catalog_file_name),
+            output_path,
             pretty=TRUE,
             auto_unbox=TRUE
         )
@@ -1833,9 +1910,12 @@ ppfit_temp = function(
 #'
 #' function to create segmentation plots in case reports
 #' 
-#' @param jabba_rds list object jabba.rds
+#' @param balanced_gg the balanced_gg ggraph or the path to it
 #' @param cov path to associated coverage, if null, will try to pull path from pairs table
 #' @param path_obj path to flow directory, if null, must supply coverage path
+#' @param settings_json path to settings.json (from PGV)
+#' @param ref reference name
+#' @param max_na max.na used with JaBbA
 #' @param out_file location to write json
 #' @param write_json TRUE/FALSE whether to write the json
 #' @param return_table TRUE/FALSE whether to return the data
@@ -1846,15 +1926,19 @@ ppfit_temp = function(
 #' @author Stanley Clarke, Tanubrata Dey
 
 create_ppfit_json = function(
-    jabba_gg,
+    balanced_gg,
     cov_path = NULL,
     path_obj = NULL,
+    settings_json,
+    ref = NULL,
+    max_na = NULL,
     out_file = NULL,
     write_json = TRUE,
     overwrite = FALSE,
     return_table = FALSE,
     cores = 1
 ) {
+
     if(!is.null(out_file)) {
         if(!overwrite) {
             if(file.exists(out_file)) {
@@ -1879,8 +1963,19 @@ create_ppfit_json = function(
             x = path_obj %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
         }
         cov = readRDS(x$CovFile)
+        max_na = as.numeric(x$maxna)
     } else {
         stop("Must supply either coverage path or flow directory path object")
+    }
+
+    if (is.null(ref)) {
+        warning("ref was not passed, setting to default: hg19")
+        ref = "hg19"
+    }
+
+    if (is.null(max_na)) {
+        warning("max_na was not passed/found, setting to default: 0.9")
+        max_na = 0.9
     }
 
     if ("ratio" %in% names(mcols(cov))) {
@@ -1899,7 +1994,13 @@ create_ppfit_json = function(
     } else if (field == "foreground") {
         cov$foreground = gsub("NaN",NA,cov$foreground) %>% as.numeric
     }
-    segstats = JaBbA:::segstats(jabba_gg$nodes$gr,
+    if (is(balanced_gg, "gGraph")) {
+        balanced_gg_gr = balanced_gg$nodes$gr
+    } else if (is(balanced_gg, "character")) {
+        balanced_gg_gr = readRDS(balanced_gg)$nodes$gr
+    }
+    
+    segstats = JaBbA:::segstats(balanced_gg_gr,
                                 cov,
                                 field = field,
                                 prior_weight = 1,
@@ -1907,33 +2008,44 @@ create_ppfit_json = function(
                                 ## subsample = subsample,
                                 mc.cores = cores,
                                 verbose = FALSE,
-                                max.na = as.numeric(x$maxna),
+                                max.na = max_na,
                                 lp = FALSE)
-    segstats = gr2dt(segstats)
-    names(segstats) = gsub("\\.","_",names(segstats))
-    ## if (ncol(segstats) == 30) {
-    ##     new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
-    ##                            "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
-    ##                            "edges_out","tile_id","seg_id","passed","raw_mean","raw_var",   
-    ##                            "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
-    ##                            "max_na","loess_var","tau_sq_post","post_var","var","sd")
-    ##     setnames(segstats, old = names(segstats), new = new_names_segstats)
-    ## } else if (ncol(segstats) == 29) {
-    ##     new_names_segstats = c("chromosome","startPoint","endPoint","strand","width","cn",     
-    ##                            "start_ix","end_ix","eslack_in","eslack_out","loose","edges_in",
-    ##                            "edges_out","tile_id","seg_id","raw_mean","raw_var",   
-    ##                            "nbins","nbins_tot","nbins_nafrac","wbins_nafrac","mean","bad", 
-    ##                            "max_na","loess_var","tau_sq_post","post_var","var","sd")
-    ##     setnames(segstats, old = names(segstats), new = new_names_segstats)
-    ## } else {
-    ##     stop(paste0("The expected number of columns are 29 or 30 for segstats. The number of columns for this file are: ", nol(segstats)))
-    ## }
+    segstats.dt = gr2dt(segstats)
+    names(segstats.dt) = gsub("\\.","_",names(segstats.dt))
     if(write_json) {
+        message("Cleaning up for writing ppfit to json")
+        seq_lengths <- gGnome::parse.js.seqlengths(
+                                 settings_json,
+                                 js.type = "PGV",
+                                 ref = ref
+                               )
+        segstats.gr = GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim
+        ggraph = readRDS(balanced_gg)
+        ggraph2 = gG(nodes = segstats.gr, edges = ggraph$edges$dt)
+        fields.keep = names(segstats.dt) %>% grep("cn",.,invert = TRUE, value = TRUE)
+        ggraph2$set(y.field = "cn")
+        ## check for overlap in sequence names
+        ggraph.reduced <- ggraph2[seqnames %in% names(seq_lengths)]
+        if (length(ggraph.reduced) == 0) {
+          stop(sprintf(
+            'There is no overlap between the sequence names in the reference
+                    used by PGV and the sequences in your gGraph. Here is an
+                    example sequence from your gGraph: "%s". And here is an
+                    example sequence from the reference used by gGnome.js: "%s"',
+            seqlevels(ggraph.reduced$nodes$gr)[1], names(seq_lengths)[1]
+          ))
+        }
         message(paste0("Writing json to ",out_file))
-        write_json(segstats, out_file, pretty = TRUE)
+        gGnome::refresh(ggraph.reduced)$json(
+            filename = out_file,
+            verbose = TRUE,
+            maxcn = 500,
+            nfields = fields.keep,
+            save = TRUE
+        )
     }
     if(return_table) {
-        return(segstats)
+        return(segstats.dt)
     }
 }
 
