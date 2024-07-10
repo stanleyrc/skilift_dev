@@ -19,7 +19,7 @@ cov2arrowPGV = function(cov,
         output_file = 'coverage.arrow',
         ref = 'hg19',
         cov.color.field = NULL,
-        overwrite = FALSE,
+        overwrite = TRUE,
         meta.js = NULL,
         ...){
 
@@ -140,10 +140,12 @@ subsample_hetsnps = function(
     #lets subset a random amount of SNPS so we're under 250k points
     unique.snps = unique(gr2dt(hets.gr)[,.(seqnames, start,end)])
     n_snps = nrow(unique.snps)
+    message(paste(n_snps, "snps found"))
+    message(paste("subsampling", sample_size, "points..."))
     snps.to.include = unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
     subset.hets.gr = hets.gr %&% snps.to.include
 
-    return(hets.gr)
+    return(subset.hets.gr)
 }
 
 
@@ -454,10 +456,10 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
         } else {
             message(paste0("reading in ", plot_metadata$x))
             if (grepl(plot_metadata$x, pattern = ".rds")) {
-                mutations.dt <- readRDS(plot_metadata$x)
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
             } else {
                 message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
-                mutations.dt <- readRDS(plot_metadata$x)
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
             }
         }
         if (any(class(mutations.dt) == "data.table")) {
@@ -481,9 +483,9 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
             mutations.dt = mutations.dt[!is.na(get(yfield)),]
             mutations.dt[start == end, end := end +1]
             mutations.dt[, strand := NULL]
-            mutations.dt[variant.p != "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; Protein_variant: ", variant.p, "; VAF: ",vaf)]
-            mutations.dt[variant.p == "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; VAF: ",vaf)]
-            dt2json_mut(dt = mutations.dt, ref = plot_metadata$ref,settings = settings, meta_data = c("gene", "feature_type","annotation","REF","ALT","variant.c","variant.p","vaf","transcript_type", "impact","rank"), y_col = yfield, file_name = somatic_json_path)
+            mutations.dt[variant.p != "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; Protein_variant: ", variant.p, "; VAF: ",VAF)]
+            mutations.dt[variant.p == "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; VAF: ",VAF)]
+            dt2json_mut(dt = mutations.dt, ref = plot_metadata$ref,settings = settings, meta_data = c("gene", "feature_type","annotation","REF","ALT","variant.c","variant.p","VAF","transcript_type", "impact","rank"), y_col = yfield, file_name = somatic_json_path)
         } else {
             warning(plot_metadata$x, " rds read was not mutations")
         }
@@ -524,13 +526,57 @@ create_ppfit_genome_json = function(plot_metadata, datadir, settings) {
                                  js.type = "PGV",
                                  ref = plot_metadata$ref
                                )
-        colnames_check = c("start_ix", "end_ix", "eslack_in", "eslack_out", "edges_in", "edges_out", "tile_id", "snode_id", "loose_left", "loose_right", "loose_cn_left", "loose_cn_right", "node_id", "raw_mean", "raw_var", "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", "wbins_ok", "mean", "bad", "max_na", "loess_var", "tau_sq_post", "post_var", "var", "sd")
+        colnames_check = c(
+            "start_ix",
+            "end_ix",
+            "eslack_in",
+            "eslack_out",
+            "edges_in",
+            "edges_out",
+            "tile_id",
+            "snode_id",
+            "loose_left",
+            "loose_right",
+            "loose_cn_left",
+            "loose_cn_right",
+            "node_id",
+            "raw_mean",
+            "raw_var",
+            "nbins",
+            "nbins_tot",
+            "nbins_nafrac",
+            "wbins_nafrac",
+            "wbins_ok",
+            "mean",
+            "bad",
+            "max_na",
+            "loess_var",
+            "tau_sq_post",
+            "post_var",
+            "var",
+            "sd"
+        )
+
         if(all(colnames_check %in% names(ggraph$nodes$dt))) {
           ggraph2 = ggraph
-          fields.keep = c(colnames_check,"seqnames", "start", "end", "strand", "width", "loose", "index")
+          fields.keep = c(
+              colnames_check,
+              "seqnames",
+              "start",
+              "end",
+              "strand",
+              "width",
+              "loose",
+              "index"
+          )
         } else {
           ## segstats information          
-          segstats.dt = create_ppfit_json(jabba_gg = ggraph, path_obj = plot_metadata$x, return_table = TRUE, write_json = FALSE)
+          segstats.dt = create_ppfit_json(
+              jabba_gg = ggraph,
+              path_obj = plot_metadata$x,
+              return_table = TRUE,
+              write_json = FALSE
+          )
           segstats.gr = GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim
           ggraph2 = gG(nodes = segstats.gr, edges = ggraph$edges$dt)
           fields.keep =names(segstats.dt) %>% grep("cn",.,invert = TRUE, value = TRUE)
@@ -915,7 +961,7 @@ sage_count = function(
     vcf = readVcf(vcf_path, genome)
 
     # Filter for PASS variants
-    pass_variants = fixed(vcf)$FILTER == "PASS"
+    pass_variants = rowRanges(vcf)$FILTER == "PASS"
     vcf = vcf[pass_variants, ]
 
     snv_count = length(vcf)
@@ -962,7 +1008,7 @@ sage_qc = function(
     vcf = readVcf(vcf_path, genome)
 
     # Filter for PASS variants
-    pass_variants = fixed(vcf)$FILTER == "PASS"
+    pass_variants = rowRanges(vcf)$FILTER == "PASS"
     vcf = vcf[pass_variants, ]
 
     # Extract necessary information from VCF object
@@ -970,8 +1016,8 @@ sage_qc = function(
     pos = start(rowRanges(vcf))
     ref = as.character(ref(vcf))
     alt = as.character(unlist(alt(vcf)))
-    filter = as.character(fixed(vcf)$FILTER)
-    qual = as.numeric(fixed(vcf)$QUAL)
+    filter = as.character(rowRanges(vcf)$FILTER)
+    qual = as.numeric(rowRanges(vcf)$QUAL)
 
     # Extract depth and allele count information from the genotype (geno) slot
     geno_data = geno(vcf)
@@ -1079,28 +1125,25 @@ create_mutations_catalog_json = function(
 ) {
     sig_matrix = fread(sig_matrix_path)
     sig_matrix_dt = as.data.frame(sig_matrix)
-    rownames(sig_matrix_dt) = sig_matrix_dt$MutationType
-    print(ncol(sig_matrix_dt))
-    if (ncol(sig_matrix_dt) > 2) {
-        sig_matrix_dt = sig_matrix_dt[, -1]
-    }
-    samp = colnames(sig_matrix_dt)
-    tnc_mut = list()
-    for(i in 1:ncol(sig_matrix_dt)) {
-        pair = samp[i]
-        samp_data = as.data.frame(sig_matrix_dt[,i])
-        samp_data$tnc = rownames(sig_matrix_dt)
-        samp_data$id = 1:nrow(samp_data)
+    samples = colnames(sig_matrix_dt)
+    for(i in 2:(ncol(sig_matrix_dt))) { # skip first column as it has the tnc
+        pair = samples[i]
 
         if (is_indel) {
-            dt_colnames = c("id", "insdel", "mutations")
+            samp_data = data.frame(
+                id = 1:nrow(sig_matrix_dt),
+                insdel = sig_matrix_dt[, 1],
+                mutations = sig_matrix_dt[,i]
+            )
             catalog_file_name = "id_mutation_catalog.json"
         } else {
-            dt_colnames = c("id", "mutations", "tnc")
+            samp_data = data.frame(
+                id = 1:nrow(sig_matrix_dt),
+                tnc = sig_matrix_dt[, 1],
+                mutations = sig_matrix_dt[,i]
+            )
             catalog_file_name = "mutation_catalog.json"
         }
-        colnames(samp_data) = dt_colnames
-        samp_data = samp_data[, dt_colnames]
         pair_data <- list(pair = pair, data = samp_data)
         system(paste("mkdir -p", paste0(output_dir, "/", pair)))
         mut_path = paste0(output_dir, "/", pair)
@@ -1159,6 +1202,7 @@ meta_data_json = function(
     inferred_sex = NULL,
     karyograph = NULL,
     indel_sigprofiler = NULL,
+    signatures_pair_name = NULL, # if different from pair
     sbs_sigprofiler = NULL,
     sbs_deconstructSigs = NULL,
     seqnames_loh = c(1:22),
@@ -1278,15 +1322,21 @@ meta_data_json = function(
         meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
         meta.dt[,tmb := round(tmb, digits = 3)]
     }
+
+    if (!is.null(signatures_pair_name)) {
+        sig_sample_name = signatures_pair_name
+    } else {
+        sig_sample_name = pair
+    }
     ## add signatures that are present
     if(!is.null(sbs_deconstructSigs)) {
-        signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = pair)
+        signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = sig_sample_name)
         ## meta.dt$signatures = list(as.list(signatures)) # Changed default to sigprofiler
         meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
     }
     if(!is.null(indel_sigprofiler)) {
         ## browser()
-        deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = pair)
+        deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = sig_sample_name)
         meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
@@ -1297,7 +1347,7 @@ meta_data_json = function(
     }
 
     if(!is.null(sbs_sigprofiler)) {
-        signatures = sbs_sigprofiler2meta(sbs_file = sbs_sigprofiler, sample = pair)
+        signatures = sbs_sigprofiler2meta(sbs_file = sbs_sigprofiler, sample = sig_sample_name)
         meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
         meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
         meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
@@ -1784,6 +1834,8 @@ ppfit_temp = function(
 #' function to create segmentation plots in case reports
 #' 
 #' @param jabba_rds list object jabba.rds
+#' @param cov path to associated coverage, if null, will try to pull path from pairs table
+#' @param path_obj path to flow directory, if null, must supply coverage path
 #' @param out_file location to write json
 #' @param write_json TRUE/FALSE whether to write the json
 #' @param return_table TRUE/FALSE whether to return the data
@@ -1795,7 +1847,8 @@ ppfit_temp = function(
 
 create_ppfit_json = function(
     jabba_gg,
-    path_obj,
+    cov_path = NULL,
+    path_obj = NULL,
     out_file = NULL,
     write_json = TRUE,
     overwrite = FALSE,
@@ -1810,19 +1863,26 @@ create_ppfit_json = function(
             }
         }
     }
+
     #'drcln_cov = readRDS(thisp$decomposed_cov[i])
     ##make this work with complex where the cov file was not an input and with jabba_gg
     ## x = path_obj %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
-    inputs.dt = path_obj %>% sniff %>% inputs
-    if(!any(grepl("CovFile", names(inputs.dt))) & any(grepl("jabba", names(inputs.dt)))) {
-        x = inputs.dt$jabba %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
-    } else if (!any(grepl("CovFile", names(inputs.dt))) & any(grepl("jab", names(inputs.dt)))) {
-        x = inputs.dt$jab %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+    if (!is.null(cov_path)) {
+        cov = readRDS(cov_path)
+    } else if (!is.null(path_obj)) {
+        inputs.dt = path_obj %>% sniff %>% inputs
+        if(!any(grepl("CovFile", names(inputs.dt))) & any(grepl("jabba", names(inputs.dt)))) {
+            x = inputs.dt$jabba %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+        } else if (!any(grepl("CovFile", names(inputs.dt))) & any(grepl("jab", names(inputs.dt)))) {
+            x = inputs.dt$jab %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+        } else {
+            x = path_obj %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+        }
+        cov = readRDS(x$CovFile)
     } else {
-        x = path_obj %>% sniff %>% inputs %>% .[,.(CovFile,maxna)]
+        stop("Must supply either coverage path or flow directory path object")
     }
-    ## coverage = x$CovFile
-    cov = readRDS(x$CovFile)
+
     if ("ratio" %in% names(mcols(cov))) {
         message(paste0("Raw 'cov.rds' was used as input for JaBbA ",path_obj, ", will consider field as 'ratio''\n"))
         field = "ratio"

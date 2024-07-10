@@ -347,7 +347,11 @@ Skilift <- R6Class("Skilift",
       handle_gobject = function(gobject, plot) {
         # GRanges
         if (is(gobject, "GRanges")) {
-          plot <- handle_granges(plot)
+          if (plot$type == "mutations") {
+            plot$source = 'mutations.json'
+          } else {
+            plot <- handle_granges(plot)
+          }
         # gGraph
         } else if (is(gobject, "gGraph")) {
           if (is.null(plot$type)) {
