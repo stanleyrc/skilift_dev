@@ -637,7 +637,7 @@ test_that("hetsnps.arrow generation works correctly", {
     expect_equal(nrow(pgv$plots), 14)
 })
 
-# ggraph
+# ggraph 
 test_that("ggraph plots are generated correctly", {
     pgv <- reset_skilift()
     pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
@@ -645,14 +645,32 @@ test_that("ggraph plots are generated correctly", {
     ggraph_path = pairs[1]$jabba_gg
     ggraph.add = genome_temp(
         patient_id = pairs[1,pair],
-        x = list(ggraph_path),
+        x = ggraph_path,
         ref = "hg19",
+        source = "genome.json", # for complex/events output, use source=complex.json
         title = "ggraph",
         order = 50,
         overwrite = TRUE
     )
 
     create_ggraph_json(plot_metadata = ggraph.add, datadir = paths$datadir, settings = paths$settings)
+})
+
+# snv multiplicity
+test_that("multiplicity plots are generated correctly", {
+    pgv <- reset_skilift()
+    pairs_path = system.file("extdata", "test_data", "test_pairs.rds", package = "Skilift")
+    pairs = readRDS(pairs_path)
+    multiplicity_path = pairs[1]$somatic_snv_cn
+    mutations.add = mutations_temp(
+        patient_id = pairs[1]$pair,
+        field = "total_copies",
+        x = multiplicity_path,
+        ref = "hg19",
+        overwrite = TRUE
+    )
+
+    create_somatic_json(plot_metadata = mutations.add, datadir = paths$datadir, settings = paths$settings)
 })
 
 # mutation catalog
