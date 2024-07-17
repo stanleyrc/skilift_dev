@@ -153,8 +153,9 @@ subsample_hetsnps = function(
 #' @description
 #' Create coverage arrow plot JSON file.
 #'
-#' @param plot_metadata (`data.table`)\cr 
-#'   Plot metadata.
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
 #'
 #' @return NULL.
 create_cov_arrow = function(plot_metadata, datadir, settings) {
@@ -168,32 +169,28 @@ create_cov_arrow = function(plot_metadata, datadir, settings) {
         stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
     }
 
-    # check if the input is a GRanges or a list of GRanges
-    is_granges <- is(plot_metadata$x[[1]], "GRanges")
+    # check if the input is a GRanges or a nested list
     is_list <- is(plot_metadata$x[[1]], "list")
     if (is_list) {
-        plot_metadata$x <- plot_metadata$x[[1]][[1]]
-    } else if (is_granges) {
         plot_metadata$x <- plot_metadata$x[[1]]
-    }
+    } 
 
-    if (is(plot_metadata$x, "GRanges")) {
-        granges_fields <- colnames(mcols(plot_metadata$x))
-    }
-
-    if (!(plot_metadata$field %in% granges_fields)) {
-        stop(warning("Could not find the given 'field' column in the coverage GRanges. Please double check which column in the GRanges contains the coverage scores."))
+    is_granges <- is(plot_metadata$x[[1]], "GRanges")
+    is_path <- is(plot_metadata$x[[1]], "character")
+    if (is_granges) {
+        # save granges to a temp file and assign path to plot_metadata$x
+        print("Saving GRanges to temp file")
+        temp_file <- tempfile(fileext = ".rds")
+        saveRDS(plot_metadata$x[[1]], temp_file)
+        plot_metadata$x <- temp_file
+    } else if (is_path) {
+        plot_metadata$x <- plot_metadata$x[[1]]
+    } else {
+        stop(warning("Please provide a GRanges object or a path to a GRanges object."))
     }
 
     if (!file.exists(cov_json_path) || plot_metadata$overwrite) {
-        if (is(plot_metadata$x, "GRanges")) {
-            cov2arrowPGV(plot_metadata$x,
-                field = plot_metadata$field,
-                meta.js = settings,
-                ref = plot_metadata$ref,
-                output_file = cov_json_path
-            )
-        } else if (file.exists(plot_metadata$x)) {
+        if (file.exists(plot_metadata$x)) {
             cov2arrowPGV(plot_metadata$x,
                 field = plot_metadata$field,
                 meta.js = settings,
@@ -201,11 +198,13 @@ create_cov_arrow = function(plot_metadata, datadir, settings) {
                 output_file = cov_json_path
             )
         } else {
-            warning(paste0(
-                "Input coverage file does not exist for name: ",
-                plot_metadata$sample,
-                " so no coverage will be generated."
-            ))
+            warning(
+                paste0(
+                    "Input coverage file does not exist for name: ",
+                    plot_metadata$sample,
+                    " so no coverage will be generated."
+                )
+            )
         }
     } else {
         message(cov_json_path, " already exists! Set overwrite = TRUE if you want to overwrite it.")
@@ -214,10 +213,11 @@ create_cov_arrow = function(plot_metadata, datadir, settings) {
 
 
 #' @description
-#' Create gGraph JSON file.
+#' Add gGraph JSON file to PGV datafiles.json.
 #'
-#' @param plot_metadata (`data.table`)\cr 
-#'   Plot metadata.
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
 #'
 #' @return NULL.
 create_ggraph_json = function(plot_metadata, datadir, settings) {
@@ -302,8 +302,9 @@ create_ggraph_json = function(plot_metadata, datadir, settings) {
 #' @description
 #' Create allelic gGraph JSON file.
 #'
-#' @param plot_metadata (`data.table`)\cr 
-#'   Plot metadata.
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
 #'
 #' @return NULL.
 create_allelic_json = function(plot_metadata, datadir, settings) {
@@ -403,8 +404,9 @@ create_allelic_json = function(plot_metadata, datadir, settings) {
 #' @description
 #' Create gWalk JSON file
 #'
-#' @param plot_metadata (`data.table`)\cr 
-#'   Plot metadata.
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
 #'
 #' @return NULL.
 create_gwalk_json = function(plot_metadata, datadir, settings) {
@@ -441,8 +443,9 @@ create_gwalk_json = function(plot_metadata, datadir, settings) {
 #' @description
 #' Create mutations gGraph JSON file.
 #'
-#' @param plot_metadata (`data.table`)\cr 
-#'   Plot metadata.
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
 #'
 #' @return NULL.
 create_somatic_json = function(plot_metadata, datadir, settings) {
@@ -498,8 +501,9 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
 #' @description
 #' Create ppfit gGraph JSON file.
 #'
-#' @param plot_metadata (`data.table`)\cr 
-#'   Plot metadata.
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
 #'
 #' @return NULL.
 create_ppfit_genome_json = function(plot_metadata, datadir, settings) {
@@ -1703,6 +1707,7 @@ arrow_temp = function(
     order = NA,
     x = list(NA),
     ref = NA,
+    source = "coverage.arrow",
     chart_type = "scatterplot",
     visible = TRUE,
     title = NA,
@@ -1716,6 +1721,7 @@ arrow_temp = function(
                      type = type,
                      field = field,
                      ref = ref,
+                     source = source,
                      title = title,
                      order = order,
                      defaultChartType = chart_type,
