@@ -71,6 +71,7 @@ Skilift <- R6Class("Skilift",
       settings = NULL,
       higlass_metadata = NULL
     ) {
+      internal_settings_path = system.file("extdata", "test_data", "settings.json", package = "Skilift")
       if (!is.null(public_dir) && dir.exists(public_dir)) {
         # Check if the specific paths exist within the public_dir
         self$datadir <- file.path(public_dir, "data")
@@ -80,7 +81,7 @@ Skilift <- R6Class("Skilift",
 
       # Overwrite the derived paths if provided as arguments
       self$datadir <- if (!is.null(datadir)) datadir else self$datadir
-      self$settings <- if (!is.null(settings)) settings else self$settings
+      self$settings <- if (!is.null(settings)) settings else internal_settings_path
       private$datafiles_json_path <- if (!is.null(datafiles_json_path)) datafiles_json_path else private$datafiles_json_path
       
       # Make sure all required paths are non-null 

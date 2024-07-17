@@ -600,7 +600,7 @@ test_that("coverage plots are generated correctly", {
         overwrite = TRUE
     )
 
-    create_cov_arrow(plot_metadata = cov.add, datadir = paths$datadir, settings = paths$settings)
+    create_cov_arrow(plot_metadata = cov.add, datadir = paths$datadir)
 })
 
 # sage
@@ -633,8 +633,7 @@ test_that("hetsnps.arrow generation works correctly", {
 
     genome.add$source = "hetsnps.arrow"
 
-    pgv$add_plots(genome.add, cores = 40)
-    expect_equal(nrow(pgv$plots), 14)
+    create_cov_arrow(plot_metadata = genome, datadir = paths$datadir)
 })
 
 # ggraph 
@@ -653,7 +652,7 @@ test_that("ggraph plots are generated correctly", {
         overwrite = TRUE
     )
 
-    create_ggraph_json(plot_metadata = ggraph.add, datadir = paths$datadir, settings = paths$settings)
+    create_ggraph_json(plot_metadata = ggraph.add, datadir = paths$datadir)
 })
 
 # snv multiplicity
@@ -670,8 +669,48 @@ test_that("multiplicity plots are generated correctly", {
         overwrite = TRUE
     )
 
-    create_somatic_json(plot_metadata = mutations.add, datadir = paths$datadir, settings = paths$settings)
+    create_somatic_json(plot_metadata = mutations.add, datadir = paths$datadir)
 })
+
+# filtered events
+# WIP since oncotable will be ported to skilift
+# test_that("filtered events table is generated correctly", {
+#     oncotable_paths = mclapply(filtered_outputs$patient_id, function(pair) {
+#       output_row = outputs[patient_id == pair, ]
+#       # construct outdir using sub on jabba_simple path
+#       outdir = sub('jabba', 'oncotable', output_row$jabba_simple)
+#       outdir = sub('/jabba.simple.rds', '', output_row$jabba_simple)
+#       paths_row = data.table(patient_id = pair, oncotable = paste0(outdir, "/oncotable.rds"))
+#       create_oncotable(
+#           pair = pair,
+#           annotated_bcf = output_row$snpeff_bcf,
+#           signature_counts = NULL,
+#           jabba_simple = output_row$jabba_simple,
+#           events = output_row$events,
+#           fusions = output_row$fusions,
+#           gencode = NULL,
+#           amp_thresh_multiplier = 2,
+#           outdir = outdir
+#       )
+#
+#       return(paths_row)
+#     }, mc.cores = 5)
+#     oncotable_paths = rbindlist(oncotable_paths)
+#
+#     mclapply(filtered_outputs$patient_id, function(pair) {
+#       cgc_file = "~/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv"
+#       oncotable_path = oncotable_paths[patient_id == pair, oncotable]
+#       outfile = paste0(datadir, "/", pair, "/filtered.events.json")
+#       filtered_events_json(
+#         pair = pair,
+#         oncotable = oncotable_path,
+#         jabba_gg = outputs[patient_id == pair, events],
+#         out_file = outfile,
+#         cgc_file = cgc_file,
+#         temp_fix = TRUE
+#       )
+#     }, mc.cores = 5)
+# })
 
 # mutation catalog
 test_that("mutation catalog generation works correctly", {

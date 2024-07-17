@@ -8,12 +8,11 @@ Faciliates easier loading and manipulation of genomic data for use with [PGV](ht
     2. `devtools::load_all("path/to/clone")`
 
 # Usage
-The Skilift class manages a database of patient metadata and genomic plot data. It provides an interface to load, update, query, and manipulate the database programmatically.
+The Skilift class manages a database of patient metadata and genomic plot data. It provides an interface to load, update, query, and manipulate the datafiles.json of PGV programmatically. This object is only necessary if you want to push data to PGV.
 
 The key methods allow converting to/from JSON for data storage, validating the data, adding/removing plots, and generating plot JSON for visualization. The metadata and plots are stored as data tables for easy manipulation.
 
-The conversion methods can also be used in isolation without having to instantiate a Skilift object. 
-This is useful for generating JSON files for use with Case Reports.
+The conversion methods can also be used in isolation without having to instantiate a Skilift object. See tests (plot generation methods section) for runnable code. This is particularly useful for generating JSON files for use with Case Reports.
 
 ## Methods
 The following methods are for the Skilift class:
@@ -42,21 +41,7 @@ plot_metadata is a data table containing plot metadata and should have the follo
 datadir is the parent directory of the sample directory where the raw data file is stored 
 e.g if the data file is stored in `data/0124/gg.rds` then the datadir is `data/`
 
-settings is the path to the settings file (you can use the pgv one). It's required for parsing seqlengths
-
-- create_ggraph_json(plot_metadata, datadir, settings)
-
-- create_allelic_json(plot_metadata, datadir, settings)
-
-- create_gwalk_json(plot_metadata, datadir, settings)
-
-- create_somatic_json(plot_metadata, datadir, settings)
-
-- create_ppfit_genome_json(plot_metadata, datadir, settings)
-
-- create_distributions(case_reports_data_folder, common_folder, filter_patients = NULL, write_jsons = TRUE)
-
-- create_ppfit_json(jabba_gg, path_obj, out_file = NULL, write_json = TRUE, overwrite = FALSE, return_table = FALSE, cores = 1)
+settings is the path to the settings file (by default it will use the one included with the package). It's required for parsing seqlengths
 
 ## Fields
 
