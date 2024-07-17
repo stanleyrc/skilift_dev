@@ -34,7 +34,7 @@ load_paths <- function() {
 
 reset_skilift  <- function() {
     devtools::load_all(".")
-    paths <- load_paths()
+    paths <<- load_paths()
     default_datafiles_json_path <- system.file("extdata", "pgv", "public", "datafiles0.json", package = "Skilift")
     file.copy(default_datafiles_json_path, paths$datafiles, overwrite=TRUE)
     endpoint <- "http://10.1.29.225:8000/"
@@ -584,7 +584,26 @@ test_that("you can mix pgv and case-report datafiles/datadir", {
 
 ### plot generation methods
 
-# Sage
+# coverage
+test_that("coverage plots are generated correctly", {
+    pgv <- reset_skilift()
+    pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
+    pairs = readRDS(pairs_path)
+    cov_path = pairs[1]$decomposed_cov
+    cov.add = arrow_temp(
+        patient_id = pairs[1,pair],
+        x = list(readRDS(cov_path)),
+        ref = "hg19",
+        field = "foreground",
+        title = "Coverage",
+        order = 50,
+        overwrite = TRUE
+    )
+
+    create_cov_arrow(plot_metadata = cov.add, datadir = paths$datadir, settings = paths$settings)
+})
+
+# sage
 test_that("sage methods work correctly", {
   pgv <- reset_skilift()
   test_meta_pairs = readRDS("/gpfs/commons/home/sclarke/git/pgvdb_test_data/test.meta_pairs.rds")
@@ -596,7 +615,7 @@ test_that("sage methods work correctly", {
   expect_true(!is.null(sage_count) && length(sage_count) > 0)
 })
 
-# hetsnps.arrow
+# hetsnps
 test_that("hetsnps.arrow generation works correctly", {
     pgv <- reset_skilift()
     pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
@@ -618,6 +637,25 @@ test_that("hetsnps.arrow generation works correctly", {
     expect_equal(nrow(pgv$plots), 14)
 })
 
+# ggraph
+test_that("ggraph plots are generated correctly", {
+    pgv <- reset_skilift()
+    pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
+    pairs = readRDS(pairs_path)
+    ggraph_path = pairs[1]$jabba_gg
+    ggraph.add = genome_temp(
+        patient_id = pairs[1,pair],
+        x = list(ggraph_path),
+        ref = "hg19",
+        title = "ggraph",
+        order = 50,
+        overwrite = TRUE
+    )
+
+    create_ggraph_json(plot_metadata = ggraph.add, datadir = paths$datadir, settings = paths$settings)
+})
+
+# mutation catalog
 test_that("mutation catalog generation works correctly", {
     pgv <- reset_skilift()
     indel_matrix = "~/../spanja/Projects/casereports/clinical_ip/output/ID/clinical_ip.ID28.all"
