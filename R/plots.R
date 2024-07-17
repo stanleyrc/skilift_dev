@@ -1,6 +1,9 @@
 library(VariantAnnotation)
 library(skitools)
 
+
+internal_settings_path = system.file("extdata", "test_data", "settings.json", package = "Skilift")
+
 #' @name cov2arrowPGV
 #' @description
 #'
@@ -158,7 +161,7 @@ subsample_hetsnps = function(
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_cov_arrow = function(plot_metadata, datadir, settings) {
+create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings_path) {
     cov_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -220,7 +223,7 @@ create_cov_arrow = function(plot_metadata, datadir, settings) {
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_ggraph_json = function(plot_metadata, datadir, settings) {
+create_ggraph_json = function(plot_metadata, datadir, settings = internal_settings_path) {
     ggraph_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -307,7 +310,7 @@ create_ggraph_json = function(plot_metadata, datadir, settings) {
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_allelic_json = function(plot_metadata, datadir, settings) {
+create_allelic_json = function(plot_metadata, datadir, settings = internal_settings_path) {
     ggraph_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -409,7 +412,7 @@ create_allelic_json = function(plot_metadata, datadir, settings) {
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_gwalk_json = function(plot_metadata, datadir, settings) {
+create_gwalk_json = function(plot_metadata, datadir, settings = internal_settings_path) {
     gwalk_json_path <- file.path(datadir, plot_metadata$patient.id, plot_metadata$source)
     if (!file.exists(gwalk_json_path) || plot_metadata$overwrite == TRUE) {
         if (is(plot_metadata$x[[1]], "gWalk")) {
@@ -448,7 +451,7 @@ create_gwalk_json = function(plot_metadata, datadir, settings) {
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_somatic_json = function(plot_metadata, datadir, settings) {
+create_somatic_json = function(plot_metadata, datadir, settings = internal_settings_path) {
     somatic_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -535,7 +538,7 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_ppfit_genome_json = function(plot_metadata, datadir, settings) {
+create_ppfit_genome_json = function(plot_metadata, datadir, settings = internal_settings_path) {
   ppfit_json_path <- file.path(
     datadir,
     plot_metadata$patient.id,
