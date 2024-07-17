@@ -484,17 +484,46 @@ create_somatic_json = function(plot_metadata, datadir, settings) {
                 ))
             }
             yfield = plot_metadata$field[1]
+            # coerce vaf col name to lower case to avoid col name mismatch for vaf/VAF column
+            setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
             mutations.dt = mutations.dt[!is.na(get(yfield)),]
             mutations.dt[start == end, end := end +1]
             mutations.dt[, strand := NULL]
-            mutations.dt[variant.p != "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; Protein_variant: ", variant.p, "; VAF: ",VAF)]
-            mutations.dt[variant.p == "",annotation := paste0("Type: ", annotation, "; Gene: ", gene, "; Variant: ",variant.c, "; VAF: ",VAF)]
-            dt2json_mut(dt = mutations.dt, ref = plot_metadata$ref,settings = settings, meta_data = c("gene", "feature_type","annotation","REF","ALT","variant.c","variant.p","VAF","transcript_type", "impact","rank"), y_col = yfield, file_name = somatic_json_path)
+            mutations.dt[variant.p != "", annotation := paste0(
+                "Type: ",
+                annotation,
+                "; Gene: ",
+                gene,
+                "; Variant: ",
+                variant.c,
+                "; Protein_variant: ",
+                variant.p,
+                "; VAF: ",
+                vaf
+            )]
+            mutations.dt[variant.p == "", annotation := paste0(
+                "Type: ",
+                annotation,
+                "; Gene: ",
+                gene,
+                "; Variant: ",
+                variant.c,
+                "; VAF: ",
+                vaf
+            )]
+            dt2json_mut(
+                dt = mutations.dt,
+                ref = plot_metadata$ref,
+                settings = settings,
+                meta_data = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+                y_col = yfield,
+                file_name = somatic_json_path
+            )
         } else {
             warning(plot_metadata$x, " rds read was not mutations")
         }
     } else {
-        warning("file ", ggraph_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+        warning("file ", somatic_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
     }
 }
 
