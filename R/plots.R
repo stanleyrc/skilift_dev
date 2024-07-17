@@ -1755,6 +1755,7 @@ genome_temp = function(
     order = NA,
     x = list(NA),
     ref = NA,
+    source = "genome.json",
     type = "genome",
     visible = TRUE,
     title = NA,
@@ -1763,17 +1764,19 @@ genome_temp = function(
     overwrite = FALSE
 ) {
                                         #use type = allelic to make a color a genome graph
-    dt1 = data.table(patient.id = patient_id,
-                     type = type,
-                     visible = visible,
-                     title = title,
-                     x = x,
-                     ref = ref,
-                     max.cn = max.cn,
-                     order = order,
-                     annotation = annotation,
-                     overwrite = overwrite
-                     )
+    dt1 = data.table(
+        patient.id = patient_id,
+        type = type,
+        visible = visible,
+        title = title,
+        x = x,
+        ref = ref,
+        source = source,
+        max.cn = max.cn,
+        order = order,
+        annotation = annotation,
+        overwrite = overwrite
+    )
     return(dt1)
 }
 
@@ -1802,21 +1805,24 @@ walks_temp = function(
     order = NA,
     x = list(NA),
     ref = NA,
+    source = "walks.json",
     type = "walk",
     visible = TRUE,
     title = NA,
     tag = NA,
     overwrite = FALSE
 ) {
-    dt1 = data.table(patient.id = patient_id, 
-                     visible = visible,
-                     x = x,
-                     type = type,
-                     order = order,
-                     ref = ref,
-                     title = title,
-                     overwrite = overwrite
-                     )
+    dt1 = data.table(
+        patient.id = patient_id,
+        visible = visible,
+        x = x,
+        type = type,
+        order = order,
+        ref = ref,
+        source = source,
+        title = title,
+        overwrite = overwrite
+    )
     return(dt1)
 }
 
@@ -1845,6 +1851,7 @@ mutations_temp = function(
     order = NA,
     x = list(NA),
     ref = NA,
+    source = "mutations.json",
     field,
     type = "mutations",
     visible = TRUE,
@@ -1852,16 +1859,18 @@ mutations_temp = function(
     tag = NA,
     overwrite = FALSE
 ) {
-    dt1 = data.table(patient.id = patient_id, 
-                     visible = visible,
-                     type = type,
-                     x = x,
-                     field = field,
-                     order = order,
-                     ref = ref,
-                     title = title,
-                     overwrite = overwrite
-                     )
+    dt1 = data.table(
+        patient.id = patient_id,
+        visible = visible,
+        type = type,
+        x = x,
+        field = field,
+        order = order,
+        ref = ref,
+        source = source,
+        title = title,
+        overwrite = overwrite
+    )
     return(dt1)
 }
 
@@ -1890,23 +1899,26 @@ ppfit_temp = function(
     order = NA,
     x = list(NA),
     ref = NA,
-    type = "ppfit",
+    source = "ppfit.json",
+    type = "ppfit",     #use type = allelic to make a colored genome graph
     visible = TRUE,
     title = NA,
     annotation = NULL,
     overwrite = FALSE
 ) {
-                                        #use type = allelic to make a color a genome graph
-    dt1 = data.table(patient.id = patient_id,
-                     type = type,
-                     visible = visible,
-                     title = title,
-                     x = x,
-                     ref = ref,
-                     order = order,
-                     annotation = annotation,
-                     overwrite = overwrite
-                     )
+    
+    dt1 = data.table(
+        patient.id = patient_id,
+        type = type,
+        visible = visible,
+        title = title,
+        x = x,
+        ref = ref,
+        source = source,
+        order = order,
+        annotation = annotation,
+        overwrite = overwrite
+    )
     return(dt1)
 }
 
