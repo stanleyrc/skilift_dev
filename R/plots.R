@@ -493,16 +493,11 @@ create_somatic_json = function(plot_metadata, datadir, settings = internal_setti
             mutations.dt[start == end, end := end +1]
             mutations.dt[, strand := NULL]
             mutations.dt[variant.p != "", annotation := paste0(
-                "Type: ",
-                annotation,
-                "; Gene: ",
-                gene,
-                "; Variant: ",
-                variant.c,
-                "; Protein_variant: ",
-                variant.p,
-                "; VAF: ",
-                vaf
+                "Type: ", annotation,
+                "; Gene: ", gene,
+                "; Variant: ", variant.c,
+                "; Protein_variant: ", variant.p,
+                "; VAF: ", vaf
             )]
             mutations.dt[variant.p == "", annotation := paste0(
                 "Type: ",
@@ -1273,23 +1268,23 @@ create_mutations_catalog_json = function(
 #' @title meta_data_json
 #' @description
 #'
-#' function to create the meta data summary json for case reports
+#' creates the meta data summary json for case reports
 #' 
 #' @param pair patient id to be added to pgvdb or case reports
-#' @param out_file path to write json
+#' @param outdir path to parent directory containing patient directories
 #' @param coverage path dryclean coverage output
 #' @param jabba_gg path to JaBbA output ggraph or complex
 #' @param strelka2_vcf path to strelka vcf to get snv count
 #' @param sage_vcf path to SAGE vcf to get snv count (if present)
-#' @param svaba_somatic_vcf path to svaba somatic vcf for getting sv count
 #' @param tumor_type_final tumor type abbreviation of the sample
 #' @param disease full length tumor type
 #' @param primary_site primary site of tumor
 #' @param inferred_sex sex of the patient
 #' @param karyograph JaBbA outputted karygraph
+#' @param signatures_pair_name pair name that appears in the sigprofiler output (sometimes different from pair)
 #' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
-#' @param sbs_deconstructSigs path to rds output from deconstructSigs
 #' @param sbs_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler 
+#' @param sbs_deconstructSigs path to rds output from deconstructSigs
 #' @param seqnames_loh chromosomes to be used to calculate LOH
 #' @param seqnames_genome_width chromosomes to be used to calculate tmb
 #' @param write_json TRUE/FALSE to write the json
@@ -1298,24 +1293,23 @@ create_mutations_catalog_json = function(
 #' @param make_dir TRUE/FALSE make the directory for the patient sample if it does not exists
 #' @return data.table or NULL
 #' @export
-#' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
+#' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene, Shihab Dider
 
 meta_data_json = function(
     pair,
-    out_file,
+    outdir = "./",
     genome = "hg19",
     coverage = NULL,
     jabba_gg = NULL,
     strelka2_vcf = NULL,
     sage_vcf = NULL,
-    svaba_somatic_vcf = NULL,
     tumor_type = NULL,
     disease = NULL,
     primary_site = NULL,
     inferred_sex = NULL,
     karyograph = NULL,
-    indel_sigprofiler = NULL,
     signatures_pair_name = NULL, # if different from pair
+    indel_sigprofiler = NULL,
     sbs_sigprofiler = NULL,
     sbs_deconstructSigs = NULL,
     seqnames_loh = c(1:22),
@@ -1325,32 +1319,31 @@ meta_data_json = function(
     return_table = FALSE,
     make_dir = FALSE
 ) {
+    out_file = paste0(outdir, "/", pair, "/metadata.json")
     if(!overwrite && write_json == TRUE) {
         if(file.exists(out_file)) {
-            print(paste0('Output already exists! - skipping sample ',pair))
+            print(paste0('Output already exists! - skipping sample ', pair))
             return(NA)
         }
     }
-    ## check if directory exists
-    ## get folder
+
+    ## get patient directory
     split_file_path = strsplit(out_file, "/")[[1]]
     folder_path = paste0(split_file_path[1:(length(split_file_path)-1)], collapse = "/")
-    if(!make_dir) {
-        if(!file.exists(folder_path)) {
+    ## check if directory exists
+    if (!file.exists(folder_path)) {
+        if (make_dir) {
+            cmd = paste0("mkdir -p ", folder_path)
+            print(paste0('Making directory ', folder_path))
+            system(cmd)
+        } else {
             print(paste0('Folder does not exist; skipping sample ', pair,". Use make_dir = TRUE to make directory"))
             return(NA)
         }
     }
-    if(make_dir) {
-        if(!file.exists(folder_path)) {
-            cmd = paste0("mkdir -p ", folder_path)
-            print(paste0('Making directory ', folder_path))
-            system(cmd)
-        }
-    }
-    ## meta.dt = data.table(pair = pair, tumor_type = tumor_type, tumor_type = tumor_type, disease = disease, primary_site = primary_site, inferred_sex = inferred_sex)
 
     meta.dt = data.table(pair = pair)
+
     if(!is.null(tumor_type)) {
         meta.dt[, tumor_type := tumor_type]
     }
@@ -1364,17 +1357,18 @@ meta_data_json = function(
         meta.dt[, inferred_sex := inferred_sex]
     }
     
-    ##get derivate log ratio spread
+    ##get derivative log ratio spread
     if(!is.null(coverage)) {
         meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
     }
-    ##Load this case's counts
-    ## meta.dt$snv_count = length(read_vcf(vcf))
+
+    ##snv counts
     if(!is.null(strelka2_vcf)) {
         snv.counts.dt = strelka2counts(strelka2_vcf, seqnames_genome_width = seqnames_genome_width)
         meta.dt$snv_count = snv.counts.dt[category == "snv_count",]$counts
         meta.dt$snv_count_normal_vaf_greater0 = snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
+
     if(is.null(sage_vcf) || sage_vcf == "") {
         warning("SAGE VCF not found as input, will only consider Strelka2 downstream...")
     } else {
@@ -1383,80 +1377,85 @@ meta_data_json = function(
         meta.dt$snv_count = sage.snv.counts.dt[category == "snv_count",]$counts
         meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
-    ## vcf.gr = read_vcf(vcf)
-    ## vcf.gr$ALT = NULL # string set slows it down a lot - don't need it here
-    ## meta.dt$snv_count = length(gr.nochr(vcf.gr) %Q% (seqnames %in% seqnames_genome_width))
-    ## Count svs, want to count junctions as well as svs
-    # gg = readRDS(jabba_gg)
-    ## cmd = paste0("module unload java && module load java; module load gatk; gatk CountVariants --QUIET true --verbosity ERROR"," -V ",svaba_somatic_vcf)
-    ## meta.dt$sv_count = system(paste(cmd, "2>/dev/null"), intern = TRUE)[2] %>% as.integer() #run the command without printing the java command
+
+    ##sv counts
     if(!is.null(jabba_gg)) {
-        ## count just junctions plus loose divided by 2, for sv counts for now
+        ## count := junctions + (loose ends / 2)
         gg = readRDS(jabba_gg)
-        ## meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
         meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
         meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
-                                        #get loh
+
+        #get loh
         nodes.dt = gg$nodes$dt
         nodes.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
         nodes.dt = gg$nodes$dt[seqnames %in% seqnames_loh]
         totalseglen = nodes.dt$width %>% sum()
 
         if('cn.low' %in% names(nodes.dt)) {
-            LOHsegs = nodes.dt[cn.low==0,] %>% .[cn.high >0] %>% .$width %>% sum()
-            ## LOH
-            LOH_frc = LOHsegs/totalseglen
-            meta.dt[,loh_fraction := LOH_frc]
-            meta.dt[,loh_seglen := LOHsegs]
+            lohsegs = nodes.dt[cn.low==0,] %>% .[cn.high >0] %>% .$width %>% sum()
+            loh_frc = lohsegs/totalseglen
+            meta.dt[,loh_fraction := loh_frc]
+            meta.dt[,loh_seglen := lohsegs]
             meta.dt[,loh_total_genome := totalseglen]
         } else {
             meta.dt$loh_fraction = 'Not Allelic Jabba'
         }
+
         ##add purity and ploidy
         meta.dt$purity = gg$meta$purity
         meta.dt$ploidy = gg$meta$ploidy
         ##add the total seqlengths by using the seqlengths in the jabba object
         nodes.gr = gg$nodes$gr
-        seqlengths.dt =suppressWarnings(as.data.table(seqinfo(nodes.gr), keep.rownames = "seqnames")) #had to supress, says other arguments ignored
+        seqlengths.dt = suppressWarnings(
+            as.data.table(
+                seqinfo(nodes.gr),
+                keep.rownames = "seqnames"
+            )
+        ) #had to supressWarnings, says other arguments ignored
         seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
         seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
         meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
-
     }
+
     ## Load beta/gamma for karyograph
     if(!is.null(karyograph)) {
         kag = readRDS(karyograph)
         meta.dt$beta = kag$beta
         meta.dt$gamma = kag$gamma
     }
+
     ##add tmb
     if(("snv_count" %in% names(meta.dt)) & ("total_genome_length" %in% names(meta.dt))) {
         meta.dt[,tmb := (snv_count / (as.numeric(meta.dt$total_genome_length) / 1e6))]
         meta.dt[,tmb := round(tmb, digits = 3)]
     }
 
+    ## add signatures
+    meta.dt$deconstructsigs_sbs_fraction = list()
+    meta.dt$deletionInsertion = list()
+    meta.dt$sigprofiler_indel_fraction = list()
+    meta.dt$sigprofiler_indel_count = list()
+    meta.dt$sigprofiler_sbs_fraction = list()
+    meta.dt$sigprofiler_sbs_count = list()
+    meta.dt$signatures = list()
+
     if (!is.null(signatures_pair_name)) {
         sig_sample_name = signatures_pair_name
     } else {
         sig_sample_name = pair
     }
-    ## add signatures that are present
+
     if(!is.null(sbs_deconstructSigs)) {
         signatures = sbs_deconstructSigs2meta(sbs_file = sbs_deconstructSigs, sample = sig_sample_name)
-        ## meta.dt$signatures = list(as.list(signatures)) # Changed default to sigprofiler
         meta.dt$deconstructsigs_sbs_fraction = list(as.list(signatures))
     }
+
     if(!is.null(indel_sigprofiler)) {
-        ## browser()
         deletionInsertion = indels_sigprofiler2meta(indel_file = indel_sigprofiler, sample = sig_sample_name)
         meta.dt$deletionInsertion = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_fraction = list(as.list(deletionInsertion[["indel_fraction"]]))
         meta.dt$sigprofiler_indel_count = list(as.list(deletionInsertion[["indel_count"]]))
-    } else {
-        meta.dt$deletionInsertion = list()
-        meta.dt$sigprofiler_indel_fraction = list()
-        meta.dt$sigprofiler_indel_count = list()
     }
 
     if(!is.null(sbs_sigprofiler)) {
@@ -1464,14 +1463,10 @@ meta_data_json = function(
         meta.dt$sigprofiler_sbs_fraction = list(as.list(signatures[["sbs_fraction"]]))
         meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
         meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
-    } else {
-        meta.dt$sigprofiler_sbs_fraction = list()
-        meta.dt$sigprofiler_sbs_count = list()
-        meta.dt$signatures = list()
-    }
-    ## end add signatures
+    }     
+
+    ##write the json
     if(write_json) {
-        ##write the json
         message(paste0("Writing json to ",out_file))
         write_json(meta.dt,out_file,pretty = TRUE, auto_unbox=TRUE)
         if(return_table) {
