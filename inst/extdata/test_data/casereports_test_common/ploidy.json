@@ -1,0 +1,13 @@
+[
+  {
+    "pair": "0125",
+    "tumor_type": "GBM",
+    "value": 2.0534,
+    "purity": 0.92
+  },
+  {
+    "pair": "0124",
+    "tumor_type": "GBM",
+    "value": 1.8605
+  }
+]

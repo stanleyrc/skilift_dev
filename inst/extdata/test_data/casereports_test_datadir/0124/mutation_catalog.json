@@ -1,0 +1,485 @@
+{
+  "pair": "0124",
+  "data": [
+    {
+      "id": 1,
+      "tnc": "A[C>A]A",
+      "mutations": 191
+    },
+    {
+      "id": 2,
+      "tnc": "A[C>A]C",
+      "mutations": 112
+    },
+    {
+      "id": 3,
+      "tnc": "A[C>A]G",
+      "mutations": 18
+    },
+    {
+      "id": 4,
+      "tnc": "A[C>A]T",
+      "mutations": 109
+    },
+    {
+      "id": 5,
+      "tnc": "A[C>G]A",
+      "mutations": 94
+    },
+    {
+      "id": 6,
+      "tnc": "A[C>G]C",
+      "mutations": 23
+    },
+    {
+      "id": 7,
+      "tnc": "A[C>G]G",
+      "mutations": 18
+    },
+    {
+      "id": 8,
+      "tnc": "A[C>G]T",
+      "mutations": 75
+    },
+    {
+      "id": 9,
+      "tnc": "A[C>T]A",
+      "mutations": 215
+    },
+    {
+      "id": 10,
+      "tnc": "A[C>T]C",
+      "mutations": 81
+    },
+    {
+      "id": 11,
+      "tnc": "A[C>T]G",
+      "mutations": 812
+    },
+    {
+      "id": 12,
+      "tnc": "A[C>T]T",
+      "mutations": 136
+    },
+    {
+      "id": 13,
+      "tnc": "A[T>A]A",
+      "mutations": 102
+    },
+    {
+      "id": 14,
+      "tnc": "A[T>A]C",
+      "mutations": 44
+    },
+    {
+      "id": 15,
+      "tnc": "A[T>A]G",
+      "mutations": 62
+    },
+    {
+      "id": 16,
+      "tnc": "A[T>A]T",
+      "mutations": 72
+    },
+    {
+      "id": 17,
+      "tnc": "A[T>C]A",
+      "mutations": 203
+    },
+    {
+      "id": 18,
+      "tnc": "A[T>C]C",
+      "mutations": 68
+    },
+    {
+      "id": 19,
+      "tnc": "A[T>C]G",
+      "mutations": 115
+    },
+    {
+      "id": 20,
+      "tnc": "A[T>C]T",
+      "mutations": 169
+    },
+    {
+      "id": 21,
+      "tnc": "A[T>G]A",
+      "mutations": 38
+    },
+    {
+      "id": 22,
+      "tnc": "A[T>G]C",
+      "mutations": 25
+    },
+    {
+      "id": 23,
+      "tnc": "A[T>G]G",
+      "mutations": 34
+    },
+    {
+      "id": 24,
+      "tnc": "A[T>G]T",
+      "mutations": 24
+    },
+    {
+      "id": 25,
+      "tnc": "C[C>A]A",
+      "mutations": 100
+    },
+    {
+      "id": 26,
+      "tnc": "C[C>A]C",
+      "mutations": 91
+    },
+    {
+      "id": 27,
+      "tnc": "C[C>A]G",
+      "mutations": 8
+    },
+    {
+      "id": 28,
+      "tnc": "C[C>A]T",
+      "mutations": 78
+    },
+    {
+      "id": 29,
+      "tnc": "C[C>G]A",
+      "mutations": 30
+    },
+    {
+      "id": 30,
+      "tnc": "C[C>G]C",
+      "mutations": 31
+    },
+    {
+      "id": 31,
+      "tnc": "C[C>G]G",
+      "mutations": 1
+    },
+    {
+      "id": 32,
+      "tnc": "C[C>G]T",
+      "mutations": 39
+    },
+    {
+      "id": 33,
+      "tnc": "C[C>T]A",
+      "mutations": 145
+    },
+    {
+      "id": 34,
+      "tnc": "C[C>T]C",
+      "mutations": 143
+    },
+    {
+      "id": 35,
+      "tnc": "C[C>T]G",
+      "mutations": 205
+    },
+    {
+      "id": 36,
+      "tnc": "C[C>T]T",
+      "mutations": 148
+    },
+    {
+      "id": 37,
+      "tnc": "C[T>A]A",
+      "mutations": 43
+    },
+    {
+      "id": 38,
+      "tnc": "C[T>A]C",
+      "mutations": 76
+    },
+    {
+      "id": 39,
+      "tnc": "C[T>A]G",
+      "mutations": 52
+    },
+    {
+      "id": 40,
+      "tnc": "C[T>A]T",
+      "mutations": 124
+    },
+    {
+      "id": 41,
+      "tnc": "C[T>C]A",
+      "mutations": 63
+    },
+    {
+      "id": 42,
+      "tnc": "C[T>C]C",
+      "mutations": 88
+    },
+    {
+      "id": 43,
+      "tnc": "C[T>C]G",
+      "mutations": 63
+    },
+    {
+      "id": 44,
+      "tnc": "C[T>C]T",
+      "mutations": 95
+    },
+    {
+      "id": 45,
+      "tnc": "C[T>G]A",
+      "mutations": 21
+    },
+    {
+      "id": 46,
+      "tnc": "C[T>G]C",
+      "mutations": 25
+    },
+    {
+      "id": 47,
+      "tnc": "C[T>G]G",
+      "mutations": 32
+    },
+    {
+      "id": 48,
+      "tnc": "C[T>G]T",
+      "mutations": 31
+    },
+    {
+      "id": 49,
+      "tnc": "G[C>A]A",
+      "mutations": 60
+    },
+    {
+      "id": 50,
+      "tnc": "G[C>A]C",
+      "mutations": 45
+    },
+    {
+      "id": 51,
+      "tnc": "G[C>A]G",
+      "mutations": 6
+    },
+    {
+      "id": 52,
+      "tnc": "G[C>A]T",
+      "mutations": 51
+    },
+    {
+      "id": 53,
+      "tnc": "G[C>G]A",
+      "mutations": 37
+    },
+    {
+      "id": 54,
+      "tnc": "G[C>G]C",
+      "mutations": 19
+    },
+    {
+      "id": 55,
+      "tnc": "G[C>G]G",
+      "mutations": 6
+    },
+    {
+      "id": 56,
+      "tnc": "G[C>G]T",
+      "mutations": 33
+    },
+    {
+      "id": 57,
+      "tnc": "G[C>T]A",
+      "mutations": 78
+    },
+    {
+      "id": 58,
+      "tnc": "G[C>T]C",
+      "mutations": 59
+    },
+    {
+      "id": 59,
+      "tnc": "G[C>T]G",
+      "mutations": 350
+    },
+    {
+      "id": 60,
+      "tnc": "G[C>T]T",
+      "mutations": 88
+    },
+    {
+      "id": 61,
+      "tnc": "G[T>A]A",
+      "mutations": 26
+    },
+    {
+      "id": 62,
+      "tnc": "G[T>A]C",
+      "mutations": 18
+    },
+    {
+      "id": 63,
+      "tnc": "G[T>A]G",
+      "mutations": 65
+    },
+    {
+      "id": 64,
+      "tnc": "G[T>A]T",
+      "mutations": 59
+    },
+    {
+      "id": 65,
+      "tnc": "G[T>C]A",
+      "mutations": 63
+    },
+    {
+      "id": 66,
+      "tnc": "G[T>C]C",
+      "mutations": 39
+    },
+    {
+      "id": 67,
+      "tnc": "G[T>C]G",
+      "mutations": 80
+    },
+    {
+      "id": 68,
+      "tnc": "G[T>C]T",
+      "mutations": 75
+    },
+    {
+      "id": 69,
+      "tnc": "G[T>G]A",
+      "mutations": 17
+    },
+    {
+      "id": 70,
+      "tnc": "G[T>G]C",
+      "mutations": 15
+    },
+    {
+      "id": 71,
+      "tnc": "G[T>G]G",
+      "mutations": 61
+    },
+    {
+      "id": 72,
+      "tnc": "G[T>G]T",
+      "mutations": 41
+    },
+    {
+      "id": 73,
+      "tnc": "T[C>A]A",
+      "mutations": 91
+    },
+    {
+      "id": 74,
+      "tnc": "T[C>A]C",
+      "mutations": 80
+    },
+    {
+      "id": 75,
+      "tnc": "T[C>A]G",
+      "mutations": 11
+    },
+    {
+      "id": 76,
+      "tnc": "T[C>A]T",
+      "mutations": 99
+    },
+    {
+      "id": 77,
+      "tnc": "T[C>G]A",
+      "mutations": 65
+    },
+    {
+      "id": 78,
+      "tnc": "T[C>G]C",
+      "mutations": 47
+    },
+    {
+      "id": 79,
+      "tnc": "T[C>G]G",
+      "mutations": 6
+    },
+    {
+      "id": 80,
+      "tnc": "T[C>G]T",
+      "mutations": 139
+    },
+    {
+      "id": 81,
+      "tnc": "T[C>T]A",
+      "mutations": 141
+    },
+    {
+      "id": 82,
+      "tnc": "T[C>T]C",
+      "mutations": 99
+    },
+    {
+      "id": 83,
+      "tnc": "T[C>T]G",
+      "mutations": 244
+    },
+    {
+      "id": 84,
+      "tnc": "T[C>T]T",
+      "mutations": 222
+    },
+    {
+      "id": 85,
+      "tnc": "T[T>A]A",
+      "mutations": 93
+    },
+    {
+      "id": 86,
+      "tnc": "T[T>A]C",
+      "mutations": 57
+    },
+    {
+      "id": 87,
+      "tnc": "T[T>A]G",
+      "mutations": 35
+    },
+    {
+      "id": 88,
+      "tnc": "T[T>A]T",
+      "mutations": 156
+    },
+    {
+      "id": 89,
+      "tnc": "T[T>C]A",
+      "mutations": 72
+    },
+    {
+      "id": 90,
+      "tnc": "T[T>C]C",
+      "mutations": 97
+    },
+    {
+      "id": 91,
+      "tnc": "T[T>C]G",
+      "mutations": 61
+    },
+    {
+      "id": 92,
+      "tnc": "T[T>C]T",
+      "mutations": 151
+    },
+    {
+      "id": 93,
+      "tnc": "T[T>G]A",
+      "mutations": 28
+    },
+    {
+      "id": 94,
+      "tnc": "T[T>G]C",
+      "mutations": 25
+    },
+    {
+      "id": 95,
+      "tnc": "T[T>G]G",
+      "mutations": 31
+    },
+    {
+      "id": 96,
+      "tnc": "T[T>G]T",
+      "mutations": 104
+    }
+  ]
+}

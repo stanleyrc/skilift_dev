@@ -1,0 +1,93 @@
+[
+  {
+    "gene": "ARHGAP5",
+    "id": "0152",
+    "type": "trunc",
+    "Variant": "Arg480*",
+    "Name": "Rho GTPase activating protein 5",
+    "Genome_Location": "14:32545320-32628934",
+    "Tier": 2,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "14",
+    "start": "32545320",
+    "end": "32628934"
+  },
+  {
+    "gene": "ARHGAP5",
+    "id": "0152",
+    "type": "trunc",
+    "Variant": "Glu481*",
+    "Name": "Rho GTPase activating protein 5",
+    "Genome_Location": "14:32545320-32628934",
+    "Tier": 2,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "14",
+    "start": "32545320",
+    "end": "32628934"
+  },
+  {
+    "gene": "ARHGAP5",
+    "id": "0152",
+    "type": "missense",
+    "Variant": "Glu489Lys",
+    "Name": "Rho GTPase activating protein 5",
+    "Genome_Location": "14:32545320-32628934",
+    "Tier": 2,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "14",
+    "start": "32545320",
+    "end": "32628934"
+  },
+  {
+    "gene": "MUC16",
+    "id": "0152",
+    "type": "missense",
+    "Variant": "Leu6486Ser",
+    "Name": "mucin 16, cell surface associated",
+    "Genome_Location": "19:8959520-9092018",
+    "Tier": 2,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "19",
+    "start": "8959520",
+    "end": "9092018"
+  },
+  {
+    "gene": "CDK4",
+    "id": "0152",
+    "type": "amp",
+    "Variant": "Total CN:263; CN Minor:1; CN Major:241",
+    "Name": "cyclin dependent kinase 4",
+    "Genome_Location": "12:58141510-58149796",
+    "Tier": 1,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "12",
+    "start": "58141510",
+    "end": "58149796"
+  },
+  {
+    "gene": "EGFR",
+    "id": "0152",
+    "type": "amp",
+    "Variant": "Total CN:379; CN Minor:2; CN Major:365",
+    "Name": "epidermal growth factor receptor",
+    "Genome_Location": "7:55086714-55324313",
+    "Tier": 1,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "7",
+    "start": "55086714",
+    "end": "55324313"
+  },
+  {
+    "gene": "MDM2",
+    "id": "0152",
+    "type": "amp",
+    "Variant": "Total CN:432; CN Minor:1; CN Major:395",
+    "Name": "MDM2 proto-oncogene",
+    "Genome_Location": "12:69201956-69239214",
+    "Tier": 1,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "12",
+    "start": "69201956",
+    "end": "69239214"
+  }
+]

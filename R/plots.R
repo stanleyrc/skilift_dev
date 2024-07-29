@@ -1478,162 +1478,283 @@ meta_data_json = function(
     }
 }
 
-
 #' @name create_distributions
 #' @title create_distributions
 #' @description
 #'
-#' function to create the meta data summary for samples in a case reports instance
+#' Creates the background distributions for aggregated metadata KPIs across all patients
 #' 
-#' @param case_reports_data_folder folder with all case report data by sample
-#' @param common_folder path to a folder to write all 7 jsons
-#' @param filter_pateints list of samples to filter on to create the distributions
-#' @return NULL
+#' @param case_reports_datadir directory containing all patient directories
+#' @param filter_patients list() - subset of samples to filter on to create the distributions
+#' @param cores number of cores to use for parallel processing
+#' @param write_to_json boolean flag to indicate whether to write the files to JSON or not
+#' @param common_dir path to the common directory in which to write the distribution JSONs (required if write_to_json is TRUE)
+#' @param overwrite boolean flag to indicate whether to overwrite existing files (required if write_to_json is TRUE)
+#' @return List of data tables containing distributions if write_to_json is FALSE, otherwise NULL
 #' @export
-#' @author Stanley Clarke, Tanubrata Dey, Joel Rosiene
-
 create_distributions = function(
-    case_reports_data_folder,
-    common_folder,
+    case_reports_datadir,
     filter_patients = NULL,
-    write_jsons = TRUE,
-    make_sub_folders = TRUE,
-    cores = 1
+    cores = 1,
+    write_to_json = FALSE,
+    common_dir = NULL,
+    overwrite = FALSE
 ) {
-    case_reports_data_folder = paste0(case_reports_data_folder,"/")  ## just add a slash in case not added
-    common_folder = paste0(common_folder,"/")  ## just add a slash in case not added
-    if(write_jsons) {
-        if(!file.exists(common_folder)) {
-            stop("common_folder does not exist. Make the directory first")
-        }
-        ## folder_paths = paste0(common_folder,c("signatures","signatures/sbs","signatures/sbs_deconstructsigs","signatures/insertionDeletion","signatures/insertionDeletion_sigprofilerassignment/","signatures/insertionDeletion_counts_sigprofilerassignment/", "signatures/sbs_counts_deconstructsigs", "signatures/sbs_deconstructsigs/"))
-        folder_paths = paste0(common_folder,c("signatures/sbs/", "signatures/deconstructsigs_sbs_fraction/", "signatures/insertionDeletion/", "signatures/sigprofiler_indel_fraction/", "signatures/sigprofiler_indel_count/", "signatures/sigprofiler_sbs_count/", "signatures/sigprofiler_sbs_fraction/"))
-        ## make the subfolders if they do not exist
-        if(make_sub_folders) {
-            if(!all(file.exists(folder_paths))) {
-                empty.lst = mclapply(folder_paths, function(folder_path) {
-                    cmd = paste0("mkdir -p ", folder_path)
-                    print(paste0('Making directory ', folder_path))
-                    system(cmd)
-                    return(NULL)
-                }, mc.cores = cores)
-            }
-        }
-    }
-    ## get files from case reports folder and subset if filter_pateints
-    files.lst = list.files(case_reports_data_folder)
-    files.lst = grep("data",files.lst,invert=TRUE, value = TRUE)
-    meta.dt = data.table(meta_json = paste0(case_reports_data_folder,files.lst,"/metadata.json"), patient_id = files.lst)
-    meta.dt = meta.dt[file.exists(meta_json),]
-    if(!is.null(filter_patients)) {
-        meta.dt = meta.dt[patient_id %in% filter_patients,]
+    case_reports_data_folder = paste0(case_reports_datadir, "/")
+
+    files <- list.files(
+        case_reports_data_folder,
+        pattern = "metadata.json",
+        recursive = TRUE,
+        full.names = TRUE
+    )
+
+    patient_ids <- basename(dirname(files))
+
+    meta.dt <- data.table(
+        meta_json = files,
+        patient_id = patient_ids
+    )
+
+    meta.dt <- meta.dt[file.exists(meta_json), ]
+
+    if (!is.null(filter_patients)) {
+        meta.dt <- meta.dt[patient_id %in% filter_patients, ]
     }
     
-    jsons.lst = mclapply(1:nrow(meta.dt), function(x) {
-        meta.sub.dt = meta.dt[x,]
+    jsons.lst = mclapply(1:nrow(meta.dt), function(i) {
+        meta.sub.dt = meta.dt[i, ]
         read_meta_data_json(meta_json = meta.sub.dt$meta_json, patient_id = meta.sub.dt$patient_id)
-    },mc.cores = cores)
+    }, mc.cores = cores)
     jsons.dt = rbindlist(jsons.lst, fill = TRUE)
-    if("snv_count" %in% names(jsons.dt)) {
-        ##snv distribution json
-        snv.dt = jsons.dt[,.(pair, snv_count,tumor_type)] %>% setnames(.,c("pair","value","tumor_type"))
-    } else {
-        snv.dt = NULL
-    }
-    if("sv_count" %in% names(jsons.dt)) {
-        ##sv distribution json
-        sv.dt = jsons.dt[,.(pair, sv_count, tumor_type)] %>% setnames(.,c("pair","value","tumor_type"))
-        sv.dt[,id := 1:.N]
-        sv.dt = sv.dt[,.(id,pair,value, tumor_type)]
-    } else {
-        sv.dt = NULL
-    }
-    if(all(c("loh_fraction","loh_seglen","loh_total_genome") %in% names(jsons.dt))) {
-        ##loh
-        loh.dt = jsons.dt[,.(pair, tumor_type,loh_fraction,loh_seglen,loh_total_genome)] %>% setnames(.,c("pair","tumor_type","value","LOH_seg_len","genome_width"))
-    } else {
-        loh.dt = NULL
+
+    subset_and_setnames <- function(dt, cols, new_names) {
+        if (all(cols %in% names(dt))) {
+            return(dt[, ..cols] %>% setnames(., new_names))
+        }
+        return(NULL)
     }
     
-    if("ploidy" %in% names(jsons.dt)) {
-        ##ploidy
-        ploidy.dt = jsons.dt[,.(pair, tumor_type, ploidy, purity)] %>% setnames(.,c("pair","tumor_type","value","purity"))
-    } else {
-        ploidy.dt = NULL
-    }
-    if("purity" %in% names(jsons.dt)) {
-        ##purity
-        purity.dt = jsons.dt[,.(pair, tumor_type, ploidy, purity)] %>% setnames(.,c("pair","tumor_type","ploidy","value"))
-    } else {
-        purity.dt = NULL
-    }
-    if("dlrs" %in% names(jsons.dt)) {
-        ##coverage variance
-        cov_var.dt = jsons.dt[,.(pair, tumor_type, dlrs)] %>% setnames(.,c("pair","tumor_type_mod","value"))
-    } else {
-        cov_var.dt = NULL
-    }
-    if("tmb" %in% names(jsons.dt)) {
-        ##tmb
-        tmb.dt = jsons.dt[,.(pair, tmb, tumor_type)] %>% setnames(.,c("pair","value","tumor_type"))
-    } else {
-        tmb.dt = NULL
-    }
-########################################################################################################################################
-    ## convert the signatures to data.tables that can be outputted for the distributions
+    # add new metadata attributes here
+    column_map <- list(
+        snv.dt = list(
+            cols = c("pair", "snv_count", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        sv.dt = list(
+            cols = c("pair", "sv_count", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        loh.dt = list(
+            cols = c("pair", "tumor_type", "loh_fraction", "loh_seglen", "loh_total_genome"),
+            new_names = c("pair", "tumor_type", "value", "LOH_seg_len", "genome_width")
+        ),
+        ploidy.dt = list(
+            cols = c("pair", "tumor_type", "ploidy", "purity"),
+            new_names = c("pair", "tumor_type", "value", "purity")
+        ),
+        purity.dt = list(
+            cols = c("pair", "tumor_type", "ploidy", "purity"),
+            new_names = c("pair", "tumor_type", "ploidy", "value")
+        ),
+        cov_var.dt = list(
+            cols = c("pair", "tumor_type", "dlrs"),
+            new_names = c("pair", "tumor_type_mod", "value")
+        ),
+        tmb.dt = list(
+            cols = c("pair", "tmb", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        )
+    )
+
+    results <- lapply(names(column_map), function(name) {
+        subset_and_setnames(jsons.dt, column_map[[name]]$cols, column_map[[name]]$new_names)
+    })
+
+    names(results) <- names(column_map)
+
+    # signatures
     sigs.lst = convert_signature_meta_json(jsons.dt = jsons.dt, cores = cores)
-    if(write_jsons == TRUE) {
-        ##writing jsons
-        message(paste0("writing jsons to ",common_folder))
-        write_json(snv.dt,paste0(common_folder,"/snvCount.json"),pretty = TRUE)
-        write_json(sv.dt,paste0(common_folder,"/svCount.json"),pretty = TRUE)
-        write_json(loh.dt,paste0(common_folder,"/lohFraction.json"),pretty = TRUE)
-        write_json(ploidy.dt,paste0(common_folder,"/ploidy.json"),pretty = TRUE)
-        write_json(purity.dt,paste0(common_folder,"/purity.json"),pretty = TRUE)
-        write_json(cov_var.dt,paste0(common_folder,"/coverageVariance.json"),pretty = TRUE)
-        write_json(tmb.dt,paste0(common_folder,"/tmb.json"),pretty = TRUE)
-        ## write distribution files for all distributions
-        write_signature_jsons(signatures_list = sigs.lst, common_folder = common_folder, cores = cores)
+
+    sigs_names <- c(
+        "deconstruct_sigs.dt",
+        "sigprofilerassignment_indels.dt",
+        "sigprofilerassignment_indels_counts.dt",
+        "sigprofilerassignment_sbs_counts.dt",
+        "sigprofilerassignment_sbs.dt"
+    )
+
+    sigs_results <- lapply(sigs_names, function(name) {
+        if (name %in% names(sigs.lst)) {
+            return(sigs.lst[[name]])
+        }
+        return(NULL)
+    })
+
+    json.lst <- c(results, sigs_results)
+
+    names(json.lst) <- c(
+        "snvCount",
+        "svCount",
+        "lohFraction",
+        "ploidy",
+        "purity",
+        "coverageVariance",
+        "tmb",
+        "sbs",
+        "sigprofiler_indel_fraction",
+        "sigprofiler_indel_count",
+        "sigprofiler_sbs_count",
+        "sigprofiler_sbs_fraction"
+    )
+
+    if (write_to_json) {
+        if (is.null(common_dir)) {
+            stop("common_dir must be provided if write_to_json is TRUE")
+        }
+        write_distributions_to_json(json.lst, common_dir, cores, overwrite)
+        return(NULL)
     } else {
-        ## start of returning all the distributions if write_jsons != TRUE
-        ## return the different signatures if they exist on returning
-        if("deconstruct_sigs.dt" %in% names(sigs.lst)) {
-            deconstruct_sigs.dt = sigs.lst[["deconstruct_sigs.dt"]]
-        } else {
-            deconstruct_sigs.dt = NULL
-        }
-        
-        if("sigprofilerassignment_indels.dt" %in% names(sigs.lst)) {
-            sigprofilerassignment_indels.dt = sigs.lst[["sigprofilerassignment_indels.dt"]]
-        } else {
-            sigprofilerassignment_indels.dt = NULL
-        }
-        
-        if("sigprofilerassignment_indels_counts.dt" %in% names(sigs.lst)) {
-            sigprofilerassignment_indels_counts.dt = sigs.lst[["sigprofilerassignment_indels_counts.dt"]]
-        } else {
-            sigprofilerassignment_indels_counts.dt = NULL
-        }
-        
-        if("sigprofilerassignment_sbs_counts.dt" %in% names(sigs.lst)) {
-            sigprofilerassignment_sbs_counts.dt = sigs.lst[["sigprofilerassignment_sbs_counts.dt"]]
-        } else {
-            sigprofilerassignment_sbs_counts.dt = NULL
-        }
-        
-        if("sigprofilerassignment_sbs.dt" %in% names(sigs.lst)) {
-            sigprofilerassignment_sbs.dt = sigs.lst[["sigprofilerassignment_sbs.dt"]]
-        } else {
-            sigprofilerassignment_sbs.dt = NULL
-        }
-        ## return(list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt))
-        json.lst = list(snv.dt,sv.dt,loh.dt,ploidy.dt,purity.dt,cov_var.dt,tmb.dt,deconstruct_sigs.dt, sigprofilerassignment_indels.dt,sigprofilerassignment_indels_counts.dt,sigprofilerassignment_sbs_counts.dt,sigprofilerassignment_sbs.dt)
-        ## names(json.lst) = c("snvCount", "svCount","lohFraction", "ploidy", "purity", "coverageVariance", "tmb", "deconstruct_sigs","sigprofilerassignment_indels","sigprofilerassignment_indels_counts.dt", "sigprofilerassignment_sbs_counts.dt", "sigprofilerassignment_sbs.dt")
-        names(json.lst) = c("snvCount", "svCount","lohFraction", "ploidy", "purity", "coverageVariance", "tmb", "sbs","sigprofiler_indel_fraction","sigprofiler_indel_count", "sigprofiler_sbs_count", "sigprofiler_sbs_fraction")
         return(json.lst)
     }
 }
 
+#' @name write_signature_jsons
+#' @title write_signature_jsons
+#' @description
+#' Writes the different distribution JSONs for signatures from the list outputted by convert_signature_meta_json
+#'
+#' @param signatures_list list outputted from convert_sign
+#' @param common_folder location of the signatures folder
+#' @param cores cores for generating the signature distribution files
+#' @return NULL
+#' @export
+#' @author Shihab Dider, Stanley Clarke
+write_signature_jsons <- function(signatures_list, common_folder, cores = 1) {
+    write_signature_json <- function(sig.dt, folder_path, sig) {
+        sig.dt[, sig := sig]
+        write_json(
+            sig.dt,
+            paste0(common_folder, folder_path, sig, ".json"),
+            pretty = TRUE
+        )
+    }
+
+    process_signatures <- function(sig_data, folder_path) {
+        sig_add = names(sig_data) %>% grep("pair|tumor_type", ., invert = TRUE, value = TRUE)
+        empty.lst = mclapply(sig_add, function(sig) {
+            cols_keep = c("pair", "tumor_type", sig)
+            sig.dt = sig_data[, ..cols_keep] %>% setnames(., c("pair", "tumor_type", "value"))
+            write_signature_json(sig.dt, folder_path, sig)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+
+    if ("sbs" %in% names(signatures_list)) {
+        process_signatures(
+            signatures_list[["sbs"]],
+            "signatures/deconstructsigs_sbs_fraction/"
+        )
+    }
+    if ("sigprofiler_indel_fraction" %in% names(signatures_list)) {
+        process_signatures(
+            signatures_list[["sigprofiler_indel_fraction"]],
+            "signatures/sigprofiler_indel_fraction/"
+        )
+    }
+    if ("sigprofiler_indel_count" %in% names(signatures_list)) {
+        process_signatures(
+            signatures_list[["sigprofiler_indel_count"]],
+            "signatures/sigprofiler_indel_count/"
+        )
+    }
+    if ("sigprofiler_sbs_count" %in% names(signatures_list)) {
+        process_signatures(
+            signatures_list[["sigprofiler_sbs_count"]],
+            "signatures/sigprofiler_sbs_count/"
+        )
+    }
+    if ("sigprofiler_sbs_fraction" %in% names(signatures_list)) {
+        process_signatures(
+            signatures_list[["sigprofiler_sbs_fraction"]],
+            "signatures/sigprofiler_sbs_fraction/"
+        )
+        process_signatures(
+            signatures_list[["sigprofiler_sbs_fraction"]],
+            "signatures/sbs/"
+        )
+    }
+}
+
+#' @name write_distributions_to_json
+#' @title write_distributions_to_json
+#' @description
+#'
+#' Writes the distributions data table to JSON files
+#' 
+#' @param distributions List of data tables containing distributions
+#' @param common_dir path to the common directory in which to write the distribution JSONs
+#' @param cores number of cores to use for parallel processing
+#' @param overwrite boolean flag to indicate whether to overwrite existing files
+#' @return NULL
+#' @export
+write_distributions_to_json <- function(
+    distributions,
+    common_dir,
+    cores = 1,
+    overwrite = FALSE
+) {
+    common_folder = paste0(common_dir, "/")
+    
+    if(!file.exists(common_folder)) {
+        stop("common_folder does not exist. Make the directory first")
+    }
+
+    signature_folder_paths = paste0(
+        common_folder,
+        c(
+            "signatures/sbs/",
+            "signatures/deconstructsigs_sbs_fraction/",
+            "signatures/insertionDeletion/",
+            "signatures/sigprofiler_indel_fraction/",
+            "signatures/sigprofiler_indel_count/",
+            "signatures/sigprofiler_sbs_count/",
+            "signatures/sigprofiler_sbs_fraction/"
+        )
+    )
+
+    if(!all(file.exists(signature_folder_paths))) {
+        empty.lst = mclapply(signature_folder_paths, function(folder_path) {
+            cmd = paste0("mkdir -p ", folder_path)
+            print(paste0('Making directory ', folder_path))
+            system(cmd)
+            return(NULL)
+        }, mc.cores = cores)
+    }
+
+    write_json_file <- function(data, file_path) {
+        if (overwrite || !file.exists(file_path)) {
+            write_json(data, file_path, pretty = TRUE)
+        } else {
+            message(paste0("File ", file_path, " already exists. Skipping."))
+        }
+    }
+
+    message(paste0("writing jsons to ", common_folder))
+    write_json_file(distributions$snvCount, paste0(common_folder, "/snvCount.json"))
+    write_json_file(distributions$svCount, paste0(common_folder, "/svCount.json"))
+    write_json_file(distributions$lohFraction, paste0(common_folder, "/lohFraction.json"))
+    write_json_file(distributions$ploidy, paste0(common_folder, "/ploidy.json"))
+    write_json_file(distributions$purity, paste0(common_folder, "/purity.json"))
+    write_json_file(distributions$coverageVariance, paste0(common_folder, "/coverageVariance.json"))
+    write_json_file(distributions$tmb, paste0(common_folder, "/tmb.json"))
+
+    write_signature_jsons(
+        signatures_list = distributions,
+        common_folder = common_folder,
+        cores = cores
+    )
+}
 
 #' @name load_distributions
 #' @title load_distributions
@@ -1641,26 +1762,152 @@ create_distributions = function(
 #'
 #' function to read in distributions files, same format returned as create_distributions with write_jsons = FALSE
 #' 
-#' @param common_folder path to a folder to write all 7 jsons
+#' @param common_dir path to a folder to write all 7 jsons
 #' @param filter_pateints list of samples to filter on to read in the distributions
 #' @return NULL
 #' @export
 #' @author Stanley Clarke
-load_distributions = function(common_folder, filter_patients = NULL) {
-    files.lst = paste0(common_folder, c("coverageVariance.json", "lohFraction.json", "ploidy.json", "purity.json", "snvCount.json", "svCount.json", "tmb.json"))
-    files.dt = data.table(name = c("coverageVariance", "lohFraction", "ploidy", "purity", "snvCount", "svCount", "tmb"), file = files.lst)
-    json.lst = lapply(setNames(nm = files.dt$name), function(name1) {
-        file1 = files.dt[name == name1,]$file
+load_distributions = function(
+    common_dir,
+    filter_patients = NULL
+) {
+    common_dir = paste0(common_dir, "/")
+    files.lst = paste0(
+        common_dir,
+        c(
+            "coverageVariance.json",
+            "lohFraction.json",
+            "ploidy.json",
+            "purity.json",
+            "snvCount.json",
+            "svCount.json",
+            "tmb.json"
+        )
+    )
+    files.dt = data.table(
+        name = c(
+            "coverageVariance",
+            "lohFraction",
+            "ploidy",
+            "purity",
+            "snvCount",
+            "svCount",
+            "tmb"
+        ),
+        file = files.lst
+    )
+    
+    json.lst = lapply(setNames(nm = files.dt$name), function(name_i) {
+        file_i = files.dt[name == name_i,]$file
         if(!is.null(filter_patients)) {
-            json.dt = as.data.table(fromJSON(file1))
+            json.dt = as.data.table(fromJSON(file_i))
             json.sub.dt = json.dt[pair %in% filter_patients,]
             return(json.sub.dt)
         }
-        return(as.data.table(fromJSON(file1)))
+        return(as.data.table(fromJSON(file_i)))
     })
     return(json.lst)
 }
 
+#' @name add_patient_to_distributions
+#' @title add_patient_to_distributions
+#' @description
+#'
+#' Adds a new patient to the existing distributions and writes the updated distributions to JSON files.
+#' 
+#' @param metadata_json_path Path to the new patient's metadata.json file.
+#' @param common_dir Path to the common directory where the distributions are stored.
+#' @param cores Number of cores to use for parallel processing.
+#' @param overwrite Boolean flag to indicate whether to overwrite existing files.
+#' @return Updated distributions.
+#' @export
+#' @author Shihab Dider
+add_patient_to_distributions <- function(
+    metadata_json_path,
+    common_dir,
+    cores = 1,
+    overwrite = FALSE,
+    write_to_json = FALSE
+) {
+    distributions <- load_distributions(common_dir)
+    
+    new_patient_data <- fromJSON(metadata_json_path)
+    
+    # Extract patient ID from the metadata.json path
+    patient_id <- basename(dirname(metadata_json_path))
+    
+    # Update distributions with the new patient's data
+    update_distribution <- function(distribution, new_data, key) {
+        if (!is.null(distribution)) {
+            new_entry <- data.table(
+                pair = patient_id,
+                value = new_data[[key]],
+                tumor_type = new_data$tumor_type
+            )
+            return(rbind(distribution, new_entry, fill = TRUE))
+        }
+        return(distribution)
+    }
+    
+    distributions$snvCount <- update_distribution(distributions$snvCount, new_patient_data, "snv_count")
+    distributions$svCount <- update_distribution(distributions$svCount, new_patient_data, "sv_count")
+    distributions$lohFraction <- update_distribution(distributions$lohFraction, new_patient_data, "loh_fraction")
+    distributions$ploidy <- update_distribution(distributions$ploidy, new_patient_data, "ploidy")
+    distributions$purity <- update_distribution(distributions$purity, new_patient_data, "purity")
+    distributions$coverageVariance <- update_distribution(distributions$coverageVariance, new_patient_data, "dlrs")
+    distributions$tmb <- update_distribution(distributions$tmb, new_patient_data, "tmb")
+    
+    # Update signature distributions
+    update_signature_distribution <- function(distribution, new_data, key_prefix) {
+        if (!is.null(distribution)) {
+            sig_keys <- names(new_data)[grep(paste0("^", key_prefix), names(new_data))]
+            for (sig_key in sig_keys) {
+                new_entry <- data.table(
+                    pair = patient_id,
+                    value = new_data[[sig_key]],
+                    tumor_type = new_data$tumor_type
+                )
+                distribution <- rbind(distribution, new_entry, fill = TRUE)
+            }
+            return(distribution)
+        }
+        return(distribution)
+    }
+    
+    distributions$sbs <- update_signature_distribution(
+        distributions$sbs,
+        new_patient_data,
+        "sbs"
+    )
+    distributions$sigprofiler_indel_fraction <- update_signature_distribution(
+        distributions$sigprofiler_indel_fraction,
+        new_patient_data,
+        "sigprofiler_indel_fraction"
+    )
+    distributions$sigprofiler_indel_count <- update_signature_distribution(
+        distributions$sigprofiler_indel_count,
+        new_patient_data,
+        "sigprofiler_indel_count"
+    )
+    distributions$sigprofiler_sbs_count <- update_signature_distribution(
+        distributions$sigprofiler_sbs_count,
+        new_patient_data,
+        "sigprofiler_sbs_count"
+    )
+    distributions$sigprofiler_sbs_fraction <- update_signature_distribution(
+        distributions$sigprofiler_sbs_fraction,
+        new_patient_data,
+        "sigprofiler_sbs_fraction"
+    )
+    
+    # Save the updated distributions
+    if (write_to_json) {
+        write_distributions_to_json(distributions, common_dir, cores, overwrite)
+    } else {
+        print("Returning updated distributions. If you want to save them, set write_to_json = TRUE.")
+        return(distributions)
+    }
+}
 
 #' @name bw_temp
 #' @title bw_temp
@@ -2507,96 +2754,3 @@ convert_signature_meta_json = function(jsons.dt, cores = 1) {
     names(list_return) = c("deconstruct_sigs.dt", "sigprofilerassignment_indels.dt", "sigprofilerassignment_indels_counts.dt", "sigprofilerassignment_sbs.dt", "sigprofilerassignment_sbs_counts.dt")
     return(list_return)
 }
-
-
-#' @name write_signature_jsons
-#' @title write_signature_jsons
-#' @description
-#' writes the different distribution jsons for signatures from the list outputted by convert_signature_meta_json
-#'
-#' @param signatures_list list outputted from convert_sign
-#' @param common_folder location of the signatures folder
-#' @param cores cores for generating the signature distribution files
-#' @return NULL
-#' @export
-#' @author Stanley Clarke
-
-## write_signature_jsons(sigs.lst, signatures_folder)
-## signatures_list = sigs.lst
-## signatures_folder = paste0(common_folder,"signatures")
-write_signature_jsons = function(signatures_list, common_folder, cores = 1) {
-    names_list = names(signatures_list)
-    ## deconstruct sigs dt- added to main SBS and SBS_deconstructsigs
-    if("deconstruct_sigs.dt" %in% names(signatures_list)) {
-        deconstruct_sigs.dt = signatures_list[["deconstruct_sigs.dt"]]
-        signatures_add = names(deconstruct_sigs.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
-        empty.lst = mclapply(signatures_add, function(sig) {
-            cols_keep = c("pair","tumor_type",sig)
-            sig.dt = deconstruct_sigs.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
-            sig.dt[,sig := sig]
-            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs/",sig,".json"),pretty = TRUE) ## deconstruct sigs as default for signatures at the moment
-            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_deconstructsigs/",sig,".json"),pretty = TRUE)
-            write_json(sig.dt,paste0(common_folder,"signatures/deconstructsigs_sbs_fraction/",sig,".json"),pretty = TRUE)
-            return(NULL)
-        }, mc.cores = cores)
-    }
-    ## sigprofiler assignment indels-added to main insertionDeletion and insertionDeletion_sigprofilerassignment
-    if("sigprofilerassignment_indels.dt" %in% names(signatures_list)) {
-        sigprofilerassignment_indels.dt = signatures_list[["sigprofilerassignment_indels.dt"]]
-        ## write indel signatures- sigprofilerassignment
-        indels_add = names(sigprofilerassignment_indels.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
-        empty.lst = mclapply(indels_add, function(sig) {
-            cols_keep = c("pair","tumor_type",sig)
-            sig.dt = sigprofilerassignment_indels.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
-            sig.dt[,sig := sig]
-            write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion/",sig,".json"),pretty = TRUE) ##  sigprofiler default for ins/del at the moment
-            ## write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion_sigprofilerassignment/",sig,".json"),pretty = TRUE)
-            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_indel_fraction/",sig,".json"),pretty = TRUE)
-            return(NULL)
-        }, mc.cores = cores)
-    }
-    ## sigprofiler assignment indels counts-added to insertionDeletion_counts_sigprofilerassignment
-    if("sigprofilerassignment_indels_counts.dt" %in% names(signatures_list)) {
-        sigprofilerassignment_indels_counts.dt = signatures_list[["sigprofilerassignment_indels_counts.dt"]]
-        ## write indel signatures- sigprofilerassignment
-        indels_add = names(sigprofilerassignment_indels_counts.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
-        empty.lst = mclapply(indels_add, function(sig) {
-            cols_keep = c("pair","tumor_type",sig)
-            sig.dt = sigprofilerassignment_indels_counts.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
-            sig.dt[,sig := sig]
-            ## write_json(sig.dt,paste0(common_folder,"signatures/insertionDeletion_counts_sigprofilerassignment/",sig,".json"),pretty = TRUE)
-            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_indel_count/",sig,".json"),pretty = TRUE)
-            return(NULL)
-        }, mc.cores = cores)
-    }
-    ## sigprofiler assignment sbs counts - added to sbs_counts_deconstructsigs
-    if("sigprofilerassignment_sbs_counts.dt" %in% names(signatures_list)) {
-        sigprofilerassignment_sbs_counts.dt = signatures_list[["sigprofilerassignment_sbs_counts.dt"]]
-        ## write indel signatures- sigprofilerassignment
-        sbs_add = names(sigprofilerassignment_sbs_counts.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
-        empty.lst = mclapply(sbs_add, function(sig) {
-            cols_keep = c("pair","tumor_type",sig)
-            sig.dt = sigprofilerassignment_sbs_counts.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
-            sig.dt[,sig := sig]
-            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_counts_deconstructsigs/",sig,".json"),pretty = TRUE)
-            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_sbs_count/",sig,".json"),pretty = TRUE)
-            return(NULL)
-        }, mc.cores = cores)
-    }
-    ## sigprofiler assignment sbs counts - added to sbs_deconstructsigs
-    if("sigprofilerassignment_sbs.dt" %in% names(signatures_list)) {
-        sigprofilerassignment_sbs.dt = signatures_list[["sigprofilerassignment_sbs.dt"]]
-        ## write indel signatures- sigprofilerassignment
-        sbs_add = names(sigprofilerassignment_sbs.dt) %>% grep("pair|tumor_type",.,invert = TRUE, value = TRUE)
-        empty.lst = mclapply(sbs_add, function(sig) {
-            cols_keep = c("pair","tumor_type",sig)
-            sig.dt = sigprofilerassignment_sbs.dt[,..cols_keep] %>% setnames(.,c("pair","tumor_type","value"))
-            sig.dt[,sig := sig]
-            ## write_json(sig.dt,paste0(common_folder,"signatures/sbs_deconstructsigs/",sig,".json"),pretty = TRUE)
-            write_json(sig.dt,paste0(common_folder,"signatures/sigprofiler_sbs_fraction/",sig,".json"),pretty = TRUE)
-            write_json(sig.dt,paste0(common_folder,"signatures/sbs/",sig,".json"),pretty = TRUE) ## sigprofiler as default for signatures at the moment
-            return(NULL)
-        }, mc.cores = cores)
-    }
-}
-

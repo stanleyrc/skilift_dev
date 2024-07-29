@@ -1,0 +1,54 @@
+[
+  {
+    "gene": "SLC45A3",
+    "id": "0128",
+    "type": "missense",
+    "Variant": "Arg84Cys",
+    "Name": "solute carrier family 45 member 3",
+    "Genome_Location": "1:205626979-205649587",
+    "Tier": 1,
+    "Role_in_Cancer": "fusion",
+    "seqnames": "1",
+    "start": "205626979",
+    "end": "205649587"
+  },
+  {
+    "gene": "TCF12",
+    "id": "0128",
+    "type": "trunc",
+    "Variant": "Ser497fs",
+    "Name": "transcription factor 12",
+    "Genome_Location": "15:57210821-57591479",
+    "Tier": 1,
+    "Role_in_Cancer": "fusion",
+    "seqnames": "15",
+    "start": "57210821",
+    "end": "57591479"
+  },
+  {
+    "gene": "TP53",
+    "id": "0128",
+    "type": "trunc",
+    "Variant": "Ser313fs",
+    "Name": "tumor protein p53",
+    "Genome_Location": "17:7565097-7590856",
+    "Tier": 1,
+    "Role_in_Cancer": "oncogene, TSG, fusion",
+    "seqnames": "17",
+    "start": "7565097",
+    "end": "7590856"
+  },
+  {
+    "gene": "CDK4",
+    "id": "0128",
+    "type": "amp",
+    "Variant": "Total CN:22; CN Minor:1; CN Major:21",
+    "Name": "cyclin dependent kinase 4",
+    "Genome_Location": "12:58141510-58149796",
+    "Tier": 1,
+    "Role_in_Cancer": "oncogene",
+    "seqnames": "12",
+    "start": "58141510",
+    "end": "58149796"
+  }
+]

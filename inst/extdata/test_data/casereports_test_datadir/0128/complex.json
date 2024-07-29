@@ -1,0 +1,768 @@
+{
+  "settings": {
+    "y_axis": {
+      "title": "copy number",
+      "visible": true
+    },
+    "y.axis": "cn",
+    "description": "<h3>JaBbA<\/h3> "
+  },
+  "intervals": [
+    {
+      "chromosome": "1",
+      "startPoint": 1,
+      "endPoint": 249251000,
+      "iid": 1,
+      "y": 2,
+      "title": "1",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "10",
+      "startPoint": 1,
+      "endPoint": 135535000,
+      "iid": 2,
+      "y": 2,
+      "title": "2",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "11",
+      "startPoint": 1,
+      "endPoint": 41359399,
+      "iid": 3,
+      "y": 1,
+      "title": "3",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "11",
+      "startPoint": 41359400,
+      "endPoint": 63046720,
+      "iid": 4,
+      "y": 2,
+      "title": "4",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "11",
+      "startPoint": 63046721,
+      "endPoint": 135007000,
+      "iid": 5,
+      "y": 2,
+      "title": "5",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "12",
+      "startPoint": 1,
+      "endPoint": 58074289,
+      "iid": 6,
+      "y": 2,
+      "title": "6",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "12",
+      "startPoint": 58074290,
+      "endPoint": 58629022,
+      "iid": 7,
+      "y": 22,
+      "title": "7",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "12",
+      "startPoint": 58629023,
+      "endPoint": 133852000,
+      "iid": 8,
+      "y": 2,
+      "title": "8",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "13",
+      "startPoint": 1,
+      "endPoint": 115170000,
+      "iid": 9,
+      "y": 1,
+      "title": "9",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "14",
+      "startPoint": 1,
+      "endPoint": 20550002,
+      "iid": 10,
+      "y": 2,
+      "title": "10",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "14",
+      "startPoint": 20550003,
+      "endPoint": 79089002,
+      "iid": 11,
+      "y": 2,
+      "title": "11",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "14",
+      "startPoint": 79089003,
+      "endPoint": 88165002,
+      "iid": 12,
+      "y": 2,
+      "title": "12",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "14",
+      "startPoint": 88165003,
+      "endPoint": 107350000,
+      "iid": 13,
+      "y": 2,
+      "title": "13",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "15",
+      "startPoint": 1,
+      "endPoint": 102532000,
+      "iid": 14,
+      "y": 2,
+      "title": "14",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "16",
+      "startPoint": 1,
+      "endPoint": 90355000,
+      "iid": 15,
+      "y": 2,
+      "title": "15",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "17",
+      "startPoint": 1,
+      "endPoint": 81196000,
+      "iid": 16,
+      "y": 2,
+      "title": "16",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "18",
+      "startPoint": 1,
+      "endPoint": 78078000,
+      "iid": 17,
+      "y": 2,
+      "title": "17",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "19",
+      "startPoint": 1,
+      "endPoint": 3318002,
+      "iid": 18,
+      "y": 2,
+      "title": "18",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "19",
+      "startPoint": 3318003,
+      "endPoint": 59129000,
+      "iid": 19,
+      "y": 2,
+      "title": "19",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "2",
+      "startPoint": 1,
+      "endPoint": 243200000,
+      "iid": 20,
+      "y": 2,
+      "title": "20",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "20",
+      "startPoint": 1,
+      "endPoint": 63026000,
+      "iid": 21,
+      "y": 2,
+      "title": "21",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "21",
+      "startPoint": 1,
+      "endPoint": 48130000,
+      "iid": 22,
+      "y": 2,
+      "title": "22",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "22",
+      "startPoint": 1,
+      "endPoint": 51305000,
+      "iid": 23,
+      "y": 2,
+      "title": "23",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "3",
+      "startPoint": 1,
+      "endPoint": 198023000,
+      "iid": 24,
+      "y": 2,
+      "title": "24",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "4",
+      "startPoint": 1,
+      "endPoint": 191155000,
+      "iid": 25,
+      "y": 2,
+      "title": "25",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "5",
+      "startPoint": 1,
+      "endPoint": 180916000,
+      "iid": 26,
+      "y": 2,
+      "title": "26",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "6",
+      "startPoint": 1,
+      "endPoint": 171116000,
+      "iid": 27,
+      "y": 2,
+      "title": "27",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "7",
+      "startPoint": 1,
+      "endPoint": 159139000,
+      "iid": 28,
+      "y": 2,
+      "title": "28",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "8",
+      "startPoint": 1,
+      "endPoint": 146365000,
+      "iid": 29,
+      "y": 2,
+      "title": "29",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "9",
+      "startPoint": 1,
+      "endPoint": 141214000,
+      "iid": 30,
+      "y": 2,
+      "title": "30",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "X",
+      "startPoint": 1,
+      "endPoint": 2673002,
+      "iid": 31,
+      "y": 2,
+      "title": "31",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "X",
+      "startPoint": 2673003,
+      "endPoint": 155271000,
+      "iid": 32,
+      "y": 1,
+      "title": "32",
+      "type": "interval",
+      "strand": "*"
+    },
+    {
+      "chromosome": "Y",
+      "startPoint": 1,
+      "endPoint": 59373566,
+      "iid": 33,
+      "y": 0,
+      "title": "33",
+      "type": "interval",
+      "strand": "*"
+    }
+  ],
+  "connections": [
+    {
+      "cid": 1,
+      "source": -4,
+      "sink": -5,
+      "title": "INV-like",
+      "type": "ALT",
+      "weight": 1
+    },
+    {
+      "cid": 2,
+      "source": 3,
+      "sink": -4,
+      "title": "REF",
+      "type": "REF",
+      "weight": 1
+    },
+    {
+      "cid": 3,
+      "source": 4,
+      "sink": -5,
+      "title": "REF",
+      "type": "REF",
+      "weight": 1
+    },
+    {
+      "cid": 4,
+      "source": 6,
+      "sink": -7,
+      "title": "REF",
+      "type": "REF",
+      "weight": 2
+    },
+    {
+      "cid": 5,
+      "source": 7,
+      "sink": -7,
+      "title": "DUP-like",
+      "type": "ALT",
+      "weight": 20
+    },
+    {
+      "cid": 6,
+      "source": 7,
+      "sink": -8,
+      "title": "REF",
+      "type": "REF",
+      "weight": 2
+    },
+    {
+      "cid": 7,
+      "source": 10,
+      "sink": -11,
+      "title": "REF",
+      "type": "REF",
+      "weight": 2
+    },
+    {
+      "cid": 8,
+      "source": 11,
+      "sink": -12,
+      "title": "REF",
+      "type": "REF",
+      "weight": 2
+    },
+    {
+      "cid": 9,
+      "source": 12,
+      "sink": -13,
+      "title": "REF",
+      "type": "REF",
+      "weight": 2
+    },
+    {
+      "cid": 10,
+      "source": 18,
+      "sink": -19,
+      "title": "REF",
+      "type": "REF",
+      "weight": 2
+    },
+    {
+      "cid": 11,
+      "source": 31,
+      "sink": -32,
+      "title": "REF",
+      "type": "REF",
+      "weight": 1
+    },
+    {
+      "cid": 12,
+      "source": -1,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 13,
+      "source": -2,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 14,
+      "source": -3,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 1
+    },
+    {
+      "cid": 15,
+      "source": -6,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 16,
+      "source": -9,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 1
+    },
+    {
+      "cid": 17,
+      "source": -10,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 18,
+      "source": -14,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 19,
+      "source": -15,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 20,
+      "source": -16,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 21,
+      "source": -17,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 22,
+      "source": -18,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 23,
+      "source": -20,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 24,
+      "source": -21,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 25,
+      "source": -22,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 26,
+      "source": -23,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 27,
+      "source": -24,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 28,
+      "source": -25,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 29,
+      "source": -26,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 30,
+      "source": -27,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 31,
+      "source": -28,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 32,
+      "source": -29,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 33,
+      "source": -30,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 34,
+      "source": -31,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 35,
+      "source": 1,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 36,
+      "source": 2,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 37,
+      "source": 4,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 38,
+      "source": 5,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 39,
+      "source": 8,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 40,
+      "source": 9,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 1
+    },
+    {
+      "cid": 41,
+      "source": 13,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 42,
+      "source": 14,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 43,
+      "source": 15,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 44,
+      "source": 16,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 45,
+      "source": 17,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 46,
+      "source": 19,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 47,
+      "source": 20,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 48,
+      "source": 21,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 49,
+      "source": 22,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 50,
+      "source": 23,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 51,
+      "source": 24,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 52,
+      "source": 25,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 53,
+      "source": 26,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 54,
+      "source": 27,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 55,
+      "source": 28,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 56,
+      "source": 29,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 57,
+      "source": 30,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 58,
+      "source": 31,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 2
+    },
+    {
+      "cid": 59,
+      "source": 32,
+      "title": "",
+      "type": "LOOSE",
+      "weight": 1
+    }
+  ]
+}
