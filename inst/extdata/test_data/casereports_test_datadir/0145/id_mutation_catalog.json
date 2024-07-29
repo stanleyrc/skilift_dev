@@ -1,0 +1,145 @@
+{
+  "pair": "0145",
+  "data": [
+    {
+      "id": 1,
+      "insdel": "1:Del:C:0",
+      "mutations": 46
+    },
+    {
+      "id": 2,
+      "insdel": "1:Del:C:1",
+      "mutations": 20
+    },
+    {
+      "id": 3,
+      "insdel": "1:Del:C:2",
+      "mutations": 5
+    },
+    {
+      "id": 4,
+      "insdel": "1:Del:C:3",
+      "mutations": 3
+    },
+    {
+      "id": 5,
+      "insdel": "1:Del:C:4",
+      "mutations": 3
+    },
+    {
+      "id": 6,
+      "insdel": "1:Del:C:5",
+      "mutations": 20
+    },
+    {
+      "id": 7,
+      "insdel": "1:Del:T:0",
+      "mutations": 31
+    },
+    {
+      "id": 8,
+      "insdel": "1:Del:T:1",
+      "mutations": 13
+    },
+    {
+      "id": 9,
+      "insdel": "1:Del:T:2",
+      "mutations": 14
+    },
+    {
+      "id": 10,
+      "insdel": "1:Del:T:3",
+      "mutations": 24
+    },
+    {
+      "id": 11,
+      "insdel": "1:Del:T:4",
+      "mutations": 11
+    },
+    {
+      "id": 12,
+      "insdel": "1:Del:T:5",
+      "mutations": 324
+    },
+    {
+      "id": 13,
+      "insdel": "1:Ins:C:0",
+      "mutations": 6
+    },
+    {
+      "id": 14,
+      "insdel": "1:Ins:C:1",
+      "mutations": 4
+    },
+    {
+      "id": 15,
+      "insdel": "1:Ins:C:2",
+      "mutations": 2
+    },
+    {
+      "id": 16,
+      "insdel": "1:Ins:C:3",
+      "mutations": 2
+    },
+    {
+      "id": 17,
+      "insdel": "1:Ins:C:4",
+      "mutations": 1
+    },
+    {
+      "id": 18,
+      "insdel": "1:Ins:C:5",
+      "mutations": 5
+    },
+    {
+      "id": 19,
+      "insdel": "1:Ins:T:0",
+      "mutations": 8
+    },
+    {
+      "id": 20,
+      "insdel": "1:Ins:T:1",
+      "mutations": 10
+    },
+    {
+      "id": 21,
+      "insdel": "1:Ins:T:2",
+      "mutations": 4
+    },
+    {
+      "id": 22,
+      "insdel": "1:Ins:T:3",
+      "mutations": 8
+    },
+    {
+      "id": 23,
+      "insdel": "1:Ins:T:4",
+      "mutations": 4
+    },
+    {
+      "id": 24,
+      "insdel": "1:Ins:T:5",
+      "mutations": 206
+    },
+    {
+      "id": 25,
+      "insdel": "long_Del",
+      "mutations": 263
+    },
+    {
+      "id": 26,
+      "insdel": "long_Ins",
+      "mutations": 58
+    },
+    {
+      "id": 27,
+      "insdel": "MH",
+      "mutations": 95
+    },
+    {
+      "id": 28,
+      "insdel": "complex",
+      "mutations": 0
+    }
+  ]
+}

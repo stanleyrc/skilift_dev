@@ -1,0 +1,12 @@
+[
+  {
+    "pair": "0125",
+    "value": 12624,
+    "tumor_type": "GBM"
+  },
+  {
+    "pair": "0124",
+    "value": 9010,
+    "tumor_type": "GBM"
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "pair": "test_6",
+    "tumor_type": "GBM",
+    "disease": "Glioblastoma",
+    "primary_site": "brain",
+    "inferred_sex": "male",
+    "dlrs": 0.1196,
+    "snv_count": 3196,
+    "snv_count_normal_vaf_greater0": 187,
+    "junction_count": 25,
+    "loose_count": 18,
+    "sv_count": 34,
+    "loh_fraction": 0.1146,
+    "loh_seglen": 330123077,
+    "loh_total_genome": 2881033286,
+    "purity": 0.54,
+    "ploidy": 1.8602,
+    "total_genome_length": 3095677412,
+    "beta": 3.4209,
+    "gamma": 1.7037,
+    "tmb": 1.032,
+    "deletionInsertion": {},
+    "sigprofiler_indel_fraction": {},
+    "sigprofiler_indel_count": {},
+    "sigprofiler_sbs_fraction": {},
+    "sigprofiler_sbs_count": {},
+    "signatures": {}
+  }
+]

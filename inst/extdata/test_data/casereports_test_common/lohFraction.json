@@ -1,0 +1,14 @@
+[
+  {
+    "pair": "0125",
+    "tumor_type": "GBM",
+    "value": 0.0847,
+    "LOH_seg_len": 244060816,
+    "genome_width": 2881044000
+  },
+  {
+    "pair": "0124",
+    "tumor_type": "GBM",
+    "value": 0.1157
+  }
+]
