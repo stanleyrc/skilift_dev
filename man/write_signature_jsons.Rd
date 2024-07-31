@@ -14,8 +14,8 @@ write_signature_jsons(signatures_list, common_folder, cores = 1)
 \item{cores}{cores for generating the signature distribution files}
 }
 \description{
-writes the different distribution jsons for signatures from the list outputted by convert_signature_meta_json
+Writes the different distribution JSONs for signatures from the list outputted by convert_signature_meta_json
 }
 \author{
-Stanley Clarke
+Shihab Dider, Stanley Clarke
 }

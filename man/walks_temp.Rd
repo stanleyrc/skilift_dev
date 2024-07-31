@@ -9,6 +9,7 @@ walks_temp(
   order = NA,
   x = list(NA),
   ref = NA,
+  source = "walks.json",
   type = "walk",
   visible = TRUE,
   title = NA,

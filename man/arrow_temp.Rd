@@ -9,6 +9,7 @@ arrow_temp(
   order = NA,
   x = list(NA),
   ref = NA,
+  source = "coverage.arrow",
   chart_type = "scatterplot",
   visible = TRUE,
   title = NA,
