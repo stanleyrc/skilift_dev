@@ -6,18 +6,18 @@
 \usage{
 meta_data_json(
   pair,
-  out_file,
+  outdir = "./",
   genome = "hg19",
   coverage = NULL,
   jabba_gg = NULL,
   strelka2_vcf = NULL,
   sage_vcf = NULL,
-  svaba_somatic_vcf = NULL,
   tumor_type = NULL,
   disease = NULL,
   primary_site = NULL,
   inferred_sex = NULL,
   karyograph = NULL,
+  signatures_pair_name = NULL,
   indel_sigprofiler = NULL,
   sbs_sigprofiler = NULL,
   sbs_deconstructSigs = NULL,
@@ -32,7 +32,7 @@ meta_data_json(
 \arguments{
 \item{pair}{patient id to be added to pgvdb or case reports}
 
-\item{out_file}{path to write json}
+\item{outdir}{path to parent directory containing patient directories}
 
 \item{coverage}{path dryclean coverage output}
 
@@ -42,8 +42,6 @@ meta_data_json(
 
 \item{sage_vcf}{path to SAGE vcf to get snv count (if present)}
 
-\item{svaba_somatic_vcf}{path to svaba somatic vcf for getting sv count}
-
 \item{disease}{full length tumor type}
 
 \item{primary_site}{primary site of tumor}
@@ -51,6 +49,8 @@ meta_data_json(
 \item{inferred_sex}{sex of the patient}
 
 \item{karyograph}{JaBbA outputted karygraph}
+
+\item{signatures_pair_name}{pair name that appears in the sigprofiler output (sometimes different from pair)}
 
 \item{indel_sigprofiler}{path to Assignment_Solution_Activities.txt, output of sigprofiler}
 
@@ -76,8 +76,8 @@ meta_data_json(
 data.table or NULL
 }
 \description{
-function to create the meta data summary json for case reports
+creates the meta data summary json for case reports
 }
 \author{
-Stanley Clarke, Tanubrata Dey, Joel Rosiene
+Stanley Clarke, Tanubrata Dey, Joel Rosiene, Shihab Dider
 }
