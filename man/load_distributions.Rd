@@ -4,10 +4,10 @@
 \alias{load_distributions}
 \title{load_distributions}
 \usage{
-load_distributions(common_folder, filter_patients = NULL)
+load_distributions(common_dir, filter_patients = NULL)
 }
 \arguments{
-\item{common_folder}{path to a folder to write all 7 jsons}
+\item{common_dir}{path to a folder to write all 7 jsons}
 
 \item{filter_pateints}{list of samples to filter on to read in the distributions}
 }

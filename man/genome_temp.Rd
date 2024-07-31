@@ -9,6 +9,7 @@ genome_temp(
   order = NA,
   x = list(NA),
   ref = NA,
+  source = "genome.json",
   type = "genome",
   visible = TRUE,
   title = NA,

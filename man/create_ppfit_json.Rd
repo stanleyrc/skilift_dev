@@ -5,8 +5,12 @@
 \title{create_ppfit_json}
 \usage{
 create_ppfit_json(
-  jabba_gg,
-  path_obj,
+  balanced_gg,
+  cov_path = NULL,
+  path_obj = NULL,
+  settings_json,
+  ref = NULL,
+  max_na = NULL,
   out_file = NULL,
   write_json = TRUE,
   overwrite = FALSE,
@@ -15,6 +19,16 @@ create_ppfit_json(
 )
 }
 \arguments{
+\item{balanced_gg}{the balanced_gg ggraph or the path to it}
+
+\item{path_obj}{path to flow directory, if null, must supply coverage path}
+
+\item{settings_json}{path to settings.json (from PGV)}
+
+\item{ref}{reference name}
+
+\item{max_na}{max.na used with JaBbA}
+
 \item{out_file}{location to write json}
 
 \item{write_json}{TRUE/FALSE whether to write the json}
@@ -25,7 +39,7 @@ create_ppfit_json(
 
 \item{cores}{cores for JaBbA:::segstats}
 
-\item{jabba_rds}{list object jabba.rds}
+\item{cov}{path to associated coverage, if null, will try to pull path from pairs table}
 }
 \value{
 NULL or segstats table
