@@ -26,6 +26,16 @@
     "sigprofiler_indel_count": {},
     "sigprofiler_sbs_fraction": {},
     "sigprofiler_sbs_count": {},
-    "signatures": {}
+    "signatures": {},
+    "hrd_score": 0.0002,
+    "dels_mh": 101,
+    "rs3": 0,
+    "rs5": 0,
+    "sbs3": 0,
+    "sbs8": 1189.2926,
+    "del_rep": 436,
+    "b1_2": 0,
+    "b1": 0,
+    "b2": 0
   }
 ]
