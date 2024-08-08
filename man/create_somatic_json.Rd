@@ -5,7 +5,7 @@
 \alias{dt2json_mut}
 \title{create_somatic_json}
 \usage{
-create_somatic_json(plot_metadata, datadir, settings)
+create_somatic_json(plot_metadata, datadir, settings = internal_settings_path)
 
 dt2json_mut(
   dt,
@@ -18,8 +18,11 @@ dt2json_mut(
 )
 }
 \arguments{
-\item{plot_metadata}{(`data.table`)\cr 
-Plot metadata.}
+\item{plot_metadata}{data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).}
+
+\item{datadir}{Path to data directory with patient directories.}
+
+\item{settings}{Path to settings.json file.}
 
 \item{dt}{data.table with seqnames,start and end}
 

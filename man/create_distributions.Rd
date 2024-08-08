@@ -5,24 +5,30 @@
 \title{create_distributions}
 \usage{
 create_distributions(
-  case_reports_data_folder,
-  common_folder,
+  case_reports_datadir,
   filter_patients = NULL,
-  write_jsons = TRUE,
-  make_sub_folders = TRUE,
-  cores = 1
+  cores = 1,
+  write_to_json = FALSE,
+  common_dir = NULL,
+  overwrite = FALSE
 )
 }
 \arguments{
-\item{case_reports_data_folder}{folder with all case report data by sample}
+\item{case_reports_datadir}{directory containing all patient directories}
 
-\item{common_folder}{path to a folder to write all 7 jsons}
+\item{filter_patients}{list() - subset of samples to filter on to create the distributions}
 
-\item{filter_pateints}{list of samples to filter on to create the distributions}
+\item{cores}{number of cores to use for parallel processing}
+
+\item{write_to_json}{boolean flag to indicate whether to write the files to JSON or not}
+
+\item{common_dir}{path to the common directory in which to write the distribution JSONs (required if write_to_json is TRUE)}
+
+\item{overwrite}{boolean flag to indicate whether to overwrite existing files (required if write_to_json is TRUE)}
+}
+\value{
+List of data tables containing distributions if write_to_json is FALSE, otherwise NULL
 }
 \description{
-function to create the meta data summary for samples in a case reports instance
-}
-\author{
-Stanley Clarke, Tanubrata Dey, Joel Rosiene
+Creates the background distributions for aggregated metadata KPIs across all patients
 }
