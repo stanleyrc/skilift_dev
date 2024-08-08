@@ -843,6 +843,8 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
                                         #possible_drivers = rbind(hetdel_snvs,homdels)
     homdels = ot[type == 'homdel']
     amps = ot[type == 'amp']
+    fusions = ot[type == 'fusion']
+    print(fusions)
     jab = readRDS(jabba_gg)
     possible_drivers = rbind(snvs,homdels,amps)
     cgc = fread(cgc_file)

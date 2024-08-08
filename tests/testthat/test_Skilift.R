@@ -674,43 +674,24 @@ test_that("multiplicity plots are generated correctly", {
 
 # filtered events
 # WIP since oncotable will be ported to skilift
-# test_that("filtered events table is generated correctly", {
-#     oncotable_paths = mclapply(filtered_outputs$patient_id, function(pair) {
-#       output_row = outputs[patient_id == pair, ]
-#       # construct outdir using sub on jabba_simple path
-#       outdir = sub('jabba', 'oncotable', output_row$jabba_simple)
-#       outdir = sub('/jabba.simple.rds', '', output_row$jabba_simple)
-#       paths_row = data.table(patient_id = pair, oncotable = paste0(outdir, "/oncotable.rds"))
-#       create_oncotable(
-#           pair = pair,
-#           annotated_bcf = output_row$snpeff_bcf,
-#           signature_counts = NULL,
-#           jabba_simple = output_row$jabba_simple,
-#           events = output_row$events,
-#           fusions = output_row$fusions,
-#           gencode = NULL,
-#           amp_thresh_multiplier = 2,
-#           outdir = outdir
-#       )
-#
-#       return(paths_row)
-#     }, mc.cores = 5)
-#     oncotable_paths = rbindlist(oncotable_paths)
-#
-#     mclapply(filtered_outputs$patient_id, function(pair) {
-#       cgc_file = "~/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv"
-#       oncotable_path = oncotable_paths[patient_id == pair, oncotable]
-#       outfile = paste0(datadir, "/", pair, "/filtered.events.json")
-#       filtered_events_json(
-#         pair = pair,
-#         oncotable = oncotable_path,
-#         jabba_gg = outputs[patient_id == pair, events],
-#         out_file = outfile,
-#         cgc_file = cgc_file,
-#         temp_fix = TRUE
-#       )
-#     }, mc.cores = 5)
-# })
+test_that("filtered events table is generated correctly", {
+    pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
+    pairs = readRDS(pairs_path)
+    pair = pairs[1, pair]
+
+    cgc_file = "~/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv"
+    oncotable_path = pairs[pair, oncotable]
+    output = system.file("extdata", "test_data", package = "Skilift")
+    outfile = paste0(output, "/", "test_filtered.events.json")
+    filtered_events_json(
+        pair = pair,
+        oncotable = oncotable_path,
+        jabba_gg = pairs[pair, jabba_gg],
+        out_file = outfile,
+        cgc_file = cgc_file,
+        temp_fix = TRUE
+    )
+})
 
 # mutation catalog
 test_that("mutation catalog generation works correctly", {
