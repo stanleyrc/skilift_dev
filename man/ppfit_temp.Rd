@@ -9,6 +9,7 @@ ppfit_temp(
   order = NA,
   x = list(NA),
   ref = NA,
+  source = "ppfit.json",
   type = "ppfit",
   visible = TRUE,
   title = NA,

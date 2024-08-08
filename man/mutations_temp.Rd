@@ -9,6 +9,7 @@ mutations_temp(
   order = NA,
   x = list(NA),
   ref = NA,
+  source = "mutations.json",
   field,
   type = "mutations",
   visible = TRUE,
