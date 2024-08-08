@@ -746,6 +746,8 @@ test_that("mutation catalog generation works correctly", {
 test_that("metadata.json is generated correctly", {
     skilift <- reset_skilift()
     pairs_path = system.file("extdata", "test_data", "test_meta_pairs.rds", package = "Skilift")
+    hrdetect = system.file("extdata", "test_data", "hrdetect_results.rds", package = "Skilift")
+    onetwo = system.file("extdata", "test_data", "onenesstwoness_results.rds", package = "Skilift")
     pairs = readRDS(pairs_path)
     pair = pairs[1, pair]
 
@@ -763,6 +765,8 @@ test_that("metadata.json is generated correctly", {
         disease = pairs[pair, disease],
         primary_site = pairs[pair, primary_site_simple],
         seqnames_genome_width = c(1:22, "X", "Y"),
+        hrdetect = hrdetect,
+        onenesstwoness = onetwo,
         write_json = TRUE,
         make_dir = TRUE,
         overwrite = TRUE
@@ -844,6 +848,40 @@ test_that("adding arrows in parallel works correctly", {
 })
 
 ### Development
+test_that("adding hrdetect to metadata works correctly", {
+    reset_skilift()
+    hrdetect = system.file("extdata", "test_data", "hrdetect_results.rds", package = "Skilift")
+    onetwo = system.file("extdata", "test_data", "onenesstwoness_results.rds", package = "Skilift")
+    pairs_path = system.file("extdata", "test_data", "test_meta_pairs.rds", package = "Skilift")
+    pairs = readRDS(pairs_path)
+    pair = pairs[1, pair]
+
+    output = system.file("extdata", "test_data", package = "Skilift")
+    meta_data_json(
+        pair = pair,
+        outdir = output,
+        coverage = pairs[pair, decomposed_cov],
+        jabba_gg = pairs[pair, complex],
+        seqnames_loh = c(1:22),
+        karyograph = pairs[pair, karyograph_rds],
+        strelka2_vcf = pairs[pair, strelka2_somatic_filtered_variants], #optional
+        sage_vcf = pairs[pair, sage_somatic_variants],
+        tumor_type = pairs[pair, tumor_type_final],
+        disease = pairs[pair, disease],
+        primary_site = pairs[pair, primary_site_simple],
+        seqnames_genome_width = c(1:22, "X", "Y"),
+        hrdetect = hrdetect,
+        onenesstwoness = onetwo,
+        write_json = TRUE,
+        make_dir = TRUE,
+        overwrite = TRUE
+    )
+
+    # read json file
+    md_json = fromJSON(paste0(output, "/", pair, "/metadata.json"))
+
+})
+
 test_that("adding new patients to distributions work correctly", {
 
     casereport_datadir = system.file("extdata", "test_data", "casereports_test_datadir", package = "Skilift")

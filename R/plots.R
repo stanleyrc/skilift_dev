@@ -1287,6 +1287,8 @@ create_mutations_catalog_json = function(
 #' @param sbs_deconstructSigs path to rds output from deconstructSigs
 #' @param seqnames_loh chromosomes to be used to calculate LOH
 #' @param seqnames_genome_width chromosomes to be used to calculate tmb
+#' @param hrdetect path to HRDetect output
+#' @param onenesstwoness path to onenesstwoness output
 #' @param write_json TRUE/FALSE to write the json
 #' @param overwrite TRUE/FALSE to overwrite the present json
 #' @param return_table TRUE/FALSE to return the data.table output
@@ -1314,6 +1316,8 @@ meta_data_json = function(
     sbs_deconstructSigs = NULL,
     seqnames_loh = c(1:22),
     seqnames_genome_width = c(1:22,"X","Y"),
+    hrdetect = NULL,
+    onenesstwoness = NULL,
     write_json = TRUE,
     overwrite = FALSE,
     return_table = FALSE,
@@ -1484,6 +1488,24 @@ meta_data_json = function(
         meta.dt$sigprofiler_sbs_count = list(as.list(signatures[["sbs_count"]]))
         meta.dt$signatures = list(as.list(signatures[["sbs_fraction"]])) #Changed default to sigprofiler
     }     
+    
+    if (!is.null(hrdetect)) {
+        hrd = readRDS(hrdetect)
+        meta.dt$hrd_score = hrd$hrdetect_output[1, "Probability"]
+        meta.dt$dels_mh = hrd$indels_classification_table$del.mh.count
+        meta.dt$rs3 = hrd$exposures_rearr["RefSigR3", ]
+        meta.dt$rs5 = hrd$exposures_rearr["RefSigR5", ]
+        meta.dt$sbs3 = hrd$exposures_subs["SBS3", ]
+        meta.dt$sbs8 = hrd$exposures_subs["SBS8", ]
+        meta.dt$del_rep = hrd$indels_classification_table$del.rep.count
+    }
+
+    if (!is.null(onenesstwoness)) {
+        onetwo = readRDS(onenesstwoness)
+        meta.dt$b1_2 = onetwo$ot_scores[, "SUM12"]
+        meta.dt$b1 = onetwo$ot_scores[, "BRCA1"]
+        meta.dt$b2 = onetwo$ot_scores[, "BRCA2"]
+    }
 
     ##write the json
     if(write_json) {
