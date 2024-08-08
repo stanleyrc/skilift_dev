@@ -750,7 +750,6 @@ test_that("metadata.json is generated correctly", {
     pair = pairs[1, pair]
 
     output = system.file("extdata", "test_data", package = "Skilift")
-
     meta_data_json(
         pair = pair,
         outdir = output,
@@ -763,7 +762,6 @@ test_that("metadata.json is generated correctly", {
         tumor_type = pairs[pair, tumor_type_final],
         disease = pairs[pair, disease],
         primary_site = pairs[pair, primary_site_simple],
-        inferred_sex = pairs[pair, inferred_sex],
         seqnames_genome_width = c(1:22, "X", "Y"),
         write_json = TRUE,
         make_dir = TRUE,
@@ -846,7 +844,7 @@ test_that("adding arrows in parallel works correctly", {
 })
 
 ### Development
-test_that("kpi distributions are generated correctly", {
+test_that("adding new patients to distributions work correctly", {
 
     casereport_datadir = system.file("extdata", "test_data", "casereports_test_datadir", package = "Skilift")
     common_dir = system.file("extdata", "test_data", "casereports_test_common", package = "Skilift")
@@ -854,16 +852,18 @@ test_that("kpi distributions are generated correctly", {
     skilift <- reset_skilift()
     distributions = create_distributions(
         case_reports_datadir = casereport_datadir,
-        filter_patients = NULL,
+        filter_patients = list("0125"),
         write_to_json = TRUE,
         common_dir = common_dir,
         overwrite = TRUE,
         cores = 1
     )
 
-    write_distributions_to_json(
-        distributions = distributions,
-        common_dir = common_dir
-    )
+    metadata = system.file("extdata", "test_data", "casereports_test_datadir", "0124", "metadata.json", package = "Skilift")
 
+    add_patient_to_distributions(
+        metadata_json_path = metdata,
+        common_dir = common_dir,
+        overwrite = TRUE
+    )
 })

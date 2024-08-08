@@ -1353,8 +1353,28 @@ meta_data_json = function(
     if(!is.null(primary_site)) {
         meta.dt[, primary_site := primary_site]
     }
-    if(!is.null(inferred_sex)) {
+    if (!is.null(inferred_sex)) {
+        # check if inferred sex is one of "male" or "female"
+        if (!inferred_sex == "male" & !inferred_sex == "female") {
+            warning("inferred sex must be one of `male` or `female`, you passed: ")
+            print(inferred_sex)
+        }
         meta.dt[, inferred_sex := inferred_sex]
+    } else if(!is.null(jabba_gg)) {
+        gg = readRDS(jabba_gg)
+        ncn.x = gg$nodes$dt[(seqnames == "X" | seqnames == "chrX"),
+        weighted.mean(cn,
+            w = end - start + 1,
+            na.rm = TRUE)]
+        sex = ifelse(ncn.x < 1.4, "male", "female")
+        meta.dt[, inferred_sex := sex]
+    } else if (!is.null(coverage)) {
+        #' look at mean-normalized relative foreground
+        ncn.x = unique(gr2dt(coverage)[, foreground.chr := mean(foreground), by = seqnames][, .(seqnames, foreground.chr)])[seqnames %in% c("X", "chrX")]$foreground.chr
+        sex = ifelse(ncn.x < 0.7, "male", "female")
+        meta.dt[, inferred_sex := sex]
+    } else {
+        warning("Could not infer sex. Pass it directly as `inferred_sex=[male|female]` or pass jabba_gg or coverage data to infer it from the copy-number/coverage.")
     }
     
     ##get derivative log ratio spread
