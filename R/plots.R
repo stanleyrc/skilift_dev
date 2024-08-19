@@ -155,7 +155,7 @@ subsample_hetsnps = function(
 #' @description
 #' Create coverage arrow plot JSON file.
 #'
-#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param plot_metadata data.table with Plot metadata for a single plot, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
 #' @param datadir Path to data directory with patient directories.
 #' @param settings Path to settings.json file.
 #'
@@ -178,7 +178,7 @@ create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings
     } 
 
     is_granges <- is(plot_metadata$x[[1]], "GRanges")
-    is_path <- is(plot_metadata$x[[1]], "character")
+    is_path <- is(plot_metadata$x, "character")
     if (is_granges) {
         # save granges to a temp file and assign path to plot_metadata$x
         print("Saving GRanges to temp file")
@@ -186,7 +186,7 @@ create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings
         saveRDS(plot_metadata$x[[1]], temp_file)
         plot_metadata$x <- temp_file
     } else if (is_path) {
-        plot_metadata$x <- plot_metadata$x[[1]]
+        print("Using path to GRanges")
     } else {
         stop(warning("Please provide a GRanges object or a path to a GRanges object."))
     }
@@ -367,8 +367,8 @@ create_allelic_json = function(plot_metadata, datadir, settings = internal_setti
                 annotations = annotations,
                 maxcn = maxcn,
                 nfields = "col",
-                save = TRUE,
-                offset = TRUE
+                save = TRUE
+                # offset = TRUE
                 # cid.field = field
             )
             ## for(x in 1:length(gg.js$intervals)) {
@@ -530,9 +530,10 @@ create_somatic_json = function(plot_metadata, datadir, settings = internal_setti
 #' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
 #' @param datadir Path to data directory with patient directories.
 #' @param settings Path to settings.json file.
+#' @param cov_path Path to coverage file (necessary for segstats information, optional).
 #'
 #' @return NULL.
-create_ppfit_genome_json = function(plot_metadata, datadir, settings = internal_settings_path) {
+create_ppfit_genome_json = function(plot_metadata, datadir, settings = internal_settings_path, cov_path=NULL) {
   ppfit_json_path <- file.path(
     datadir,
     plot_metadata$patient.id,
@@ -603,7 +604,8 @@ create_ppfit_genome_json = function(plot_metadata, datadir, settings = internal_
         } else {
           ## segstats information          
           segstats.dt = create_ppfit_json(
-              jabba_gg = ggraph,
+              balanced_gg = ggraph,
+              cov_path = cov_path,
               path_obj = plot_metadata$x,
               return_table = TRUE,
               write_json = FALSE
@@ -786,6 +788,146 @@ sigprofiler_decomposed_probs_json = function(probs, is_indel, data_dir, pairs, c
   }, mc.cores = cores)
 }
 
+#' @title process_gencode
+#' @description
+#'
+#' Helper script to process gencode parameter
+#'
+#' @param gencode path to gencode file. Gencode file must be either rds or some format accepted by rtracklayer::import (e.g. GTF)
+#' @return gencode_gr GRanges
+#' @author Marcin Imielinski
+process_gencode = function(gencode = NULL){
+    if (is.null(gencode)) {
+        gencode = skidb::read_gencode()
+        print(gencode)
+    } else if (is.character(gencode)) {
+    if (grepl('.rds$', gencode))
+      gencode = readRDS(gencode)
+    else
+      gencode = rtracklayer::import(gencode)
+  }
+  return(gencode)
+}
+
+#' @name grok_bcf
+#' @rdname
+#' @title Reads and parses bcf via bcftools call
+#' @param bcf path to bcf file
+#' @param gr optional granges to query
+#' @param bpath path to bcftools binary executable
+#' @export
+grok_bcf = function(bcf, gr = NULL, bpath = "/nfs/sw/bcftools/bcftools-1.9/bin/bcftools", label = NA, filter = 'PASS', snv = FALSE, indel = FALSE, het = FALSE, hom = FALSE, keep.modifier = TRUE, long = FALSE, oneliner = FALSE, verbose = FALSE)
+{
+  cmd = sprintf('%s view %s', bpath, bcf)
+
+  if (is.na(label))
+    label = bcf
+
+  if (!is.null(gr))
+  {
+    wins = paste(gr.string(gr.stripstrand(gr)), collapse = ',')
+    cmd = paste(cmd, '-r', wins)
+  }
+
+  if (!is.null(filter) && !is.na(filter))
+  {
+    cmd = paste(cmd, sprintf('-i \'FILTER="%s"\'', filter))
+  }
+
+  if (het)
+  {
+    cmd = paste(cmd, '-g het')
+  }
+
+  if (indel)
+  {
+    cmd = paste(cmd, '-v indels')
+  }
+
+  if (snv)
+  {
+    cmd = paste(cmd, '-v snps')
+  }
+
+  if (het)
+  {
+    cmd = paste(cmd, '-g het')
+  }
+
+  if (hom)
+  {
+    cmd = paste(cmd, '-g hom')
+  }
+  
+  ## quick dunlist
+  .dunlist = function(x)
+  {
+    ## simplified dunlist to output integer listid and also listiid 
+    out = data.table(listid = rep(1:length(x), elementNROWS(x)), V1 = unlist(x))[, listiid := 1:.N, by = listid]
+    return(out)
+  }
+  
+  if (verbose)
+    message(cmd)
+    
+  p = pipe(cmd)
+  lines = readLines(p)
+  close(p)
+
+  is.header = grepl('^\\#', lines)
+  header = lines[is.header]
+  contigs = strsplit(gsub('^\\#\\#', '', grep('contig', header, value = TRUE)), ',')
+  sl = suppressWarnings(structure(names = gsub('.*ID=\\<', '', sapply(contigs, '[', 1)),
+                 as.numeric(gsub('>$', '', gsub('.*length=\\<', '', sapply(contigs, '[', 2))))))
+  
+  other = lines[!is.header]
+  if (length(other))
+    {
+      out = fread(paste(c(other, ''), collapse = '\n'), sep = "\t", header = FALSE)
+      sn = unlist(strsplit(gsub('^\\#', '', header[length(header)]), '\\t'))
+      sfields = sn[-c(1:9)]
+      setnames(out, sn)
+      out[, seqnames := as.character(CHROM)]
+      out[, start := POS]
+      out[, end := POS]
+      out[, listid := 1:.N] ## set listid to keep track of lists
+      ## unpack bcf "format" + sample fields
+
+
+      if (!is.null(out$FORMAT))
+        {
+          fdat = .dunlist(strsplit(out$FORMAT, ':'))
+          setnames(fdat,2,'field')
+                                        #  out$FORMAT = NULL ### keep in for now for sanity checks 
+          for (sfield in sfields) ## can be more than one sample field
+          {
+            fdatm = fdat %>% merge(.dunlist(strsplit(out[[sfield]], ':')), by = c('listid', 'listiid')) ## merge on both listid and listiid 
+            fdatc = dcast.data.table(copy(fdatm)[, field := paste(sfield, field, sep = '_')], listid ~ field, value.var = 'V1')
+            out = merge(out, fdatc, by = 'listid', all.x = TRUE) ## order of out should be maintained here since keyed by listid which (now) is an integer
+          }
+        }
+
+      if (!is.null(out$INFO))
+        {
+          ## unpack "info" field
+            print('trace')
+            print(out$INFO[1])
+          idat = .dunlist(strsplit(out$INFO, ';'))
+          idat = cbind(idat, colsplit(idat$V1, pattern = "=", names = c("field","value")))
+          idatc = dcast.data.table(idat, listid ~ field, value.var = 'value')
+          out$INFO = NULL
+          mcols = setdiff(names(idatc), c('REF', 'ALT'))
+          out = merge(out, idatc[, mcols, with = FALSE], by = 'listid', all.x = TRUE) ##
+        }
+      
+      out = dt2gr(out, seqlengths = sl)
+      out = grok_vcf(out, keep.modifier = keep.modifier, long = long, oneliner = oneliner, verbose = verbose, label = label)
+    }
+  else
+    out = GRanges(seqlengths = sl)
+  return(out)
+}
+
 #' @name oncotable
 #' @title oncotable
 #' @description
@@ -887,7 +1029,11 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
                   fill = TRUE, use.names = TRUE)
 
       # get the ncn data from jabba
-      kag = readRDS(dat[x, gsub("jabba.simple.rds", "karyograph.rds", jabba_rds)])
+      if (is.null(dat$karyograph) || !file.exists(dat[x, karyograph])) {
+        stop("karyograph file not found")
+      }
+
+      kag = readRDS(dat$karyograph)
       nseg = NULL
       if ('ncn' %in% names(mcols(kag$segstats))){
           nseg = kag$segstats[,c('ncn')]
@@ -1000,6 +1146,7 @@ create_oncotable = function(
     signature_counts = NULL,
     fusions,
     jabba_simple,
+    karyograph,
     events,
     gencode = NULL,
     amp_thresh_multiplier = NULL,
@@ -1011,6 +1158,7 @@ create_oncotable = function(
       signature_counts = signature_counts,
       fusions = fusions,
       jabba_rds = jabba_simple,
+      karyograph = karyograph,
       complex = events
     )
     setkey(tumors, id)
@@ -1031,7 +1179,7 @@ create_oncotable = function(
         amp_thresh_multiplier = 1.5
     }
 
-    ploidy = readRDS(jabba_simple)$ploidy
+    ploidy = ifelse(is.null(readRDS(jabba_simple)$ploidy), readRDS(jabba_simple)$meta$ploidy, readRDS(jabba_simple)$ploidy)
     amp_thresh = amp_thresh_multiplier*ploidy
     message(paste("using amp.thresh of", amp_thresh))
 
@@ -1777,7 +1925,8 @@ create_distributions = function(
     cores = 1,
     write_to_json = FALSE,
     common_dir = NULL,
-    overwrite = FALSE
+    overwrite = FALSE,
+    haveSignatures = TRUE
 ) {
     case_reports_data_folder = paste0(case_reports_datadir, "/")
 
@@ -1853,45 +2002,58 @@ create_distributions = function(
     names(results) <- names(column_map)
 
     # signatures
-    sigs.lst = convert_signature_meta_json(jsons.dt = jsons.dt, cores = cores)
+    if (haveSignatures) {
+        sigs.lst = convert_signature_meta_json(jsons.dt = jsons.dt, cores = cores)
 
-    sigs_names <- c(
-        "deconstruct_sigs.dt",
-        "sigprofilerassignment_indels.dt",
-        "sigprofilerassignment_indels_counts.dt",
-        "sigprofilerassignment_sbs_counts.dt",
-        "sigprofilerassignment_sbs.dt"
-    )
+        sigs_names <- c(
+            "deconstruct_sigs.dt",
+            "sigprofilerassignment_indels.dt",
+            "sigprofilerassignment_indels_counts.dt",
+            "sigprofilerassignment_sbs_counts.dt",
+            "sigprofilerassignment_sbs.dt"
+        )
 
-    sigs_results <- lapply(sigs_names, function(name) {
-        if (name %in% names(sigs.lst)) {
-            return(sigs.lst[[name]])
-        }
-        return(NULL)
-    })
+        sigs_results <- lapply(sigs_names, function(name) {
+            if (name %in% names(sigs.lst)) {
+                return(sigs.lst[[name]])
+            }
+            return(NULL)
+        })
 
-    json.lst <- c(results, sigs_results)
+        json.lst <- c(results, sigs_results)
 
-    names(json.lst) <- c(
-        "snvCount",
-        "svCount",
-        "lohFraction",
-        "ploidy",
-        "purity",
-        "coverageVariance",
-        "tmb",
-        "sbs",
-        "sigprofiler_indel_fraction",
-        "sigprofiler_indel_count",
-        "sigprofiler_sbs_count",
-        "sigprofiler_sbs_fraction"
-    )
+        names(json.lst) <- c(
+            "snvCount",
+            "svCount",
+            "lohFraction",
+            "ploidy",
+            "purity",
+            "coverageVariance",
+            "tmb",
+            "sbs",
+            "sigprofiler_indel_fraction",
+            "sigprofiler_indel_count",
+            "sigprofiler_sbs_count",
+            "sigprofiler_sbs_fraction"
+        )
+    } else {
+        json.lst <- results
+        names(json.lst) <- c(
+            "snvCount",
+            "svCount",
+            "lohFraction",
+            "ploidy",
+            "purity",
+            "coverageVariance",
+            "tmb"
+        )
+    }
 
     if (write_to_json) {
         if (is.null(common_dir)) {
             stop("common_dir must be provided if write_to_json is TRUE")
         }
-        write_distributions_to_json(json.lst, common_dir, cores, overwrite)
+        write_distributions_to_json(json.lst, common_dir, cores, overwrite, haveSignatures)
         return(NULL)
     } else {
         return(json.lst)
@@ -1981,7 +2143,8 @@ write_distributions_to_json <- function(
     distributions,
     common_dir,
     cores = 1,
-    overwrite = FALSE
+    overwrite = FALSE,
+    haveSignatures = TRUE
 ) {
     common_folder = paste0(common_dir, "/")
     
@@ -2028,11 +2191,13 @@ write_distributions_to_json <- function(
     write_json_file(distributions$coverageVariance, paste0(common_folder, "/coverageVariance.json"))
     write_json_file(distributions$tmb, paste0(common_folder, "/tmb.json"))
 
-    write_signature_jsons(
-        signatures_list = distributions,
-        common_folder = common_folder,
-        cores = cores
-    )
+    if (haveSignatures) {
+        write_signature_jsons(
+            signatures_list = distributions,
+            common_folder = common_folder,
+            cores = cores
+        )
+    }
 }
 
 #' @name load_distributions

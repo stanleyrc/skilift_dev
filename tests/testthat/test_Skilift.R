@@ -675,13 +675,27 @@ test_that("multiplicity plots are generated correctly", {
 # filtered events
 # WIP since oncotable will be ported to skilift
 test_that("filtered events table is generated correctly", {
+    pgv <- reset_skilift()
+    test_pairs_path = system.file("extdata", "test_data", "test_pairs.rds", package = "Skilift")
+    test_pairs = readRDS(pairs_path)
     pairs_path = system.file("extdata", "test_data", "casereport_pairs.rds", package = "Skilift")
     pairs = readRDS(pairs_path)
+    output = system.file("extdata", "test_data", package = "Skilift")
     pair = pairs[1, pair]
+
+    create_oncotable(
+        pair,
+        annotated_bcf = pairs[pair, final_somatic_annotated_bcf],
+        signature_counts = NULL,
+        fusions = pairs[pair, fusions],
+        jabba_simple = test_pairs[1, jabba_gg],
+        events = pairs[pair, complex],
+        amp_thresh_multiplier = 2,
+        outdir = output
+    )
 
     cgc_file = "~/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv"
     oncotable_path = pairs[pair, oncotable]
-    output = system.file("extdata", "test_data", package = "Skilift")
     outfile = paste0(output, "/", "test_filtered.events.json")
     filtered_events_json(
         pair = pair,
