@@ -1248,16 +1248,14 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
     homdels = ot[type == 'homdel']
     amps = ot[type == 'amp']
     fusions = ot[type == 'fusion']
-    print(fusions)
     jab = readRDS(jabba_gg)
-    possible_drivers = rbind(snvs,homdels,amps)
+    possible_drivers = rbind(snvs,homdels,amps,fusions)
     cgc = fread(cgc_file)
     names(cgc) = gsub(' ','.', names(cgc))
     cgc$gene = cgc$Gene.Symbol
-    ## longlist = merge.data.table(possible_drivers, cgc, by = 'gene', all.x = TRUE)
     longlist = merge.data.table(possible_drivers, cgc, by = 'gene')
-    res = longlist[ ,.(gene, id, type, variant.p, Name, Genome.Location, Tier, Role.in.Cancer)]
-    names(res) = c("gene", "id", "type", "Variant", "Name", "Genome_Location", "Tier", "Role_in_Cancer")
+    res = longlist[ ,.(gene, id, vartype, type, variant.g, variant.p, Name, Genome.Location, Tier, Role.in.Cancer)]
+    names(res) = c("gene", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "Tier", "Role_in_Cancer")
                                         #add copy number to homdels
     res = res %>% unique
     if(nrow(res) > 0) {
