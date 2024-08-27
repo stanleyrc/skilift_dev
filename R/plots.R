@@ -1677,9 +1677,10 @@ create_mutations_catalog_json = function(
 #' @param pair patient id to be added to pgvdb or case reports
 #' @param outdir path to parent directory containing patient directories
 #' @param coverage path dryclean coverage output
-#' @param jabba_gg path to JaBbA output ggraph or complex
-#' @param strelka2_vcf path to strelka vcf to get snv count
-#' @param sage_vcf path to SAGE vcf to get snv count (if present)
+#' @param jabba_gg path to JaBbA output ggraph (non-integer-balanced)
+#' @param complex path to events output ggraph
+#' @param strelka2_vcf path to strelka vcf to get snv count (need either this or sage_vcf)
+#' @param sage_vcf path to SAGE vcf to get snv count (sage preferred over strelka2)
 #' @param tumor_type_final tumor type abbreviation of the sample
 #' @param disease full length tumor type
 #' @param primary_site primary site of tumor
@@ -1707,6 +1708,7 @@ meta_data_json = function(
     genome = "hg19",
     coverage = NULL,
     jabba_gg = NULL,
+    complex = NULL,
     strelka2_vcf = NULL,
     sage_vcf = NULL,
     tumor_type = NULL,
@@ -1806,7 +1808,7 @@ meta_data_json = function(
         meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
 
-    ##sv counts
+    ##sv counts, purity, ploidy, loh, total genome length
     if(!is.null(jabba_gg)) {
         ## count := junctions + (loose ends / 2)
         gg = readRDS(jabba_gg)
@@ -1844,6 +1846,15 @@ meta_data_json = function(
         seqlengths.dt[, seqnames := gsub("chr","",seqnames)] #strip chr
         seqlengths.dt = seqlengths.dt[seqnames %in% seqnames_genome_width,]
         meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
+    }
+
+    # sv types count
+    if (!is.null(complex)) {
+        complex = readRDS(complex)
+        if (!is.null(complex$meta$events$type)) {
+            sv_types_count = table(complex$meta$events$type)
+            meta.dt$sv_types_count = list(as.list(sv_types_count))
+        }
     }
 
     ## Load beta/gamma for karyograph
@@ -1895,13 +1906,17 @@ meta_data_json = function(
     
     if (!is.null(hrdetect)) {
         hrd = readRDS(hrdetect)
-        meta.dt$hrd_score = hrd$hrdetect_output[1, "Probability"]
-        meta.dt$dels_mh = hrd$indels_classification_table$del.mh.count
-        meta.dt$rs3 = hrd$exposures_rearr["RefSigR3", ]
-        meta.dt$rs5 = hrd$exposures_rearr["RefSigR5", ]
-        meta.dt$sbs3 = hrd$exposures_subs["SBS3", ]
-        meta.dt$sbs8 = hrd$exposures_subs["SBS8", ]
-        meta.dt$del_rep = hrd$indels_classification_table$del.rep.count
+        hrd_values = data.table(
+            hrd_score = hrd$hrdetect_output[1, "Probability"],
+            dels_mh = hrd$indels_classification_table$del.mh.count,
+            rs3 = hrd$exposures_rearr["RefSigR3", ],
+            rs5 = hrd$exposures_rearr["RefSigR5", ],
+            sbs3 = hrd$exposures_subs["SBS3", ],
+            sbs8 = hrd$exposures_subs["SBS8", ],
+            del_rep = hrd$indels_classification_table$del.rep.count
+        )
+        print(hrd_values)
+        meta.dt$hrdetect = list(as.list(hrd_values))
     }
 
     if (!is.null(onenesstwoness)) {
@@ -1913,12 +1928,16 @@ meta_data_json = function(
 
     ##write the json
     if(write_json) {
-        message(paste0("Writing json to ",out_file))
-        write_json(meta.dt,out_file,pretty = TRUE, auto_unbox=TRUE)
+        message(paste0("Writing json to ", out_file))
+        write_json(
+            meta.dt,
+            out_file,
+            pretty = TRUE,
+            auto_unbox=TRUE
+        )
         if(return_table) {
             return(meta.dt)
         }
-        
     } else {
         return(meta.dt)
     }
