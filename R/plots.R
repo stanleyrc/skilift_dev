@@ -1808,12 +1808,14 @@ meta_data_json = function(
         meta.dt$snv_count_normal_vaf_greater0 = sage.snv.counts.dt[category == "snv_count_normal_vaf_greater0",]$counts
     }
 
+    sv_like_types_count = NULL
     ##sv counts, purity, ploidy, loh, total genome length
     if(!is.null(jabba_gg)) {
         ## count := junctions + (loose ends / 2)
         gg = readRDS(jabba_gg)
         meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
         meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+        sv_like_types_count = table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
 
         #get loh
@@ -1848,13 +1850,29 @@ meta_data_json = function(
         meta.dt$total_genome_length = sum(seqlengths.dt$seqlengths)
     }
 
+    # init qrp counts separately to pass to hrd since we want it in that tooltip
+    qrp_counts = data.table(qrpmin = 0, qrpmix = 0, qrppos = 0)
+
     # sv types count
-    if (!is.null(complex)) {
+    if (!is.null(complex) && !is.null(sv_like_types_count)) {
         complex = readRDS(complex)
         if (!is.null(complex$meta$events$type)) {
             sv_types_count = table(complex$meta$events$type)
-            meta.dt$sv_types_count = list(as.list(sv_types_count))
+            # update qrp counts
+            if ("qrpmin" %in% names(sv_types_count)) {
+                qrp_counts$qrpmin = sv_types_count[["qrpmin"]]
+            }
+            if ("qrpmix" %in% names(sv_types_count)) {
+                qrp_counts$qrpmix = sv_types_count[["qrpmix"]]
+            }
+            if ("qrppos" %in% names(sv_types_count)) {
+                qrp_counts$qrppos = sv_types_count[["qrppos"]]
+            }
+
+            meta.dt$sv_types_count = list(as.list(c(sv_types_count, sv_like_types_count)))
         }
+    } else {
+        warning("Complex events and JaBbA graph not found as inputs, skipping SV types count...")
     }
 
     ## Load beta/gamma for karyograph
@@ -1907,7 +1925,6 @@ meta_data_json = function(
     if (!is.null(hrdetect)) {
         hrd = readRDS(hrdetect)
         hrd_values = data.table(
-            hrd_score = hrd$hrdetect_output[1, "Probability"],
             dels_mh = hrd$indels_classification_table$del.mh.count,
             rs3 = hrd$exposures_rearr["RefSigR3", ],
             rs5 = hrd$exposures_rearr["RefSigR5", ],
@@ -1915,8 +1932,9 @@ meta_data_json = function(
             sbs8 = hrd$exposures_subs["SBS8", ],
             del_rep = hrd$indels_classification_table$del.rep.count
         )
-        print(hrd_values)
-        meta.dt$hrdetect = list(as.list(hrd_values))
+        hrd_score = hrd$hrdetect_output[1, "Probability"]
+        meta.dt$hrd_score = hrd_score
+        meta.dt$hrd = list(as.list(c(hrd_values, qrp_counts)))
     }
 
     if (!is.null(onenesstwoness)) {
