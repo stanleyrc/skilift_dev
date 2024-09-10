@@ -1,6 +1,7 @@
 library(VariantAnnotation)
 library(skidb)
 library(Biostrings)
+library(skitools)
 
 internal_settings_path = system.file("extdata", "test_data", "settings.json", package = "Skilift")
 
@@ -161,7 +162,7 @@ subsample_hetsnps = function(
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings_path) {
+create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings_path, color_field = NULL) {
     cov_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -198,7 +199,8 @@ create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings
                 field = plot_metadata$field,
                 meta.js = settings,
                 ref = plot_metadata$ref,
-                output_file = cov_json_path
+                output_file = cov_json_path,
+                cov.color.field = color_field
             )
         } else {
             warning(
@@ -930,8 +932,6 @@ grok_bcf = function(bcf, gr = NULL, bpath = "/nfs/sw/bcftools/bcftools-1.9/bin/b
       if (!is.null(out$INFO))
         {
           ## unpack "info" field
-            print('trace')
-            print(out$INFO[1])
           idat = .dunlist(strsplit(out$INFO, ';'))
           idat = cbind(idat, colsplit(idat$V1, pattern = "=", names = c("field","value")))
           idatc = dcast.data.table(idat, listid ~ field, value.var = 'value')
@@ -1016,9 +1016,20 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       {
         fus = fus[silent == FALSE, ][!duplicated(genes), ]
         fus[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')] # annotate out of frame fusions
-        fus = fus[, .(gene = strsplit(genes, ',') %>% unlist, vartype = rep(vartype, sapply(strsplit(genes, ','), length)))][, id := x][, track := 'variants'][, type := vartype][, source := 'fusions']
+        fus = fus[, .(
+            gene = strsplit(genes, ',') %>% unlist,
+            vartype = rep(vartype, sapply(strsplit(genes, ','), length)),
+            fusion_genes = rep(genes, sapply(strsplit(genes, ','), length))
+        )][, id := x][, track := 'variants'][, type := vartype][, source := 'fusions']
+        # get coordinates for fusion genes
+        fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), function(genes) {
+          coords <- lapply(genes, function(gene) {
+            gene_ranges <- pge[mcols(pge)$gene_name == gene]
+            paste0(seqnames(gene_ranges), ":", start(gene_ranges), "-", end(gene_ranges))
+          })
+          paste(unlist(coords), collapse = ",")
+        }))]
         out = rbind(out, fus, fill = TRUE, use.names = TRUE)
-        print(fus)
       }
     } 
     else ## signal missing result
@@ -1094,7 +1105,6 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       local_bcftools_path <- ifelse(local_bcftools_path == "", stop("bcftools not found in the system PATH. Please install or moudule load bcftools."), local_bcftools_path)
       message("bcftools found at: ", local_bcftools_path)
       bcf = grok_bcf(dat[x, annotated_bcf], label = x, long = TRUE, filter = filter, bpath=local_bcftools_path)
-      browser()
       if (verbose)
         message(length(bcf), ' variants pass filter')
       genome.size = sum(seqlengths(bcf), na.rm = TRUE)/1e6
@@ -1240,6 +1250,10 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
     ##Driver CNA windows
     ##Load details from oncotable
     ot = readRDS(oncotable)
+    # add a fusion_gene_coords column of NAs if no fusions
+    if (!"fusion_gene_coords" %in% colnames(ot)) {
+        ot[, fusion_gene_coords := NA]
+    }
     snvs = ot[grepl('frameshift|missense|stop|disruptive', annotation)]
     snvs = snvs[!duplicated(variant.p)]
     ##Note here probably have to crossreference these missense muts with hetdels
@@ -1254,9 +1268,8 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
     names(cgc) = gsub(' ','.', names(cgc))
     cgc$gene = cgc$Gene.Symbol
     longlist = merge.data.table(possible_drivers, cgc, by = 'gene')
-    res = longlist[ ,.(gene, id, vartype, type, variant.g, variant.p, Name, Genome.Location, Tier, Role.in.Cancer)]
-    names(res) = c("gene", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "Tier", "Role_in_Cancer")
-                                        #add copy number to homdels
+    res = longlist[ ,.(gene, fusion_genes, id, vartype, type, variant.g, variant.p, Name, Genome.Location, fusion_gene_coords, Tier, Role.in.Cancer)]
+    names(res) = c("gene", "fusion_genes", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "fusion_gene_coords", "Tier", "Role_in_Cancer")
     res = res %>% unique
     if(nrow(res) > 0) {
         res[,seqnames := tstrsplit(Genome_Location,":",fixed=TRUE,keep=1)]
@@ -1677,6 +1690,7 @@ create_mutations_catalog_json = function(
 #' @param pair patient id to be added to pgvdb or case reports
 #' @param outdir path to parent directory containing patient directories
 #' @param coverage path dryclean coverage output
+#' @param coverage_qc list of coverage qc metrics (tbd)
 #' @param jabba_gg path to JaBbA output ggraph (non-integer-balanced)
 #' @param complex path to events output ggraph
 #' @param strelka2_vcf path to strelka vcf to get snv count (need either this or sage_vcf)
@@ -1707,6 +1721,7 @@ meta_data_json = function(
     outdir = "./",
     genome = "hg19",
     coverage = NULL,
+    coverage_qc = NULL,
     jabba_gg = NULL,
     complex = NULL,
     strelka2_vcf = NULL,
@@ -1788,8 +1803,23 @@ meta_data_json = function(
     }
     
     ##get derivative log ratio spread
+    coverage_variance = NULL
     if(!is.null(coverage)) {
-        meta.dt$dlrs = dlrs(readRDS(coverage)$foreground)
+        coverage_variance = list(coverage_variance = dlrs(readRDS(coverage)$foreground))
+    }
+    
+    ##coverage qc
+    if (!is.null(coverage_qc) && !is.null(coverage_variance)) {
+        coverage_qc = fread(coverage_qc)
+        setnames(coverage_qc, tolower(gsub(" ", "_", names(coverage_qc))))
+        tumor_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Tumor"]
+        normal_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Normal"]
+        meta.dt$tumor_median_coverage = tumor_row$median_cov
+        meta.dt$normal_median_coverage = normal_row$median_cov
+
+
+        coverage_qc <- subset(tumor_row, select = -c(median_cov, sample, sample_name, patient.x, patient.y, sample_class))
+        meta.dt$coverage_qc = list(as.list(c(coverage_qc, coverage_variance)))
     }
 
     ##snv counts
