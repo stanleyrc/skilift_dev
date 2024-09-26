@@ -9,7 +9,7 @@ PairsAdapter <- R6Class("PairsAdapter",
     initialize = function(pairslike, column_map) {
       self$pairslike <- pairslike
       self$column_map <- column_map
-      # Default column map based on spec.md
+
       default_column_map = c(
         "patient_id", "tumor_type", "disease", "primary_site", "inferred_sex",
         "non_integer_balance", "dryclean_tumor", "events", "fusions", "gridss_somatic",
