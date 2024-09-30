@@ -1699,7 +1699,7 @@ create_mutations_catalog_json = function(
 #' @param disease full length tumor type
 #' @param primary_site primary site of tumor
 #' @param inferred_sex sex of the patient
-#' @param karyograph JaBbA outputted karygraph
+#'# @param karyograph JaBbA outputted karygraph
 #' @param signatures_pair_name pair name that appears in the sigprofiler output (sometimes different from pair)
 #' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
 #' @param sbs_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler 
@@ -1722,6 +1722,7 @@ meta_data_json = function(
     genome = "hg19",
     coverage = NULL,
     coverage_qc = NULL,
+    het_pileups_wgs = NULL,
     jabba_gg = NULL,
     complex = NULL,
     strelka2_vcf = NULL,
@@ -1730,7 +1731,6 @@ meta_data_json = function(
     disease = NULL,
     primary_site = NULL,
     inferred_sex = NULL,
-    karyograph = NULL,
     signatures_pair_name = NULL, # if different from pair
     indel_sigprofiler = NULL,
     sbs_sigprofiler = NULL,
@@ -1905,11 +1905,30 @@ meta_data_json = function(
         warning("Complex events and JaBbA graph not found as inputs, skipping SV types count...")
     }
 
+    #browser()
     ## Load beta/gamma for karyograph
-    if(!is.null(karyograph)) {
-        kag = readRDS(karyograph)
-        meta.dt$beta = kag$beta
-        meta.dt$gamma = kag$gamma
+    if(!is.null(coverage)) {
+      rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
+                                       field = "foreground.X",
+                                       purity = meta.dt$purity,
+                                       ploidy = meta.dt$ploidy,
+                                       return.params = T)
+      meta.dt$cov.slope = rel2abs.cov[1] %>% unname
+      meta.dt$cov.intercept = rel2abs.cov[2] %>% unname
+      meta.dt$beta = rel2abs.cov[1] %>% unname
+      meta.dt$gamma = rel2abs.cov[2] %>% unname      
+    }
+    
+    if(!is.null(het_pileups_wgs)){
+      hets.read <- grab.hets(het_pileups_wgs) %>% gr2dt
+      hets.read <- dt2gr(hets.read[, .(count = sum(count)), by = c("seqnames", "start", "end")])
+      rel2abs.hets <- skitools::rel2abs(hets.read,
+                                        field = "count",
+                                        purity = meta.dt$purity,
+                                        ploidy = meta.dt$ploidy,
+                                        return.params = T)
+      meta.dt$hets.slope = rel2abs.hets[1] %>% unname
+      meta.dt$hets.intercept = rel2abs.hets[2] %>% unname
     }
 
     ##add tmb
