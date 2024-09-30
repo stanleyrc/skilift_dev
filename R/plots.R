@@ -1913,10 +1913,8 @@ meta_data_json = function(
                                        purity = meta.dt$purity,
                                        ploidy = meta.dt$ploidy,
                                        return.params = T)
-      meta.dt$cov.slope = rel2abs.cov[1] %>% unname
-      meta.dt$cov.intercept = rel2abs.cov[2] %>% unname
-      meta.dt$beta = rel2abs.cov[1] %>% unname
-      meta.dt$gamma = rel2abs.cov[2] %>% unname      
+      meta.dt$cov_slope = rel2abs.cov[1] %>% unname
+      meta.dt$cov_intercept = rel2abs.cov[2] %>% unname
     }
     
     if(!is.null(het_pileups_wgs)){
@@ -1927,8 +1925,8 @@ meta_data_json = function(
                                         purity = meta.dt$purity,
                                         ploidy = meta.dt$ploidy,
                                         return.params = T)
-      meta.dt$hets.slope = rel2abs.hets[1] %>% unname
-      meta.dt$hets.intercept = rel2abs.hets[2] %>% unname
+      meta.dt$hets_slope = rel2abs.hets[1] %>% unname
+      meta.dt$hets_intercept = rel2abs.hets[2] %>% unname
     }
 
     ##add tmb
