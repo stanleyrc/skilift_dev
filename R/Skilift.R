@@ -589,6 +589,9 @@ Skilift <- R6Class("Skilift",
           })
       }
 
+      #browser()
+      #debug(create_plot_file)
+      
       if (!any(is.null(plot$source))) {
                                         # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
