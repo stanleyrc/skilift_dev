@@ -446,7 +446,7 @@ create_gwalk_json = function(plot_metadata, datadir, settings = internal_setting
 }
 
 #' @description
-#' Create mutations gGraph JSON file.
+#' Create mutations gGraph JSON file for SOMATIC MUTATIONS.
 #'
 #' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
 #' @param datadir Path to data directory with patient directories.
@@ -454,6 +454,7 @@ create_gwalk_json = function(plot_metadata, datadir, settings = internal_setting
 #'
 #' @return NULL.
 create_somatic_json = function(plot_metadata, datadir, settings = internal_settings_path) {
+  message("using function create_somatic_json")
     somatic_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -545,6 +546,110 @@ create_somatic_json = function(plot_metadata, datadir, settings = internal_setti
         warning("file ", somatic_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
     }
 }
+
+#' @description
+#' Create mutations gGraph JSON file for GERMLINE MUTATIONS.
+#' This function is unique from create_somatic_json in that it will subset only important mutations by MODIFIER code.
+#'
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
+#'
+#' @return NULL.
+create_germline_json = function(plot_metadata, datadir, settings = internal_settings_path) {
+  message("using function create_germline_json")
+    germline_json_path <- file.path(
+        datadir,
+        plot_metadata$patient.id,
+        plot_metadata$source
+    )
+    if (!file.exists(germline_json_path) || plot_metadata$overwrite) {
+        if (any(class(plot_metadata$x[[1]]) == "data.table")) {
+            mutations.dt <- plot_metadata$x[[1]]
+        } else {
+            message(paste0("reading in ", plot_metadata$x))
+            if (grepl(plot_metadata$x, pattern = ".rds")) {
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+            } else {
+                message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+            }
+        }
+        if (any(class(mutations.dt) == "data.table")) {
+            seq_lengths <- gGnome::parse.js.seqlengths(
+                settings,
+                js.type = "PGV",
+                ref = plot_metadata$ref
+            )
+            # check for overlap in sequence names
+            mutations.reduced <- mutations.dt[seqnames %in% names(seq_lengths),]
+            if (length(mutations.reduced) == 0) {
+                stop(sprintf(
+                    'There is no overlap between the sequence names in the reference
+                    used by PGV and the sequences in your mutations. Here is an
+                    example sequence from your mutations: "%s". And here is an
+                    example sequence from the reference used by gGnome.js: "%s"',
+                    mutations$seqnames[1], names(seq_lengths)[1]
+                ))
+            }
+            yfield = plot_metadata$field[1]
+            # coerce vaf col name to lower case to avoid col name mismatch for vaf/VAF column
+            setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+            mutations.dt = mutations.dt[!is.na(get(yfield)),]
+            mutations.dt[start == end, end := end +1]
+            mutations.dt[, strand := NULL]
+            # create an empty mutation annotation string, then add attributes to it if they exist
+            mut_ann <- ""
+            if ("annotation" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0("Type: ", mutations.dt$annotation, "; ")
+            }
+            if ("gene" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Gene: ", mutations.dt$gene, "; ")
+            }
+            if ("variant.c" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Variant: ", mutations.dt$variant.c, "; ")
+            }
+            if ("variant.p" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Protein_variant: ", mutations.dt$variant.p, "; ")
+            }
+            if ("variant.g" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Genomic_variant: ", mutations.dt$variant.g, "; ")
+            }
+            if ("vaf" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "VAF: ", mutations.dt$vaf, "; ")
+            }
+            if ("alt" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Alt_count: ", mutations.dt$alt, "; ")
+            }
+            if ("ref" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Ref_count: ", mutations.dt$ref, "; ")
+            }
+            if ("normal.alt" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Normal_alt_count: ", mutations.dt$normal.alt, "; ")
+            }
+            if ("normal.ref" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Normal_ref_count: ", mutations.dt$normal.ref, "; ")
+            }
+            if ("FILTER" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Filter: ", mutations.dt$FILTER, "; ")
+            }
+            mutations.dt[, annotation := mut_ann]
+            dt2json_mut(
+                dt = mutations.dt,
+                ref = plot_metadata$ref,
+                settings = settings,
+                meta_data = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+                y_col = yfield,
+                file_name = germline_json_path
+            )
+        } else {
+            warning(plot_metadata$x, " rds read was not mutations")
+        }
+    } else {
+        warning("file ", germline_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+    }
+}
+
 
 #' @description
 #' Create ppfit gGraph JSON file.
@@ -2657,9 +2762,11 @@ walks_temp = function(
 #' @param order optional entry if you order plots with a column order
 #' @param x mutations object as a list
 #' @param ref reference to use for pgvdb
+#' @param source name of json file to save as. For 'somatic', somatic.json is suggested whereas for 'germline', germline.json is suggested. by default, plot will save as mutations.json.
+#' @param subtype enum of 'somatic' or 'germline' which has downstream effects on mutation generation code
 #' @param visible TRUE/FALSE whether the plot is hidden or showing in pgv
 #' @param title title of the plot in pgvdb
-#' @param type walk, do not change for this plot type
+#' @param type mutations, do not change for this plot type
 #' @param annotation default is list of SVs, make null if no annotations present in object
 #' @param overwrite TRUE/FALSE to overwrite an existing genome json
 #' @param tag optional argument, can be binset to override y spacing in pgv
@@ -2675,6 +2782,7 @@ mutations_temp = function(
     source = "mutations.json",
     field,
     type = "mutations",
+    subtype = "somatic",
     visible = TRUE,
     title = NA,
     tag = NA,
@@ -2688,7 +2796,8 @@ mutations_temp = function(
         field = field,
         order = order,
         ref = ref,
-        source = source,
+      	source = source,
+     		subtype = subtype,
         title = title,
         overwrite = overwrite
     )

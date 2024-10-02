@@ -349,7 +349,8 @@ Skilift <- R6Class("Skilift",
         # GRanges
         if (is(gobject, "GRanges")) {
           if (plot$type == "mutations") {
-            plot$source = 'mutations.json'
+            plot$source = plot$source #' default to mutations.json but allow override via source for mutations
+            plot$x = plot$x
           } else {
             plot <- handle_granges(plot)
           }
@@ -416,8 +417,8 @@ Skilift <- R6Class("Skilift",
 
       source_vector <- rep(NA, nrow(new_plots))
       type_vector <- rep(NA, nrow(new_plots))
-      x_vector <- rep(NA, nrow(new_plots))  # Initialize as a list
-      # x_vector <- vector("list", nrow(new_plots))  # Initialize as a list
+      #x_vector <- rep(NA, nrow(new_plots))  # Initialize as a list
+      x_vector <- vector("list", nrow(new_plots))  # Initialize as a list
 
       # Loop through each row of the plots_to_add table
       for (i in seq_len(nrow(new_plots))) {
@@ -578,7 +579,11 @@ Skilift <- R6Class("Skilift",
                 "ppfit" = create_ppfit_genome_json(plot, self$datadir, self$settings),
                 "scatterplot" = create_cov_arrow(plot, self$datadir, self$settings),
                 "walk" = create_gwalk_json(plot, self$datadir, self$settings),
-                "mutations" = create_somatic_json(plot, self$datadir, self$settings)
+                "mutations" = if(plot$subtype == "somatic"){
+                                create_somatic_json(plot, self$datadir, self$settings)
+                              } else if (plot$subtype == "germline") {
+                                create_germline_json(plot, self$datadir, self$settings)
+                              }
               )
             }
           }
@@ -608,7 +613,6 @@ Skilift <- R6Class("Skilift",
                                           } else {
                                             create_plot_file(plot)
                                           }
-
                                           plot  # Return the modified plot
 
         }, mc.cores = cores)
