@@ -7,3 +7,4 @@ tags
 */**/*.bw
 */**/test_bigwig_granges.rds
 spec.md
+.aider*
