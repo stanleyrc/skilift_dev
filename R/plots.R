@@ -1241,12 +1241,22 @@ create_oncotable = function(
 #' @param jabba_gg JaBbA output ggraph or complex
 #' @param out_file path to write json
 #' @param cgc_file path to cgc file to annotate drivers
+#' @param oncokab_file path to oncokb gene tiers to annotate drivers
 #' @param return_table TRUE/FALSE whether to return the data.table that is used for creating the json
 #' @return data.table or NULL
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey
 
-filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv", temp_fix = FALSE,return_table = FALSE) {
+filtered_events_json = function(
+    pair,
+    oncotable,
+    jabba_gg,
+    out_file,
+    cgc_file = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv",
+    oncokb_file = NULL,
+    temp_fix = FALSE,
+    return_table = FALSE
+) {
     ##Driver CNA windows
     ##Load details from oncotable
     ot = readRDS(oncotable)
@@ -1270,7 +1280,16 @@ filtered_events_json = function(pair, oncotable, jabba_gg, out_file, cgc_file = 
     longlist = merge.data.table(possible_drivers, cgc, by = 'gene')
     res = longlist[ ,.(gene, fusion_genes, id, vartype, type, variant.g, variant.p, Name, Genome.Location, fusion_gene_coords, Tier, Role.in.Cancer)]
     names(res) = c("gene", "fusion_genes", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "fusion_gene_coords", "Tier", "Role_in_Cancer")
-    res = res %>% unique
+    if (!is.null(oncokb_file)) {
+        oncokb = fread(oncokb_file)
+        names(oncokb) = gsub(' ','_', names(oncokb))
+        oncokb$gene = oncokb$Gene
+        oncokb$drugs = oncokb[, "Drugs_(for_therapeutic_implications_only)"]
+        longlist = merge(longlist, oncokb, by = 'gene', all.x = TRUE)
+        res = longlist[ ,.(gene, fusion_genes, id, vartype, type, variant.g, variant.p, Name, Genome.Location, fusion_gene_coords, Tier, Level, Alterations, Cancer_Types, drugs, Role.in.Cancer)]
+        names(res) = c("gene", "fusion_genes", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "fusion_gene_coords", "Tier", "Oncokb_Tier", "Oncokb_Alterations", "Oncokb_Cancer_Types", "Oncokb_Drugs", "Role_in_Cancer")
+    }
+    res = res %>% unique(., by = c("gene", "Variant"))
     if(nrow(res) > 0) {
         res[,seqnames := tstrsplit(Genome_Location,":",fixed=TRUE,keep=1)]
         res[,start := tstrsplit(Genome_Location,"-",fixed=TRUE,keep=1)]
@@ -1805,19 +1824,44 @@ meta_data_json = function(
     ##get derivative log ratio spread
     coverage_variance = NULL
     if(!is.null(coverage)) {
-        coverage_variance = list(coverage_variance = dlrs(readRDS(coverage)$foreground))
+        cov_var  = dlrs(readRDS(coverage)$foreground) / 100
+        coverage_variance = list(coverage_variance = cov_var)
     }
     
     ##coverage qc
     if (!is.null(coverage_qc) && !is.null(coverage_variance)) {
         coverage_qc = fread(coverage_qc)
-        setnames(coverage_qc, tolower(gsub(" ", "_", names(coverage_qc))))
+
+        # Define a function to replace symbols with string equivalents
+        replace_symbols <- function(x) {
+            x <- gsub(" ", "_", x)
+            x <- gsub("%", "percent", x)
+            x <- gsub("\u2265", "greater_than_or_equal_to", x)
+            # Add more replacements as needed
+            return(x)
+        }
+
+        # Apply the function to column names
+        setnames(coverage_qc, tolower(replace_symbols(names(coverage_qc))))
+
         tumor_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Tumor"]
         normal_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Normal"]
-        meta.dt$tumor_median_coverage = tumor_row$median_cov
-        meta.dt$normal_median_coverage = normal_row$median_cov
+        meta.dt$tumor_median_coverage = as.numeric(gsub("X", "", tumor_row$median_cov))
+        meta.dt$normal_median_coverage = as.numeric(gsub("X", "", normal_row$median_cov))
 
+        convert_to_numeric <- function(x) {
+            if (is.character(x)) {
+                is_percent <- grepl("%", x)
+                x <- gsub("[^0-9.]", "", x)
+                x <- as.numeric(x)
+                if (is_percent) {
+                    x <- x / 100
+                }
+            }
+            return(x)
+        }
 
+        tumor_row[, (names(tumor_row)) := lapply(.SD, convert_to_numeric)]
         coverage_qc <- subset(tumor_row, select = -c(median_cov, sample, sample_name, patient.x, patient.y, sample_class))
         meta.dt$coverage_qc = list(as.list(c(coverage_qc, coverage_variance)))
     }
