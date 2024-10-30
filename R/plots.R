@@ -1168,12 +1168,17 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       if (verbose)
         message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
       jab = readRDS(dat[x, jabba_rds])
+      jabpurity = NULL
+      jabploidy = NULL
+      jabpurity = if (is.null(jab$meta$purity)) else jab$purity
+      jabploidy = if (is.null(jab$meta$ploidy)) else jab$ploidy
       out = rbind(out,
-                  data.table(id = x, value = c(jab$purity, jab$ploidy), type = c('purity', 'ploidy'), track = 'pp'),
+                  data.table(id = x, value = c(jabpurity, jabploidy), type = c('purity', 'ploidy'), track = 'pp'),
                   fill = TRUE, use.names = TRUE)
 
       # get the ncn data from jabba
       nseg = NULL
+      
       ## Don't fail out if karyograph isn't found 
       ## Just provide nseg is NULL, and get_gene_ampdels_from_jabba
       ## assumes ncn = 2 (pretty safe assumption)
