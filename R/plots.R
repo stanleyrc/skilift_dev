@@ -1161,7 +1161,7 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       out = rbind(out, data.table(id = x, type = NA, source = 'complex'), fill = TRUE, use.names = TRUE)
 
     ## collect copy number / jabba
-    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds]))
+    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds]) && !is.null(dat$karyograph) && file.exists(dat[x, karyograph]))
     {
       if (verbose)
         message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
@@ -1372,6 +1372,7 @@ filtered_events_json = function(
     ot = readRDS(oncotable)
     # add a fusion_gene_coords column of NAs if no fusions
     if (!"fusion_gene_coords" %in% colnames(ot)) {
+        ot[, fusion_genes := NA]
         ot[, fusion_gene_coords := NA]
     }
     snvs = ot[grepl('frameshift|missense|stop|disruptive', annotation)]
