@@ -471,7 +471,7 @@ create_somatic_json = function(plot_metadata, datadir, settings = internal_setti
         } else {
             message(paste0("reading in ", plot_metadata$x))
             if (grepl(plot_metadata$x, pattern = ".rds")) {
-                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x[[1]]))
             } else {
                 message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
                 mutations.dt <- as.data.table(readRDS(plot_metadata$x))
@@ -1453,45 +1453,68 @@ strelka2counts = function(vcf, seqnames_genome_width = c(1:22,"X","Y"), type_ret
     somatic.filtered.vcf[, CHROM := gsub("chr","",CHROM)]
     ##
     sub.vcf = somatic.filtered.vcf[CHROM %in% seqnames_genome_width,]
-    sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU","INDEL") := tstrsplit(NORMAL, ":", fixed = TRUE)]
-    sub.vcf[REF == "A" & ALT == "T", c("ref_count","alt_count") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "A" & ALT == "C", c("ref_count","alt_count") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "A" & ALT == "G", c("ref_count","alt_count") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "C" & ALT == "T", c("ref_count","alt_count") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "C" & ALT == "A", c("ref_count","alt_count") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "C" & ALT == "G", c("ref_count","alt_count") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "G" & ALT == "T", c("ref_count","alt_count") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "G" & ALT == "C", c("ref_count","alt_count") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "G" & ALT == "A", c("ref_count","alt_count") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "T" & ALT == "A", c("ref_count","alt_count") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "T" & ALT == "C", c("ref_count","alt_count") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "T" & ALT == "G", c("ref_count","alt_count") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(NORMAL, ":", fixed = TRUE)]
-    sub.vcf[is.na(ref_count), ref_count := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
-    sub.vcf[is.na(alt_count), alt_count := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
+    if (grepl("INDEL", sub.vcf$FORMAT)) {
+        sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU","INDEL") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+    } else if (grepl("DP2", sub.vcf$FORMAT)) {
+      sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+      sub.vcf[, ref_count := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
+      sub.vcf[, alt_count := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
+    } else {
+        sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU") := tstrsplit(NORMAL, ":", fixed = TRUE)]
+         
+        # Define a function to perform conditional assignment
+        conditional_assign <- function(ref, alt, ref_col, alt_col, ref_data, alt_data) {
+          condition <- sub.vcf[REF == ref & ALT == alt]
+          if (nrow(condition) > 0) {
+            sub.vcf[REF == ref & ALT == alt, c(ref_col, alt_col) := .(tstrsplit(get(ref_data), ",", fixed = TRUE)[[1]], tstrsplit(get(alt_data), ",", fixed = TRUE)[[1]])]
+          }
+        }
+
+        # Define the conditions and corresponding columns
+        conditions <- list(
+          list(ref = "A", alt = "T", ref_data = "AU", alt_data = "TU"),
+          list(ref = "A", alt = "C", ref_data = "AU", alt_data = "CU"),
+          list(ref = "A", alt = "G", ref_data = "AU", alt_data = "GU"),
+          list(ref = "C", alt = "T", ref_data = "CU", alt_data = "TU"),
+          list(ref = "C", alt = "A", ref_data = "CU", alt_data = "AU"),
+          list(ref = "C", alt = "G", ref_data = "CU", alt_data = "GU"),
+          list(ref = "G", alt = "T", ref_data = "GU", alt_data = "TU"),
+          list(ref = "G", alt = "C", ref_data = "GU", alt_data = "CU"),
+          list(ref = "G", alt = "A", ref_data = "GU", alt_data = "AU"),
+          list(ref = "T", alt = "A", ref_data = "TU", alt_data = "AU"),
+          list(ref = "T", alt = "C", ref_data = "TU", alt_data = "CU"),
+          list(ref = "T", alt = "G", ref_data = "TU", alt_data = "GU")
+        )
+
+        # Apply the function to each condition for normal counts
+        lapply(conditions, function(cond) {
+          conditional_assign(cond$ref, cond$alt, "ref_count", "alt_count", cond$ref_data, cond$alt_data)
+        })
+
+    }
+    # Continue with the rest of your code
     sub.vcf[, ref_count := as.numeric(ref_count)]
     sub.vcf[, alt_count := as.numeric(alt_count)]
     sub.vcf[, normal_vaf := alt_count / (ref_count + alt_count)]
-    ##now tumor vaf
-    sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU","INDEL") := tstrsplit(TUMOR, ":", fixed = TRUE)]
-    sub.vcf[REF == "A" & ALT == "T", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "A" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "A" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(AU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "C" & ALT == "T", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "C" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "C" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(CU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "G" & ALT == "T", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(TU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "G" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "G" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(GU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "T" & ALT == "A", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(AU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "T" & ALT == "C", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(CU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[REF == "T" & ALT == "G", c("ref_count_tumor","alt_count_tumor") := c(tstrsplit(TU, ",", fixed = TRUE, keep = 1), tstrsplit(GU, ",", fixed = TRUE, keep = 1)),]
-    sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(TUMOR, ":", fixed = TRUE)]
-    sub.vcf[is.na(ref_count_tumor), ref_count_tumor := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
-    sub.vcf[is.na(alt_count_tumor), alt_count_tumor := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
+
+    if (grepl("INDEL", sub.vcf$FORMAT)) {
+      sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU", "INDEL") := tstrsplit(TUMOR, ":", fixed = TRUE)]
+    } else if (grepl("DP2", sub.vcf$FORMAT)) {
+      sub.vcf[, c("DP", "DP2", "TAR", "TIR", "TOR", "DP50", "FDP50", "SUBDP50", "BCN50") := tstrsplit(TUMOR, ":", fixed = TRUE)]
+      sub.vcf[, ref_count_tumor := tstrsplit(TAR, ",", fixed = TRUE, keep = 1)]
+      sub.vcf[, alt_count_tumor := tstrsplit(TIR, ",", fixed = TRUE, keep = 1)]
+    } else {
+      sub.vcf[, c("DP", "FDP", "SDP", "SUBDP", "AU", "CU", "GU", "TU") := tstrsplit(TUMOR, ":", fixed = TRUE)]
+        # Apply the function to each condition for tumor counts
+        lapply(conditions, function(cond) {
+          conditional_assign(cond$ref, cond$alt, "ref_count_tumor", "alt_count_tumor", cond$ref_data, cond$alt_data)
+        })
+
+    }
     sub.vcf[, ref_count_tumor := as.numeric(ref_count_tumor)]
     sub.vcf[, alt_count_tumor := as.numeric(alt_count_tumor)]
     sub.vcf[, tumor_vaf := alt_count_tumor / (ref_count_tumor + alt_count_tumor)]
+
     if(type_return == "counts") {
         snv_count = nrow(sub.vcf)
         snv_count_normal_vaf_greater0 = nrow(sub.vcf[normal_vaf > 0,])
@@ -1613,6 +1636,9 @@ sage_count = function(
     vcf_path,
     genome
 ) {
+    if (!file.exists(vcf_path)) {
+        stop("VCF file does not exist.")
+    }
     vcf = readVcf(vcf_path, genome)
 
     # Filter for PASS variants
@@ -1627,7 +1653,35 @@ sage_count = function(
     tumor = colnames(geno_data$DP)[2]
 
     if (normal %in% colnames(geno_data$DP)) {
-        VAF_N = as.numeric(geno_data$AF[, normal])
+        if (!is.null(geno_data$AF)) {
+            VAF_N = as.numeric(geno_data$AF[, normal])
+        } else if (!is.null(geno_data$TAR)) {
+            alt_count_N = as.numeric(geno_data$TAR[, normal, 1])
+            total_read_depth_N = as.numeric(geno_data$DP[, normal])
+            VAF_N = alt_count_N / total_read_depth_N
+        } else if (!is.null(geno_data$AU)) {
+            vcf_dt = as.data.table(rowRanges(vcf))
+
+            # ALT is stored as DNAStringSet, so we need to extract as a character
+            get_alt_allele <- function(dna_string_set) {
+              as.character(dna_string_set[[1]])
+            }
+
+            alt_alleles <- sapply(vcf_dt$ALT, get_alt_allele)
+
+            # Calculate the number of alternate alleles for each variant
+            alt_allele_counts <- geno_data$AU[, normal, 1] * (alt_alleles == "A") +
+                                 geno_data$CU[, normal, 1] * (alt_alleles == "C") +
+                                 geno_data$GU[, normal, 1] * (alt_alleles == "G") +
+                                 geno_data$TU[, normal, 1] * (alt_alleles == "T")
+
+            total_alleles <- geno_data$DP[, normal]
+
+            vcf_dt[, normal_VAF := round(alt_allele_counts / total_alleles, 2)]
+            VAF_N = vcf_dt$normal_VAF
+        } else {
+            stop("No AF or TAR present in the VCF file.")
+        }
         snv_count_normal_vaf_greater0 = sum(VAF_N > 0, na.rm = TRUE)
         return(data.table(category = c("snv_count", "snv_count_normal_vaf_greater0"),
             counts = c(snv_count, snv_count_normal_vaf_greater0)))
@@ -1940,7 +1994,7 @@ meta_data_json = function(
     }
     
     ##coverage qc
-    if (!is.null(coverage_qc) && !is.null(coverage_variance)) {
+    if (!is.null(coverage_qc)) {
         coverage_qc = fread(coverage_qc)
 
         # Define a function to replace symbols with string equivalents
@@ -1955,10 +2009,21 @@ meta_data_json = function(
         # Apply the function to column names
         setnames(coverage_qc, tolower(replace_symbols(names(coverage_qc))))
 
-        tumor_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Tumor"]
-        normal_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Normal"]
-        meta.dt$tumor_median_coverage = as.numeric(gsub("X", "", tumor_row$median_cov))
-        meta.dt$normal_median_coverage = as.numeric(gsub("X", "", normal_row$median_cov))
+        if("tumor_median_coverage" %in% names(coverage_qc)) {
+            tumor_row = coverage_qc[grepl(pair, sample_name)]
+            meta.dt$tumor_median_coverage = as.numeric(gsub("X", "", tumor_row$tumor_median_coverage))
+        } else {
+            tumor_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Tumor"]
+            meta.dt$tumor_median_coverage = as.numeric(gsub("X", "", tumor_row$median_cov))
+        }
+
+        if ("normal_median_coverage" %in% names(coverage_qc)) {
+            normal_row = coverage_qc[grepl(pair, sample_name)]
+            meta.dt$normal_median_coverage = as.numeric(gsub("X", "", normal_row$normal_median_coverage))
+        } else {
+            normal_row = coverage_qc[grepl(pair, sample_name) & sample_class == "Normal"]
+            meta.dt$normal_median_coverage = as.numeric(gsub("X", "", normal_row$median_cov))
+        }
 
         convert_to_numeric <- function(x) {
             if (is.character(x)) {
@@ -1973,8 +2038,15 @@ meta_data_json = function(
         }
 
         tumor_row[, (names(tumor_row)) := lapply(.SD, convert_to_numeric)]
-        coverage_qc <- subset(tumor_row, select = -c(median_cov, sample, sample_name, patient.x, patient.y, sample_class))
-        meta.dt$coverage_qc = list(as.list(c(coverage_qc, coverage_variance)))
+        if ("patient.x" %in% names(tumor_row)) {
+            coverage_qc <- subset(tumor_row, select = -c(median_cov, sample, sample_name, patient.x, patient.y, sample_class))
+        } else { coverage_qc <- tumor_row }
+
+        if(!is.null(coverage_variance)) {
+            meta.dt$coverage_qc = list(as.list(c(coverage_qc, coverage_variance)))
+        } else {
+            meta.dt$coverage_qc = list(as.list(coverage_qc))
+        }
     }
 
     ##snv counts
@@ -1998,10 +2070,22 @@ meta_data_json = function(
     if(!is.null(jabba_gg)) {
         ## count := junctions + (loose ends / 2)
         gg = readRDS(jabba_gg)
-        meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-        meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+        if (nrow(gg$junctions$dt) > 0) {
+            meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
+        } else {
+            warning("No junctions found in JaBbA graph, skipping SV counts...")
+            meta.dt$junction_count = 0
+        }
+        if (length(gg$loose) > 0) {
+            meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+        } else {
+            warning("No loose ends found in JaBbA graph, skipping loose counts...")
+            meta.dt$loose_count = 0
+        }
         if (nrow(gg$edges$dt) > 0) {
             sv_like_types_count = table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
+        } else {
+            warning("No edges found in JaBbA graph, skipping SV-like types count...")
         }
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
 
@@ -2062,7 +2146,6 @@ meta_data_json = function(
         warning("Complex events and JaBbA graph not found as inputs, skipping SV types count...")
     }
 
-    #browser()
     ## Load beta/gamma for karyograph
     if(!is.null(coverage)) {
       rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
