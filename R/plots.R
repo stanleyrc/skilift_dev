@@ -1170,8 +1170,8 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       jab = readRDS(dat[x, jabba_rds])
       jabpurity = NULL
       jabploidy = NULL
-      jabpurity = if (is.null(jab$meta$purity)) else jab$purity
-      jabploidy = if (is.null(jab$meta$ploidy)) else jab$ploidy
+      jabpurity = if (is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
+      jabploidy = if (is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
       out = rbind(out,
                   data.table(id = x, value = c(jabpurity, jabploidy), type = c('purity', 'ploidy'), track = 'pp'),
                   fill = TRUE, use.names = TRUE)
