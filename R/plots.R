@@ -1,3 +1,5 @@
+#' @importFrom gUtils dt2gr
+
 library(VariantAnnotation)
 library(skidb)
 library(Biostrings)
@@ -1051,8 +1053,7 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       out = rbind(out, data.table(id = x, type = NA, source = 'complex'), fill = TRUE, use.names = TRUE)
 
     ## collect copy number / jabba
-    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds]))
-    {
+    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds])) {
       if (verbose)
         message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
       jab = readRDS(dat[x, jabba_rds])
@@ -1061,25 +1062,32 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
                   fill = TRUE, use.names = TRUE)
 
       # get the ncn data from jabba
-      if (is.null(dat$karyograph) || !file.exists(dat[x, karyograph])) {
-        stop("karyograph file not found")
-      }
-
-      kag = readRDS(dat$karyograph)
       nseg = NULL
-      if ('ncn' %in% names(mcols(kag$segstats))){
-          nseg = kag$segstats[,c('ncn')]
+      ## Don't fail out if karyograph isn't found 
+      ## Just provide nseg is NULL, and get_gene_ampdels_from_jabba
+      ## assumes ncn = 2 (pretty safe assumption)
+      if (!is.null(dat$karyograph) && file.exists(dat[x, karyograph])) {
+        nseg = readRDS(dat$karyograph)$segstats[,c("ncn")]
       }
-      scna = get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh,
+    #   if (is.null(dat$karyograph) || !file.exists(dat[x, karyograph])) {
+    #     stop("karyograph file not found")
+    #   }
+
+    #   kag = readRDS(dat$karyograph)
+    #   nseg = NULL
+    #   if ('ncn' %in% names(mcols(kag$segstats))){
+    #       nseg = kag$segstats[,c('ncn')]
+    #   }
+      scna = skitools::get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh,
                                      del.thresh = del.thresh, pge = pge, nseg = nseg)
 
-        if (nrow(scna))
-        {
-          scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
-          out = rbind(out,
-                      scna[, .(id = x, value = min_cn, type, track, gene = gene_name)],
-                      fill = TRUE, use.names = TRUE)
-        }
+      if (nrow(scna))
+      {
+        scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
+        out = rbind(out,
+                    scna[, .(id = x, value = min_cn, type, track, gene = gene_name)],
+                    fill = TRUE, use.names = TRUE)
+      }
     } else {
       out = rbind(out, data.table(id = x, type = NA, source = 'jabba_rds'), fill = TRUE, use.names = TRUE)
     }
@@ -1209,8 +1217,9 @@ create_oncotable = function(
         warning("amp_thres_multiplier was not passed, setting to default 1.5")
         amp_thresh_multiplier = 1.5
     }
-
+    
     ploidy = ifelse(is.null(readRDS(jabba_simple)$ploidy), readRDS(jabba_simple)$meta$ploidy, readRDS(jabba_simple)$ploidy)
+
     amp_thresh = amp_thresh_multiplier*ploidy
     message(paste("using amp.thresh of", amp_thresh))
 
@@ -1911,6 +1920,8 @@ meta_data_json = function(
         ##add purity and ploidy
         meta.dt$purity = gg$meta$purity
         meta.dt$ploidy = gg$meta$ploidy
+        meta.dt$beta = gg$meta$ploidy # karyograph not needed
+        meta.dt$gamma = 1 - gg$meta$purity # karyograph not needed
         ##add the total seqlengths by using the seqlengths in the jabba object
         nodes.gr = gg$nodes$gr
         seqlengths.dt = suppressWarnings(
@@ -1950,11 +1961,11 @@ meta_data_json = function(
     }
 
     ## Load beta/gamma for karyograph
-    if(!is.null(karyograph)) {
-        kag = readRDS(karyograph)
-        meta.dt$beta = kag$beta
-        meta.dt$gamma = kag$gamma
-    }
+    # if(!is.null(karyograph)) {
+    #     kag = readRDS(karyograph)
+    #     meta.dt$beta = kag$beta
+    #     meta.dt$gamma = kag$gamma
+    # }
 
     ##add tmb
     if(("snv_count" %in% names(meta.dt)) & ("total_genome_length" %in% names(meta.dt))) {

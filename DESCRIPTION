@@ -17,7 +17,19 @@ Imports:
     data.table (>= 1.10), 
     R6,
     jsonlite,
-    gGnome
+    gGnome,
+    gUtils,
+    VariantAnnotation,
+    Biostrings,
+    skidb,
+    skitools
+Remotes:
+    mskilab/gUtils,
+    mskilab/gGnome,
+    mskilab/skidb,
+    mskilab/skitools,
+    bioc::VariantAnnotation,
+    bioc::Biostrings
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 RoxygenNote: 7.2.3
