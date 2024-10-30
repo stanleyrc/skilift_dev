@@ -7,6 +7,12 @@ Authors@R: c(person(given = "Shihab", family = "Dider", role = c("aut"), email =
 Description: Interface layer between backend and PGV and Case Reports frontend
 Remotes: 
   github::mskilab-org/skilift
+  mskilab/gUtils,
+  mskilab/gGnome,
+  mskilab/skidb,
+  mskilab/skitools,
+  bioc::VariantAnnotation,
+  bioc::Biostrings
 Depends:
     R (>= 3.6.0),
     data.table (>= 1.10), 
@@ -23,13 +29,6 @@ Imports:
     Biostrings,
     skidb,
     skitools
-Remotes:
-    mskilab/gUtils,
-    mskilab/gGnome,
-    mskilab/skidb,
-    mskilab/skitools,
-    bioc::VariantAnnotation,
-    bioc::Biostrings
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 RoxygenNote: 7.2.3
