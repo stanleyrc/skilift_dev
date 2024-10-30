@@ -148,9 +148,14 @@ subsample_hetsnps = function(
     unique.snps = unique(gr2dt(hets.gr)[,.(seqnames, start,end)])
     n_snps = nrow(unique.snps)
     message(paste(n_snps, "snps found"))
-    message(paste("subsampling", sample_size, "points..."))
-    snps.to.include = unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
-    subset.hets.gr = hets.gr %&% snps.to.include
+    if (!is.na(sample_size) && n_snps > sample_size) {
+        message(paste("subsampling", sample_size, "points..."))
+        snps.to.include = unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
+        subset.hets.gr = hets.gr %&% snps.to.include
+    } else {
+        snps.to.include = unique.snps %>% dt2gr()
+        subset.hets.gr = hets.gr %&% snps.to.include
+    }
 
     return(subset.hets.gr)
 }
@@ -182,7 +187,7 @@ create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings
     } 
 
     is_granges <- is(plot_metadata$x[[1]], "GRanges")
-    is_path <- is(plot_metadata$x, "character")
+    is_path <- is(plot_metadata$x[[1]], "character")
     if (is_granges) {
         # save granges to a temp file and assign path to plot_metadata$x
         print("Saving GRanges to temp file")
@@ -239,10 +244,10 @@ create_ggraph_json = function(plot_metadata, datadir, settings = internal_settin
         } else {
             message(paste0("reading in ", plot_metadata$x))
             if (grepl(plot_metadata$x, pattern = ".rds")) {
-                ggraph <- readRDS(plot_metadata$x)
+                ggraph <- readRDS(plot_metadata$x[[1]])
             } else {
-                message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-                ggraph <- readRDS(plot_metadata$x)
+                message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x[[1]])
+                ggraph <- readRDS(plot_metadata$x[[1]])
             }
         }
         if (any(class(ggraph) == "gGraph")) {
@@ -326,10 +331,10 @@ create_allelic_json = function(plot_metadata, datadir, settings = internal_setti
         } else {
             message(paste0("reading in ", plot_metadata$x))
             if (grepl(plot_metadata$x, pattern = ".rds")) {
-                ggraph <- readRDS(plot_metadata$x)
+                ggraph <- readRDS(plot_metadata$x[[1]])
             } else {
                 message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-                ggraph <- readRDS(plot_metadata$x)
+                ggraph <- readRDS(plot_metadata$x[[1]])
             }
         }
         if (any(class(ggraph) == "gGraph")) {
@@ -448,7 +453,7 @@ create_gwalk_json = function(plot_metadata, datadir, settings = internal_setting
 }
 
 #' @description
-#' Create mutations gGraph JSON file.
+#' Create mutations gGraph JSON file for SOMATIC MUTATIONS.
 #'
 #' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
 #' @param datadir Path to data directory with patient directories.
@@ -456,6 +461,7 @@ create_gwalk_json = function(plot_metadata, datadir, settings = internal_setting
 #'
 #' @return NULL.
 create_somatic_json = function(plot_metadata, datadir, settings = internal_settings_path) {
+  message("using function create_somatic_json")
     somatic_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -549,6 +555,110 @@ create_somatic_json = function(plot_metadata, datadir, settings = internal_setti
 }
 
 #' @description
+#' Create mutations gGraph JSON file for GERMLINE MUTATIONS.
+#' This function is unique from create_somatic_json in that it will subset only important mutations by MODIFIER code.
+#'
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
+#'
+#' @return NULL.
+create_germline_json = function(plot_metadata, datadir, settings = internal_settings_path) {
+  message("using function create_germline_json")
+    germline_json_path <- file.path(
+        datadir,
+        plot_metadata$patient.id,
+        plot_metadata$source
+    )
+    if (!file.exists(germline_json_path) || plot_metadata$overwrite) {
+        if (any(class(plot_metadata$x[[1]]) == "data.table")) {
+            mutations.dt <- plot_metadata$x[[1]]
+        } else {
+            message(paste0("reading in ", plot_metadata$x))
+            if (grepl(plot_metadata$x, pattern = ".rds")) {
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+            } else {
+                message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
+                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+            }
+        }
+        if (any(class(mutations.dt) == "data.table")) {
+            seq_lengths <- gGnome::parse.js.seqlengths(
+                settings,
+                js.type = "PGV",
+                ref = plot_metadata$ref
+            )
+            # check for overlap in sequence names
+            mutations.reduced <- mutations.dt[seqnames %in% names(seq_lengths),]
+            if (length(mutations.reduced) == 0) {
+                stop(sprintf(
+                    'There is no overlap between the sequence names in the reference
+                    used by PGV and the sequences in your mutations. Here is an
+                    example sequence from your mutations: "%s". And here is an
+                    example sequence from the reference used by gGnome.js: "%s"',
+                    mutations$seqnames[1], names(seq_lengths)[1]
+                ))
+            }
+            yfield = plot_metadata$field[1]
+            # coerce vaf col name to lower case to avoid col name mismatch for vaf/VAF column
+            setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+            mutations.dt = mutations.dt[!is.na(get(yfield)),]
+            mutations.dt[start == end, end := end +1]
+            mutations.dt[, strand := NULL]
+            # create an empty mutation annotation string, then add attributes to it if they exist
+            mut_ann <- ""
+            if ("annotation" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0("Type: ", mutations.dt$annotation, "; ")
+            }
+            if ("gene" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Gene: ", mutations.dt$gene, "; ")
+            }
+            if ("variant.c" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Variant: ", mutations.dt$variant.c, "; ")
+            }
+            if ("variant.p" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Protein_variant: ", mutations.dt$variant.p, "; ")
+            }
+            if ("variant.g" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Genomic_variant: ", mutations.dt$variant.g, "; ")
+            }
+            if ("vaf" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "VAF: ", mutations.dt$vaf, "; ")
+            }
+            if ("alt" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Alt_count: ", mutations.dt$alt, "; ")
+            }
+            if ("ref" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Ref_count: ", mutations.dt$ref, "; ")
+            }
+            if ("normal.alt" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Normal_alt_count: ", mutations.dt$normal.alt, "; ")
+            }
+            if ("normal.ref" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Normal_ref_count: ", mutations.dt$normal.ref, "; ")
+            }
+            if ("FILTER" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Filter: ", mutations.dt$FILTER, "; ")
+            }
+            mutations.dt[, annotation := mut_ann]
+            dt2json_mut(
+                dt = mutations.dt,
+                ref = plot_metadata$ref,
+                settings = settings,
+                meta_data = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+                y_col = yfield,
+                file_name = germline_json_path
+            )
+        } else {
+            warning(plot_metadata$x, " rds read was not mutations")
+        }
+    } else {
+        warning("file ", germline_json_path, "already exists. Set overwrite = TRUE if you want to overwrite it.")
+    }
+}
+
+
+#' @description
 #' Create ppfit gGraph JSON file.
 #'
 #' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
@@ -570,10 +680,10 @@ create_ppfit_genome_json = function(plot_metadata, datadir, settings = internal_
       } else {
         message(paste0("reading in ", plot_metadata$x))
         if (grepl(plot_metadata$x, pattern = ".rds")) {
-          ggraph <- readRDS(plot_metadata$x)
+          ggraph <- readRDS(plot_metadata$x[[1]])
         } else {
-          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-          ggraph <- readRDS(plot_metadata$x)
+          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x[[1]])
+          ggraph <- readRDS(plot_metadata$x[[1]])
         }
       }
       if (any(class(ggraph) == "gGraph")) {
@@ -1053,7 +1163,8 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       out = rbind(out, data.table(id = x, type = NA, source = 'complex'), fill = TRUE, use.names = TRUE)
 
     ## collect copy number / jabba
-    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds])) {
+    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds]))
+    {
       if (verbose)
         message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
       jab = readRDS(dat[x, jabba_rds])
@@ -1069,15 +1180,7 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       if (!is.null(dat$karyograph) && file.exists(dat[x, karyograph])) {
         nseg = readRDS(dat$karyograph)$segstats[,c("ncn")]
       }
-    #   if (is.null(dat$karyograph) || !file.exists(dat[x, karyograph])) {
-    #     stop("karyograph file not found")
-    #   }
 
-    #   kag = readRDS(dat$karyograph)
-    #   nseg = NULL
-    #   if ('ncn' %in% names(mcols(kag$segstats))){
-    #       nseg = kag$segstats[,c('ncn')]
-    #   }
       scna = skitools::get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh,
                                      del.thresh = del.thresh, pge = pge, nseg = nseg)
 
@@ -1271,6 +1374,7 @@ filtered_events_json = function(
     ot = readRDS(oncotable)
     # add a fusion_gene_coords column of NAs if no fusions
     if (!"fusion_gene_coords" %in% colnames(ot)) {
+        ot[, fusion_genes := NA]
         ot[, fusion_gene_coords := NA]
     }
     snvs = ot[grepl('frameshift|missense|stop|disruptive', annotation)]
@@ -1727,7 +1831,7 @@ create_mutations_catalog_json = function(
 #' @param disease full length tumor type
 #' @param primary_site primary site of tumor
 #' @param inferred_sex sex of the patient
-#' @param karyograph JaBbA outputted karygraph
+#'# @param karyograph JaBbA outputted karygraph
 #' @param signatures_pair_name pair name that appears in the sigprofiler output (sometimes different from pair)
 #' @param indel_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler
 #' @param sbs_sigprofiler path to Assignment_Solution_Activities.txt, output of sigprofiler 
@@ -1750,6 +1854,7 @@ meta_data_json = function(
     genome = "hg19",
     coverage = NULL,
     coverage_qc = NULL,
+    het_pileups_wgs = NULL,
     jabba_gg = NULL,
     complex = NULL,
     strelka2_vcf = NULL,
@@ -1758,7 +1863,6 @@ meta_data_json = function(
     disease = NULL,
     primary_site = NULL,
     inferred_sex = NULL,
-    karyograph = NULL,
     signatures_pair_name = NULL, # if different from pair
     indel_sigprofiler = NULL,
     sbs_sigprofiler = NULL,
@@ -1898,7 +2002,9 @@ meta_data_json = function(
         gg = readRDS(jabba_gg)
         meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
         meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
-        sv_like_types_count = table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
+        if (nrow(gg$edges$dt) > 0) {
+            sv_like_types_count = table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
+        }
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
 
         #get loh
@@ -1960,12 +2066,29 @@ meta_data_json = function(
         warning("Complex events and JaBbA graph not found as inputs, skipping SV types count...")
     }
 
+    #browser()
     ## Load beta/gamma for karyograph
-    # if(!is.null(karyograph)) {
-    #     kag = readRDS(karyograph)
-    #     meta.dt$beta = kag$beta
-    #     meta.dt$gamma = kag$gamma
-    # }
+    if(!is.null(coverage)) {
+      rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
+                                       field = "foreground.X",
+                                       purity = meta.dt$purity,
+                                       ploidy = meta.dt$ploidy,
+                                       return.params = T)
+      meta.dt$cov_slope = rel2abs.cov[1] %>% unname
+      meta.dt$cov_intercept = rel2abs.cov[2] %>% unname
+    }
+    
+    if(!is.null(het_pileups_wgs)){
+      hets.read <- grab.hets(het_pileups_wgs) %>% gr2dt
+      hets.read <- dt2gr(hets.read[, .(count = sum(count)), by = c("seqnames", "start", "end")])
+      rel2abs.hets <- skitools::rel2abs(hets.read,
+                                        field = "count",
+                                        purity = meta.dt$purity,
+                                        ploidy = meta.dt$ploidy,
+                                        return.params = T)
+      meta.dt$hets_slope = rel2abs.hets[1] %>% unname
+      meta.dt$hets_intercept = rel2abs.hets[2] %>% unname
+    }
 
     ##add tmb
     if(("snv_count" %in% names(meta.dt)) & ("total_genome_length" %in% names(meta.dt))) {
@@ -2695,9 +2818,11 @@ walks_temp = function(
 #' @param order optional entry if you order plots with a column order
 #' @param x mutations object as a list
 #' @param ref reference to use for pgvdb
+#' @param source name of json file to save as. For 'somatic', somatic.json is suggested whereas for 'germline', germline.json is suggested. by default, plot will save as mutations.json.
+#' @param subtype enum of 'somatic' or 'germline' which has downstream effects on mutation generation code
 #' @param visible TRUE/FALSE whether the plot is hidden or showing in pgv
 #' @param title title of the plot in pgvdb
-#' @param type walk, do not change for this plot type
+#' @param type mutations, do not change for this plot type
 #' @param annotation default is list of SVs, make null if no annotations present in object
 #' @param overwrite TRUE/FALSE to overwrite an existing genome json
 #' @param tag optional argument, can be binset to override y spacing in pgv
@@ -2713,6 +2838,7 @@ mutations_temp = function(
     source = "mutations.json",
     field,
     type = "mutations",
+    subtype = "somatic",
     visible = TRUE,
     title = NA,
     tag = NA,
@@ -2726,7 +2852,8 @@ mutations_temp = function(
         field = field,
         order = order,
         ref = ref,
-        source = source,
+      	source = source,
+     		subtype = subtype,
         title = title,
         overwrite = overwrite
     )
