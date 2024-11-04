@@ -3,9 +3,17 @@ suppressWarnings(devtools::load_all())
 
 library(testthat)
 
+ot_test_paths <- list(
+  oncotable = system.file('extdata/test_data/oncotable_test_data/new_oncotable/oncotable.rds', package='Skilift'),
+  annotated_bcf = system.file('extdata/test_data/oncotable_test_data/annotated.bcf', package='Skilift'),
+  jabba_simple_gg = system.file('extdata/test_data/oncotable_test_data/jabba.simple.gg.rds', package='Skilift'),
+  complex = system.file('extdata/test_data/oncotable_test_data/complex.rds', package='Skilift'),
+  fusions = system.file('extdata/test_data/oncotable_test_data/fusions.rds', package='Skilift'),
+  karyograph = system.file('extdata/test_data/oncotable_test_data/karyograph.rds', package='Skilift')
+)
+
 test_that("process_gencode handles NULL input", {
-  result <- process_gencode(NULL)
-  expect_error(result, "gencode file must be provided")
+  expect_error(process_gencode(NULL), "gencode file must be provided")
 })
 
 test_that("process_gencode handles .rds input", {
