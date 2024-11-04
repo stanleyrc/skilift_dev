@@ -12,6 +12,7 @@ mutations_temp(
   source = "mutations.json",
   field,
   type = "mutations",
+  subtype = "somatic",
   visible = TRUE,
   title = NA,
   tag = NA,
@@ -27,7 +28,11 @@ mutations_temp(
 
 \item{ref}{reference to use for pgvdb}
 
-\item{type}{walk, do not change for this plot type}
+\item{source}{name of json file to save as. For 'somatic', somatic.json is suggested whereas for 'germline', germline.json is suggested. by default, plot will save as mutations.json.}
+
+\item{type}{mutations, do not change for this plot type}
+
+\item{subtype}{enum of 'somatic' or 'germline' which has downstream effects on mutation generation code}
 
 \item{visible}{TRUE/FALSE whether the plot is hidden or showing in pgv}
 

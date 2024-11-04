@@ -54,7 +54,7 @@ NULL.
 data.table to add to pgv or NULL, depends on return_table_pgv
 }
 \description{
-Create mutations gGraph JSON file.
+Create mutations gGraph JSON file for SOMATIC MUTATIONS.
 
 function to create a mutation json, used in create_somatic_json
 }
