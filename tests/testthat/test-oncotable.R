@@ -1,3 +1,23 @@
 suppressWarnings(devtools::load_all())
 
 
+library(testthat)
+
+test_that("process_gencode handles NULL input", {
+  result <- process_gencode(NULL)
+  expect_true(is(result, "GRanges"))
+})
+
+test_that("process_gencode handles .rds input", {
+  # Assuming 'test_gencode.rds' is a valid RDS file path for testing
+  test_rds_path <- "path/to/test_gencode.rds"
+  result <- process_gencode(test_rds_path)
+  expect_true(is(result, "GRanges"))
+})
+
+test_that("process_gencode handles GTF input", {
+  # Assuming 'test_gencode.gtf' is a valid GTF file path for testing
+  test_gtf_path <- "path/to/test_gencode.gtf"
+  result <- process_gencode(test_gtf_path)
+  expect_true(is(result, "GRanges"))
+})
