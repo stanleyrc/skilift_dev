@@ -10,6 +10,7 @@ create_oncotable(
   signature_counts = NULL,
   fusions,
   jabba_simple,
+  karyograph,
   events,
   gencode = NULL,
   amp_thresh_multiplier = NULL,

@@ -39,17 +39,17 @@ cov2arrowPGV = function(cov,
         }
 
         message('Converting coverage format')
-        dat = cov2cov.js(cov, meta.js = meta.js, js.type = 'PGV', field = field,
+        dat = gGnome:::cov2cov.js(cov, meta.js = meta.js, js.type = 'PGV', field = field,
                          ref = ref, cov.color.field = cov.color.field, ...)
         message('Done converting coverage format')
 
         if (!is.null(cov.color.field)){
-            dat[, color := color2numeric(get(cov.color.field))]
+            dat[, color := gGnome:::color2numeric(get(cov.color.field))]
         } else {
             if (!is.null(meta.js)){
-                ref_meta = get_ref_metadata_from_PGV_json(meta.js, ref)
+                ref_meta = gGnome:::get_ref_metadata_from_PGV_json(meta.js, ref)
                 setkey(ref_meta, 'chromosome')
-                dat$color = color2numeric(ref_meta[dat$seqnames]$color)
+                dat$color = gGnome:::color2numeric(ref_meta[dat$seqnames]$color)
             } else {
                 # no cov.color.field and no meta.js so set all colors to black
                 dat$color = 0
@@ -1168,10 +1168,10 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       if (verbose)
         message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
       jab = readRDS(dat[x, jabba_rds])
-      jabpurity = NULL
-      jabploidy = NULL
-      jabpurity = if (is.null(jab$meta$purity)) else jab$purity
-      jabploidy = if (is.null(jab$meta$ploidy)) else jab$ploidy
+      jabpurity = jab$meta$purity
+      jabploidy = jab$meta$ploidy
+      if (is.null(jab$meta$purity)) jabpurity = jab$purity
+      if (is.null(jab$meta$ploidy)) jabploidy = jab$ploidy
       out = rbind(out,
                   data.table(id = x, value = c(jabpurity, jabploidy), type = c('purity', 'ploidy'), track = 'pp'),
                   fill = TRUE, use.names = TRUE)
@@ -1220,7 +1220,7 @@ oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode
       local_bcftools_path <- Sys.which("bcftools")
       local_bcftools_path <- ifelse(local_bcftools_path == "", stop("bcftools not found in the system PATH. Please install or moudule load bcftools."), local_bcftools_path)
       message("bcftools found at: ", local_bcftools_path)
-      bcf = grok_bcf(dat[x, annotated_bcf], label = x, long = TRUE, filter = filter, bpath=local_bcftools_path)
+      bcf = skitools::grok_bcf(dat[x, annotated_bcf], label = x, long = TRUE, filter = filter, bpath=local_bcftools_path)
       if (verbose)
         message(length(bcf), ' variants pass filter')
       genome.size = sum(seqlengths(bcf), na.rm = TRUE)/1e6
