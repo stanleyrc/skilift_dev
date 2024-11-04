@@ -880,17 +880,23 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
 #' @param probs path to sigprofiler decomposed probabilities
 #' @param is_indel Boolean to indicate if the input matrix is for indels
 #' @param data_dir path to data directory of which each subdirectory contains jsons per patient
+#' @param suffix expected suffix of sample name in decomposed_probs_json matrix, default = "_somatic" but have also seen "_0000"
 #' @param pairs vector of samples for which to create jsons, by default = NULL, indicating process all patients
 #' @param cores number of cores to parallelize with
 #' @return data.table or NULL
 #' @export
 #' @author Johnathan Rafailov
-sigprofiler_decomposed_probs_json = function(probs, is_indel, data_dir, pairs, cores = 1 ){
+sigprofiler_decomposed_probs_json = function(probs,
+                                             is_indel,
+                                             data_dir,
+                                             suffix = "_somatic",
+                                             pairs = NULL,
+                                             cores = 1 ){
   fread(probs) -> decomposed.probs
 ###lets change first column to something more predictable
   colnames(decomposed.probs)[1] <- "samples"
 ### seems like _somatic is systematically ended to the end of all sample names in the beginning
-  decomposed.probs[, samples := gsub("_somatic", "", samples)]
+  decomposed.probs[, samples := gsub(suffix, "", samples)]
   if(!is.null(pairs)){decomposed.probs <- decomposed.probs[samples %in% pairs,]}
   decomposed.probs.per.sample <- melt(decomposed.probs,
                                       measure.vars = c(3:ncol(decomposed.probs)),
@@ -1996,8 +2002,9 @@ meta_data_json = function(
         ## count := junctions + (loose ends / 2)
         gg = readRDS(jabba_gg)
         meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-        meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
-        sv_like_types_count = table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
+      meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+      sv_like_types_count = tryCatch(table(gg$edges$dt[type == "ALT" & class != "REF"]$class),
+                                     error = function(e){0})
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
 
         #get loh
@@ -2061,7 +2068,7 @@ meta_data_json = function(
     ## Load beta/gamma for karyograph
     if(!is.null(coverage)) {
       rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
-                                       field = "foreground.X",
+                                       field = "foreground",
                                        purity = meta.dt$purity,
                                        ploidy = meta.dt$ploidy,
                                        return.params = T)
