@@ -5,6 +5,7 @@ library(testthat)
 
 test_that("process_gencode handles NULL input", {
   result <- process_gencode(NULL)
+  expect_error(result, "gencode file must be provided")
 })
 
 test_that("process_gencode handles .rds input", {
