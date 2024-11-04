@@ -9,8 +9,7 @@ test_that("process_gencode handles NULL input", {
 })
 
 test_that("process_gencode handles .rds input", {
-  # Assuming 'test_gencode.rds' is a valid RDS file path for testing
-  test_rds_path <- "path/to/test_gencode.rds"
+  test_rds_path <- system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift")
   result <- process_gencode(test_rds_path)
   expect_true(is(result, "GRanges"))
 })
