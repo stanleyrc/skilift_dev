@@ -1,5 +1,6 @@
 #' @importFrom gUtils dt2gr
 #' @importFrom magrittr `%>%`
+#' @useDynLib Skilift, .registration=TRUE
 
 library(VariantAnnotation)
 library(skidb)
