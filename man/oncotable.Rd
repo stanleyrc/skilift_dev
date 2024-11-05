@@ -54,7 +54,7 @@ into oncoprint.  This data.table will at the very least have fields $id $type (e
 populated in addition to a few other data type specific columns.
 
 The $source column is the name of the column of tumors from which that data was extracted, and track is a grouping
-variable that allows separation of the various data types. 
+variable that allows separation of the various data types.
 
 All the paths above can be NA or non existent, in which case a dummy row is inserted into the table so that downstream
 applications know that data is missing for that sample.
