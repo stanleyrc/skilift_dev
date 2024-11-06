@@ -41,22 +41,28 @@ collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
     return(data.table(type = NA, source = 'fusions'))
   }
   
-  fus <- fus[silent == FALSE, ][!duplicated(genes), ]
-  fus[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')]
+  non_silent_fusions <- fus[silent == FALSE, ]
+  unique_fusions <- non_silent_fusions[!duplicated(genes), ]
+  unique_fusions[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')]
   
-  fus <- fus[, .(
-    gene = unlist(strsplit(genes, ',')),
-    vartype = rep(vartype, sapply(strsplit(genes, ','), length)),
-    fusion_genes = rep(genes, sapply(strsplit(genes, ','), length))
+  split_genes <- function(genes) unlist(strsplit(genes, ','))
+  gene_lengths <- function(genes) sapply(strsplit(genes, ','), length)
+  
+  fus <- unique_fusions[, .(
+    gene = split_genes(genes),
+    vartype = rep(vartype, gene_lengths(genes)),
+    fusion_genes = rep(genes, gene_lengths(genes))
   )][, `:=`(track = 'variants', type = vartype, source = 'fusions')]
   
-  fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), function(genes) {
+  get_gene_coords <- function(genes) {
     coords <- lapply(genes, function(gene) {
       gene_ranges <- pge[mcols(pge)$gene_name == gene]
       paste0(seqnames(gene_ranges), ":", start(gene_ranges), "-", end(gene_ranges))
     })
     paste(unlist(coords), collapse = ",")
-  }))]
+  }
+  
+  fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), get_gene_coords))]
   
   return(fus)
 }
