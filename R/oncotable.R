@@ -445,6 +445,7 @@ oncotable = function(
   complex = NULL,
   signature_counts = NULL,
   oncokb_maf = NULL,
+  oncokb_cna = NULL,  # Add this parameter
   gencode,
   verbose = TRUE,
   amp.thresh = 4,
