@@ -942,33 +942,21 @@ sigprofiler_decomposed_probs_json <- function(probs, is_indel, data_dir, pairs, 
 #'
 #' function to create oncotable for use with filtered_events_json
 #'
-#' @param pair patient id
-#' @param annotated_bcf bcf with variant annotations (snpeff)
-#' @param signature_counts output of Signatures task (optional)
-#' @param jabba_simple jabba.simple.rds from JaBbA
-#' @param fusions output of fusions task
-#' @param events output of events task
-#' @param gencode file to gencode annotations (uses v29lift37 by default)
+#' @param cohort data.table with columns: pair, annotated_bcf, signature_counts, fusions, jabba_simple, karyograph, events, oncokb_maf, oncokb_cna
 #' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
+#' @param gencode file to gencode annotations (uses v29lift37 by default)
 #' @param outdir path to directory in which to write oncotable outputs
-#' @return data.table or NULL
+#' @param cores number of cores for parallel processing
+#' @return Named list of oncotable results
 #' @export
 #' @author Shihab Dider, Joel Rosiene
 
-    # pair,
-    # annotated_bcf,
-    # signature_counts = NULL,
-    # fusions,
-    # jabba_simple,
-    # karyograph,
-    # events,
-    # oncokb_maf = NULL,
-    # oncokb_cna = NULL,
 create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
     gencode = "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds",
-    outdir) {
+    outdir,
+    cores = 1) {
 
     if (system("which bcftools", intern = TRUE) == "") {
         stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
@@ -978,7 +966,7 @@ create_oncotable <- function(
 
     if (gencode == "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds") {
         message("using default gencode: ~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds")
-    } 
+    }
 
     gencode <- process_gencode(gencode)
 
@@ -986,39 +974,59 @@ create_oncotable <- function(
         message("using default amp_thres_multiplier: 1.5")
     }
 
-    ploidy_ggraph <- readRDS(jabba_simple)
-    ploidy <- ifelse(
-        !is.null(ploidy_ggraph$meta$ploidy),
-        ploidy_ggraph$meta$ploidy,
-        ploidy_ggraph$ploidy
-    )
-
-    amp_thresh <- amp_thresh_multiplier * ploidy
-    message(paste("using amp.thresh of", amp_thresh))
-
-    oncotable <- oncotable(
-        pair = pair,
-        annotated_bcf = annotated_bcf,
-        fusions = fusions,
-        jabba_simple = jabba_simple,
-        karyograph = karyograph,
-        events = events,
-        signature_counts = NULL,
-        oncokb_maf = oncokb_maf,
-        oncokb_cna = oncokb_cna,
-        gencode = gencode,
-        verbose = TRUE,
-        amp.thresh = amp_thresh
-        filter = "PASS",
-        del.thresh = 0.5
-    )
-
+    # Create output directory if it doesn't exist
     if (!dir.exists(outdir)) {
         dir.create(outdir, recursive = TRUE)
     }
 
-    saveRDS(oncotable, paste0(outdir, "/", "oncotable.rds"))
-    fwrite(oncotable, paste0(outdir, "/", "oncotable.txt"))
+    # Process each pair in parallel
+    results <- mclapply(seq_len(nrow(cohort)), function(i) {
+        row <- cohort[i,]
+        
+        # Get ploidy from jabba output
+        ploidy_ggraph <- readRDS(row$jabba_simple)
+        ploidy <- ifelse(
+            !is.null(ploidy_ggraph$meta$ploidy),
+            ploidy_ggraph$meta$ploidy,
+            ploidy_ggraph$ploidy
+        )
+
+        amp_thresh <- amp_thresh_multiplier * ploidy
+        message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
+
+        # Run oncotable for this pair
+        oncotable_result <- oncotable(
+            pair = row$pair,
+            annotated_bcf = row$annotated_bcf,
+            fusions = row$fusions,
+            jabba_simple = row$jabba_simple, 
+            karyograph = row$karyograph,
+            events = row$events,
+            signature_counts = row$signature_counts,
+            oncokb_maf = row$oncokb_maf,
+            oncokb_cna = row$oncokb_cna,
+            gencode = gencode,
+            verbose = TRUE,
+            amp.thresh = amp_thresh,
+            filter = "PASS",
+            del.thresh = 0.5
+        )
+
+        # Save results for this pair
+        pair_outdir <- file.path(outdir, row$pair)
+        if (!dir.exists(pair_outdir)) {
+            dir.create(pair_outdir, recursive = TRUE)
+        }
+
+        saveRDS(oncotable_result, file.path(pair_outdir, "oncotable.rds"))
+        fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
+
+        return(oncotable_result)
+    }, mc.cores = cores)
+
+    names(results) <- cohort$pair
+    return(results)
+}
 }
 
 #' @name filtered_events_json
