@@ -55,7 +55,7 @@ oncotable = function(
     pge <- gencode %Q% (gene_type == 'protein_coding')
   }
 
-  ## collect gene fusions
+collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
   if (!is.null(fusions) && file.exists(fusions)) {
     if (verbose) message('pulling fusions')
     fus <- readRDS(fusions)$meta
@@ -74,11 +74,49 @@ oncotable = function(
         })
         paste(unlist(coords), collapse = ",")
       }))]
-      out <- rbind(out, fus, fill = TRUE, use.names = TRUE)
+      return(fus)
     }
-  } else {
-    out <- rbind(out, data.table(type = NA, source = 'fusions'), fill = TRUE, use.names = TRUE)
   }
+  return(data.table(type = NA, source = 'fusions'))
+}
+
+#' @name oncotable
+#' @title oncotable
+#' @description
+#'
+#' @param annotated_bcf Path to annotated.bcf file
+#' @param fusions Path to fusion.rds file
+#' @param jabba_rds Path to jabba.simple.rds file
+#' @param complex Path to complex.rds file
+#' @param signature_counts Path to signature_counts.txt file
+#' @param gencode_gr GRanges object with gencode annotations 
+#' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
+#' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
+#' @param verbose logical flag 
+#' @export
+oncotable = function(
+  pair,
+  annotated_bcf = NULL,
+  fusions = NULL,
+  jabba_rds = NULL,
+  complex = NULL,
+  signature_counts = NULL,
+  gencode,
+  verbose = TRUE,
+  amp.thresh = 4,
+  filter = 'PASS',
+  del.thresh = 0.5
+) {
+  out <- data.table()
+
+  if ('type' %in% names(mcols(gencode))) {
+    pge <- gencode %Q% (type == 'gene' & gene_type == 'protein_coding')
+  } else {
+    pge <- gencode %Q% (gene_type == 'protein_coding')
+  }
+
+  ## collect gene fusions
+  out <- rbind(out, collect_gene_fusions(fusions, pge, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect complex events
   if (!is.null(complex) && file.exists(complex)) {

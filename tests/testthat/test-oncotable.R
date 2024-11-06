@@ -32,6 +32,13 @@ test_that("process_gencode handles .rds input", {
   expect_true(is(result, "GRanges"))
 })
 
+test_that("collect_gene_fusions handles valid input", {
+  fusions_path <- ot_test_paths$fusions
+  result_fusions <- collect_gene_fusions(fusions_path, gencode, verbose = FALSE)
+  expect_true(nrow(result_fusions) > 0)
+  expect_true(all(c("gene", "vartype", "fusion_genes", "track", "type", "source", "fusion_gene_coords") %in% colnames(result_fusions)))
+})
+
 test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
