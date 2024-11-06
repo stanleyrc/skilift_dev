@@ -125,15 +125,7 @@ oncotable = function(
     use.names = TRUE
   )
 
-  ## collect signatures
-  if (!is.null(signature_counts) && file.exists(signature_counts)) {
-    if (verbose) message('pulling signature_counts')
-    sig <- fread(signature_counts)
-    sig <- sig[, .(value = num_events, type = Signature, etiology = Etiology, frac = frac.events, track = 'signature', source = 'signature_counts')]
-    out <- rbind(out, sig, fill = TRUE, use.names = TRUE)
-  } else {
-    out <- rbind(out, data.table(type = NA, source = 'signature_counts'), fill = TRUE, use.names = TRUE)
-  }
+  out <- rbind(out, collect_signatures(signature_counts, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect gene mutations
   if (!is.null(annotated_bcf) && file.exists(annotated_bcf)) {
@@ -169,7 +161,23 @@ oncotable = function(
   return(out)
 }
 
-#' @title collect_complex_events
+#' @title collect_signatures
+#' @description
+#' Collects signature data from a specified file and processes it.
+#'
+#' @param signature_counts Path to the signature_counts.txt file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed signature information.
+collect_signatures <- function(signature_counts, verbose = TRUE) {
+  if (!is.null(signature_counts) && file.exists(signature_counts)) {
+    if (verbose) message('pulling signature_counts')
+    sig <- fread(signature_counts)
+    sig <- sig[, .(value = num_events, type = Signature, etiology = Etiology, frac = frac.events, track = 'signature', source = 'signature_counts')]
+    return(sig)
+  } else {
+    return(data.table(type = NA, source = 'signature_counts'))
+  }
+}
 #' @description
 #' Collects complex events from a specified file and processes them.
 #'
