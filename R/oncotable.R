@@ -19,6 +19,14 @@ process_gencode = function(gencode = NULL){
   return(gencode)
 }
 
+#' @title collect_gene_fusions
+#' @description
+#' Collects gene fusion data from a specified file and processes it.
+#'
+#' @param fusions Path to the fusions.rds file.
+#' @param pge GRanges object with gencode annotations.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed gene fusion information.
 collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
   if (!is.null(fusions) && file.exists(fusions)) {
     if (verbose) message('pulling fusions')
