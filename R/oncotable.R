@@ -419,7 +419,7 @@ collect_oncokb = function(oncokb_maf, sample_id, verbose = TRUE) {
     }
 
     if (verbose) message('pulling oncokb maf')
-    snpeff_ontology = readRDS(system.file("extdata/data/snpeff_ontology.rds", package = "Skilift"))
+    snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
     oncokb <- data.table::fread(oncokb_maf)
     concat_out <- data.table(id = sample_id, source = "oncokb_maf")
 
