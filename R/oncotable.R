@@ -19,42 +19,6 @@ process_gencode = function(gencode = NULL){
   return(gencode)
 }
 
-#' @name oncotable
-#' @title oncotable
-#' @description
-#'
-#' @param annotated_bcf Path to annotated.bcf file
-#' @param fusions Path to fusion.rds file
-#' @param jabba_rds Path to jabba.simple.rds file
-#' @param complex Path to complex.rds file
-#' @param signature_counts Path to signature_counts.txt file
-#' @param gencode_gr GRanges object with gencode annotations 
-#' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
-#' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
-#' @param verbose logical flag 
-#' @author Marcin Imielinski
-#' @export
-oncotable = function(
-  pair,
-  annotated_bcf = NULL,
-  fusions = NULL,
-  jabba_rds = NULL,
-  complex = NULL,
-  signature_counts = NULL,
-  gencode,
-  verbose = TRUE,
-  amp.thresh = 4,
-  filter = 'PASS',
-  del.thresh = 0.5
-) {
-  out <- data.table()
-
-  if ('type' %in% names(mcols(gencode))) {
-    pge <- gencode %Q% (type == 'gene' & gene_type == 'protein_coding')
-  } else {
-    pge <- gencode %Q% (gene_type == 'protein_coding')
-  }
-
 collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
   if (!is.null(fusions) && file.exists(fusions)) {
     if (verbose) message('pulling fusions')
