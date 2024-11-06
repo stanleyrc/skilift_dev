@@ -183,6 +183,7 @@ collect_complex_events <- function(complex, verbose = TRUE) {
   
   return(sv_summary)
 }
+
 #' @title collect_copy_number_jabba
 #' @description
 #' Collects copy number and jabba data from a specified file and processes it.
@@ -193,7 +194,13 @@ collect_complex_events <- function(complex, verbose = TRUE) {
 #' @param del.thresh SCNA deletion threshold.
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed copy number and jabba information.
-collect_copy_number_jabba <- function(jabba_rds, pge, amp.thresh, del.thresh, verbose = TRUE) {
+collect_copy_number_jabba <- function(
+  jabba_rds,
+  pge,
+  amp.thresh,
+  del.thresh,
+  verbose = TRUE
+) {
   if (is.null(jabba_rds) || !file.exists(jabba_rds)) {
     if (verbose) message('Jabba RDS file is missing or does not exist.')
     return(data.table(type = NA, source = 'jabba_rds'))
@@ -203,14 +210,29 @@ collect_copy_number_jabba <- function(jabba_rds, pge, amp.thresh, del.thresh, ve
   jab <- readRDS(jabba_rds)
   jabpurity <- if (is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
   jabploidy <- if (is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
-  result <- data.table(value = c(jabpurity, jabploidy), type = c('purity', 'ploidy'), track = 'pp')
+  result <- data.table(
+    value = c(jabpurity, jabploidy),
+    type = c('purity', 'ploidy'),
+    track = 'pp'
+  )
   
   nseg <- NULL
-  scna <- skitools::get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh, del.thresh = del.thresh, pge = pge, nseg = nseg)
+  scna <- skitools::get_gene_ampdels_from_jabba(
+    jab,
+    amp.thresh = amp.thresh,
+    del.thresh = del.thresh,
+    pge = pge,
+    nseg = nseg
+  )
   
   if (nrow(scna)) {
     scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
-    result <- rbind(result, scna[, .(value = min_cn, type, track, gene = gene_name)], fill = TRUE, use.names = TRUE)
+    result <- rbind(
+      result,
+      scna[, .(value = min_cn, type, track, gene = gene_name)],
+      fill = TRUE,
+      use.names = TRUE
+    )
   }
   
   return(result)
