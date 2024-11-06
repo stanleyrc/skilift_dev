@@ -67,7 +67,12 @@ test_that("collect_copy_number_jabba handles valid input", {
 #   expect_true(all(c("value", "type", "track", "source") %in% colnames(result_signatures)))
 # })
 
-test_that("oncotable produces expected output", {
+test_that("collect_gene_mutations handles valid input", {
+  annotated_bcf_path <- ot_test_paths$unit_annotated_bcf
+  result_mutations <- collect_gene_mutations(annotated_bcf_path, ot_test_paths$jabba_simple_gg, filter = 'PASS', verbose = FALSE)
+  expect_true(nrow(result_mutations) > 0)
+  expect_true(all(c("value", "type", "track", "source") %in% colnames(result_mutations)))
+})
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
     pair = "397089",
