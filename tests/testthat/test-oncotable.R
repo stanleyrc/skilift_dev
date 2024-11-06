@@ -59,7 +59,12 @@ test_that("collect_copy_number_jabba handles valid input", {
   expect_true(all(c("value", "type", "track") %in% colnames(result_jabba)))
 })
 
-test_that("oncotable produces expected output", {
+test_that("collect_signatures handles valid input", {
+  signature_counts_path <- system.file('extdata/test_data/oncotable_test_data/signature_counts.txt', package='Skilift')
+  result_signatures <- collect_signatures(signature_counts_path, verbose = FALSE)
+  expect_true(nrow(result_signatures) > 0)
+  expect_true(all(c("value", "type", "track", "source") %in% colnames(result_signatures)))
+})
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
     pair = "397089",
