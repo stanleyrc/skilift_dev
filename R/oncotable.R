@@ -109,23 +109,7 @@ oncotable = function(
   out <- rbind(out, collect_complex_events(complex, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect copy number / jabba
-  if (!is.null(jabba_rds) && file.exists(jabba_rds)) {
-    if (verbose) message('pulling jabba_rds to get SCNA and purity / ploidy')
-    jab <- readRDS(jabba_rds)
-    jabpurity <- if (is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
-    jabploidy <- if (is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
-    out <- rbind(out, data.table(value = c(jabpurity, jabploidy), type = c('purity', 'ploidy'), track = 'pp'), fill = TRUE, use.names = TRUE)
-
-    nseg <- NULL
-    scna <- skitools::get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh, del.thresh = del.thresh, pge = pge, nseg = nseg)
-
-    if (nrow(scna)) {
-      scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
-      out <- rbind(out, scna[, .(value = min_cn, type, track, gene = gene_name)], fill = TRUE, use.names = TRUE)
-    }
-  } else {
-    out <- rbind(out, data.table(type = NA, source = 'jabba_rds'), fill = TRUE, use.names = TRUE)
-  }
+  out <- rbind(out, collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect signatures
   if (!is.null(signature_counts) && file.exists(signature_counts)) {
@@ -198,4 +182,36 @@ collect_complex_events <- function(complex, verbose = TRUE) {
   sv_summary[, source := 'complex']
   
   return(sv_summary)
+}
+#' @title collect_copy_number_jabba
+#' @description
+#' Collects copy number and jabba data from a specified file and processes it.
+#'
+#' @param jabba_rds Path to the jabba.simple.rds file.
+#' @param pge GRanges object with gencode annotations.
+#' @param amp.thresh SCNA amplification threshold.
+#' @param del.thresh SCNA deletion threshold.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed copy number and jabba information.
+collect_copy_number_jabba <- function(jabba_rds, pge, amp.thresh, del.thresh, verbose = TRUE) {
+  if (is.null(jabba_rds) || !file.exists(jabba_rds)) {
+    if (verbose) message('Jabba RDS file is missing or does not exist.')
+    return(data.table(type = NA, source = 'jabba_rds'))
+  }
+  
+  if (verbose) message('pulling jabba_rds to get SCNA and purity / ploidy')
+  jab <- readRDS(jabba_rds)
+  jabpurity <- if (is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
+  jabploidy <- if (is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
+  result <- data.table(value = c(jabpurity, jabploidy), type = c('purity', 'ploidy'), track = 'pp')
+  
+  nseg <- NULL
+  scna <- skitools::get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh, del.thresh = del.thresh, pge = pge, nseg = nseg)
+  
+  if (nrow(scna)) {
+    scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
+    result <- rbind(result, scna[, .(value = min_cn, type, track, gene = gene_name)], fill = TRUE, use.names = TRUE)
+  }
+  
+  return(result)
 }
