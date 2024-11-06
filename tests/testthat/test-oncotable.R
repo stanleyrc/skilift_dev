@@ -5,16 +5,18 @@ library(testthat)
 
 # test <- function() { testthat::test_file("tests/testthat/test-oncotable.R") }
 
-ot_test_paths <- list(
-  oncotable = system.file('extdata/test_data/oncotable_test_data/new_oncotable/oncotable.rds', package='Skilift'),
-  annotated_bcf = system.file('extdata/test_data/oncotable_test_data/annotated.bcf', package='Skilift'),
-  jabba_simple_gg = system.file('extdata/test_data/oncotable_test_data/jabba.simple.gg.rds', package='Skilift'),
-  complex = system.file('extdata/test_data/oncotable_test_data/complex.rds', package='Skilift'),
-  fusions = system.file('extdata/test_data/oncotable_test_data/fusions.rds', package='Skilift'),
-  karyograph = system.file('extdata/test_data/oncotable_test_data/karyograph.rds', package='Skilift')
-)
+setup({
+  ot_test_paths <<- list(
+    oncotable = system.file('extdata/test_data/oncotable_test_data/new_oncotable/oncotable.rds', package='Skilift'),
+    annotated_bcf = system.file('extdata/test_data/oncotable_test_data/annotated.bcf', package='Skilift'),
+    jabba_simple_gg = system.file('extdata/test_data/oncotable_test_data/jabba.simple.gg.rds', package='Skilift'),
+    complex = system.file('extdata/test_data/oncotable_test_data/complex.rds', package='Skilift'),
+    fusions = system.file('extdata/test_data/oncotable_test_data/fusions.rds', package='Skilift'),
+    karyograph = system.file('extdata/test_data/oncotable_test_data/karyograph.rds', package='Skilift')
+  )
 
-gencode <- process_gencode('~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds')
+  gencode <<- process_gencode('~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds')
+})
 
 test_that("process_gencode handles NULL input", {
   expect_error(process_gencode(NULL), "gencode file must be provided")
