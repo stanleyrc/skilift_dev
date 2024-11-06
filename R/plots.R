@@ -882,6 +882,7 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
 #' @param data_dir path to data directory of which each subdirectory contains jsons per patient
 #' @param suffix expected suffix of sample name in decomposed_probs_json matrix, default = "_somatic" but have also seen "_0000"
 #' @param pairs vector of samples for which to create jsons, by default = NULL, indicating process all patients
+#' @param pair_name expected pair name; only supply if you know the pair name and the input table is only for one sample!
 #' @param cores number of cores to parallelize with
 #' @return data.table or NULL
 #' @export
@@ -891,6 +892,7 @@ sigprofiler_decomposed_probs_json = function(probs,
                                              data_dir,
                                              suffix = "_somatic",
                                              pairs = NULL,
+                                             pair_name = NULL,
                                              cores = 1 ){
   fread(probs) -> decomposed.probs
 ###lets change first column to something more predictable
@@ -920,7 +922,11 @@ sigprofiler_decomposed_probs_json = function(probs,
       )
       catalog_file_name = "sbs_decomposed_prob.json"
     }
-    write_json(samp_data, paste0(data_dir, "/", pair, "/", catalog_file_name))    
+    if(!is.null(pair_name)){
+      write_json(samp_data, paste0(data_dir, "/", pair_name, "/", catalog_file_name))
+    } else {
+      write_json(samp_data, paste0(data_dir, "/", pair, "/", catalog_file_name))
+    }    
   }, mc.cores = cores)
 }
 
