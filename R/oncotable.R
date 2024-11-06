@@ -330,7 +330,55 @@ parse_oncokb_tier = function(
     return(oncokb)
 }
 
-#' @name oncotable
+#' @title collect_oncokb
+#' @description
+#' Collects and processes OncoKB data from a MAF file
+#'
+#' @param oncokb_maf Path to the oncokb MAF file
+#' @param sample_id Sample identifier
+#' @param verbose Logical flag to indicate if messages should be printed
+#' @return A data.table containing processed OncoKB information
+collect_oncokb <- function(oncokb_maf, sample_id, verbose = TRUE) {
+  if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
+    if (verbose) message('OncoKB MAF file is missing or does not exist.')
+    return(data.table(type = NA, source = 'oncokb_maf'))
+  }
+
+  oncokb <- data.table::fread(oncokb_maf)
+  concat_out <- data.table(id = sample_id, source = "oncokb_maf")
+
+  if (nrow(oncokb) > 0) {
+    oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+    
+    oncokb <- parse_oncokb_tier(
+      oncokb,
+      tx_cols = c("LEVEL_1", "LEVEL_2"),
+      rx_cols = c("LEVEL_R1"),
+      dx_cols = c("LEVEL_Dx1"),
+      px_cols = c("LEVEL_Px1")
+    )
+    
+    concat_out <- oncokb[, .(
+      id = sample_id,
+      gene = Hugo_Symbol,
+      variant.g = paste("g.", Start_Position, "-", End_Position, sep = ""),
+      variant.c = HGVSc,
+      variant.p = HGVSp,
+      annotation = Consequence,
+      type = snpeff_ontology,
+      tier = tier,
+      tier_description = tier_factor,
+      therapeutics = tx_string,
+      resistances = rx_string,
+      diagnoses = dx_string,
+      prognoses = px_string,
+      distance = NA_integer_,
+      track = "variants"
+    )]
+  }
+  
+  return(concat_out)
+}
 #' @title oncotable
 #' @description
 #'
@@ -340,7 +388,8 @@ parse_oncokb_tier = function(
 #' @param complex Path to complex.rds file
 #' @param signature_counts Path to signature_counts.txt file
 #' @param karyograph Optional path to the karyograph.rds file
-#' @param gencode_gr GRanges object with gencode annotations 
+#' @param oncokb_maf Path to oncokb MAF file
+#' @param gencode_gr GRanges object with gencode annotations
 #' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
 #' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
 #' @param verbose logical flag 
@@ -352,6 +401,7 @@ oncotable = function(
   jabba_rds = NULL,
   complex = NULL,
   signature_counts = NULL,
+  oncokb_maf = NULL,
   gencode,
   verbose = TRUE,
   amp.thresh = 4,
@@ -405,46 +455,13 @@ oncotable = function(
   )
 
   ## collect oncokb
-  if (!is.null(dat$oncokb_maf) && file.exists(dat[x, oncokb_maf])) {
-      oncokb <- data.table::fread(dat[x, oncokb_maf])
-      concat_out <- data.table(id = x,  source = "oncokb_maf")
-
-      if (NROW(oncokb) > 0) {
-          oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
-          # Classify variant based on levels of evidence
-          # T1&2 for TX
-          # T1 for DX & PX
-          # TX/DX/PX Present = "Actionable"
-          # Show drugs in separate column?
-          # Oncogenic/Likely Oncogenic = "Relevant"
-          # Rest = "VUS"
-          # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
-          oncokb = parse_oncokb_tier(
-              oncokb, 
-              tx_cols = c("LEVEL_1", "LEVEL_2"), 
-              rx_cols = c("LEVEL_R1"),
-              dx_cols = c("LEVEL_Dx1"),
-              px_cols = c("LEVEL_Px1")
-          )
-          concat_out = oncokb[, .(
-                  id = x, 
-                  gene = Hugo_Symbol, 
-                  variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
-                  variant.c = HGVSc,
-                  variant.p = HGVSp,
-                  annotation = Consequence,
-                  type = snpeff_ontology,
-                  tier = tier,
-                  tier_description = tier_factor,
-                  therapeutics = tx_string, # comes from parse_oncokb_tier
-                  resistances = rx_string,
-                  diagnoses = dx_string,
-                  prognoses = px_string,
-                  distance = NA_integer_,
-                  track = "variants"
-          )]
-      }
-      out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
+  if (!is.null(oncokb_maf) && file.exists(oncokb_maf)) {
+    out <- rbind(
+      out,
+      collect_oncokb(oncokb_maf, pair, verbose),
+      fill = TRUE,
+      use.names = TRUE
+    )
   }
 
   out$id = pair
