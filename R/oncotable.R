@@ -76,6 +76,7 @@ collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
 #' @param jabba_rds Path to jabba.simple.rds file
 #' @param complex Path to complex.rds file
 #' @param signature_counts Path to signature_counts.txt file
+#' @param karyograph Optional path to the karyograph.rds file
 #' @param gencode_gr GRanges object with gencode annotations 
 #' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
 #' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
@@ -92,7 +93,8 @@ oncotable = function(
   verbose = TRUE,
   amp.thresh = 4,
   filter = 'PASS',
-  del.thresh = 0.5
+  del.thresh = 0.5,
+  karyograph = NULL
 ) {
   out <- data.table()
 
@@ -109,7 +111,7 @@ oncotable = function(
   out <- rbind(out, collect_complex_events(complex, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect copy number / jabba
-  out <- rbind(out, collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose), fill = TRUE, use.names = TRUE)
+  out <- rbind(out, collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph), fill = TRUE, use.names = TRUE)
 
   ## collect signatures
   if (!is.null(signature_counts) && file.exists(signature_counts)) {
