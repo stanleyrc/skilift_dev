@@ -146,33 +146,44 @@ oncotable = function(
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed gene mutation information.
 collect_gene_mutations <- function(annotated_bcf, jabba_rds, filter, verbose = TRUE) {
-  if (!is.null(annotated_bcf) && file.exists(annotated_bcf)) {
-    if (verbose) message('pulling annotated_bcf using FILTER=', filter)
-    local_bcftools_path <- Sys.which("bcftools")
-    local_bcftools_path <- ifelse(local_bcftools_path == "", stop("bcftools not found in the system PATH. Please install or module load bcftools."), local_bcftools_path)
-    message("bcftools found at: ", local_bcftools_path)
-    bcf <- skitools::grok_bcf(annotated_bcf, label = "sample", long = TRUE, filter = filter, bpath = local_bcftools_path)
-    if (verbose) message(length(bcf), ' variants pass filter')
-    genome.size <- sum(seqlengths(bcf), na.rm = TRUE) / 1e6
-    if (is.na(genome.size)) genome.size <- sum(seqlengths(gG(jabba = jabba_rds)), na.rm = TRUE) / 1e6
-    nmut <- data.table(as.character(seqnames(bcf)), start(bcf), end(bcf), bcf$REF, bcf$ALT) %>% unique %>% nrow
-    mut.density <- data.table(value = c(nmut, nmut / genome.size), type = c('count', 'density'), track = 'tmb', source = 'annotated_bcf')
-    out <- mut.density
-    keepeff <- c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory', 'mir')
-    bcf <- bcf[bcf$short %in% keepeff]
-    if (verbose) message(length(bcf), ' variants pass keepeff')
-    vars <- NULL
-    if (length(bcf)) {
-      bcf$variant.g <- paste0(seqnames(bcf), ':', start(bcf), '-', end(bcf), ' ', bcf$REF, '>', bcf$ALT)
-      vars <- gr2dt(bcf)[, .(gene, vartype, variant.g, variant.p, distance, annotation, type = short, track = 'variants', source = 'annotated_bcf')]
-      setkey(vars, variant.g)
-      vars <- vars[, .SD[1], by = variant.g]
-    }
-    out <- rbind(out, vars, fill = TRUE, use.names = TRUE)
-  } else {
-    out <- data.table(type = NA, source = 'annotated_bcf')
+  if (is.null(annotated_bcf) || !file.exists(annotated_bcf)) {
+    if (verbose) message('Annotated BCF file is missing or does not exist.')
+    return(data.table(type = NA, source = 'annotated_bcf'))
   }
-  return(out)
+
+  if (verbose) message('pulling annotated_bcf using FILTER=', filter)
+  
+  local_bcftools_path <- Sys.which("bcftools")
+  if (local_bcftools_path == "") {
+    stop("bcftools not found in the system PATH. Please install or module load bcftools.")
+  }
+  message("bcftools found at: ", local_bcftools_path)
+  
+  bcf <- skitools::grok_bcf(annotated_bcf, label = "sample", long = TRUE, filter = filter, bpath = local_bcftools_path)
+  if (verbose) message(length(bcf), ' variants pass filter')
+  
+  genome.size <- sum(seqlengths(bcf), na.rm = TRUE) / 1e6
+  if (is.na(genome.size)) {
+    genome.size <- sum(seqlengths(gG(jabba = jabba_rds)), na.rm = TRUE) / 1e6
+  }
+  
+  nmut <- unique(data.table(as.character(seqnames(bcf)), start(bcf), end(bcf), bcf$REF, bcf$ALT))[, .N]
+  mut.density <- data.table(value = c(nmut, nmut / genome.size), type = c('count', 'density'), track = 'tmb', source = 'annotated_bcf')
+  
+  keepeff <- c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory', 'mir')
+  bcf <- bcf[bcf$short %in% keepeff]
+  if (verbose) message(length(bcf), ' variants pass keepeff')
+  
+  if (length(bcf) == 0) {
+    return(mut.density)
+  }
+  
+  bcf$variant.g <- paste0(seqnames(bcf), ':', start(bcf), '-', end(bcf), ' ', bcf$REF, '>', bcf$ALT)
+  vars <- gr2dt(bcf)[, .(gene, vartype, variant.g, variant.p, distance, annotation, type = short, track = 'variants', source = 'annotated_bcf')]
+  setkey(vars, variant.g)
+  vars <- vars[, .SD[1], by = variant.g]
+  
+  return(rbind(mut.density, vars, fill = TRUE, use.names = TRUE))
 }
 #' @description
 #' Collects signature data from a specified file and processes it.
