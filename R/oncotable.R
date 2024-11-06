@@ -28,28 +28,37 @@ process_gencode = function(gencode = NULL){
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed gene fusion information.
 collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
-  if (!is.null(fusions) && file.exists(fusions)) {
-    if (verbose) message('pulling fusions')
-    fus <- readRDS(fusions)$meta
-    if (nrow(fus)) {
-      fus <- fus[silent == FALSE, ][!duplicated(genes), ]
-      fus[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')]
-      fus <- fus[, .(
-        gene = strsplit(genes, ',') %>% unlist,
-        vartype = rep(vartype, sapply(strsplit(genes, ','), length)),
-        fusion_genes = rep(genes, sapply(strsplit(genes, ','), length))
-      )][, track := 'variants'][, type := vartype][, source := 'fusions']
-      fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), function(genes) {
-        coords <- lapply(genes, function(gene) {
-          gene_ranges <- pge[mcols(pge)$gene_name == gene]
-          paste0(seqnames(gene_ranges), ":", start(gene_ranges), "-", end(gene_ranges))
-        })
-        paste(unlist(coords), collapse = ",")
-      }))]
-      return(fus)
-    }
+  if (is.null(fusions) || !file.exists(fusions)) {
+    if (verbose) message('Fusions file is missing or does not exist.')
+    return(data.table(type = NA, source = 'fusions'))
   }
-  return(data.table(type = NA, source = 'fusions'))
+  
+  if (verbose) message('pulling fusions')
+  fus <- readRDS(fusions)$meta
+  
+  if (nrow(fus) == 0) {
+    if (verbose) message('No fusions found in the file.')
+    return(data.table(type = NA, source = 'fusions'))
+  }
+  
+  fus <- fus[silent == FALSE, ][!duplicated(genes), ]
+  fus[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')]
+  
+  fus <- fus[, .(
+    gene = unlist(strsplit(genes, ',')),
+    vartype = rep(vartype, sapply(strsplit(genes, ','), length)),
+    fusion_genes = rep(genes, sapply(strsplit(genes, ','), length))
+  )][, `:=`(track = 'variants', type = vartype, source = 'fusions')]
+  
+  fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), function(genes) {
+    coords <- lapply(genes, function(gene) {
+      gene_ranges <- pge[mcols(pge)$gene_name == gene]
+      paste0(seqnames(gene_ranges), ":", start(gene_ranges), "-", end(gene_ranges))
+    })
+    paste(unlist(coords), collapse = ",")
+  }))]
+  
+  return(fus)
 }
 
 #' @name oncotable
