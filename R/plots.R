@@ -942,7 +942,7 @@ sigprofiler_decomposed_probs_json <- function(probs, is_indel, data_dir, pairs, 
 #'
 #' function to create oncotable for use with filtered_events_json
 #'
-#' @param cohort data.table with columns: pair, annotated_bcf, signature_counts, fusions, jabba_simple, karyograph, events, oncokb_maf, oncokb_cna
+#' @param cohort data.table with columns: pair (required), annotated_bcf, signature_counts, fusions, jabba_simple, karyograph, events, oncokb_maf, oncokb_cna
 #' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
 #' @param gencode file to gencode annotations (uses v29lift37 by default)
 #' @param outdir path to directory in which to write oncotable outputs
@@ -989,13 +989,11 @@ create_oncotable <- function(
             if (!dir.exists(pair_outdir)) {
                 dir.create(pair_outdir, recursive = TRUE)
             }
-            error_log <- file.path(pair_outdir, "error.log")
             
             # Validate required files exist
             if (!file.exists(row$jabba_simple)) {
                 msg <- sprintf("JaBbA file not found for %s: %s", row$pair, row$jabba_simple)
                 warning(msg)
-                write(msg, error_log, append = TRUE)
                 return(NULL)
             }
 
@@ -1005,7 +1003,6 @@ create_oncotable <- function(
             }, error = function(e) {
                 msg <- sprintf("Error reading JaBbA file for %s: %s", row$pair, e$message)
                 warning(msg)
-                write(msg, error_log, append = TRUE)
                 return(NULL)
             })
             
@@ -1026,7 +1023,7 @@ create_oncotable <- function(
                     pair = row$pair,
                     annotated_bcf = row$annotated_bcf,
                     fusions = row$fusions,
-                    jabba_simple = row$jabba_simple, 
+                    jabba_rds = row$jabba_simple, 
                     karyograph = row$karyograph,
                     events = row$events,
                     signature_counts = row$signature_counts,
@@ -1041,7 +1038,6 @@ create_oncotable <- function(
             }, error = function(e) {
                 msg <- sprintf("Error in oncotable for %s: %s", row$pair, e$message)
                 warning(msg)
-                write(msg, error_log, append = TRUE)
                 return(NULL)
             })
 
@@ -1049,7 +1045,6 @@ create_oncotable <- function(
                 # Save successful results
                 saveRDS(oncotable_result, file.path(pair_outdir, "oncotable.rds"))
                 fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
-                write("Processing completed successfully", error_log, append = TRUE)
             }
 
             return(list(
@@ -1074,8 +1069,11 @@ create_oncotable <- function(
     successful <- sum(sapply(results, function(x) !is.null(x$result)))
     failed <- length(results) - successful
     
-    message(sprintf("\nProcessing complete:\n- %d samples processed successfully\n- %d samples failed", 
-                   successful, failed))
+    message(sprintf(
+        "\nProcessing complete:\n- %d samples processed successfully\n- %d samples failed",
+        successful,
+        failed
+    ))
 
     # Create a summary data.table
     summary_dt <- data.table(
@@ -1084,15 +1082,7 @@ create_oncotable <- function(
         error = sapply(results, function(x) if(is.null(x$error)) NA else x$error)
     )
     
-    fwrite(summary_dt, file.path(outdir, "processing_summary.txt"))
-
-    # Return only the successful results
-    successful_results <- lapply(results[sapply(results, function(x) !is.null(x$result))], 
-                               function(x) x$result)
-    names(successful_results) <- sapply(results[sapply(results, function(x) !is.null(x$result))], 
-                                      function(x) x$pair)
-    
-    return(successful_results)
+    return(summary_dt)
 }
 
 #' @name filtered_events_json
