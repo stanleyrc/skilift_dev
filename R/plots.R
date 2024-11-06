@@ -1027,7 +1027,6 @@ create_oncotable <- function(
     names(results) <- cohort$pair
     return(results)
 }
-}
 
 #' @name filtered_events_json
 #' @title filtered_events_json
