@@ -15,7 +15,9 @@ setup({
     complex = system.file('extdata/test_data/oncotable_test_data/complex.rds', package='Skilift'),
     fusions = system.file('extdata/test_data/oncotable_test_data/fusions.rds', package='Skilift'),
     karyograph = system.file('extdata/test_data/oncotable_test_data/karyograph.rds', package='Skilift'),
-    oncokb_maf = system.file('extdata/test_data/oncotable_test_data/oncokb.maf', package='Skilift')
+    oncokb_maf = system.file('extdata/test_data/oncotable_test_data/oncokb.maf', package='Skilift'),
+    oncokb_snvcn_maf = system.file('extdata/test_data/oncotable_test_data/oncokb_snvcn.maf', package='Skilift'),
+    oncokb_cna = system.file('extdata/test_data/oncotable_test_data/oncokb_cna.txt', package='Skilift')
   )
 
   # gencode <<- process_gencode('~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds')
@@ -95,34 +97,30 @@ test_that("parse_oncokb_tier correctly assigns tiers", {
                                         levels = c("Clinically Actionable", "Clinically Significant", "VUS")))
   
   # Check string concatenation
-  expect_equal(result$tx_string, c("drug1,drug2,drug3,drug4", NA, NA, NA))
+  expect_equal(result$tx_string, c("drug1,drug2,drug3,drug4", "drug1,drug2", NA, NA))
   expect_equal(result$rx_string, c(NA, NA, "LevelR1", NA))
   expect_true(all(is.na(result$dx_string)))
   expect_true(all(is.na(result$px_string)))
 })
 
 test_that("collect_oncokb handles missing file", {
-  result <- collect_oncokb(NULL, "test_sample", verbose = FALSE)
+  result <- collect_oncokb(NULL, verbose = FALSE)
   expect_equal(result$type, NA)
   expect_equal(result$source, "oncokb_maf")
 })
 
 test_that("collect_oncokb handles valid input", {
-  result <- collect_oncokb(ot_test_paths$oncokb_maf, "test_sample", verbose = FALSE)
+  result <- collect_oncokb(ot_test_paths$oncokb_snvcn_maf, verbose = FALSE)
   
   # Check basic structure
   expect_true(is.data.table(result))
   expect_true(nrow(result) > 0)
   
   # Check required columns exist
-  expected_cols <- c("id", "gene", "variant.g", "variant.c", "variant.p", 
-                    "annotation", "type", "tier", "tier_description",
-                    "therapeutics", "resistances", "diagnoses", "prognoses",
-                    "distance", "track")
+  expected_cols <- c("gene", "variant.g", "variant.c", "variant.p", "annotation", "type", "tier", "tier_description", "therapeutics", "resistances", "diagnoses", "prognoses", "distance", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies", "total_copies", "VAF", "track", "source")
   expect_true(all(expected_cols %in% names(result)))
   
   # Check values
-  expect_equal(result$id[1], "test_sample")
   expect_equal(result$track[1], "variants")
   expect_true(all(result$tier %in% 1:3))
   expect_true(all(result$tier_description %in% c("Clinically Actionable", "Clinically Significant", "VUS")))
@@ -139,7 +137,8 @@ test_that("oncotable produces expected output", {
     signature_counts = NULL,  # Assuming signature_counts is not available in test paths
     gencode = gencode,
     verbose = TRUE,
-    karyograph = ot_test_paths$karyograph
+    karyograph = ot_test_paths$karyograph,
+    oncokb_maf = ot_test_paths$oncokb_snvcn_maf
   ))
 
   expect_equal(result_oncotable, expected_oncotable)
