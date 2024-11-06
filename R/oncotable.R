@@ -302,9 +302,10 @@ parse_oncokb_tier = function(
 ) {
     .concat_string = function(oncokb, cols) {
         out_string = lapply(base::subset(oncokb, select = cols), function(y) (strsplit(y, ",")))
-        concat_out = S4Vectors::List(Reduce(concat_vectors, out_string))
-        concat_out[base::lengths(concat_out) == 0] = NA_character_
+        concat_out = IRanges::CharacterList(Reduce(concat_vectors, out_string))
         concat_out = S4Vectors::unique(concat_out)
+        concat_out = concat_out[!is.na(concat_out)]
+        concat_out[S4Vectors::elementNROWS(concat_out) == 0] = NA_character_
         concat_out = stringi::stri_c_list(as.list(concat_out), sep = ",")
         return(concat_out)
     }
@@ -442,6 +443,47 @@ oncotable = function(
     use.names = TRUE
   )
 
+  # collect oncokb_cna
+  if (!is.null(dat$oncokb_cna) && file.exists(dat[x, oncokb_cna])) {
+      oncokb_cna <- data.table::fread(dat[x, oncokb_cna])
+      concat_out <- data.table(id = x,  source = "oncokb_cna")
+
+      if (NROW(oncokb) > 0) {
+          oncokb_cna$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+          # Classify variant based on levels of evidence
+          # T1&2 for TX
+          # T1 for DX & PX
+          # TX/DX/PX Present = "Actionable"
+          # Show drugs in separate column?
+          # Oncogenic/Likely Oncogenic = "Relevant"
+          # Rest = "VUS"
+          # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
+          oncokb_cna = parse_oncokb_tier(
+              oncokb_cna, 
+              tx_cols = c("LEVEL_1", "LEVEL_2"), 
+              rx_cols = c("LEVEL_R1"),
+              dx_cols = c("LEVEL_Dx1"),
+              px_cols = c("LEVEL_Px1")
+          )
+
+          # scna[, .(id = x, value = min_cn, type, track, gene = gene_name)]
+          concat_out = oncokb_cna[, .(
+                  id = x, 
+                  gene = Hugo_Symbol,
+                  value = min_cn,
+                  type = ifelse(ALTERATION == "Amplification", "amp", ifelse(ALTERATION == "Deletion", "homdel", NA_character_)),
+                  tier = tier,
+                  tier_description = tier_factor,
+                  therapeutics = tx_string, # comes from parse_oncokb_tier
+                  resistances = rx_string,
+                  diagnoses = dx_string,
+                  prognoses = px_string,
+                  track = "scna"
+          )]
+      }
+      out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
+  }
+
   # collect signatures
   out <- rbind(
     out,
@@ -459,13 +501,52 @@ oncotable = function(
   )
 
   ## collect oncokb
-  if (!is.null(oncokb_maf) && file.exists(oncokb_maf)) {
-    out <- rbind(
-      out,
-      collect_oncokb(oncokb_maf, pair, verbose),
-      fill = TRUE,
-      use.names = TRUE
-    )
+  if (!is.null(dat$oncokb_maf) && file.exists(dat[x, oncokb_maf])) {
+      oncokb <- data.table::fread(dat[x, oncokb_maf])
+      concat_out <- data.table(id = x,  source = "oncokb_maf")
+
+      if (NROW(oncokb) > 0) {
+          oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+          # Classify variant based on levels of evidence
+          # T1&2 for TX
+          # T1 for DX & PX
+          # TX/DX/PX Present = "Actionable"
+          # Show drugs in separate column?
+          # Oncogenic/Likely Oncogenic = "Relevant"
+          # Rest = "VUS"
+          # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
+          oncokb = parse_oncokb_tier(
+              oncokb, 
+              tx_cols = c("LEVEL_1", "LEVEL_2"), 
+              rx_cols = c("LEVEL_R1"),
+              dx_cols = c("LEVEL_Dx1"),
+              px_cols = c("LEVEL_Px1")
+          )
+          concat_out = oncokb[, .(
+                  id = x, 
+                  gene = Hugo_Symbol, 
+                  variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
+                  variant.c = HGVSc,
+                  variant.p = HGVSp,
+                  annotation = Consequence,
+                  type = snpeff_ontology,
+                  tier = tier,
+                  tier_description = tier_factor,
+                  therapeutics = tx_string, # comes from parse_oncokb_tier
+                  resistances = rx_string,
+                  diagnoses = dx_string,
+                  prognoses = px_string,
+                  distance = NA_integer_,
+                  major.count, 
+                  minor.count, 
+                  major_snv_copies, 
+                  minor_snv_copies,
+                  total_copies, 
+                  VAF,
+                  track = "variants"
+          )]
+      }
+      out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
   }
 
   out$id = pair
