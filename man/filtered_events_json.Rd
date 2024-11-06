@@ -11,6 +11,7 @@ filtered_events_json(
   out_file,
   cgc_file =
     "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv",
+  oncokb_file = NULL,
   temp_fix = FALSE,
   return_table = FALSE
 )
@@ -27,6 +28,8 @@ filtered_events_json(
 \item{cgc_file}{path to cgc file to annotate drivers}
 
 \item{return_table}{TRUE/FALSE whether to return the data.table that is used for creating the json}
+
+\item{oncokab_file}{path to oncokb gene tiers to annotate drivers}
 }
 \value{
 data.table or NULL
