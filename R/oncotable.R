@@ -128,7 +128,24 @@ oncotable = function(
   # collect signatures
   out <- rbind(out, collect_signatures(signature_counts, verbose), fill = TRUE, use.names = TRUE)
 
-  ## collect gene mutations
+  out <- rbind(out, collect_gene_mutations(annotated_bcf, jabba_rds, filter, verbose), fill = TRUE, use.names = TRUE)
+
+  out$id = pair
+
+  if (verbose) message('done processing sample')
+  return(out)
+}
+
+#' @title collect_gene_mutations
+#' @description
+#' Collects gene mutation data from a specified file and processes it.
+#'
+#' @param annotated_bcf Path to the annotated.bcf file.
+#' @param jabba_rds Path to the jabba.simple.rds file.
+#' @param filter Filter to apply to the variants.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed gene mutation information.
+collect_gene_mutations <- function(annotated_bcf, jabba_rds, filter, verbose = TRUE) {
   if (!is.null(annotated_bcf) && file.exists(annotated_bcf)) {
     if (verbose) message('pulling annotated_bcf using FILTER=', filter)
     local_bcftools_path <- Sys.which("bcftools")
@@ -140,7 +157,7 @@ oncotable = function(
     if (is.na(genome.size)) genome.size <- sum(seqlengths(gG(jabba = jabba_rds)), na.rm = TRUE) / 1e6
     nmut <- data.table(as.character(seqnames(bcf)), start(bcf), end(bcf), bcf$REF, bcf$ALT) %>% unique %>% nrow
     mut.density <- data.table(value = c(nmut, nmut / genome.size), type = c('count', 'density'), track = 'tmb', source = 'annotated_bcf')
-    out <- rbind(out, mut.density, fill = TRUE, use.names = TRUE)
+    out <- mut.density
     keepeff <- c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory', 'mir')
     bcf <- bcf[bcf$short %in% keepeff]
     if (verbose) message(length(bcf), ' variants pass keepeff')
@@ -153,16 +170,10 @@ oncotable = function(
     }
     out <- rbind(out, vars, fill = TRUE, use.names = TRUE)
   } else {
-    out <- rbind(out, data.table(type = NA, source = 'annotated_bcf'), fill = TRUE, use.names = TRUE)
+    out <- data.table(type = NA, source = 'annotated_bcf')
   }
-
-  out$id = pair
-
-  if (verbose) message('done processing sample')
   return(out)
 }
-
-#' @title collect_signatures
 #' @description
 #' Collects signature data from a specified file and processes it.
 #'
