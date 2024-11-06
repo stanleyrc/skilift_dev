@@ -276,7 +276,96 @@ collect_gene_mutations <- function(
   return(rbind(mut.density, vars, fill = TRUE, use.names = TRUE))
 }
 
-#' Parse oncokb outputs and tier
+#' @description
+#' Collects OncoKB mutation data from a specified file and processes it.
+#'
+#' @param oncokb_maf Path to the oncokb MAF file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed OncoKB mutation information.
+collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
+  if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
+    if (verbose) message('OncoKB MAF file is missing or does not exist.')
+    return(data.table(type = NA, source = 'oncokb_maf'))
+  }
+
+  snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
+  oncokb <- data.table::fread(oncokb_maf)
+  
+  if (NROW(oncokb) > 0) {
+    oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+    oncokb = parse_oncokb_tier(
+        oncokb, 
+        tx_cols = c("LEVEL_1", "LEVEL_2"), 
+        rx_cols = c("LEVEL_R1"),
+        dx_cols = c("LEVEL_Dx1"),
+        px_cols = c("LEVEL_Px1")
+    )
+    return(oncokb[, .(
+            gene = Hugo_Symbol, 
+            variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
+            variant.c = HGVSc,
+            variant.p = HGVSp,
+            annotation = Consequence,
+            type = snpeff_ontology,
+            tier = tier,
+            tier_description = tier_factor,
+            therapeutics = tx_string,
+            resistances = rx_string,
+            diagnoses = dx_string,
+            prognoses = px_string,
+            distance = NA_integer_,
+            major.count, 
+            minor.count, 
+            major_snv_copies, 
+            minor_snv_copies,
+            total_copies, 
+            VAF,
+            track = "variants",
+            source = "oncokb_maf"
+    )])
+  }
+  return(data.table(type = NA, source = 'oncokb_maf'))
+}
+
+#' @description
+#' Collects OncoKB CNA data from a specified file and processes it.
+#'
+#' @param oncokb_cna Path to the oncokb CNA file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed OncoKB CNA information.
+collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
+  if (is.null(oncokb_cna) || !file.exists(oncokb_cna)) {
+    if (verbose) message('OncoKB CNA file is missing or does not exist.')
+    return(data.table(type = NA, source = 'oncokb_cna'))
+  }
+
+  oncokb_cna <- data.table::fread(oncokb_cna)
+  
+  if (NROW(oncokb_cna) > 0) {
+    oncokb_cna = parse_oncokb_tier(
+        oncokb_cna, 
+        tx_cols = c("LEVEL_1", "LEVEL_2"), 
+        rx_cols = c("LEVEL_R1"),
+        dx_cols = c("LEVEL_Dx1"),
+        px_cols = c("LEVEL_Px1")
+    )
+    return(oncokb_cna[, .(
+            gene = Hugo_Symbol,
+            value = min_cn,
+            type = ifelse(ALTERATION == "Amplification", "amp", 
+                         ifelse(ALTERATION == "Deletion", "homdel", NA_character_)),
+            tier = tier,
+            tier_description = tier_factor,
+            therapeutics = tx_string,
+            resistances = rx_string,
+            diagnoses = dx_string,
+            prognoses = px_string,
+            track = "scna",
+            source = "oncokb_cna"
+    )])
+  }
+  return(data.table(type = NA, source = 'oncokb_cna'))
+}
 #' 
 #' Helper function to parse oncokb outputs
 #' levels of evidence and assign tier. 
@@ -391,112 +480,21 @@ oncotable = function(
     use.names = TRUE
   )
 
-  # collect oncokb_cna
-  if (!is.null(dat$oncokb_cna) && file.exists(dat[x, oncokb_cna])) {
-      oncokb_cna <- data.table::fread(dat[x, oncokb_cna])
-      concat_out <- data.table(id = x,  source = "oncokb_cna")
-
-      if (NROW(oncokb) > 0) {
-          oncokb_cna$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
-          # Classify variant based on levels of evidence
-          # T1&2 for TX
-          # T1 for DX & PX
-          # TX/DX/PX Present = "Actionable"
-          # Show drugs in separate column?
-          # Oncogenic/Likely Oncogenic = "Relevant"
-          # Rest = "VUS"
-          # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
-          oncokb_cna = parse_oncokb_tier(
-              oncokb_cna, 
-              tx_cols = c("LEVEL_1", "LEVEL_2"), 
-              rx_cols = c("LEVEL_R1"),
-              dx_cols = c("LEVEL_Dx1"),
-              px_cols = c("LEVEL_Px1")
-          )
-
-          # scna[, .(id = x, value = min_cn, type, track, gene = gene_name)]
-          concat_out = oncokb_cna[, .(
-                  id = x, 
-                  gene = Hugo_Symbol,
-                  value = min_cn,
-                  type = ifelse(ALTERATION == "Amplification", "amp", ifelse(ALTERATION == "Deletion", "homdel", NA_character_)),
-                  tier = tier,
-                  tier_description = tier_factor,
-                  therapeutics = tx_string, # comes from parse_oncokb_tier
-                  resistances = rx_string,
-                  diagnoses = dx_string,
-                  prognoses = px_string,
-                  track = "scna"
-          )]
-      }
-      out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
-  }
-
-  # collect signatures
-  out <- rbind(
-    out,
-    collect_signatures(signature_counts, verbose),
-    fill = TRUE,
-    use.names = TRUE
-  )
-
-  ## collect gene mutations
-  out <- rbind(
-    out,
-    collect_gene_mutations(annotated_bcf, jabba_rds, filter, verbose),
-    fill = TRUE,
-    use.names = TRUE
-  )
-
   ## collect oncokb
-  if (!is.null(dat$oncokb_maf) && file.exists(dat[x, oncokb_maf])) {
-      snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
-      oncokb <- data.table::fread(dat[x, oncokb_maf])
-      concat_out <- data.table(id = x,  source = "oncokb_maf")
+  out <- rbind(
+    out,
+    collect_oncokb(oncokb_maf, verbose),
+    fill = TRUE,
+    use.names = TRUE
+  )
 
-      if (NROW(oncokb) > 0) {
-          oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
-          # Classify variant based on levels of evidence
-          # T1&2 for TX
-          # T1 for DX & PX
-          # TX/DX/PX Present = "Actionable"
-          # Show drugs in separate column?
-          # Oncogenic/Likely Oncogenic = "Relevant"
-          # Rest = "VUS"
-          # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
-          oncokb = parse_oncokb_tier(
-              oncokb, 
-              tx_cols = c("LEVEL_1", "LEVEL_2"), 
-              rx_cols = c("LEVEL_R1"),
-              dx_cols = c("LEVEL_Dx1"),
-              px_cols = c("LEVEL_Px1")
-          )
-          concat_out = oncokb[, .(
-                  id = x, 
-                  gene = Hugo_Symbol, 
-                  variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
-                  variant.c = HGVSc,
-                  variant.p = HGVSp,
-                  annotation = Consequence,
-                  type = snpeff_ontology,
-                  tier = tier,
-                  tier_description = tier_factor,
-                  therapeutics = tx_string, # comes from parse_oncokb_tier
-                  resistances = rx_string,
-                  diagnoses = dx_string,
-                  prognoses = px_string,
-                  distance = NA_integer_,
-                  major.count, 
-                  minor.count, 
-                  major_snv_copies, 
-                  minor_snv_copies,
-                  total_copies, 
-                  VAF,
-                  track = "variants"
-          )]
-      }
-      out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
-  }
+  ## collect oncokb_cna 
+  out <- rbind(
+    out,
+    collect_oncokb_cna(oncokb_cna, verbose),
+    fill = TRUE,
+    use.names = TRUE
+  )
 
   out$id = pair
 
