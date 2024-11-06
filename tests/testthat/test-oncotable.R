@@ -47,8 +47,14 @@ test_that("collect_complex_events handles valid input", {
 })
 
 test_that("collect_copy_number_jabba handles valid input", {
-  jabba_rds_path <- ot_test_paths$jabba_simple_gg
-  result_jabba <- suppressWarnings(collect_copy_number_jabba(jabba_rds_path, gencode, amp.thresh = 4, del.thresh = 0.5, verbose = FALSE, karyograph = ot_test_paths$karyograph))
+  result_jabba <- suppressWarnings(collect_copy_number_jabba(
+    ot_test_paths$jabba_simple_gg,
+    gencode,
+    amp.thresh = 4,
+    del.thresh = 0.5,
+    verbose = FALSE,
+    karyograph = ot_test_paths$karyograph
+  ))
   expect_true(nrow(result_jabba) > 0)
   expect_true(all(c("value", "type", "track") %in% colnames(result_jabba)))
 })
