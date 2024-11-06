@@ -1023,9 +1023,9 @@ create_oncotable <- function(
                     pair = row$pair,
                     annotated_bcf = row$annotated_bcf,
                     fusions = row$fusions,
-                    jabba_rds = row$jabba_simple, 
+                    jabba_rds = row$jabba_simple,  # Changed from jabba_simple to jabba_rds
                     karyograph = row$karyograph,
-                    events = row$events,
+                    complex = row$events,          # Changed from events to complex
                     signature_counts = row$signature_counts,
                     oncokb_maf = row$oncokb_maf,
                     oncokb_cna = row$oncokb_cna,
