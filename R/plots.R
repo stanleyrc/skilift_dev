@@ -1119,9 +1119,10 @@ parse_oncokb_tier = function(
     .concat_string = function(oncokb, cols) {
         out_string = lapply(base::subset(oncokb, select = cols), function(y) (strsplit(y, ",")))
         concat_out = S4Vectors::List(Reduce(concat_vectors, out_string))
-        concat_out[base::lengths(concat_out) == 0] = NA_character_
         concat_out = S4Vectors::unique(concat_out)
-        concat_out = stringi::stri_c_list(as.list(concat_out[!is.na(concat_out)]), sep = ",")
+        concat_out = concat_out[!is.na(concat_out)]
+        concat_out[S4Vectors::elementNROWS(concat_out) == 0] = NA_character_
+        concat_out = stringi::stri_c_list(as.list(concat_out), sep = ",")
         return(concat_out)
     }
     is_actionable = logical(NROW(oncokb))
