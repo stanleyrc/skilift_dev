@@ -25,6 +25,77 @@ setup({
   gencode <<- process_gencode(test_rds_path)
 })
 
+test_that("create_oncotable handles multiple samples correctly", {
+  # Create test cohort data.table
+  test_cohort <- data.table(
+    pair = c("397089", "397090"),  # Second pair is fake to test error handling
+    annotated_bcf = c(
+      ot_test_paths$unit_annotated_bcf,
+      "non_existent_file.bcf"
+    ),
+    fusions = c(
+      ot_test_paths$fusions,
+      ot_test_paths$fusions
+    ),
+    jabba_simple = c(
+      ot_test_paths$jabba_simple_gg,
+      ot_test_paths$jabba_simple_gg
+    ),
+    karyograph = c(
+      ot_test_paths$karyograph,
+      ot_test_paths$karyograph
+    ),
+    events = c(
+      ot_test_paths$complex,
+      ot_test_paths$complex
+    ),
+    signature_counts = c(NA, NA),  # Optional
+    oncokb_maf = c(
+      ot_test_paths$oncokb_snvcn_maf,
+      ot_test_paths$oncokb_snvcn_maf
+    ),
+    oncokb_cna = c(
+      ot_test_paths$oncokb_cna,
+      ot_test_paths$oncokb_cna
+    )
+  )
+
+  # Create temporary directory for output
+  temp_dir <- tempdir()
+  
+  # Run create_oncotable
+  results <- create_oncotable(
+    cohort = test_cohort,
+    amp_thresh_multiplier = 1.5,
+    gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
+    outdir = temp_dir,
+    cores = 1
+  )
+
+  # Test that results is a named list
+  expect_type(results, "list")
+  expect_true(all(names(results) == "397089"))  # Only successful sample
+  
+  # Test that successful result matches expected
+  expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
+  expect_equal(results[["397089"]], expected_oncotable)
+  
+  # Check that output files were created for successful sample
+  expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.rds")))
+  expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.txt")))
+  expect_true(file.exists(file.path(temp_dir, "397089", "error.log")))
+  
+  # Check that summary file was created
+  expect_true(file.exists(file.path(temp_dir, "processing_summary.txt")))
+  
+  # Check summary content
+  summary_dt <- fread(file.path(temp_dir, "processing_summary.txt"))
+  expect_equal(nrow(summary_dt), 2)
+  expect_equal(summary_dt$status, c("success", "failed"))
+  expect_true(is.na(summary_dt$error[1]))  # Successful sample has NA error
+  expect_false(is.na(summary_dt$error[2])) # Failed sample has error message
+})
+
 test_that("process_gencode handles NULL input", {
   expect_error(process_gencode(NULL), "gencode file must be provided")
 })
