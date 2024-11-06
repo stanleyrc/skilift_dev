@@ -106,16 +106,7 @@ oncotable = function(
   out <- rbind(out, collect_gene_fusions(fusions, pge, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect complex events
-  if (!is.null(complex) && file.exists(complex)) {
-    if (verbose) message('pulling complex events')
-    sv <- readRDS(complex)$meta$events
-    if (nrow(sv)) {
-      sv <- sv[, .(value = .N), by = type][, track := ifelse(type %in% c('del', 'dup', 'invdup', 'tra', 'inv'), 'simple sv', 'complex sv')][, source := 'complex']
-      out <- rbind(out, sv, fill = TRUE, use.names = TRUE)
-    }
-  } else {
-    out <- rbind(out, data.table(type = NA, source = 'complex'), fill = TRUE, use.names = TRUE)
-  }
+  out <- rbind(out, collect_complex_events(complex, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect copy number / jabba
   if (!is.null(jabba_rds) && file.exists(jabba_rds)) {
@@ -180,3 +171,20 @@ oncotable = function(
   return(out)
 }
 
+#' @title collect_complex_events
+#' @description
+#' Collects complex events from a specified file and processes them.
+#'
+#' @param complex Path to the complex.rds file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed complex event information.
+collect_complex_events <- function(complex, verbose = TRUE) {
+  if (!is.null(complex) && file.exists(complex)) {
+    if (verbose) message('pulling complex events')
+    sv <- readRDS(complex)$meta$events
+    if (nrow(sv)) {
+      return(sv[, .(value = .N), by = type][, track := ifelse(type %in% c('del', 'dup', 'invdup', 'tra', 'inv'), 'simple sv', 'complex sv')][, source := 'complex'])
+    }
+  }
+  return(data.table(type = NA, source = 'complex'))
+}

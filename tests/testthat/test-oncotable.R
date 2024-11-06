@@ -39,6 +39,13 @@ test_that("collect_gene_fusions handles valid input", {
   expect_true(all(c("gene", "vartype", "fusion_genes", "track", "type", "source", "fusion_gene_coords") %in% colnames(result_fusions)))
 })
 
+test_that("collect_complex_events handles valid input", {
+  complex_path <- ot_test_paths$complex
+  result_complex <- collect_complex_events(complex_path, verbose = FALSE)
+  expect_true(nrow(result_complex) > 0)
+  expect_true(all(c("value", "type", "track", "source") %in% colnames(result_complex)))
+})
+
 test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
