@@ -1121,7 +1121,7 @@ parse_oncokb_tier = function(
         concat_out = S4Vectors::List(Reduce(concat_vectors, out_string))
         concat_out[base::lengths(concat_out) == 0] = NA_character_
         concat_out = S4Vectors::unique(concat_out)
-        concat_out = stringi::stri_c_list(as.list(concat_out), sep = ",")
+        concat_out = stringi::stri_c_list(as.list(concat_out[!is.na(concat_out)]), sep = ",")
         return(concat_out)
     }
     is_actionable = logical(NROW(oncokb))
@@ -1288,6 +1288,47 @@ oncotable <- function(tumors, gencode = "http://mskilab.com/fishHook/hg19/gencod
         } else {
             out <- rbind(out, data.table(id = x, type = NA, source = "jabba_rds"), fill = TRUE, use.names = TRUE)
         }
+
+        if (!is.null(dat$oncokb_cna) && file.exists(dat[x, oncokb_cna])) {
+            oncokb_cna <- data.table::fread(dat[x, oncokb_cna])
+            concat_out <- data.table(id = x,  source = "oncokb_cna")
+
+            if (NROW(oncokb) > 0) {
+                oncokb_cna$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+                # Classify variant based on levels of evidence
+                # T1&2 for TX
+                # T1 for DX & PX
+                # TX/DX/PX Present = "Actionable"
+                # Show drugs in separate column?
+                # Oncogenic/Likely Oncogenic = "Relevant"
+                # Rest = "VUS"
+                # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
+                oncokb_cna = parse_oncokb_tier(
+                    oncokb_cna, 
+                    tx_cols = c("LEVEL_1", "LEVEL_2"), 
+                    rx_cols = c("LEVEL_R1"),
+                    dx_cols = c("LEVEL_Dx1"),
+                    px_cols = c("LEVEL_Px1")
+                )
+
+                # scna[, .(id = x, value = min_cn, type, track, gene = gene_name)]
+                concat_out = oncokb_cna[, .(
+                        id = x, 
+                        gene = Hugo_Symbol,
+                        value = min_cn,
+                        type = ifelse(ALTERATION == "Amplification", "amp", ifelse(ALTERATION == "Deletion", "homdel", NA_character_)),
+                        tier = tier,
+                        tier_description = tier_factor,
+                        therapeutics = tx_string, # comes from parse_oncokb_tier
+                        resistances = rx_string,
+                        diagnoses = dx_string,
+                        prognoses = px_string,
+                        track = "scna"
+                )]
+            }
+            out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
+        }
+
 
         ## collect signatures
         if (!is.null(dat$signature_counts) && file.exists(dat[x, signature_counts])) {
