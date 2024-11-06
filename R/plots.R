@@ -1417,6 +1417,12 @@ oncotable <- function(tumors, gencode = "http://mskilab.com/fishHook/hg19/gencod
                         diagnoses = dx_string,
                         prognoses = px_string,
                         distance = NA_integer_,
+                        major.count, 
+                        minor.count, 
+                        major_snv_copies, 
+                        minor_snv_copies,
+                        total_copies, 
+                        VAF,
                         track = "variants"
                 )]
             }
