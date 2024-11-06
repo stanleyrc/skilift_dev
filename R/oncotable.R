@@ -66,142 +66,6 @@ collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
   
   return(fus)
 }
-
-#' @name oncotable
-#' @title oncotable
-#' @description
-#'
-#' @param annotated_bcf Path to annotated.bcf file
-#' @param fusions Path to fusion.rds file
-#' @param jabba_rds Path to jabba.simple.rds file
-#' @param complex Path to complex.rds file
-#' @param signature_counts Path to signature_counts.txt file
-#' @param karyograph Optional path to the karyograph.rds file
-#' @param gencode_gr GRanges object with gencode annotations 
-#' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
-#' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
-#' @param verbose logical flag 
-#' @export
-oncotable = function(
-  pair,
-  annotated_bcf = NULL,
-  fusions = NULL,
-  jabba_rds = NULL,
-  complex = NULL,
-  signature_counts = NULL,
-  gencode,
-  verbose = TRUE,
-  amp.thresh = 4,
-  filter = 'PASS',
-  del.thresh = 0.5,
-  karyograph = NULL
-) {
-  out <- data.table()
-
-  if ('type' %in% names(mcols(gencode))) {
-    pge <- gencode %Q% (type == 'gene' & gene_type == 'protein_coding')
-  } else {
-    pge <- gencode %Q% (gene_type == 'protein_coding')
-  }
-
-  ## collect gene fusions
-  out <- rbind(out, collect_gene_fusions(
-    fusions,
-    pge,
-    verbose
-  ), fill = TRUE, use.names = TRUE)
-
-  ## collect complex events
-  out <- rbind(
-    out,
-    collect_complex_events(complex, verbose
-  ), fill = TRUE, use.names = TRUE)
-
-  ## collect copy number / jabba
-  out <- rbind(
-    out,
-    collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph),
-    fill = TRUE,
-    use.names = TRUE
-  )
-
-  # collect signatures
-  out <- rbind(out, collect_signatures(signature_counts, verbose), fill = TRUE, use.names = TRUE)
-
-  out <- rbind(out, collect_gene_mutations(annotated_bcf, jabba_rds, filter, verbose), fill = TRUE, use.names = TRUE)
-
-  out$id = pair
-
-  if (verbose) message('done processing sample')
-  return(out)
-}
-
-#' @title collect_gene_mutations
-#' @description
-#' Collects gene mutation data from a specified file and processes it.
-#'
-#' @param annotated_bcf Path to the annotated.bcf file.
-#' @param jabba_rds Path to the jabba.simple.rds file.
-#' @param filter Filter to apply to the variants.
-#' @param verbose Logical flag to indicate if messages should be printed.
-#' @return A data.table containing processed gene mutation information.
-collect_gene_mutations <- function(annotated_bcf, jabba_rds, filter, verbose = TRUE) {
-  if (is.null(annotated_bcf) || !file.exists(annotated_bcf)) {
-    if (verbose) message('Annotated BCF file is missing or does not exist.')
-    return(data.table(type = NA, source = 'annotated_bcf'))
-  }
-
-  if (verbose) message('pulling annotated_bcf using FILTER=', filter)
-  
-  local_bcftools_path <- Sys.which("bcftools")
-  if (local_bcftools_path == "") {
-    stop("bcftools not found in the system PATH. Please install or module load bcftools.")
-  }
-  message("bcftools found at: ", local_bcftools_path)
-  
-  bcf <- skitools::grok_bcf(annotated_bcf, label = "sample", long = TRUE, filter = filter, bpath = local_bcftools_path)
-  if (verbose) message(length(bcf), ' variants pass filter')
-  
-  genome.size <- sum(seqlengths(bcf), na.rm = TRUE) / 1e6
-  if (is.na(genome.size)) {
-    genome.size <- sum(seqlengths(gG(jabba = jabba_rds)), na.rm = TRUE) / 1e6
-  }
-  
-  nmut <- unique(data.table(as.character(seqnames(bcf)), start(bcf), end(bcf), bcf$REF, bcf$ALT))[, .N]
-  mut.density <- data.table(value = c(nmut, nmut / genome.size), type = c('count', 'density'), track = 'tmb', source = 'annotated_bcf')
-  
-  keepeff <- c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory', 'mir')
-  bcf <- bcf[bcf$short %in% keepeff]
-  if (verbose) message(length(bcf), ' variants pass keepeff')
-  
-  if (length(bcf) == 0) {
-    return(mut.density)
-  }
-  
-  bcf$variant.g <- paste0(seqnames(bcf), ':', start(bcf), '-', end(bcf), ' ', bcf$REF, '>', bcf$ALT)
-  vars <- gr2dt(bcf)[, .(gene, vartype, variant.g, variant.p, distance, annotation, type = short, track = 'variants', source = 'annotated_bcf')]
-  setkey(vars, variant.g)
-  vars <- vars[, .SD[1], by = variant.g]
-  
-  return(rbind(mut.density, vars, fill = TRUE, use.names = TRUE))
-}
-#' @description
-#' Collects signature data from a specified file and processes it.
-#'
-#' @param signature_counts Path to the signature_counts.txt file.
-#' @param verbose Logical flag to indicate if messages should be printed.
-#' @return A data.table containing processed signature information.
-collect_signatures <- function(signature_counts, verbose = TRUE) {
-  #TODO: update this function to use sigprofiler
-  if (!is.null(signature_counts) && file.exists(signature_counts)) {
-    if (verbose) message('pulling signature_counts')
-    sig <- fread(signature_counts)
-    sig <- sig[, .(value = num_events, type = Signature, etiology = Etiology, frac = frac.events, track = 'signature', source = 'signature_counts')]
-    return(sig)
-  } else {
-    return(data.table(type = NA, source = 'signature_counts'))
-  }
-}
 #' @description
 #' Collects complex events from a specified file and processes them.
 #'
@@ -292,4 +156,178 @@ collect_copy_number_jabba <- function(
   }
   
   return(result)
+}
+
+#' @description
+#' Collects signature data from a specified file and processes it.
+#'
+#' @param signature_counts Path to the signature_counts.txt file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed signature information.
+collect_signatures <- function(signature_counts, verbose = TRUE) {
+  #TODO: update this function to use sigprofiler
+  if (!is.null(signature_counts) && file.exists(signature_counts)) {
+    if (verbose) message('pulling signature_counts')
+    sig <- fread(signature_counts)
+    sig <- sig[, .(value = num_events, type = Signature, etiology = Etiology, frac = frac.events, track = 'signature', source = 'signature_counts')]
+    return(sig)
+  } else {
+    return(data.table(type = NA, source = 'signature_counts'))
+  }
+}
+
+#' @title collect_gene_mutations
+#' @description
+#' Collects gene mutation data from a specified file and processes it.
+#'
+#' @param annotated_bcf Path to the annotated.bcf file.
+#' @param jabba_rds Path to the jabba.simple.rds file.
+#' @param filter Filter to apply to the variants.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed gene mutation information.
+collect_gene_mutations <- function(
+  annotated_bcf,
+  jabba_rds,
+  filter,
+  verbose = TRUE
+) {
+  if (is.null(annotated_bcf) || !file.exists(annotated_bcf)) {
+    if (verbose) message('Annotated BCF file is missing or does not exist.')
+    return(data.table(type = NA, source = 'annotated_bcf'))
+  }
+
+  if (verbose) message('pulling annotated_bcf using FILTER=', filter)
+  
+  local_bcftools_path <- Sys.which("bcftools")
+  if (local_bcftools_path == "") {
+    stop("bcftools not found in the system PATH. Please install or module load bcftools.")
+  }
+  if (verbose) message("bcftools found at: ", local_bcftools_path)
+  
+  bcf <- skitools::grok_bcf(
+    annotated_bcf,
+    label = "sample",
+    long = TRUE,
+    filter = filter,
+    bpath = local_bcftools_path
+  )
+  if (verbose) message(length(bcf), ' variants pass filter')
+  
+  genome.size <- sum(GenomeInfoDb::seqlengths(bcf), na.rm = TRUE) / 1e6
+  if (is.na(genome.size)) {
+    genome.size <- sum(
+      GenomeInfoDb::seqlengths(gGnome::gG(jabba = jabba_rds)),
+      na.rm = TRUE
+    ) / 1e6
+  }
+  
+  nmut <- unique(data.table(
+    as.character(seqnames(bcf)),
+    start(bcf),
+    end(bcf),
+    bcf$REF,
+    bcf$ALT
+  ))[, .N]
+  mut.density <- data.table(
+    value = c(nmut, nmut / genome.size),
+    type = c('count', 'density'),
+    track = 'tmb',
+    source = 'annotated_bcf'
+  )
+  
+  keepeff <- c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory', 'mir')
+  bcf <- bcf[bcf$short %in% keepeff]
+  if (verbose) message(length(bcf), ' variants pass keepeff')
+  
+  if (length(bcf) == 0) {
+    return(mut.density)
+  }
+  
+  bcf$variant.g <- paste0(seqnames(bcf), ':', start(bcf), '-', end(bcf), ' ', bcf$REF, '>', bcf$ALT)
+  vars <- gr2dt(bcf)[, .(gene, vartype, variant.g, variant.p, distance, annotation, type = short, track = 'variants', source = 'annotated_bcf')]
+  setkey(vars, variant.g)
+  vars <- vars[, .SD[1], by = variant.g]
+  
+  return(rbind(mut.density, vars, fill = TRUE, use.names = TRUE))
+}
+
+
+#' @name oncotable
+#' @title oncotable
+#' @description
+#'
+#' @param annotated_bcf Path to annotated.bcf file
+#' @param fusions Path to fusion.rds file
+#' @param jabba_rds Path to jabba.simple.rds file
+#' @param complex Path to complex.rds file
+#' @param signature_counts Path to signature_counts.txt file
+#' @param karyograph Optional path to the karyograph.rds file
+#' @param gencode_gr GRanges object with gencode annotations 
+#' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
+#' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
+#' @param verbose logical flag 
+#' @export
+oncotable = function(
+  pair,
+  annotated_bcf = NULL,
+  fusions = NULL,
+  jabba_rds = NULL,
+  complex = NULL,
+  signature_counts = NULL,
+  gencode,
+  verbose = TRUE,
+  amp.thresh = 4,
+  filter = 'PASS',
+  del.thresh = 0.5,
+  karyograph = NULL
+) {
+  out <- data.table()
+
+  if ('type' %in% names(mcols(gencode))) {
+    pge <- gencode %Q% (type == 'gene' & gene_type == 'protein_coding')
+  } else {
+    pge <- gencode %Q% (gene_type == 'protein_coding')
+  }
+
+  ## collect gene fusions
+  out <- rbind(out, collect_gene_fusions(
+    fusions,
+    pge,
+    verbose
+  ), fill = TRUE, use.names = TRUE)
+
+  ## collect complex events
+  out <- rbind(
+    out,
+    collect_complex_events(complex, verbose
+  ), fill = TRUE, use.names = TRUE)
+
+  ## collect copy number / jabba
+  out <- rbind(
+    out,
+    collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph),
+    fill = TRUE,
+    use.names = TRUE
+  )
+
+  # collect signatures
+  out <- rbind(
+    out,
+    collect_signatures(signature_counts, verbose),
+    fill = TRUE,
+    use.names = TRUE
+  )
+
+  ## collect gene mutations
+  out <- rbind(
+    out,
+    collect_gene_mutations(annotated_bcf, jabba_rds, filter, verbose),
+    fill = TRUE,
+    use.names = TRUE
+  )
+
+  out$id = pair
+
+  if (verbose) message('done processing sample')
+  return(out)
 }

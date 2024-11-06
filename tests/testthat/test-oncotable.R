@@ -73,6 +73,8 @@ test_that("collect_gene_mutations handles valid input", {
   expect_true(nrow(result_mutations) > 0)
   expect_true(all(c("value", "type", "track", "source") %in% colnames(result_mutations)))
 })
+
+test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
     pair = "397089",
