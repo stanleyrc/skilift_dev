@@ -210,7 +210,7 @@ test_that("create_oncotable handles multiple samples correctly", {
   temp_dir <- tempdir()
   
   # Run create_oncotable
-  results <- create_oncotable(
+  summary_dt <- create_oncotable(
     cohort = test_cohort,
     amp_thresh_multiplier = 1.5,
     gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
@@ -218,29 +218,23 @@ test_that("create_oncotable handles multiple samples correctly", {
     cores = 1
   )
 
-  # Test that results is a named list
-  expect_type(results, "list")
-  expect_true(all(names(results) == "397089"))  # Only successful sample
-  
-  # Test that successful result matches expected
-  expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
-  expect_equal(results[["397089"]], expected_oncotable)
+  # Test summary data.table structure and content
+  expect_true(is.data.table(summary_dt))
+  expect_equal(nrow(summary_dt), 2)
+  expect_equal(names(summary_dt), c("pair", "status", "error"))
+  expect_equal(summary_dt$pair, c("397089", "397090"))
+  expect_equal(summary_dt$status, c("success", "failed"))
+  expect_true(is.na(summary_dt$error[1]))  # Successful sample has NA error
+  expect_false(is.na(summary_dt$error[2])) # Failed sample has error message
   
   # Check that output files were created for successful sample
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.rds")))
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.txt")))
   
-  # Check that summary file was created
-  expect_true(file.exists(file.path(temp_dir, "processing_summary.txt")))
-  
-  # Check summary content
-  summary_dt <- fread(file.path(temp_dir, "processing_summary.txt"))
-  expect_equal(nrow(summary_dt), 2)
-  expect_equal(summary_dt$status, c("success", "failed"))
-  expect_true(is.na(summary_dt$error[1]))  # Successful sample has NA error
-  expect_false(is.na(summary_dt$error[2])) # Failed sample has error message
-
-  unlink(temp_dir, recursive = TRUE)
+  # Test that successful result matches expected
+  result_oncotable <- readRDS(file.path(temp_dir, "397089", "oncotable.rds"))
+  expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
+  expect_equal(result_oncotable, expected_oncotable)
 })
 
 
