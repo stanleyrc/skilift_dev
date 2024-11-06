@@ -48,7 +48,7 @@ test_that("collect_complex_events handles valid input", {
 
 test_that("collect_copy_number_jabba handles valid input", {
   jabba_rds_path <- ot_test_paths$jabba_simple_gg
-  result_jabba <- suppressWarnings(collect_copy_number_jabba(jabba_rds_path, gencode, amp.thresh = 4, del.thresh = 0.5, verbose = FALSE))
+  result_jabba <- suppressWarnings(collect_copy_number_jabba(jabba_rds_path, gencode, amp.thresh = 4, del.thresh = 0.5, verbose = FALSE, karyograph = ot_test_paths$karyograph))
   expect_true(nrow(result_jabba) > 0)
   expect_true(all(c("value", "type", "track") %in% colnames(result_jabba)))
 })
@@ -63,7 +63,8 @@ test_that("oncotable produces expected output", {
     complex = ot_test_paths$complex,
     signature_counts = NULL,  # Assuming signature_counts is not available in test paths
     gencode = gencode,
-    verbose = TRUE
+    verbose = TRUE,
+    karyograph = ot_test_paths$karyograph
   ))
 
   expect_equal(result_oncotable, expected_oncotable)
