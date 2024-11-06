@@ -193,13 +193,15 @@ collect_complex_events <- function(complex, verbose = TRUE) {
 #' @param amp.thresh SCNA amplification threshold.
 #' @param del.thresh SCNA deletion threshold.
 #' @param verbose Logical flag to indicate if messages should be printed.
+#' @param karyograph Optional path to the karyograph.rds file.
 #' @return A data.table containing processed copy number and jabba information.
 collect_copy_number_jabba <- function(
   jabba_rds,
   pge,
   amp.thresh,
   del.thresh,
-  verbose = TRUE
+  verbose = TRUE,
+  karyograph = NULL
 ) {
   if (is.null(jabba_rds) || !file.exists(jabba_rds)) {
     if (verbose) message('Jabba RDS file is missing or does not exist.')
@@ -216,7 +218,15 @@ collect_copy_number_jabba <- function(
     track = 'pp'
   )
   
+  # get the ncn data from jabba
   nseg <- NULL
+
+  # Don't fail out if karyograph isn't found
+  # Just provide nseg as NULL, and get_gene_ampdels_from_jabba
+  # assumes ncn = 2 (pretty safe assumption)
+  if (!is.null(karyograph) && file.exists(karyograph)) {
+    nseg <- readRDS(karyograph)$segstats[, c("ncn")]
+  }
   scna <- skitools::get_gene_ampdels_from_jabba(
     jab,
     amp.thresh = amp.thresh,
