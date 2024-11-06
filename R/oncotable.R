@@ -431,6 +431,7 @@ parse_oncokb_tier = function(
 #' @param signature_counts Path to signature_counts.txt file
 #' @param karyograph Optional path to the karyograph.rds file
 #' @param oncokb_maf Path to oncokb MAF file
+#' @param oncokb_cna Path to oncokb CNA file
 #' @param gencode_gr GRanges object with gencode annotations
 #' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
 #' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
