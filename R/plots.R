@@ -1021,11 +1021,7 @@ create_oncotable <- function(
         saveRDS(oncotable_result, file.path(pair_outdir, "oncotable.rds"))
         fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
 
-        return(oncotable_result)
     }, mc.cores = cores)
-
-    names(results) <- cohort$pair
-    return(results)
 }
 
 #' @name filtered_events_json
