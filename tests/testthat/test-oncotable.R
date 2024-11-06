@@ -48,10 +48,12 @@ test_that("collect_complex_events handles valid input", {
 
 test_that("collect_copy_number_jabba handles valid input", {
   jabba_rds_path <- ot_test_paths$jabba_simple_gg
-  result_jabba <- collect_copy_number_jabba(jabba_rds_path, gencode, amp.thresh = 4, del.thresh = 0.5, verbose = FALSE)
+  result_jabba <- suppressWarnings(collect_copy_number_jabba(jabba_rds_path, gencode, amp.thresh = 4, del.thresh = 0.5, verbose = FALSE))
   expect_true(nrow(result_jabba) > 0)
   expect_true(all(c("value", "type", "track") %in% colnames(result_jabba)))
 })
+
+test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
     pair = "397089",
