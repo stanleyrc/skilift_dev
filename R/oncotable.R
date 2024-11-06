@@ -105,13 +105,25 @@ oncotable = function(
   }
 
   ## collect gene fusions
-  out <- rbind(out, collect_gene_fusions(fusions, pge, verbose), fill = TRUE, use.names = TRUE)
+  out <- rbind(out, collect_gene_fusions(
+    fusions,
+    pge,
+    verbose
+  ), fill = TRUE, use.names = TRUE)
 
   ## collect complex events
-  out <- rbind(out, collect_complex_events(complex, verbose), fill = TRUE, use.names = TRUE)
+  out <- rbind(
+    out,
+    collect_complex_events(complex, verbose
+  ), fill = TRUE, use.names = TRUE)
 
   ## collect copy number / jabba
-  out <- rbind(out, collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph), fill = TRUE, use.names = TRUE)
+  out <- rbind(
+    out,
+    collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph),
+    fill = TRUE,
+    use.names = TRUE
+  )
 
   ## collect signatures
   if (!is.null(signature_counts) && file.exists(signature_counts)) {
