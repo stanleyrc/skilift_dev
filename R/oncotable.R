@@ -193,7 +193,8 @@ collect_complex_events <- function(complex, verbose = TRUE) {
   }
   
   sv_summary <- sv[, .(value = .N), by = type]
-  sv_summary[, track := ifelse(type %in% c('del', 'dup', 'invdup', 'tra', 'inv'), 'simple sv', 'complex sv')]
+  simple_sv_types <- c('del', 'dup', 'invdup', 'tra', 'inv')
+  sv_summary[, track := ifelse(type %in% simple_sv_types, 'simple sv', 'complex sv')]
   sv_summary[, source := 'complex']
   
   return(sv_summary)
