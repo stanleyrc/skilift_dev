@@ -125,6 +125,7 @@ oncotable = function(
     use.names = TRUE
   )
 
+  # collect signatures
   out <- rbind(out, collect_signatures(signature_counts, verbose), fill = TRUE, use.names = TRUE)
 
   ## collect gene mutations
@@ -169,6 +170,7 @@ oncotable = function(
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed signature information.
 collect_signatures <- function(signature_counts, verbose = TRUE) {
+  #TODO: update this function to use sigprofiler
   if (!is.null(signature_counts) && file.exists(signature_counts)) {
     if (verbose) message('pulling signature_counts')
     sig <- fread(signature_counts)
