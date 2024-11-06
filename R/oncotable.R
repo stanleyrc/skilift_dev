@@ -288,7 +288,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
     return(data.table(type = NA, source = 'oncokb_maf'))
   }
 
-  snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
+  snpeff_ontology = readRDS(system.file("extdata/data/snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
   
   if (NROW(oncokb) > 0) {
