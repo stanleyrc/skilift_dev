@@ -144,8 +144,8 @@ collect_copy_number_jabba <- function(
   
   if (verbose) message('pulling jabba_rds to get SCNA and purity / ploidy')
   jab <- readRDS(jabba_rds)
-  jabpurity <- if (is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
-  jabploidy <- if (is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
+  jabpurity <- ifelse(is.null(jab$meta$purity), jab$meta$purity, jab$purity)  
+  jabploidy <- ifelse(is.null(jab$meta$ploidy), jab$meta$ploidy, jab$ploidy)
   result <- data.table(
     value = c(jabpurity, jabploidy),
     type = c('purity', 'ploidy'),
@@ -161,7 +161,8 @@ collect_copy_number_jabba <- function(
   if (!is.null(karyograph) && file.exists(karyograph)) {
     nseg <- readRDS(karyograph)$segstats[, c("ncn")]
   }
-  scna <- Skilift::get_gene_ampdels_from_jabba(
+
+  scna <- get_gene_ampdels_from_jabba(
     jab,
     amp.thresh = amp.thresh,
     del.thresh = del.thresh,
@@ -344,8 +345,10 @@ collect_oncokb <- function(oncokb_maf, sample_id, verbose = TRUE) {
     return(data.table(type = NA, source = 'oncokb_maf'))
   }
 
+  snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
   concat_out <- data.table(id = sample_id, source = "oncokb_maf")
+
 
   if (nrow(oncokb) > 0) {
     oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
@@ -379,6 +382,7 @@ collect_oncokb <- function(oncokb_maf, sample_id, verbose = TRUE) {
   
   return(concat_out)
 }
+
 #' @title oncotable
 #' @description
 #'

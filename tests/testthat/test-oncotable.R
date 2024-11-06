@@ -75,6 +75,59 @@ test_that("collect_gene_mutations handles valid input", {
   expect_true(all(c("value", "type", "track", "source") %in% colnames(result_mutations)))
 })
 
+test_that("parse_oncokb_tier correctly assigns tiers", {
+  # Create test data
+  test_oncokb <- data.table(
+    LEVEL_1 = c("drug1,drug2", NA, NA, NA),
+    LEVEL_2 = c("drug3,drug4", "drug1,drug2", NA, NA),
+    LEVEL_R1 = c(NA, NA, "LevelR1", NA),
+    LEVEL_Dx1 = c(NA, NA, NA, NA),
+    LEVEL_Px1 = c(NA, NA, NA, NA),
+    ONCOGENIC = c("Oncogenic", "Likely Oncogenic", "Unknown", "Likely Neutral")
+  )
+  
+  result <- parse_oncokb_tier(test_oncokb)
+  
+  # Check tier assignments
+  expect_equal(result$tier, c(1, 1, 1, 3))
+  expect_equal(result$tier_factor, factor(c("Clinically Actionable", "Clinically Actionable", 
+                                          "Clinically Actionable", "VUS"),
+                                        levels = c("Clinically Actionable", "Clinically Significant", "VUS")))
+  
+  # Check string concatenation
+  expect_equal(result$tx_string, c("drug1,drug2,drug3,drug4", NA, NA, NA))
+  expect_equal(result$rx_string, c(NA, NA, "LevelR1", NA))
+  expect_true(all(is.na(result$dx_string)))
+  expect_true(all(is.na(result$px_string)))
+})
+
+test_that("collect_oncokb handles missing file", {
+  result <- collect_oncokb(NULL, "test_sample", verbose = FALSE)
+  expect_equal(result$type, NA)
+  expect_equal(result$source, "oncokb_maf")
+})
+
+test_that("collect_oncokb handles valid input", {
+  result <- collect_oncokb(ot_test_paths$oncokb_maf, "test_sample", verbose = FALSE)
+  
+  # Check basic structure
+  expect_true(is.data.table(result))
+  expect_true(nrow(result) > 0)
+  
+  # Check required columns exist
+  expected_cols <- c("id", "gene", "variant.g", "variant.c", "variant.p", 
+                    "annotation", "type", "tier", "tier_description",
+                    "therapeutics", "resistances", "diagnoses", "prognoses",
+                    "distance", "track")
+  expect_true(all(expected_cols %in% names(result)))
+  
+  # Check values
+  expect_equal(result$id[1], "test_sample")
+  expect_equal(result$track[1], "variants")
+  expect_true(all(result$tier %in% 1:3))
+  expect_true(all(result$tier_description %in% c("Clinically Actionable", "Clinically Significant", "VUS")))
+})
+
 test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
@@ -109,55 +162,3 @@ test_that("oncotable produces expected output", {
 #   expect_equal(result_oncotable, expected_oncotable)
 # })
 
-test_that("parse_oncokb_tier correctly assigns tiers", {
-  # Create test data
-  test_oncokb <- data.table(
-    LEVEL_1 = c("Level1", NA, NA, NA),
-    LEVEL_2 = c(NA, "Level2", NA, NA),
-    LEVEL_R1 = c(NA, NA, "LevelR1", NA),
-    LEVEL_Dx1 = c(NA, NA, NA, NA),
-    LEVEL_Px1 = c(NA, NA, NA, NA),
-    ONCOGENIC = c("Oncogenic", "Likely Oncogenic", "Unknown", "Likely Neutral")
-  )
-  
-  result <- parse_oncokb_tier(test_oncokb)
-  
-  # Check tier assignments
-  expect_equal(result$tier, c(1, 1, 1, 3))
-  expect_equal(result$tier_factor, factor(c("Clinically Actionable", "Clinically Actionable", 
-                                          "Clinically Actionable", "VUS"),
-                                        levels = c("Clinically Actionable", "Clinically Significant", "VUS")))
-  
-  # Check string concatenation
-  expect_equal(result$tx_string, c("Level1", "Level2", NA, NA))
-  expect_equal(result$rx_string, c(NA, NA, "LevelR1", NA))
-  expect_true(all(is.na(result$dx_string)))
-  expect_true(all(is.na(result$px_string)))
-})
-
-test_that("collect_oncokb handles missing file", {
-  result <- collect_oncokb(NULL, "test_sample", verbose = FALSE)
-  expect_equal(result$type, NA_character_)
-  expect_equal(result$source, "oncokb_maf")
-})
-
-test_that("collect_oncokb handles valid input", {
-  result <- collect_oncokb(ot_test_paths$oncokb_maf, "test_sample", verbose = FALSE)
-  
-  # Check basic structure
-  expect_true(is.data.table(result))
-  expect_true(nrow(result) > 0)
-  
-  # Check required columns exist
-  expected_cols <- c("id", "gene", "variant.g", "variant.c", "variant.p", 
-                    "annotation", "type", "tier", "tier_description",
-                    "therapeutics", "resistances", "diagnoses", "prognoses",
-                    "distance", "track")
-  expect_true(all(expected_cols %in% names(result)))
-  
-  # Check values
-  expect_equal(result$id[1], "test_sample")
-  expect_equal(result$track[1], "variants")
-  expect_true(all(result$tier %in% 1:3))
-  expect_true(all(result$tier_description %in% c("Clinically Actionable", "Clinically Significant", "VUS")))
-})
