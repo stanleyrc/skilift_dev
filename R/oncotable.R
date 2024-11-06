@@ -94,6 +94,30 @@ collect_complex_events <- function(complex, verbose = TRUE) {
   return(sv_summary)
 }
 
+#' Get gene amplifications and deletions from jabba object
+#'
+#' Copied from github::mskilab-org/skitools.
+#' This function takes in a jabba object and returns
+#' amplifications and deletions
+#'
+#' @param jab character path to jabba file or gGraph object
+get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0.5, nseg = NULL) {
+    gg <- jab
+    if (!inherits(gg, "gGraph")) {
+        gg <- gG(jabba = jab)
+    }
+    gene_CN <- skitools::get_gene_copy_numbers(gg, gene_ranges = pge, nseg = nseg)
+    gene_CN[, `:=`(type, NA_character_)]
+    gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
+    gene_CN[min_cn > 1 & min_normalized_cn < del.thresh, `:=`(
+        type,
+        "del"
+    )]
+    gene_CN[min_cn == 1 & min_cn < ncn, `:=`(type, "hetdel")]
+    gene_CN[min_cn == 0, `:=`(type, "homdel")]
+    return(gene_CN[!is.na(type)])
+}
+
 #' @title collect_copy_number_jabba
 #' @description
 #' Collects copy number and jabba data from a specified file and processes it.
@@ -137,7 +161,7 @@ collect_copy_number_jabba <- function(
   if (!is.null(karyograph) && file.exists(karyograph)) {
     nseg <- readRDS(karyograph)$segstats[, c("ncn")]
   }
-  scna <- skitools::get_gene_ampdels_from_jabba(
+  scna <- Skilift::get_gene_ampdels_from_jabba(
     jab,
     amp.thresh = amp.thresh,
     del.thresh = del.thresh,
@@ -251,6 +275,60 @@ collect_gene_mutations <- function(
   return(rbind(mut.density, vars, fill = TRUE, use.names = TRUE))
 }
 
+#' Parse oncokb outputs and tier
+#' 
+#' Helper function to parse oncokb outputs
+#' levels of evidence and assign tier. 
+#' Tiering is simply:
+#' 1 = Clinically Actionable:
+#' Therapeutic sensitivity, resistance,
+#' diagnostic, or prognostic information is assigned
+#' to the variant.
+#' 2 = Clinically Significant:
+#' Clinically significant variant entails that the variant
+#' does not have therapeutic, diagnostic, or prognostic effect
+#' validated at FDA level, but is oncogenic.
+#' 3 = All others (VUS)
+#' 
+#' @param oncokb data.table object holding oncokb outputs
+#' @author Kevin Hadi
+parse_oncokb_tier = function(
+    oncokb, 
+    tx_cols = c("LEVEL_1", "LEVEL_2"), 
+    rx_cols = c("LEVEL_R1"),
+    dx_cols = c("LEVEL_Dx1"),
+    px_cols = c("LEVEL_Px1")
+) {
+    .concat_string = function(oncokb, cols) {
+        out_string = lapply(base::subset(oncokb, select = cols), function(y) (strsplit(y, ",")))
+        concat_out = S4Vectors::List(Reduce(concat_vectors, out_string))
+        concat_out[base::lengths(concat_out) == 0] = NA_character_
+        concat_out = S4Vectors::unique(concat_out)
+        concat_out = stringi::stri_c_list(as.list(concat_out), sep = ",")
+        return(concat_out)
+    }
+    is_actionable = logical(NROW(oncokb))
+    for (col in c(tx_cols, rx_cols, dx_cols, px_cols)) {
+        oncokb[[col]] = as.character(oncokb[[col]])
+        is_actionable = is_actionable | (!is.na(oncokb[[col]]) & base::nzchar(oncokb[[col]]))
+    }
+    oncokb$is_actionable = is_actionable
+    oncokb$is_oncogenic = oncokb$ONCOGENIC %in% c("Likely Oncogenic", "Oncogenic")
+    tier_factor = ifelse(
+        oncokb$is_actionable, "Clinically Actionable",
+        ifelse(oncokb$is_oncogenic, "Clinically Significant", "VUS")
+    ) %>% factor(c("Clinically Actionable", "Clinically Significant", "VUS"))
+
+    oncokb$tier_factor = tier_factor
+    oncokb$tier = as.integer(tier_factor)
+    
+    oncokb$tx_string = .concat_string(oncokb, tx_cols)
+    oncokb$rx_string = .concat_string(oncokb, rx_cols)
+    oncokb$dx_string = .concat_string(oncokb, dx_cols)
+    oncokb$px_string = .concat_string(oncokb, px_cols)
+    
+    return(oncokb)
+}
 
 #' @name oncotable
 #' @title oncotable
@@ -325,6 +403,49 @@ oncotable = function(
     fill = TRUE,
     use.names = TRUE
   )
+
+  ## collect oncokb
+  if (!is.null(dat$oncokb_maf) && file.exists(dat[x, oncokb_maf])) {
+      oncokb <- data.table::fread(dat[x, oncokb_maf])
+      concat_out <- data.table(id = x,  source = "oncokb_maf")
+
+      if (NROW(oncokb) > 0) {
+          oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+          # Classify variant based on levels of evidence
+          # T1&2 for TX
+          # T1 for DX & PX
+          # TX/DX/PX Present = "Actionable"
+          # Show drugs in separate column?
+          # Oncogenic/Likely Oncogenic = "Relevant"
+          # Rest = "VUS"
+          # TODO: Tumor Type Specific annotations - filter with annotations.tsv from OncoKB
+          oncokb = parse_oncokb_tier(
+              oncokb, 
+              tx_cols = c("LEVEL_1", "LEVEL_2"), 
+              rx_cols = c("LEVEL_R1"),
+              dx_cols = c("LEVEL_Dx1"),
+              px_cols = c("LEVEL_Px1")
+          )
+          concat_out = oncokb[, .(
+                  id = x, 
+                  gene = Hugo_Symbol, 
+                  variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
+                  variant.c = HGVSc,
+                  variant.p = HGVSp,
+                  annotation = Consequence,
+                  type = snpeff_ontology,
+                  tier = tier,
+                  tier_description = tier_factor,
+                  therapeutics = tx_string, # comes from parse_oncokb_tier
+                  resistances = rx_string,
+                  diagnoses = dx_string,
+                  prognoses = px_string,
+                  distance = NA_integer_,
+                  track = "variants"
+          )]
+      }
+      out = rbind(out, concat_out, fill = TRUE, use.names = TRUE)
+  }
 
   out$id = pair
 
