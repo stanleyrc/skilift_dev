@@ -126,6 +126,33 @@ test_that("collect_oncokb handles valid input", {
   expect_true(all(result$tier_description %in% c("Clinically Actionable", "Clinically Significant", "VUS")))
 })
 
+test_that("collect_oncokb_cna handles missing file", {
+  result <- collect_oncokb_cna(NULL, verbose = FALSE)
+  expect_equal(result$type, NA)
+  expect_equal(result$source, "oncokb_cna")
+})
+
+test_that("collect_oncokb_cna handles valid input", {
+  result <- collect_oncokb_cna(ot_test_paths$oncokb_cna, verbose = FALSE)
+  
+  # Check basic structure
+  expect_true(is.data.table(result))
+  expect_true(nrow(result) > 0)
+  
+  # Check required columns exist
+  expected_cols <- c("gene", "value", "type", "tier", "tier_description", 
+                    "therapeutics", "resistances", "diagnoses", "prognoses",
+                    "track", "source")
+  expect_true(all(expected_cols %in% names(result)))
+  
+  # Check values
+  expect_equal(result$track[1], "scna")
+  expect_equal(result$source[1], "oncokb_cna")
+  expect_true(all(result$tier %in% 1:3))
+  expect_true(all(result$tier_description %in% c("Clinically Actionable", "Clinically Significant", "VUS")))
+  expect_true(all(result$type %in% c("amp", "homdel", NA)))
+})
+
 test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
