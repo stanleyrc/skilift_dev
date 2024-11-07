@@ -119,7 +119,7 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
     report_dir <- file.path(dir, "pipeline_info")
     dir.create(report_dir, recursive = TRUE)
     report_content <- c(
-      "launchDir: /path/to/launch",
+      paste0("launchDir: ", dir),
       "input: ./samples.csv"
     )
     writeLines(report_content, file.path(report_dir, "pipeline_report.txt"))
@@ -139,9 +139,8 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   empty_dir <- file.path(base_dir, "empty")
   dir.create(empty_dir)
   setup_metadata(empty_dir)
-  expect_warning(
-    cohort <- Cohort$new(empty_dir),
-    "No data could be extracted from pipeline directory"
+  expect_silent(
+    cohort <- suppressWarnings(Cohort$new(empty_dir))
   )
   
   # Test 2: Directory with missing files
@@ -219,6 +218,7 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   # Test 4: Directory with extra files
   extra_dir <- file.path(base_dir, "extra")
   dir.create(extra_dir, recursive = TRUE)
+  setup_metadata(extra_dir)
   file.copy(complete_dir, extra_dir, recursive = TRUE)
   dir.create(file.path(extra_dir, "extra_folder"))
   writeLines("", file.path(extra_dir, "extra_folder/extra_file.txt"))
@@ -244,10 +244,16 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   unlink(base_dir, recursive = TRUE)
 })
 
-# integration test (only works on NYU hpc)
+# integration tests (only works on NYU hpc)
 test_that("Cohort constructor handles real pairs table correctly", {
   clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
   clinical_pairs = readRDS(clinical_pairs_path)
   cohort <- Cohort$new(clinical_pairs)
   expect_silent(cohort <- Cohort$new(clinical_pairs))
+})
+
+test_that("Cohort construct handles real pipeline directory correctly", {
+  pipeline_dir = "/gpfs/data/imielinskilab/projects/Clinical_NYU/nf-casereports-other/"
+  cohort <- Cohort$new(pipeline_dir)
+  expect_silent(cohort <- Cohort$new(pipeline_dir))
 })

@@ -75,14 +75,13 @@ Cohort <- R6Class("Cohort",
   ),
   
   private = list(
-    # Main function to construct data.table from pipeline directory
-    construct_from_path = function(pipeline_dir) {
-      if (!dir.exists(pipeline_dir)) {
-        stop("Pipeline directory does not exist: ", pipeline_dir)
+    construct_from_path = function(pipeline_outdir) {
+      if (!dir.exists(pipeline_outdir)) {
+        stop("Pipeline directory does not exist: ", pipeline_outdir)
       }
       
       # Get sample metadata first - this contains our patient IDs
-      sample_metadata <- private$get_sample_metadata(pipeline_dir)
+      sample_metadata <- private$get_pipeline_samples_metadata(pipeline_outdir)
       if (is.null(sample_metadata)) {
         stop("Could not get sample metadata - this is required for patient IDs")
       }
@@ -91,11 +90,11 @@ Cohort <- R6Class("Cohort",
       outputs <- data.table(pair = sample_metadata$pair)
       
       # Get all file paths recursively
-      pipeline_output_paths <- list.files(pipeline_dir, recursive = TRUE, full.names = TRUE)
+      pipeline_output_paths <- list.files(pipeline_outdir, recursive = TRUE, full.names = TRUE)
       
       # Process each path and build the data.table
       for (path in pipeline_output_paths) {
-        column <- private$determine_column(path)
+        column <- private$extract_pipeline_outpath_to_column(path)
         if (!is.null(column)) {
           # Extract the pair ID from the path components
           path_parts <- strsplit(path, "/")[[1]]
@@ -119,9 +118,8 @@ Cohort <- R6Class("Cohort",
       return(outputs)
     },
     
-    # Extract sample metadata from pipeline report
-    get_sample_metadata = function(pipeline_dir) {
-      report_path <- file.path(pipeline_dir, "pipeline_info/pipeline_report.txt")
+    get_pipeline_samples_metadata = function(pipeline_outdir) {
+      report_path <- file.path(pipeline_outdir, "pipeline_info/pipeline_report.txt")
       if (!file.exists(report_path)) {
         warning("Pipeline report not found: ", report_path)
         return(NULL)
@@ -159,11 +157,14 @@ Cohort <- R6Class("Cohort",
         inferred_sex = samplesheet$sex
       )
       
+      # remove duplicates
+      metadata <- unique(metadata)
+
       return(metadata)
     },
     
     # Determine column based on file path
-    determine_column = function(path) {
+    extract_pipeline_outpath_to_column = function(path) {
       # Map of regex patterns to column names
       path_patterns <- list(
         "balanced_jabba_gg" = "non_integer_balance/.*/balanced.gg.rds$",
@@ -178,10 +179,10 @@ Cohort <- R6Class("Cohort",
         "somatic_snvs" = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
         "somatic_variant_annotations" = "snpeff/somatic/.*/.*ann.bcf$",
         "somatic_snv_cn" = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
-        "activities_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Assignment_Solution_Activities.txt",
-        "activities_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/indel_results/Assignment_Solution/Activities/Assignment_Solution_Activities.txt",
-        "matrix_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/sig_inputs/output/SBS/sigmat_results.SBS96.all",
-        "matrix_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/sig_inputs/output/ID/sigmat_results.ID28.all",
+        "activities_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Assignment_Solution_Activities.txt",
+        "activities_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Assignment_Solution_Activities.txt",
+        "matrix_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
+        "matrix_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID28.all",
         "hrdetect" = "hrdetect/.*/hrdetect_results.rds"
       )
       
@@ -192,6 +193,51 @@ Cohort <- R6Class("Cohort",
       }
       
       return(NULL)
+    },
+
+    construct_from_datatable = function(dt) {
+      if (!is.data.table(dt)) {
+        stop("Input must be a data.table")
+      }
+      
+      result_dt <- data.table()
+      
+      # browser()
+      for (cohort_col in names(self$cohort_cols_to_x_cols)) {
+        possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
+        
+        found_col <- NULL
+        for (col in possible_cols) {
+          for (name in names(dt)) {
+            if (startsWith(name, col)) {
+              found_col <- name
+              break
+            }
+          }
+          if (!is.null(found_col)) break
+        }
+        
+        if (!is.null(found_col)) {
+          result_dt[, (cohort_col) := dt[[found_col]]]
+        } else {
+          warning(sprintf("No matching column found for '%s'. Expected one of: %s", 
+                        cohort_col, paste(possible_cols, collapse = ", ")))
+        }
+      }
+      
+      if (nrow(result_dt) == 0) {
+        warning("No data could be extracted from input data.table")
+      }
+      
+      return(result_dt)
+    },
+    
+    validate_inputs = function() {
+      stop("Method not implemented yet")
+    },
+    
+    filter_inputs = function() {
+      stop("Method not implemented yet")
     }
   )
 )
