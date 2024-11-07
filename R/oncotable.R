@@ -515,6 +515,9 @@ oncotable = function(
     use.names = TRUE
   )
 
+  ## add gene locations
+  gene_locations = readRDS(system.file("extdata", "data", "gene_locations.rds", package = "Skilift"))
+
   out$id = pair
 
   # remove all rows for which data was not passed 
