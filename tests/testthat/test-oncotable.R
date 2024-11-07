@@ -169,6 +169,7 @@ test_that("oncotable produces expected output", {
     oncokb_cna = ot_test_paths$oncokb_cna
   ))
 
+  # saveRDS(result_oncotable, ot_test_paths$unit_oncotable)
   expect_equal(result_oncotable, expected_oncotable)
 })
 

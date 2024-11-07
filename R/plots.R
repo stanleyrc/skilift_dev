@@ -1107,13 +1107,11 @@ filtered_events_json <- function(
     oncotable,
     jabba_gg,
     out_file,
-    cgc_file = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv",
-    oncokb_file = NULL,
     temp_fix = FALSE,
     return_table = FALSE) {
-    ## Driver CNA windows
-    ## Load details from oncotable
+
     ot <- readRDS(oncotable)
+
     # add a fusion_gene_coords column of NAs if no fusions
     if (!"fusion_gene_coords" %in% colnames(ot)) {
         ot[, fusion_genes := NA]
@@ -1121,29 +1119,45 @@ filtered_events_json <- function(
     }
     snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation)]
     snvs <- snvs[!duplicated(variant.p)]
-    ## Note here probably have to crossreference these missense muts with hetdels
-    # hetdel_snvs = snvs[gene %in% ot[type == 'hetdel',gene]]
-    # possible_drivers = rbind(hetdel_snvs,homdels)
     homdels <- ot[type == "homdel"]
     amps <- ot[type == "amp"]
     fusions <- ot[type == "fusion"]
-    jab <- readRDS(jabba_gg)
     possible_drivers <- rbind(snvs, homdels, amps, fusions)
-    cgc <- fread(cgc_file)
-    names(cgc) <- gsub(" ", ".", names(cgc))
-    cgc$gene <- cgc$Gene.Symbol
-    longlist <- merge.data.table(possible_drivers, cgc, by = "gene")
-    res <- longlist[, .(gene, fusion_genes, id, vartype, type, variant.g, variant.p, Name, Genome.Location, fusion_gene_coords, Tier, Role.in.Cancer)]
-    names(res) <- c("gene", "fusion_genes", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "fusion_gene_coords", "Tier", "Role_in_Cancer")
-    if (!is.null(oncokb_file)) {
-        oncokb <- fread(oncokb_file)
-        names(oncokb) <- gsub(" ", "_", names(oncokb))
-        oncokb$gene <- oncokb$Gene
-        oncokb$drugs <- oncokb[, "Drugs_(for_therapeutic_implications_only)"]
-        longlist <- merge(longlist, oncokb, by = "gene", all.x = TRUE)
-        res <- longlist[, .(gene, fusion_genes, id, vartype, type, variant.g, variant.p, Name, Genome.Location, fusion_gene_coords, Tier, Level, Alterations, Cancer_Types, drugs, Role.in.Cancer)]
-        names(res) <- c("gene", "fusion_genes", "id", "vartype", "type", "Variant_g", "Variant", "Name", "Genome_Location", "fusion_gene_coords", "Tier", "Oncokb_Tier", "Oncokb_Alterations", "Oncokb_Cancer_Types", "Oncokb_Drugs", "Role_in_Cancer")
-    }
+    res <- possible_drivers[, .(
+        gene,
+        fusion_genes,
+        id,
+        vartype,
+        type,
+        variant.g,
+        variant.p,
+        gene_location,
+        fusion_gene_coords,
+        tier,
+        therapeutics,
+        resistances,
+        diagnoses,
+        prognoses,
+        total_copies
+    )]
+    names(res) <- c(
+        "gene",
+        "fusion_genes",
+        "id",
+        "vartype",
+        "type",
+        "Variant_g",
+        "Variant",
+        "Genome_Location",
+        "fusion_gene_coords",
+        "Tier",
+        "therapeutics",
+        "resistances",
+        "diagnoses",
+        "prognoses",
+        "dosage"
+    )
+
     res <- res %>% unique(., by = c("gene", "Variant"))
     if (nrow(res) > 0) {
         res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
@@ -1153,9 +1167,12 @@ filtered_events_json <- function(
         res.mut <- res[!is.na(Variant), ]
         if (nrow(res.mut) > 0) {
             res.mut[, Variant := gsub("p.", "", Variant)]
+            res.mut[, vartype := "SNV"]
+            res.mut[type=="trunc", vartype := "DEL"]
         }
-        res.cn <- res[is.na(Variant), ]
+        res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
         if (nrow(res.cn) > 0) {
+            jab <- readRDS(jabba_gg)
             res.cn.gr <- GRanges(res.cn)
             res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
             res.cn.dt <- as.data.table(res.cn.gr)
