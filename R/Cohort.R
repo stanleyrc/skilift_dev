@@ -75,53 +75,134 @@ Cohort <- R6Class("Cohort",
   ),
   
   private = list(
-    construct_from_path = function(path) {
-      stop("Method not implemented yet")
-    },
-    
-    construct_from_datatable = function(dt) {
-      if (!is.data.table(dt)) {
-        stop("Input must be a data.table")
+    # Main function to construct data.table from pipeline directory
+    construct_from_path = function(pipeline_dir) {
+      if (!dir.exists(pipeline_dir)) {
+        stop("Pipeline directory does not exist: ", pipeline_dir)
       }
       
-      result_dt <- data.table()
+      # Get all file paths recursively
+      pipeline_output_paths <- list.files(pipeline_dir, recursive = TRUE, full.names = TRUE)
       
-      # browser()
-      for (cohort_col in names(self$cohort_cols_to_x_cols)) {
-        possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
+      # Initialize empty data.table
+      outputs <- data.table(pair = character())
+      
+      # Get sample metadata from pipeline report
+      sample_metadata <- private$get_sample_metadata(pipeline_dir)
+      
+      # Process each path and build the data.table
+      for (path in pipeline_output_paths) {
+        pair_id <- private$extract_patient_id(path)
+        column <- private$determine_column(path)
         
-        found_col <- NULL
-        for (col in possible_cols) {
-          for (name in names(dt)) {
-            if (startsWith(name, col)) {
-              found_col <- name
-              break
-            }
+        if (!is.null(column)) {
+          if (nrow(outputs[pair == pair_id]) == 0) {
+            new_row <- data.table(pair = pair_id)
+            new_row[, (column) := path]
+            outputs <- rbind(outputs, new_row, fill = TRUE)
+          } else {
+            outputs[pair == pair_id, (column) := path]
           }
-          if (!is.null(found_col)) break
-        }
-        
-        if (!is.null(found_col)) {
-          result_dt[, (cohort_col) := dt[[found_col]]]
-        } else {
-          warning(sprintf("No matching column found for '%s'. Expected one of: %s", 
-                        cohort_col, paste(possible_cols, collapse = ", ")))
         }
       }
       
-      if (nrow(result_dt) == 0) {
-        warning("No data could be extracted from input data.table")
+      # Merge with sample metadata
+      if (!is.null(sample_metadata)) {
+        outputs <- merge(outputs, sample_metadata, by = "pair", all.x = TRUE)
       }
       
-      return(result_dt)
+      if (nrow(outputs) == 0) {
+        warning("No data could be extracted from pipeline directory")
+      }
+      
+      return(outputs)
     },
     
-    validate_inputs = function() {
-      stop("Method not implemented yet")
+    # Extract sample metadata from pipeline report
+    get_sample_metadata = function(pipeline_dir) {
+      report_path <- file.path(pipeline_dir, "pipeline_info/pipeline_report.txt")
+      if (!file.exists(report_path)) {
+        warning("Pipeline report not found: ", report_path)
+        return(NULL)
+      }
+      
+      # Read pipeline report
+      report_lines <- readLines(report_path)
+      
+      # Extract launch directory and samplesheet path
+      launch_dir <- grep("launchDir:", report_lines, value = TRUE)
+      samplesheet_path <- grep("input:", report_lines, value = TRUE)
+      
+      if (length(launch_dir) == 0 || length(samplesheet_path) == 0) {
+        warning("Could not find launch directory or samplesheet path in pipeline report")
+        return(NULL)
+      }
+      
+      # Clean up paths
+      launch_dir <- gsub(".*launchDir: ", "", launch_dir)
+      samplesheet_path <- gsub(".*input: ", "", samplesheet_path)
+      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_path))
+      
+      if (!file.exists(samplesheet_path)) {
+        warning("Samplesheet not found: ", samplesheet_path)
+        return(NULL)
+      }
+      
+      # Read samplesheet and extract metadata
+      samplesheet <- fread(samplesheet_path)
+      metadata <- data.table(
+        pair = samplesheet$patient,
+        tumor_type = samplesheet$tumor_type,
+        disease = samplesheet$disease,
+        primary_site = samplesheet$primary_site,
+        inferred_sex = samplesheet$sex
+      )
+      
+      return(metadata)
     },
     
-    filter_inputs = function() {
-      stop("Method not implemented yet")
+    # Extract patient ID from path
+    extract_patient_id = function(path) {
+      # Extract patient ID from path components
+      path_parts <- strsplit(path, "/")[[1]]
+      for (part in path_parts) {
+        if (grepl("^[0-9]{4}$", part)) {  # Assuming patient IDs are 4-digit numbers
+          return(part)
+        }
+      }
+      return(NULL)
+    },
+    
+    # Determine column based on file path
+    determine_column = function(path) {
+      # Map of regex patterns to column names
+      path_patterns <- list(
+        "balanced_jabba_gg" = "non_integer_balance/.*/balanced.gg.rds$",
+        "tumor_coverage" = "dryclean_tumor/.*/drycleaned.cov.rds$",
+        "het_pileups" = "hetpileups/.*/sites.txt$",
+        "jabba_gg" = "jabba/.*/jabba.simple.gg.rds$",
+        "events" = "events/.*/complex.rds$",
+        "fusions" = "fusions/.*/fusions.rds$",
+        "structural_variants" = "gridss_somatic/.*/.*high_confidence_somatic.vcf.bgz$",
+        "karyograph" = "jabba/.*/karyograph.rds$",
+        "allelic_jabba_gg" = "lp_phased_balance/.*/balanced.gg.rds$",
+        "somatic_snvs" = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
+        "somatic_variant_annotations" = "snpeff/somatic/.*/.*ann.bcf$",
+        "somatic_snv_cn" = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
+        "activities_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Assignment_Solution_Activities.txt",
+        "activities_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/indel_results/Assignment_Solution/Activities/Assignment_Solution_Activities.txt",
+        "matrix_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/sig_inputs/output/SBS/sigmat_results.SBS96.all",
+        "matrix_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/sig_inputs/output/ID/sigmat_results.ID28.all",
+        "hrdetect" = "hrdetect/.*/hrdetect_results.rds"
+      )
+      
+      for (col_name in names(path_patterns)) {
+        if (grepl(path_patterns[[col_name]], path)) {
+          return(col_name)
+        }
+      }
+      
+      return(NULL)
     }
   )
 )
