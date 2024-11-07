@@ -81,35 +81,36 @@ Cohort <- R6Class("Cohort",
         stop("Pipeline directory does not exist: ", pipeline_dir)
       }
       
+      # Get sample metadata first - this contains our patient IDs
+      sample_metadata <- private$get_sample_metadata(pipeline_dir)
+      if (is.null(sample_metadata)) {
+        stop("Could not get sample metadata - this is required for patient IDs")
+      }
+      
+      # Initialize data.table with all pairs from metadata
+      outputs <- data.table(pair = sample_metadata$pair)
+      
       # Get all file paths recursively
       pipeline_output_paths <- list.files(pipeline_dir, recursive = TRUE, full.names = TRUE)
       
-      # Initialize empty data.table
-      outputs <- data.table(pair = character())
-      
-      # Get sample metadata from pipeline report
-      sample_metadata <- private$get_sample_metadata(pipeline_dir)
-      
       # Process each path and build the data.table
       for (path in pipeline_output_paths) {
-        pair_id <- private$extract_patient_id(path)
         column <- private$determine_column(path)
-        
         if (!is.null(column)) {
-          if (nrow(outputs[pair == pair_id]) == 0) {
-            new_row <- data.table(pair = pair_id)
-            new_row[, (column) := path]
-            outputs <- rbind(outputs, new_row, fill = TRUE)
-          } else {
-            outputs[pair == pair_id, (column) := path]
+          # Extract the pair ID from the path components
+          path_parts <- strsplit(path, "/")[[1]]
+          # Find which pair this file belongs to by matching the path against each pair ID
+          for (curr_pair in outputs$pair) {
+            if (any(grepl(curr_pair, path_parts))) {
+              outputs[pair == curr_pair, (column) := path]
+              break
+            }
           }
         }
       }
       
-      # Merge with sample metadata
-      if (!is.null(sample_metadata)) {
-        outputs <- merge(outputs, sample_metadata, by = "pair", all.x = TRUE)
-      }
+      # Merge with rest of sample metadata
+      outputs <- merge(outputs, sample_metadata, by = "pair", all.x = TRUE)
       
       if (nrow(outputs) == 0) {
         warning("No data could be extracted from pipeline directory")
@@ -159,18 +160,6 @@ Cohort <- R6Class("Cohort",
       )
       
       return(metadata)
-    },
-    
-    # Extract patient ID from path
-    extract_patient_id = function(path) {
-      # Extract patient ID from path components
-      path_parts <- strsplit(path, "/")[[1]]
-      for (part in path_parts) {
-        if (grepl("^[0-9]{4}$", part)) {  # Assuming patient IDs are 4-digit numbers
-          return(part)
-        }
-      }
-      return(NULL)
     },
     
     # Determine column based on file path
