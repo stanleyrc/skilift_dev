@@ -47,6 +47,7 @@ Cohort <- R6Class("Cohort",
       
       self$cohort_cols_to_x_cols <- default_mapping
       
+      if (is.character(x) && length(x) == 1) {
         self$inputs <- private$construct_from_path(x)
       } else if (is.data.table(x)) {
         self$inputs <- private$construct_from_datatable(x)
