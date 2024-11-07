@@ -518,6 +518,13 @@ oncotable = function(
   ## add gene locations
   gene_locations = readRDS(system.file("extdata", "data", "gene_locations.rds", package = "Skilift"))
 
+  # Merge gene locations and create location string
+  if ("gene" %in% names(out)) {
+    out[gene_locations, 
+        gene_location := paste0(i.seqnames, ":", i.start, "-", i.end),
+        on = c(gene = "gene_name")]
+  }
+
   out$id = pair
 
   # remove all rows for which data was not passed 
