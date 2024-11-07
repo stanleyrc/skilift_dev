@@ -154,7 +154,7 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   expect_true("structural_variants" %in% names(cohort$inputs))
   expect_equal(nrow(cohort$inputs), 2)  # Should have both samples even though only one has data
   
-  # Test 3: Directory with all expected files
+  # Test 3: Directory with all expected files, including hrdetect and fusions
   complete_dir <- file.path(base_dir, "complete")
   dir.create(complete_dir, recursive = TRUE)
   setup_metadata(complete_dir)
@@ -205,7 +205,13 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
     }
   }
   
+  # Copy the added test data files to the complete directory
+  file.copy("inst/extdata/test_data/hrdetect_results.rds", file.path(complete_dir, "hrdetect/SAMPLE1/hrdetect_results.rds"))
+  file.copy("inst/extdata/test_data/oncotable_test_data/fusions.rds", file.path(complete_dir, "fusions/SAMPLE1/fusions.rds"))
+  
   expect_silent(cohort <- Cohort$new(complete_dir))
+  expect_true("hrdetect" %in% names(cohort$inputs))
+  expect_true("fusions" %in% names(cohort$inputs))
   expect_equal(nrow(cohort$inputs), 2)
   expect_true(all(c("structural_variants", "tumor_coverage", "jabba_gg") %in% names(cohort$inputs)))
   
