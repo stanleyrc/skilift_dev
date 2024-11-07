@@ -1123,40 +1123,34 @@ filtered_events_json <- function(
     amps <- ot[type == "amp"]
     fusions <- ot[type == "fusion"]
     possible_drivers <- rbind(snvs, homdels, amps, fusions)
-    res <- possible_drivers[, .(
-        gene,
-        fusion_genes,
-        id,
-        vartype,
-        type,
-        variant.g,
-        variant.p,
-        gene_location,
-        fusion_gene_coords,
-        tier,
-        therapeutics,
-        resistances,
-        diagnoses,
-        prognoses,
-        total_copies
-    )]
-    names(res) <- c(
-        "gene",
-        "fusion_genes",
-        "id",
-        "vartype",
-        "type",
-        "Variant_g",
-        "Variant",
-        "Genome_Location",
-        "fusion_gene_coords",
-        "Tier",
-        "therapeutics",
-        "resistances",
-        "diagnoses",
-        "prognoses",
-        "dosage"
+    filtered_events_columns <- c("gene", "fusion_genes", "id", "vartype", "type", "variant.g", "variant.p", "gene_location", "fusion_gene_coords")
+    if ("tier" %in% colnames(possible_drivers)) {
+        filtered_events_columns <- c(filtered_events_columns, "tier", "therapeutics", "resistances", "diagnoses", "prognoses")
+    }
+    if ("total_copies" %in% colnames(possible_drivers)) {
+        filtered_events_columns <- c(filtered_events_columns, "total_copies")
+    }
+    
+    res <- possible_drivers[, ..filtered_events_columns]
+    oncotable_col_to_filtered_events_col <- c(
+        "gene" = "gene",
+        "fusion_genes" = "fusion_genes",
+        "id" = "id",
+        "vartype" = "vartype",
+        "type" = "type",
+        "variant.g" = "Variant_g",
+        "variant.p" = "Variant",
+        "gene_location" = "Genome_Location",
+        "fusion_gene_coords" = "fusion_gene_coords",
+        "tier" = "Tier",
+        "therapeutics" = "therapeutics",
+        "resistances" = "resistances",
+        "diagnoses" = "diagnoses",
+        "prognoses" = "prognoses",
+        "total_copies" = "dosage"
     )
+    intersected_columns <- intersect(filtered_events_columns, names(res))
+    setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
 
     res <- res %>% unique(., by = c("gene", "Variant"))
     if (nrow(res) > 0) {
