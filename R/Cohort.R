@@ -16,10 +16,8 @@ Cohort <- R6Class("Cohort",
       self$reference_name <- reference_name
       
       if (is.character(x) && length(x) == 1) {
-        # x is a path
         self$inputs <- private$construct_from_path(x)
       } else if (is.data.table(x)) {
-        # x is a data.table
         self$inputs <- private$construct_from_datatable(x)
       } else {
         stop("Input must be either a path (character) or data.table")
@@ -28,7 +26,6 @@ Cohort <- R6Class("Cohort",
   ),
   
   private = list(
-    # Placeholder methods to be implemented later
     construct_from_path = function(path) {
       stop("Method not implemented yet")
     },
