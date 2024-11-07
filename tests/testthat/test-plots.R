@@ -9,6 +9,7 @@ setup({
   ot_test_paths <<- list(
     oncotable = system.file('extdata/test_data/oncotable_test_data/new_oncotable/oncotable.rds', package='Skilift'),
     unit_oncotable = system.file('extdata/test_data/oncotable_test_data/new_oncotable/unit_oncotable.rds', package='Skilift'),
+    no_oncokb_unit_oncotable = system.file('extdata/test_data/oncotable_test_data/no_oncokb_unit_oncotable.rds', package='Skilift'),
     jabba_simple_gg = system.file('extdata/test_data/oncotable_test_data/jabba.simple.gg.rds', package='Skilift')
   )
 })
@@ -46,7 +47,18 @@ test_that("filtered_events_json creates correct output", {
   expect_true(all(!is.na(result$gene)))
   expect_true(all(!is.na(result$type)))
   
-  # Test with different input combinations
+  # Test with missing oncokb inputs
+  result_no_oncokb <- filtered_events_json(
+    pair = "test_sample",
+    oncotable = ot_test_paths$no_oncokb_unit_oncotable,
+    jabba_gg = ot_test_paths$jabba_simple_gg,
+    out_file = file.path(temp_dir, "filtered_events_no_oncokb.json"),
+    return_table = TRUE
+  )
+
+  expect_true(all(result_no_oncokb$tier == ""))
+  expect_true(all(result_no_oncokb$dosage == ""))
+
   # Test without return_table
   result_no_return <- filtered_events_json(
     pair = "test_sample",
