@@ -13,7 +13,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   # Test data.table with missing columns
   partial_dt <- data.table(
     pair = c("sample1", "sample2"),
-    tumor = c("tumor1", "tumor2")
+    tumor_type = c("BRCA", "LUAD")
   )
   expect_warning(
     cohort <- Cohort$new(partial_dt),
@@ -26,15 +26,32 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   complete_dt <- data.table(
     pair = c("sample1", "sample2"),
     tumor = c("tumor1", "tumor2"),
-    normal = c("normal1", "normal2"),
-    annotated_bcf = c("bcf1", "bcf2"),
-    fusions = c("fusion1", "fusion2"),
-    jabba_simple = c("jabba1", "jabba2"),
+    disease = c("Breast", "Lung"),
+    primary_site = c("Breast", "Lung"),
+    inferred_sex = c("F", "M"),
+    structural_variants = c("sv1", "sv2"),
+    tumor_coverage = c("cov1", "cov2"),
+    somatic_snvs = c("snv1", "snv2"),
+    germline_snvs = c("germ1", "germ2"),
+    het_pileups = c("het1", "het2"),
+    somatic_snv_cn = c("scn1", "scn2"),
+    germline_snv_cn = c("gcn1", "gcn2"),
+    somatic_variant_annotations = c("sva1", "sva2"),
+    germline_variant_annotations = c("gva1", "gva2"),
+    oncokb_snv = c("osnv1", "osnv2"),
+    oncokb_cna = c("ocna1", "ocna2"),
+    jabba_gg = c("jgg1", "jgg2"),
     karyograph = c("kg1", "kg2"),
-    events = c("event1", "event2"),
-    signature_counts = c("sig1", "sig2"),
-    oncokb_maf = c("maf1", "maf2"),
-    oncokb_cna = c("cna1", "cna2")
+    balanced_jabba_gg = c("bjg1", "bjg2"),
+    events = c("ev1", "ev2"),
+    fusions = c("fus1", "fus2"),
+    allelic_jabba_gg = c("ajg1", "ajg2"),
+    activities_sbs_signatures = c("ass1", "ass2"),
+    matrix_sbs_signatures = c("mss1", "mss2"),
+    activities_indel_signatures = c("ais1", "ais2"),
+    matrix_indel_signatures = c("mis1", "mis2"),
+    hrdetect = c("hrd1", "hrd2"),
+    oncotable = c("ot1", "ot2")
   )
   expect_silent(cohort <- Cohort$new(complete_dt))
   expect_equal(ncol(cohort$inputs), ncol(complete_dt))
@@ -57,14 +74,15 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   )
   expect_equal(ncol(cohort$inputs), 2)
   
-  # Test data.table with two columns mapping to same input column
-  duplicate_dt <- data.table(
-    pair = c("sample1", "sample2"),
-    sample_id = c("sample1", "sample2")  # This should map to 'pair' as well
+  # Test data.table with alternative column names
+  alt_names_dt <- data.table(
+    patient_id = c("sample1", "sample2"),
+    gridss_somatic = c("sv1", "sv2"),
+    sage_somatic_vcf = c("snv1", "snv2")
   )
-  expect_silent(cohort <- Cohort$new(duplicate_dt))
-  expect_equal(ncol(cohort$inputs), 1)
-  expect_true("pair" %in% names(cohort$inputs))
+  expect_silent(cohort <- Cohort$new(alt_names_dt))
+  expect_equal(ncol(cohort$inputs), 3)
+  expect_true(all(c("pair", "structural_variants", "somatic_snvs") %in% names(cohort$inputs)))
   
   # Test custom col_mapping for new column
   custom_dt <- data.table(
