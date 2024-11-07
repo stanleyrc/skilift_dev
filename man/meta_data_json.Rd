@@ -9,20 +9,24 @@ meta_data_json(
   outdir = "./",
   genome = "hg19",
   coverage = NULL,
+  coverage_qc = NULL,
+  het_pileups_wgs = NULL,
   jabba_gg = NULL,
+  complex = NULL,
   strelka2_vcf = NULL,
   sage_vcf = NULL,
   tumor_type = NULL,
   disease = NULL,
   primary_site = NULL,
   inferred_sex = NULL,
-  karyograph = NULL,
   signatures_pair_name = NULL,
   indel_sigprofiler = NULL,
   sbs_sigprofiler = NULL,
   sbs_deconstructSigs = NULL,
   seqnames_loh = c(1:22),
   seqnames_genome_width = c(1:22, "X", "Y"),
+  hrdetect = NULL,
+  onenesstwoness = NULL,
   write_json = TRUE,
   overwrite = FALSE,
   return_table = FALSE,
@@ -36,19 +40,22 @@ meta_data_json(
 
 \item{coverage}{path dryclean coverage output}
 
-\item{jabba_gg}{path to JaBbA output ggraph or complex}
+\item{coverage_qc}{list of coverage qc metrics (tbd)}
 
-\item{strelka2_vcf}{path to strelka vcf to get snv count}
+\item{jabba_gg}{path to JaBbA output ggraph (non-integer-balanced)}
 
-\item{sage_vcf}{path to SAGE vcf to get snv count (if present)}
+\item{complex}{path to events output ggraph}
+
+\item{strelka2_vcf}{path to strelka vcf to get snv count (need either this or sage_vcf)}
+
+\item{sage_vcf}{path to SAGE vcf to get snv count (sage preferred over strelka2)}
 
 \item{disease}{full length tumor type}
 
 \item{primary_site}{primary site of tumor}
 
-\item{inferred_sex}{sex of the patient}
-
-\item{karyograph}{JaBbA outputted karygraph}
+\item{inferred_sex}{sex of the patient
+# @param karyograph JaBbA outputted karygraph}
 
 \item{signatures_pair_name}{pair name that appears in the sigprofiler output (sometimes different from pair)}
 
@@ -61,6 +68,10 @@ meta_data_json(
 \item{seqnames_loh}{chromosomes to be used to calculate LOH}
 
 \item{seqnames_genome_width}{chromosomes to be used to calculate tmb}
+
+\item{hrdetect}{path to HRDetect output}
+
+\item{onenesstwoness}{path to onenesstwoness output}
 
 \item{write_json}{TRUE/FALSE to write the json}
 
@@ -80,4 +91,5 @@ creates the meta data summary json for case reports
 }
 \author{
 Stanley Clarke, Tanubrata Dey, Joel Rosiene, Shihab Dider
+look at mean-normalized relative foreground
 }

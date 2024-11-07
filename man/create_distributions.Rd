@@ -10,7 +10,8 @@ create_distributions(
   cores = 1,
   write_to_json = FALSE,
   common_dir = NULL,
-  overwrite = FALSE
+  overwrite = FALSE,
+  haveSignatures = TRUE
 )
 }
 \arguments{
