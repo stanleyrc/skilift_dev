@@ -6,3 +6,7 @@
 ##source=Gridss
 #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO
 1       123456  .       A       <DEL>   .       PASS    SVTYPE=DEL;END=123499
+##fileformat=VCFv4.2
+##source=Gridss
+#CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO
+1       123456  .       A       <DEL>   .       PASS    SVTYPE=DEL;END=123499

@@ -1,2 +1,3 @@
 saveRDS(data.table(coverage = c(30, 40, 50)), "inst/extdata/test_data/coverage.rds")
 saveRDS(data.table(coverage = c(30, 40, 50)), "inst/extdata/test_data/coverage.rds")
+saveRDS(data.table(coverage = c(30, 40, 50)), "inst/extdata/test_data/coverage.rds")
