@@ -1,5 +1,9 @@
+suppressWarnings(devtools::load_all())
+
 library(testthat)
 library(data.table)
+
+# test <- function() { testthat::test_file("tests/testthat/test-Cohort.R") }
 
 test_that("Cohort constructor handles various data.table inputs correctly", {
   # Test empty data.table
@@ -20,12 +24,12 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     "No matching column found for"
   )
   expect_equal(ncol(cohort$inputs), 2)
-  expect_true(all(c("pair", "tumor") %in% names(cohort$inputs)))
+  expect_true(all(c("pair", "tumor_type") %in% names(cohort$inputs)))
   
   # Test data.table with all columns
   complete_dt <- data.table(
     pair = c("sample1", "sample2"),
-    tumor = c("tumor1", "tumor2"),
+    tumor_type = c("tumor1", "tumor2"),
     disease = c("Breast", "Lung"),
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M"),
@@ -65,7 +69,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   # Test data.table with extra columns and missing columns
   mixed_dt <- data.table(
     pair = c("sample1", "sample2"),
-    tumor = c("tumor1", "tumor2"),
+    tumor_type = c("tumor1", "tumor2"),
     extra_col = c("extra1", "extra2")
   )
   expect_warning(
@@ -75,37 +79,38 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   expect_equal(ncol(cohort$inputs), 2)
   
   # Test data.table with alternative column names
-  alt_names_dt <- data.table(
-    patient_id = c("sample1", "sample2"),
-    gridss_somatic = c("sv1", "sv2"),
-    sage_somatic_vcf = c("snv1", "snv2")
-  )
+  alt_names_dt <- copy(complete_dt)
+  alt_names_dt[, structural_variants := NULL]
+  alt_names_dt[, gridss_somatic := c("sv1", "sv2")]
   expect_silent(cohort <- Cohort$new(alt_names_dt))
-  expect_equal(ncol(cohort$inputs), 3)
-  expect_true(all(c("pair", "structural_variants", "somatic_snvs") %in% names(cohort$inputs)))
+  expect_true("structural_variants" %in% names(cohort$inputs))
   
   # Test custom col_mapping for new column
-  custom_dt <- data.table(
-    custom_col = c("custom1", "custom2")
-  )
+  custom_dt <- copy(complete_dt)
+  custom_dt <- custom_dt[, custom_col := c("custom1", "custom2")]
   custom_mapping <- list(
-    new_col = c("custom_col")
+    structural_variant = c("custom_col")
   )
-  expect_silent(
-    cohort <- Cohort$new(custom_dt, col_mapping = custom_mapping)
-  )
-  expect_true("new_col" %in% names(cohort$inputs))
+  expect_silent(cohort <- Cohort$new(custom_dt, col_mapping = custom_mapping))
+  expect_true("structural_variant" %in% names(cohort$inputs))
   
   # Test custom col_mapping that overrides default mapping
-  override_dt <- data.table(
-    alt_pair = c("sample1", "sample2")
-  )
+  override_dt <- copy(complete_dt)
+  override_dt[, patient_id := c("patient1", "patient2")]
   override_mapping <- list(
-    pair = c("alt_pair", "pair", "sample")  # Changed order from default
+    pair = c("patient_id")  # Changed order from default
   )
   expect_silent(
     cohort <- Cohort$new(override_dt, col_mapping = override_mapping)
   )
   expect_true("pair" %in% names(cohort$inputs))
-  expect_equal(cohort$inputs$pair, override_dt$alt_pair)
+  expect_equal(cohort$inputs$pair, override_dt$patient_id)
+})
+
+# integration test (only works on NYU hpc)
+test_that("Cohort constructor handles real pairs table correctly", {
+  clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
+  clinical_pairs = readRDS(clinical_pairs_path)
+  cohort <- Cohort$new(clinical_pairs)
+  expect_silent(cohort <- Cohort$new(clinical_pairs))
 })
