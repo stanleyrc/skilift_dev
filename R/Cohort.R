@@ -53,7 +53,7 @@ Cohort <- R6Class("Cohort",
       } else {
         stop("Input must be either a path (character) or data.table")
       }
-    }
+    },
   ),
   
   private = list(
