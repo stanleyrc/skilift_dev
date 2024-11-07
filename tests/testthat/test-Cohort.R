@@ -107,6 +107,136 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   expect_equal(cohort$inputs$pair, override_dt$patient_id)
 })
 
+test_that("Cohort constructor handles pipeline directory inputs correctly", {
+  # Create temp directory structure
+  base_dir <- tempdir()
+  pipeline_dir <- file.path(base_dir, "pipeline_output")
+  dir.create(pipeline_dir, recursive = TRUE)
+  
+  # Helper function to create pipeline report and samplesheet
+  setup_metadata <- function(dir) {
+    # Create pipeline report
+    report_dir <- file.path(dir, "pipeline_info")
+    dir.create(report_dir, recursive = TRUE)
+    report_content <- c(
+      "launchDir: /path/to/launch",
+      "input: ./samples.csv"
+    )
+    writeLines(report_content, file.path(report_dir, "pipeline_report.txt"))
+    
+    # Create samplesheet
+    samplesheet <- data.table(
+      patient = c("SAMPLE1", "SAMPLE2"),
+      tumor_type = c("BRCA", "LUAD"),
+      disease = c("Breast", "Lung"),
+      primary_site = c("Breast", "Lung"),
+      sex = c("F", "M")
+    )
+    fwrite(samplesheet, file.path(dir, "samples.csv"))
+  }
+  
+  # Test 1: Empty directory
+  empty_dir <- file.path(base_dir, "empty")
+  dir.create(empty_dir)
+  setup_metadata(empty_dir)
+  expect_warning(
+    cohort <- Cohort$new(empty_dir),
+    "No data could be extracted from pipeline directory"
+  )
+  
+  # Test 2: Directory with missing files
+  partial_dir <- file.path(base_dir, "partial")
+  dir.create(partial_dir, recursive = TRUE)
+  setup_metadata(partial_dir)
+  dir.create(file.path(partial_dir, "gridss_somatic/SAMPLE1"), recursive = TRUE)
+  writeLines("", file.path(partial_dir, "gridss_somatic/SAMPLE1/SAMPLE1.high_confidence_somatic.vcf.bgz"))
+  expect_silent(cohort <- Cohort$new(partial_dir))
+  expect_true("structural_variants" %in% names(cohort$inputs))
+  expect_equal(nrow(cohort$inputs), 2)  # Should have both samples even though only one has data
+  
+  # Test 3: Directory with all expected files
+  complete_dir <- file.path(base_dir, "complete")
+  dir.create(complete_dir, recursive = TRUE)
+  setup_metadata(complete_dir)
+  
+  # Create sample file structure
+  sample_dirs <- c("SAMPLE1", "SAMPLE2")
+  file_structure <- list(
+    "gridss_somatic" = "high_confidence_somatic.vcf.bgz",
+    "dryclean_tumor" = "drycleaned.cov.rds",
+    "hetpileups" = "sites.txt",
+    "jabba" = c("jabba.simple.gg.rds", "karyograph.rds"),
+    "events" = "complex.rds",
+    "fusions" = "fusions.rds",
+    "non_integer_balance" = "balanced.gg.rds",
+    "lp_phased_balance" = "balanced.gg.rds",
+    "sage/somatic" = "sage.somatic.vcf.gz",
+    "snpeff/somatic" = "ann.bcf",
+    "snv_multiplicity3" = "est_snv_cn_somatic.rds",
+    "signatures/sigprofilerassignment/somatic" = list(
+      "sbs_results/Assignment_Solution/Activities" = "Assignment_Solution_Activities.txt",
+      "indel_results/Assignment_Solution/Activities" = "Assignment_Solution_Activities.txt",
+      "sig_inputs/output/SBS" = "sigmat_results.SBS96.all",
+      "sig_inputs/output/ID" = "sigmat_results.ID28.all"
+    ),
+    "hrdetect" = "hrdetect_results.rds"
+  )
+  
+  # Create files for each sample
+  for (sample in sample_dirs) {
+    for (dir_name in names(file_structure)) {
+      if (is.list(file_structure[[dir_name]])) {
+        for (subdir in names(file_structure[[dir_name]])) {
+          full_path <- file.path(complete_dir, dir_name, sample, subdir)
+          dir.create(full_path, recursive = TRUE)
+          writeLines("", file.path(full_path, file_structure[[dir_name]][[subdir]]))
+        }
+      } else {
+        full_path <- file.path(complete_dir, dir_name, sample)
+        dir.create(full_path, recursive = TRUE)
+        if (length(file_structure[[dir_name]]) > 1) {
+          for (file in file_structure[[dir_name]]) {
+            writeLines("", file.path(full_path, file))
+          }
+        } else {
+          writeLines("", file.path(full_path, file_structure[[dir_name]]))
+        }
+      }
+    }
+  }
+  
+  expect_silent(cohort <- Cohort$new(complete_dir))
+  expect_equal(nrow(cohort$inputs), 2)
+  expect_true(all(c("structural_variants", "tumor_coverage", "jabba_gg") %in% names(cohort$inputs)))
+  
+  # Test 4: Directory with extra files
+  extra_dir <- file.path(base_dir, "extra")
+  dir.create(extra_dir, recursive = TRUE)
+  file.copy(complete_dir, extra_dir, recursive = TRUE)
+  dir.create(file.path(extra_dir, "extra_folder"))
+  writeLines("", file.path(extra_dir, "extra_folder/extra_file.txt"))
+  expect_silent(cohort <- Cohort$new(extra_dir))
+  expect_equal(nrow(cohort$inputs), 2)
+  
+  # Test 5: Directory with duplicate column mappings
+  duplicate_dir <- file.path(base_dir, "duplicate")
+  dir.create(duplicate_dir, recursive = TRUE)
+  setup_metadata(duplicate_dir)
+  
+  # Create two different files that map to structural_variants
+  dir.create(file.path(duplicate_dir, "gridss_somatic/SAMPLE1"), recursive = TRUE)
+  writeLines("", file.path(duplicate_dir, "gridss_somatic/SAMPLE1/SAMPLE1.high_confidence_somatic.vcf.bgz"))
+  dir.create(file.path(duplicate_dir, "svaba_sv/SAMPLE1"), recursive = TRUE)
+  writeLines("", file.path(duplicate_dir, "svaba_sv/SAMPLE1/SAMPLE1.sv.vcf"))
+  
+  expect_silent(cohort <- Cohort$new(duplicate_dir))
+  expect_equal(nrow(cohort$inputs), 2)
+  expect_true("structural_variants" %in% names(cohort$inputs))
+  
+  # Cleanup
+  unlink(base_dir, recursive = TRUE)
+})
+
 # integration test (only works on NYU hpc)
 test_that("Cohort constructor handles real pairs table correctly", {
   clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
