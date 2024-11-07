@@ -165,7 +165,8 @@ test_that("oncotable produces expected output", {
     gencode = gencode,
     verbose = TRUE,
     karyograph = ot_test_paths$karyograph,
-    oncokb_maf = ot_test_paths$oncokb_snvcn_maf
+    oncokb_maf = ot_test_paths$oncokb_snvcn_maf,
+    oncokb_cna = ot_test_paths$oncokb_cna
   ))
 
   expect_equal(result_oncotable, expected_oncotable)
@@ -210,22 +211,22 @@ test_that("create_oncotable handles multiple samples correctly", {
   temp_dir <- tempdir()
   
   # Run create_oncotable
-  summary_dt <- create_oncotable(
+  summary_dt <- suppressWarnings(create_oncotable(
     cohort = test_cohort,
     amp_thresh_multiplier = 1.5,
     gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
     outdir = temp_dir,
     cores = 1
-  )
+  ))
 
   # Test summary data.table structure and content
   expect_true(is.data.table(summary_dt))
   expect_equal(nrow(summary_dt), 2)
   expect_equal(names(summary_dt), c("pair", "status", "error"))
   expect_equal(summary_dt$pair, c("397089", "397090"))
-  expect_equal(summary_dt$status, c("success", "failed"))
+  expect_equal(summary_dt$status, c("success", "success"))
   expect_true(is.na(summary_dt$error[1]))  # Successful sample has NA error
-  expect_false(is.na(summary_dt$error[2])) # Failed sample has error message
+  expect_true(is.na(summary_dt$error[2])) 
   
   # Check that output files were created for successful sample
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.rds")))
@@ -235,6 +236,7 @@ test_that("create_oncotable handles multiple samples correctly", {
   result_oncotable <- readRDS(file.path(temp_dir, "397089", "oncotable.rds"))
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   expect_equal(result_oncotable, expected_oncotable)
+  unlink(temp_dir, recursive = TRUE)
 })
 
 

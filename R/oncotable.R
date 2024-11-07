@@ -144,8 +144,8 @@ collect_copy_number_jabba <- function(
   
   if (verbose) message('pulling jabba_rds to get SCNA and purity / ploidy')
   jab <- readRDS(jabba_rds)
-  jabpurity <- ifelse(is.null(jab$meta$purity), jab$meta$purity, jab$purity)  
-  jabploidy <- ifelse(is.null(jab$meta$ploidy), jab$meta$ploidy, jab$ploidy)
+  jabpurity <- ifelse(!is.null(jab$meta$purity), jab$meta$purity, jab$purity)  
+  jabploidy <- ifelse(!is.null(jab$meta$ploidy), jab$meta$ploidy, jab$ploidy)
   result <- data.table(
     value = c(jabpurity, jabploidy),
     type = c('purity', 'ploidy'),
@@ -276,57 +276,7 @@ collect_gene_mutations <- function(
   return(rbind(mut.density, vars, fill = TRUE, use.names = TRUE))
 }
 
-#' @description
-#' Collects OncoKB mutation data from a specified file and processes it.
-#'
-#' @param oncokb_maf Path to the oncokb MAF file.
-#' @param verbose Logical flag to indicate if messages should be printed.
-#' @return A data.table containing processed OncoKB mutation information.
-collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
-  if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
-    if (verbose) message('OncoKB MAF file is missing or does not exist.')
-    return(data.table(type = NA, source = 'oncokb_maf'))
-  }
-
-  snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
-  oncokb <- data.table::fread(oncokb_maf)
-  
-  if (NROW(oncokb) > 0) {
-    oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
-    oncokb = parse_oncokb_tier(
-        oncokb, 
-        tx_cols = c("LEVEL_1", "LEVEL_2"), 
-        rx_cols = c("LEVEL_R1"),
-        dx_cols = c("LEVEL_Dx1"),
-        px_cols = c("LEVEL_Px1")
-    )
-    return(oncokb[, .(
-            gene = Hugo_Symbol, 
-            variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
-            variant.c = HGVSc,
-            variant.p = HGVSp,
-            annotation = Consequence,
-            type = snpeff_ontology,
-            tier = tier,
-            tier_description = tier_factor,
-            therapeutics = tx_string,
-            resistances = rx_string,
-            diagnoses = dx_string,
-            prognoses = px_string,
-            distance = NA_integer_,
-            major.count, 
-            minor.count, 
-            major_snv_copies, 
-            minor_snv_copies,
-            total_copies, 
-            VAF,
-            track = "variants",
-            source = "oncokb_maf"
-    )])
-  }
-  return(data.table(type = NA, source = 'oncokb_maf'))
-}
-
+#' @title collect_oncokb_cna
 #' @description
 #' Collects OncoKB CNA data from a specified file and processes it.
 #'
@@ -350,10 +300,13 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
         px_cols = c("LEVEL_Px1")
     )
     return(oncokb_cna[, .(
-            gene = Hugo_Symbol,
+            gene = HUGO_SYMBOL,
             value = min_cn,
-            type = ifelse(ALTERATION == "Amplification", "amp", 
-                         ifelse(ALTERATION == "Deletion", "homdel", NA_character_)),
+            type = ifelse(
+              ALTERATION == "Amplification",
+              "amp",
+              ifelse(ALTERATION == "Deletion", "homdel", NA_character_)
+            ),
             tier = tier,
             tier_description = tier_factor,
             therapeutics = tx_string,
@@ -366,6 +319,7 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
   }
   return(data.table(type = NA, source = 'oncokb_cna'))
 }
+
 #' 
 #' Helper function to parse oncokb outputs
 #' levels of evidence and assign tier. 
@@ -421,6 +375,59 @@ parse_oncokb_tier = function(
     return(oncokb)
 }
 
+#' @title collect_oncokb
+#' @description
+#' Collects OncoKB mutation data from a specified file and processes it.
+#'
+#' @param oncokb_maf Path to the oncokb MAF file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed OncoKB mutation information.
+collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
+  if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
+    if (verbose) message('OncoKB MAF file is missing or does not exist.')
+    return(data.table(type = NA, source = 'oncokb_maf'))
+  }
+
+  snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
+  oncokb <- data.table::fread(oncokb_maf)
+  
+  if (NROW(oncokb) > 0) {
+    oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+    oncokb = parse_oncokb_tier(
+        oncokb, 
+        tx_cols = c("LEVEL_1", "LEVEL_2"), 
+        rx_cols = c("LEVEL_R1"),
+        dx_cols = c("LEVEL_Dx1"),
+        px_cols = c("LEVEL_Px1")
+    )
+    return(oncokb[, .(
+            gene = Hugo_Symbol, 
+            variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
+            variant.c = HGVSc,
+            variant.p = HGVSp,
+            annotation = Consequence,
+            type = snpeff_ontology,
+            tier = tier,
+            tier_description = tier_factor,
+            therapeutics = tx_string,
+            resistances = rx_string,
+            diagnoses = dx_string,
+            prognoses = px_string,
+            distance = NA_integer_,
+            major.count, 
+            minor.count, 
+            major_snv_copies, 
+            minor_snv_copies,
+            total_copies, 
+            VAF,
+            track = "variants",
+            source = "oncokb_maf"
+    )])
+  }
+  return(data.table(type = NA, source = 'oncokb_maf'))
+}
+
+
 #' @title oncotable
 #' @description
 #'
@@ -442,16 +449,16 @@ oncotable = function(
   annotated_bcf = NULL,
   fusions = NULL,
   jabba_rds = NULL,
+  karyograph = NULL,
   complex = NULL,
   signature_counts = NULL,
   oncokb_maf = NULL,
-  oncokb_cna = NULL,  # Add this parameter
+  oncokb_cna = NULL, 
   gencode,
   verbose = TRUE,
   amp.thresh = 4,
   filter = 'PASS',
-  del.thresh = 0.5,
-  karyograph = NULL
+  del.thresh = 0.5
 ) {
   out <- data.table()
 
@@ -471,13 +478,31 @@ oncotable = function(
   ## collect complex events
   out <- rbind(
     out,
-    collect_complex_events(complex, verbose
-  ), fill = TRUE, use.names = TRUE)
+    collect_complex_events(complex, verbose),
+    fill = TRUE,
+    use.names = TRUE
+  )
 
   ## collect copy number / jabba
   out <- rbind(
     out,
     collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph),
+    fill = TRUE,
+    use.names = TRUE
+  )
+
+  ## collect oncokb_cna
+  out <- rbind(
+    out,
+    collect_oncokb_cna(oncokb_cna, verbose),
+    fill = TRUE,
+    use.names = TRUE
+  )
+
+  ## collect gene mutations
+  out <- rbind(
+    out,
+    collect_gene_mutations(annotated_bcf, jabba_rds, filter, verbose),
     fill = TRUE,
     use.names = TRUE
   )
@@ -490,15 +515,10 @@ oncotable = function(
     use.names = TRUE
   )
 
-  ## collect oncokb_cna 
-  out <- rbind(
-    out,
-    collect_oncokb_cna(oncokb_cna, verbose),
-    fill = TRUE,
-    use.names = TRUE
-  )
-
   out$id = pair
+
+  # remove all rows for which data was not passed 
+  out <- out[!is.na(type)]
 
   if (verbose) message('done processing sample')
   return(out)
