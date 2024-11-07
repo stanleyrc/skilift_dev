@@ -155,6 +155,7 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   expect_equal(nrow(cohort$inputs), 2)  # Should have both samples even though only one has data
   
   # Test 3: Directory with all expected files, including hrdetect and fusions
+  # Ensure the added test data files are used in the test
   complete_dir <- file.path(base_dir, "complete")
   dir.create(complete_dir, recursive = TRUE)
   setup_metadata(complete_dir)
