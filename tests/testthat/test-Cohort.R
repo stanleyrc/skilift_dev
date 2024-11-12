@@ -107,6 +107,96 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   expect_equal(cohort$inputs$pair, override_dt$patient_id)
 })
 
+test_that("Cohort validate_inputs correctly identifies missing data", {
+  # Setup temp directory for file tests
+  temp_dir <- tempdir()
+  on.exit(unlink(temp_dir, recursive = TRUE))
+  
+  # Create some test files
+  test_file1 <- file.path(temp_dir, "test1.vcf")
+  test_file2 <- file.path(temp_dir, "test2.vcf")
+  empty_file <- file.path(temp_dir, "empty.vcf")
+  writeLines("content", test_file1)
+  writeLines("content", test_file2)
+  file.create(empty_file)  # Creates empty file
+  
+  # Test 1: Data table with missing values
+  dt_missing_values <- data.table(
+    pair = c("sample1", "sample2"),
+    tumor_type = c("BRCA", NA),
+    structural_variants = c(test_file1, test_file2)
+  )
+  cohort <- Cohort$new(dt_missing_values)
+  missing_data <- cohort$validate_inputs()
+  
+  expect_true(!is.null(missing_data))
+  expect_true(any(missing_data$pair == "sample2" & 
+                 missing_data$column == "tumor_type" & 
+                 missing_data$reason == "NULL or NA value"))
+  
+  # Test 2: Data table with missing files
+  dt_missing_files <- data.table(
+    pair = c("sample1", "sample2"),
+    tumor_type = c("BRCA", "LUAD"),
+    structural_variants = c(test_file1, "nonexistent.vcf")
+  )
+  cohort <- Cohort$new(dt_missing_files)
+  missing_data <- cohort$validate_inputs()
+  
+  expect_true(!is.null(missing_data))
+  expect_true(any(missing_data$pair == "sample2" & 
+                 missing_data$column == "structural_variants" & 
+                 missing_data$reason == "File does not exist"))
+  
+  # Test 3: Data table with mixed missing values and files
+  dt_mixed_missing <- data.table(
+    pair = c("sample1", "sample2", "sample3"),
+    tumor_type = c("BRCA", NA, "LUAD"),
+    structural_variants = c(test_file1, "nonexistent.vcf", test_file2)
+  )
+  cohort <- Cohort$new(dt_mixed_missing)
+  missing_data <- cohort$validate_inputs()
+  
+  expect_true(!is.null(missing_data))
+  expect_equal(nrow(missing_data), 2)  # Should find both types of missing data
+  expect_true(any(missing_data$reason == "NULL or NA value"))
+  expect_true(any(missing_data$reason == "File does not exist"))
+  
+  # Test 4: Data table with no missing values or files
+  dt_complete <- data.table(
+    pair = c("sample1", "sample2"),
+    tumor_type = c("BRCA", "LUAD"),
+    structural_variants = c(test_file1, test_file2)
+  )
+  cohort <- Cohort$new(dt_complete)
+  expect_message(
+    missing_data <- cohort$validate_inputs(),
+    "All inputs are valid - no missing values or files found"
+  )
+  expect_null(missing_data)
+  
+  # Test 5: Data table with empty file that exists
+  dt_empty_file <- data.table(
+    pair = c("sample1"),
+    tumor_type = c("BRCA"),
+    structural_variants = c(empty_file)
+  )
+  cohort <- Cohort$new(dt_empty_file)
+  expect_message(
+    missing_data <- cohort$validate_inputs(),
+    "All inputs are valid - no missing values or files found"
+  )
+  expect_null(missing_data)
+  
+  # Test 6: Empty data table
+  dt_empty <- data.table(pair = character(), tumor_type = character())
+  cohort <- Cohort$new(dt_empty)
+  expect_error(
+    cohort$validate_inputs(),
+    "No inputs data available to validate"
+  )
+})
+
 test_that("Cohort constructor handles pipeline directory inputs correctly", {
   # Create temp directory structure
   base_dir <- tempdir()
