@@ -71,6 +71,68 @@ Cohort <- R6Class("Cohort",
       } else {
         stop("Input must be either a path (character) or data.table")
       }
+    },
+
+    #' @description
+    #' Validate inputs data.table for missing values and files
+    #' @return NULL if all inputs are valid, or a data.table with details about missing data
+    validate_inputs = function() {
+      if (is.null(self$inputs) || nrow(self$inputs) == 0) {
+        stop("No inputs data available to validate")
+      }
+      
+      # Initialize results data.table
+      missing_data <- data.table(
+        pair = character(),
+        column = character(),
+        reason = character()
+      )
+      
+      # Check each column for missing values
+      for (col in names(self$inputs)) {
+        # Skip pair column as it's our identifier
+        if (col == "pair") next
+        
+        # Check for NULL or NA values
+        na_pairs <- self$inputs[is.na(get(col)) | is.null(get(col)), pair]
+        if (length(na_pairs) > 0) {
+          missing_data <- rbindlist(list(
+            missing_data,
+            data.table(
+              pair = na_pairs,
+              column = col,
+              reason = "NULL or NA value"
+            )
+          ))
+        }
+        
+        # For columns that should contain file paths, check if files exist
+        if (col %in% names(self$cohort_cols_to_x_cols)) {
+          file_paths <- self$inputs[!is.na(get(col)), get(col)]
+          for (path in file_paths) {
+            if (!file.exists(path)) {
+              missing_data <- rbindlist(list(
+                missing_data,
+                data.table(
+                  pair = self$inputs[get(col) == path, pair],
+                  column = col,
+                  reason = "File does not exist"
+                )
+              ))
+            }
+          }
+        }
+      }
+      
+      # Return results
+      if (nrow(missing_data) == 0) {
+        message("All inputs are valid - no missing values or files found")
+        return(NULL)
+      } else {
+        # Sort by pair and column for better readability
+        setorder(missing_data, pair, column)
+        return(missing_data)
+      }
     }
   ),
   
@@ -230,65 +292,6 @@ Cohort <- R6Class("Cohort",
       }
       
       return(result_dt)
-    },
-    
-    validate_inputs = function() {
-      if (is.null(self$inputs) || nrow(self$inputs) == 0) {
-        stop("No inputs data available to validate")
-      }
-      
-      # Initialize results data.table
-      missing_data <- data.table(
-        pair = character(),
-        column = character(),
-        reason = character()
-      )
-      
-      # Check each column for missing values
-      for (col in names(self$inputs)) {
-        # Skip pair column as it's our identifier
-        if (col == "pair") next
-        
-        # Check for NULL or NA values
-        na_pairs <- self$inputs[is.na(get(col)) | is.null(get(col)), pair]
-        if (length(na_pairs) > 0) {
-          missing_data <- rbindlist(list(
-            missing_data,
-            data.table(
-              pair = na_pairs,
-              column = col,
-              reason = "NULL or NA value"
-            )
-          ))
-        }
-        
-        # For columns that should contain file paths, check if files exist
-        if (col %in% names(self$cohort_cols_to_x_cols)) {
-          file_paths <- self$inputs[!is.na(get(col)), get(col)]
-          for (path in file_paths) {
-            if (!file.exists(path)) {
-              missing_data <- rbindlist(list(
-                missing_data,
-                data.table(
-                  pair = self$inputs[get(col) == path, pair],
-                  column = col,
-                  reason = "File does not exist"
-                )
-              ))
-            }
-          }
-        }
-      }
-      
-      # Return results
-      if (nrow(missing_data) == 0) {
-        message("All inputs are valid - no missing values or files found")
-        return(NULL)
-      } else {
-        # Sort by pair and column for better readability
-        setorder(missing_data, pair, column)
-        return(missing_data)
-      }
     },
     
     filter_inputs = function() {
