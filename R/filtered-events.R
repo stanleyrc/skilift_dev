@@ -605,22 +605,27 @@ create_oncotable <- function(
                 return(NULL)
             }
 
-            # Get ploidy from jabba output
-            ploidy_ggraph <- tryCatch({
-                readRDS(row$jabba_gg)
-            }, error = function(e) {
-                msg <- sprintf("Error reading JaBbA file for %s: %s", row$pair, e$message)
-                warning(msg)
-                return(NULL)
-            })
-            
-            if (is.null(ploidy_ggraph)) return(NULL)
-            
-            ploidy <- ifelse(
-                !is.null(ploidy_ggraph$meta$ploidy),
-                ploidy_ggraph$meta$ploidy,
-                ploidy_ggraph$ploidy
-            )
+            # Get ploidy from jabba output, default to 2 if missing
+            ploidy <- 2  # Default ploidy
+            if (file.exists(row$jabba_gg)) {
+                ploidy_ggraph <- tryCatch({
+                    readRDS(row$jabba_gg)
+                }, error = function(e) {
+                    msg <- sprintf("Error reading JaBbA file for %s: %s. Using default ploidy of 2.", row$pair, e$message)
+                    warning(msg)
+                    NULL
+                })
+                
+                if (!is.null(ploidy_ggraph)) {
+                    ploidy <- ifelse(
+                        !is.null(ploidy_ggraph$meta$ploidy),
+                        ploidy_ggraph$meta$ploidy,
+                        ploidy_ggraph$ploidy
+                    )
+                }
+            } else {
+                warning(sprintf("JaBbA file not found for %s: %s. Using default ploidy of 2.", row$pair, row$jabba_gg))
+            }
 
             amp_thresh <- amp_thresh_multiplier * ploidy
             message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
