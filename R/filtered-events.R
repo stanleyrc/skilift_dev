@@ -590,7 +590,7 @@ create_oncotable <- function(
     }
     results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         tryCatch({
-            row <- cohort[i,]
+            row <- cohort$inputs[i]
             
             # Create output directory for this pair
             pair_outdir <- file.path(outdir, row$pair)
@@ -659,7 +659,7 @@ create_oncotable <- function(
             }
 
         }, error = function(e) {
-            msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs$pair[i], e$message)
+            msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
             warning(msg)
         })
     }, mc.cores = cores)
