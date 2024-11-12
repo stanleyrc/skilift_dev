@@ -545,7 +545,7 @@ oncotable = function(
 #' @param gencode file to gencode annotations (uses v29lift37 by default)
 #' @param outdir path to directory in which to write oncotable outputs
 #' @param cores number of cores for parallel processing
-#' @return Named list of oncotable results
+#' @return Named list of oncotable results with status for each sample
 #' @export
 #' @author Shihab Dider, Joel Rosiene
 
@@ -582,12 +582,6 @@ create_oncotable <- function(
         tryCatch({
             row <- cohort[i,]
             
-            # Create error log file for this pair
-            pair_outdir <- file.path(outdir, row$pair)
-            if (!dir.exists(pair_outdir)) {
-                dir.create(pair_outdir, recursive = TRUE)
-            }
-            
             # Validate required files exist
             if (!file.exists(row$jabba_simple)) {
                 msg <- sprintf("JaBbA file not found for %s: %s", row$pair, row$jabba_simple)
@@ -595,16 +589,27 @@ create_oncotable <- function(
                 return(NULL)
             }
 
+            # Validate required files exist
+            if (!file.exists(row$jabba_simple)) {
+                return(list(
+                    pair = row$pair,
+                    status = "failed",
+                    error = sprintf("JaBbA file not found: %s", row$jabba_simple)
+                ))
+            }
+
             # Get ploidy from jabba output
             ploidy_ggraph <- tryCatch({
                 readRDS(row$jabba_simple)
             }, error = function(e) {
-                msg <- sprintf("Error reading JaBbA file for %s: %s", row$pair, e$message)
-                warning(msg)
-                return(NULL)
+                return(list(
+                    pair = row$pair,
+                    status = "failed",
+                    error = sprintf("Error reading JaBbA file: %s", e$message)
+                ))
             })
             
-            if (is.null(ploidy_ggraph)) return(NULL)
+            if (inherits(ploidy_ggraph, "list") && !is.null(ploidy_ggraph$status)) return(ploidy_ggraph)
             
             ploidy <- ifelse(
                 !is.null(ploidy_ggraph$meta$ploidy),
@@ -617,13 +622,13 @@ create_oncotable <- function(
 
             # Run oncotable for this pair
             oncotable_result <- tryCatch({
-                oncotable(
+                result <- oncotable(
                     pair = row$pair,
                     annotated_bcf = row$annotated_bcf,
                     fusions = row$fusions,
-                    jabba_rds = row$jabba_simple,  # Changed from jabba_simple to jabba_rds
+                    jabba_rds = row$jabba_simple,
                     karyograph = row$karyograph,
-                    complex = row$events,          # Changed from events to complex
+                    complex = row$events,
                     signature_counts = row$signature_counts,
                     oncokb_maf = row$oncokb_maf,
                     oncokb_cna = row$oncokb_cna,
@@ -633,54 +638,40 @@ create_oncotable <- function(
                     filter = "PASS",
                     del.thresh = 0.5
                 )
+                
+                # Save results
+                saveRDS(result, file.path(outdir, row$pair, "oncotable.rds"))
+                fwrite(result, file.path(outdir, row$pair, "oncotable.txt"))
+                
+                list(
+                    pair = row$pair,
+                    status = "success",
+                    error = NA_character_,
+                    result = result
+                )
             }, error = function(e) {
-                msg <- sprintf("Error in oncotable for %s: %s", row$pair, e$message)
-                warning(msg)
-                return(NULL)
+                list(
+                    pair = row$pair,
+                    status = "failed",
+                    error = e$message,
+                    result = NULL
+                )
             })
 
-            if (!is.null(oncotable_result)) {
-                # Save successful results
-                saveRDS(oncotable_result, file.path(pair_outdir, "oncotable.rds"))
-                fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
-            }
-
-            return(list(
-                pair = row$pair,
-                result = oncotable_result,
-                status = if(is.null(oncotable_result)) "failed" else "success"
-            ))
+            return(oncotable_result)
 
         }, error = function(e) {
-            msg <- sprintf("Unexpected error processing %s: %s", cohort$pair[i], e$message)
-            warning(msg)
-            return(list(
-                pair = cohort$pair[i],
-                result = NULL,
+            list(
+                pair = row$pair,
                 status = "failed",
-                error = e$message
-            ))
+                error = e$message,
+                result = NULL
+            )
         })
     }, mc.cores = cores)
 
-    # Summarize results
-    successful <- sum(sapply(results, function(x) !is.null(x$result)))
-    failed <- length(results) - successful
-    
-    message(sprintf(
-        "\nProcessing complete:\n- %d samples processed successfully\n- %d samples failed",
-        successful,
-        failed
-    ))
-
-    # Create a summary data.table
-    summary_dt <- data.table(
-        pair = sapply(results, function(x) x$pair),
-        status = sapply(results, function(x) x$status),
-        error = sapply(results, function(x) if(is.null(x$error)) NA else x$error)
-    )
-    
-    return(summary_dt)
+    # Return results list
+    return(results)
 }
 
 #' @name create_filtered_events
