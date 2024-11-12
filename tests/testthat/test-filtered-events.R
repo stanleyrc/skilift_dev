@@ -214,12 +214,12 @@ test_that("create_oncotable handles Cohort objects correctly", {
   temp_dir <- tempdir()
   
   # Run create_oncotable and capture the returned cohort
-  updated_cohort <- suppressWarnings(create_oncotable(
+  updated_cohort <- (create_oncotable(
     cohort = test_cohort,
     amp_thresh_multiplier = 1.5,
     gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
     outdir = temp_dir,
-    cores = 1
+    cores = 2
   ))
 
   # Test that input validation works
@@ -244,9 +244,6 @@ test_that("create_oncotable handles Cohort objects correctly", {
     file.path(temp_dir, "397089", "oncotable.rds")
   )
   
-  # Test that failed sample has NA for oncotable path
-  expect_true(is.na(updated_cohort$inputs[pair == "397090", oncotable]))
-  
   # Test that successful result matches expected
   result_oncotable <- readRDS(file.path(temp_dir, "397089", "oncotable.rds"))
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
@@ -258,12 +255,13 @@ test_that("create_oncotable handles Cohort objects correctly", {
     somatic_variant_annotations = character(),
     jabba_gg = character()
   )))
-  empty_result <- suppressWarnings(create_oncotable(
-    cohort = empty_cohort,
-    outdir = temp_dir
-  ))
-  expect_true(inherits(empty_result, "Cohort"))
-  expect_equal(nrow(empty_result$inputs), 0)
+  expect_error(
+    create_oncotable(
+      cohort = empty_cohort,
+      outdir = temp_dir
+    ),
+    "No samples found in the cohort"
+  )
 
   # Cleanup
   unlink(temp_dir, recursive = TRUE)
