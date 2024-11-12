@@ -174,9 +174,9 @@ test_that("oncotable produces expected output", {
   expect_equal(result_oncotable, expected_oncotable)
 })
 
-test_that("create_oncotable handles multiple samples correctly", {
-  # Create test cohort data.table
-  test_cohort <- data.table(
+test_that("create_oncotable handles Cohort objects correctly", {
+  # Create test Cohort object
+  test_inputs <- data.table(
     pair = c("397089", "397090"),  # Second pair is fake to test error handling
     somatic_variant_annotations = c(
       ot_test_paths$unit_annotated_bcf,
@@ -208,12 +208,13 @@ test_that("create_oncotable handles multiple samples correctly", {
       ot_test_paths$oncokb_cna
     )
   )
+  test_cohort <- suppressWarnings(Cohort$new(test_inputs))
 
   # Create temporary directory for output
   temp_dir <- tempdir()
   
-  # Run create_oncotable
-  suppressWarnings(create_oncotable(
+  # Run create_oncotable and capture the returned cohort
+  updated_cohort <- suppressWarnings(create_oncotable(
     cohort = test_cohort,
     amp_thresh_multiplier = 1.5,
     gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
@@ -221,14 +222,50 @@ test_that("create_oncotable handles multiple samples correctly", {
     cores = 1
   ))
 
-  # Check that output files were created for successful sample
+  # Test that input validation works
+  expect_error(
+    create_oncotable(data.table(), outdir = temp_dir),
+    "Input must be a Cohort object"
+  )
+
+  # Test that returned object is a Cohort
+  expect_true(inherits(updated_cohort, "Cohort"))
+  
+  # Test that oncotable column exists in updated cohort
+  expect_true("oncotable" %in% names(updated_cohort$inputs))
+  
+  # Test that output files were created for successful sample
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.rds")))
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.txt")))
+  
+  # Test that oncotable path is correctly set in cohort for successful sample
+  expect_equal(
+    updated_cohort$inputs[pair == "397089", oncotable],
+    file.path(temp_dir, "397089", "oncotable.rds")
+  )
+  
+  # Test that failed sample has NA for oncotable path
+  expect_true(is.na(updated_cohort$inputs[pair == "397090", oncotable]))
   
   # Test that successful result matches expected
   result_oncotable <- readRDS(file.path(temp_dir, "397089", "oncotable.rds"))
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   expect_equal(result_oncotable, expected_oncotable)
+
+  # Test with empty cohort
+  empty_cohort <- suppressWarnings(Cohort$new(data.table(
+    pair = character(),
+    somatic_variant_annotations = character(),
+    jabba_gg = character()
+  )))
+  empty_result <- suppressWarnings(create_oncotable(
+    cohort = empty_cohort,
+    outdir = temp_dir
+  ))
+  expect_true(inherits(empty_result, "Cohort"))
+  expect_equal(nrow(empty_result$inputs), 0)
+
+  # Cleanup
   unlink(temp_dir, recursive = TRUE)
 })
 
