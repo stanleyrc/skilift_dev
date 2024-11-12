@@ -26,79 +26,6 @@ setup({
   gencode <<- process_gencode(test_rds_path)
 })
 
-test_that("lift_filtered_events handles various input scenarios", {
-  # Create temp directory for output
-  temp_dir <- tempdir()
-  
-  # Create test Cohort objects
-  
-  # 1. Complete cohort with all required inputs
-  complete_inputs <- data.table(
-    pair = c("397089"),
-    oncotable = c(ot_test_paths$unit_oncotable),
-    jabba_gg = c(ot_test_paths$jabba_simple_gg)
-  )
-  complete_cohort <- Cohort$new(complete_inputs)
-  
-  # 2. Cohort with missing inputs
-  missing_inputs <- data.table(
-    pair = c("397089", "397090"),
-    oncotable = c(ot_test_paths$unit_oncotable, NA),
-    jabba_gg = c(ot_test_paths$jabba_simple_gg, ot_test_paths$jabba_simple_gg)
-  )
-  missing_cohort <- Cohort$new(missing_inputs)
-  
-  # Test: Non-existent output directory
-  non_existent_dir <- file.path(temp_dir, "non_existent")
-  expect_false(dir.exists(non_existent_dir))
-  lift_filtered_events(complete_cohort, non_existent_dir)
-  expect_true(dir.exists(non_existent_dir))
-  expect_true(dir.exists(file.path(non_existent_dir, "397089")))
-  expect_true(file.exists(file.path(non_existent_dir, "397089", "filtered.events.json")))
-  
-  # Test: Existing output directory
-  existing_dir <- file.path(temp_dir, "existing")
-  dir.create(existing_dir)
-  lift_filtered_events(complete_cohort, existing_dir)
-  expect_true(file.exists(file.path(existing_dir, "397089", "filtered.events.json")))
-  
-  # Test: Invalid input (not a Cohort object)
-  expect_error(
-    lift_filtered_events(data.table(), temp_dir),
-    "Input must be a Cohort object"
-  )
-  
-  # Test: Missing required columns
-  invalid_cohort <- Cohort$new(data.table(pair = "test"))
-  expect_error(
-    lift_filtered_events(invalid_cohort, temp_dir),
-    "Missing required columns in cohort: oncotable, jabba_gg"
-  )
-  
-  # Test: Cohort with missing inputs for some samples
-  warning_msg <- capture_warnings(
-    lift_filtered_events(missing_cohort, temp_dir)
-  )
-  expect_match(
-    warning_msg,
-    "Error processing 397090: cannot open the connection",
-    all = FALSE
-  )
-  
-  # Test: Output file content validation
-  json_content <- jsonlite::fromJSON(
-    file.path(existing_dir, "397089", "filtered.events.json")
-  )
-  expect_true(is.data.frame(json_content))
-  expect_true(all(c(
-    "gene", "fusion_genes", "id", "vartype", "type",
-    "Variant_g", "Variant", "Genome_Location", "fusion_gene_coords"
-  ) %in% names(json_content)))
-  
-  # Cleanup
-  unlink(temp_dir, recursive = TRUE)
-})
-
 test_that("process_gencode handles NULL input", {
   expect_error(process_gencode(NULL), "gencode file must be provided")
 })
@@ -380,6 +307,79 @@ test_that("create_filtered_events creates correct output", {
     "cannot open the connection"
   )
 
+  unlink(temp_dir, recursive = TRUE)
+})
+
+test_that("lift_filtered_events handles various input scenarios", {
+  # Create temp directory for output
+  temp_dir <- tempdir()
+  
+  # Create test Cohort objects
+  
+  # 1. Complete cohort with all required inputs
+  complete_inputs <- data.table(
+    pair = c("397089"),
+    oncotable = c(ot_test_paths$unit_oncotable),
+    jabba_gg = c(ot_test_paths$jabba_simple_gg)
+  )
+  complete_cohort <- suppressWarnings(Cohort$new(complete_inputs))
+  
+  # 2. Cohort with missing inputs
+  missing_inputs <- data.table(
+    pair = c("397089", "397090"),
+    oncotable = c(ot_test_paths$unit_oncotable, NA),
+    jabba_gg = c(ot_test_paths$jabba_simple_gg, ot_test_paths$jabba_simple_gg)
+  )
+  missing_cohort <- suppressWarnings(Cohort$new(missing_inputs))
+  
+  # Test: Non-existent output directory
+  non_existent_dir <- file.path(temp_dir, "non_existent")
+  expect_false(dir.exists(non_existent_dir))
+  lift_filtered_events(complete_cohort, non_existent_dir)
+  expect_true(dir.exists(non_existent_dir))
+  expect_true(dir.exists(file.path(non_existent_dir, "397089")))
+  expect_true(file.exists(file.path(non_existent_dir, "397089", "filtered.events.json")))
+  
+  # Test: Existing output directory
+  existing_dir <- file.path(temp_dir, "existing")
+  dir.create(existing_dir)
+  lift_filtered_events(complete_cohort, existing_dir)
+  expect_true(file.exists(file.path(existing_dir, "397089", "filtered.events.json")))
+  
+  # Test: Invalid input (not a Cohort object)
+  expect_error(
+    lift_filtered_events(data.table(), temp_dir),
+    "Input must be a Cohort object"
+  )
+  
+  # Test: Missing required columns
+  invalid_cohort <- suppressWarnings(Cohort$new(data.table(pair = "test")))
+  expect_error(
+    lift_filtered_events(invalid_cohort, temp_dir),
+    "Missing required columns in cohort: oncotable, jabba_gg"
+  )
+  
+  # Test: Cohort with missing inputs for some samples
+  warning_msg <- capture_warnings(
+    lift_filtered_events(missing_cohort, temp_dir)
+  )
+  expect_match(
+    warning_msg,
+    "Error processing 397090: invalid 'description' argument",
+    all = FALSE
+  )
+  
+  # Test: Output file content validation
+  json_content <- jsonlite::fromJSON(
+    file.path(existing_dir, "397089", "filtered.events.json")
+  )
+  expect_true(is.data.frame(json_content))
+  expect_true(all(c(
+    "gene", "fusion_genes", "id", "vartype", "type",
+    "Variant_g", "Variant", "Genome_Location", "fusion_gene_coords"
+  ) %in% names(json_content)))
+  
+  # Cleanup
   unlink(temp_dir, recursive = TRUE)
 })
 
