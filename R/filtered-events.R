@@ -661,10 +661,6 @@ create_oncotable <- function(
         }, error = function(e) {
             msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs$pair[i], e$message)
             warning(msg)
-        }, error = function(e) {
-            msg <- sprintf("Unexpected error processing %s: %s", cohort$pair[i], e$message)
-            warning(msg)
-            return(NULL)
         })
     }, mc.cores = cores)
 
