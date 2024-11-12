@@ -559,6 +559,8 @@ create_oncotable <- function(
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
+
+    if (Sys.which("bcftools") == "") {
         stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
     } else {
         message("bcftools is available.")
@@ -674,6 +676,7 @@ create_oncotable <- function(
     message(sprintf("\nProcessing complete - results written to %s", outdir))
     
     return(updated_cohort)
+}
 
 
 #' @name create_filtered_events
