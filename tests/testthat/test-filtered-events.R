@@ -178,7 +178,7 @@ test_that("create_oncotable handles multiple samples correctly", {
   # Create test cohort data.table
   test_cohort <- data.table(
     pair = c("397089", "397090"),  # Second pair is fake to test error handling
-    annotated_bcf = c(
+    somatic_variant_annotations = c(
       ot_test_paths$unit_annotated_bcf,
       "non_existent_file.bcf"
     ),
@@ -186,7 +186,7 @@ test_that("create_oncotable handles multiple samples correctly", {
       ot_test_paths$fusions,
       ot_test_paths$fusions
     ),
-    jabba_simple = c(
+    jabba_gg = c(
       ot_test_paths$jabba_simple_gg,
       ot_test_paths$jabba_simple_gg
     ),
@@ -199,7 +199,7 @@ test_that("create_oncotable handles multiple samples correctly", {
       ot_test_paths$complex
     ),
     signature_counts = c(NA, NA),  # Optional
-    oncokb_maf = c(
+    oncokb_snv = c(
       ot_test_paths$oncokb_snvcn_maf,
       ot_test_paths$oncokb_snvcn_maf
     ),
