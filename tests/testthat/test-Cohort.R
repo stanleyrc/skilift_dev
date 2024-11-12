@@ -105,7 +105,6 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   )
   expect_true("pair" %in% names(cohort$inputs))
   expect_equal(cohort$inputs$pair, override_dt$patient_id)
-})
 
 test_that("Cohort validate_inputs correctly identifies missing data", {
   # Setup temp directory for file tests
