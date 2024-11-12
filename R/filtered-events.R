@@ -560,6 +560,10 @@ create_oncotable <- function(
         stop("Input must be a Cohort object")
     }
 
+    if (nrow(cohort$inputs) == 0) {
+        stop("No samples found in the cohort")
+    }
+
     if (Sys.which("bcftools") == "") {
         stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
     } else {
@@ -598,13 +602,6 @@ create_oncotable <- function(
                 dir.create(pair_outdir, recursive = TRUE)
             }
             
-            # Validate required files exist
-            if (!file.exists(row$jabba_gg)) {
-                msg <- sprintf("JaBbA file not found for %s: %s", row$pair, row$jabba_gg)
-                warning(msg)
-                return(NULL)
-            }
-
             # Get ploidy from jabba output, default to 2 if missing
             ploidy <- 2  # Default ploidy
             if (file.exists(row$jabba_gg)) {
@@ -613,7 +610,6 @@ create_oncotable <- function(
                 }, error = function(e) {
                     msg <- sprintf("Error reading JaBbA file for %s: %s. Using default ploidy of 2.", row$pair, e$message)
                     warning(msg)
-                    NULL
                 })
                 
                 if (!is.null(ploidy_ggraph)) {
@@ -623,9 +619,7 @@ create_oncotable <- function(
                         ploidy_ggraph$ploidy
                     )
                 }
-            } else {
-                warning(sprintf("JaBbA file not found for %s: %s. Using default ploidy of 2.", row$pair, row$jabba_gg))
-            }
+            } 
 
             amp_thresh <- amp_thresh_multiplier * ploidy
             message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
