@@ -596,9 +596,7 @@ create_oncotable <- function(
             pair_outdir <- file.path(outdir, row$pair)
             if (!dir.exists(pair_outdir)) {
                 dir.create(pair_outdir, recursive = TRUE)
-                return(list(index = i, path = oncotable_path))
             }
-            return(NULL)
             
             # Validate required files exist
             if (!file.exists(row$jabba_gg)) {
@@ -656,6 +654,7 @@ create_oncotable <- function(
                 oncotable_path <- file.path(pair_outdir, "oncotable.rds")
                 saveRDS(oncotable_result, oncotable_path)
                 fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
+                return(list(index = i, path = oncotable_path))
             }
 
         }, error = function(e) {
