@@ -158,15 +158,15 @@ test_that("oncotable produces expected output", {
   expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
   result_oncotable <- suppressWarnings(oncotable(
     pair = "397089",
-    annotated_bcf = ot_test_paths$unit_annotated_bcf,
+    somatic_variant_annotations = ot_test_paths$unit_annotated_bcf,
     fusions = ot_test_paths$fusions,
-    jabba_rds = ot_test_paths$jabba_simple_gg,
-    complex = ot_test_paths$complex,
+    jabba_gg = ot_test_paths$jabba_simple_gg,
+    events = ot_test_paths$complex,
     signature_counts = NULL,  # Assuming signature_counts is not available in test paths
     gencode = gencode,
     verbose = TRUE,
     karyograph = ot_test_paths$karyograph,
-    oncokb_maf = ot_test_paths$oncokb_snvcn_maf,
+    oncokb_snv = ot_test_paths$oncokb_snvcn_maf,
     oncokb_cna = ot_test_paths$oncokb_cna
   ))
 
