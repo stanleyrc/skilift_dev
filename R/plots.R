@@ -149,9 +149,14 @@ subsample_hetsnps = function(
     unique.snps = unique(gr2dt(hets.gr)[,.(seqnames, start,end)])
     n_snps = nrow(unique.snps)
     message(paste(n_snps, "snps found"))
-    message(paste("subsampling", sample_size, "points..."))
-    snps.to.include = unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
-    subset.hets.gr = hets.gr %&% snps.to.include
+    if (!is.na(sample_size) && n_snps > sample_size) {
+        message(paste("subsampling", sample_size, "points..."))
+        snps.to.include = unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
+        subset.hets.gr = hets.gr %&% snps.to.include
+    } else {
+        snps.to.include = unique.snps %>% dt2gr()
+        subset.hets.gr = hets.gr %&% snps.to.include
+    }
 
     return(subset.hets.gr)
 }
@@ -183,7 +188,7 @@ create_cov_arrow = function(plot_metadata, datadir, settings = internal_settings
     } 
 
     is_granges <- is(plot_metadata$x[[1]], "GRanges")
-    is_path <- is(plot_metadata$x, "character")
+    is_path <- is(plot_metadata$x[[1]], "character")
     if (is_granges) {
         # save granges to a temp file and assign path to plot_metadata$x
         print("Saving GRanges to temp file")
@@ -240,10 +245,10 @@ create_ggraph_json = function(plot_metadata, datadir, settings = internal_settin
         } else {
             message(paste0("reading in ", plot_metadata$x))
             if (grepl(plot_metadata$x, pattern = ".rds")) {
-                ggraph <- readRDS(plot_metadata$x)
+                ggraph <- readRDS(plot_metadata$x[[1]])
             } else {
-                message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-                ggraph <- readRDS(plot_metadata$x)
+                message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x[[1]])
+                ggraph <- readRDS(plot_metadata$x[[1]])
             }
         }
         if (any(class(ggraph) == "gGraph")) {
@@ -327,10 +332,10 @@ create_allelic_json = function(plot_metadata, datadir, settings = internal_setti
         } else {
             message(paste0("reading in ", plot_metadata$x))
             if (grepl(plot_metadata$x, pattern = ".rds")) {
-                ggraph <- readRDS(plot_metadata$x)
+                ggraph <- readRDS(plot_metadata$x[[1]])
             } else {
                 message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-                ggraph <- readRDS(plot_metadata$x)
+                ggraph <- readRDS(plot_metadata$x[[1]])
             }
         }
         if (any(class(ggraph) == "gGraph")) {
@@ -838,10 +843,10 @@ create_ppfit_genome_json = function(plot_metadata, datadir, settings = internal_
       } else {
         message(paste0("reading in ", plot_metadata$x))
         if (grepl(plot_metadata$x, pattern = ".rds")) {
-          ggraph <- readRDS(plot_metadata$x)
+          ggraph <- readRDS(plot_metadata$x[[1]])
         } else {
-          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x)
-          ggraph <- readRDS(plot_metadata$x)
+          message("Expected .rds ending for gGraph. Attempting to read anyway: ", plot_metadata$x[[1]])
+          ggraph <- readRDS(plot_metadata$x[[1]])
         }
       }
       if (any(class(ggraph) == "gGraph")) {
@@ -2170,8 +2175,8 @@ meta_data_json = function(
         ## count := junctions + (loose ends / 2)
         gg = readRDS(jabba_gg)
         meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
-      meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
-      sv_like_types_count = tryCatch(table(gg$edges$dt[type == "ALT" & class != "REF"]$class),
+        meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
+        sv_like_types_count = tryCatch(table(gg$edges$dt[type == "ALT" & class != "REF"]$class),
                                      error = function(e){0})
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
 
