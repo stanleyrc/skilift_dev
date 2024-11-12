@@ -120,8 +120,8 @@ test_that("Cohort validate_inputs correctly identifies missing data", {
   writeLines("content", test_file2)
   file.create(empty_file)  # Creates empty file
   
-  # Test 1: Data table with missing values
-  dt_missing_values <- data.table(
+  # Test 1: Data table with missing metadata values
+  dt_missing_metadata <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("BRCA", NA),
     structural_variants = c(test_file1, test_file2)
@@ -158,9 +158,9 @@ test_that("Cohort validate_inputs correctly identifies missing data", {
   missing_data <- cohort$validate_inputs()
   
   expect_true(!is.null(missing_data))
-  expect_equal(nrow(missing_data), 2)  # Should find both types of missing data
-  expect_true(any(missing_data$reason == "NULL or NA value"))
-  expect_true(any(missing_data$reason == "File does not exist"))
+  expect_equal(nrow(missing_data), 3)  # Should find both types of missing data
+  expect_true(sum(missing_data$reason == "NULL or NA value") == 2)
+  expect_true(sum(missing_data$reason == "File does not exist") == 1)
   
   # Test 4: Data table with no missing values or files
   dt_complete <- data.table(
