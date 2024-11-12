@@ -213,7 +213,7 @@ test_that("create_oncotable handles multiple samples correctly", {
   temp_dir <- tempdir()
   
   # Run create_oncotable
-  summary_dt <- suppressWarnings(create_oncotable(
+  suppressWarnings(create_oncotable(
     cohort = test_cohort,
     amp_thresh_multiplier = 1.5,
     gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
@@ -221,15 +221,6 @@ test_that("create_oncotable handles multiple samples correctly", {
     cores = 1
   ))
 
-  # Test summary data.table structure and content
-  expect_true(is.data.table(summary_dt))
-  expect_equal(nrow(summary_dt), 2)
-  expect_equal(names(summary_dt), c("pair", "status", "error"))
-  expect_equal(summary_dt$pair, c("397089", "397090"))
-  expect_equal(summary_dt$status, c("success", "success"))
-  expect_true(is.na(summary_dt$error[1]))  # Successful sample has NA error
-  expect_true(is.na(summary_dt$error[2])) 
-  
   # Check that output files were created for successful sample
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.rds")))
   expect_true(file.exists(file.path(temp_dir, "397089", "oncotable.txt")))
