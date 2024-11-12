@@ -431,13 +431,13 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
 #' @title oncotable
 #' @description
 #'
-#' @param annotated_bcf Path to annotated.bcf file
+#' @param somatic_variant_annotations Path to annotated.bcf file
 #' @param fusions Path to fusion.rds file
-#' @param jabba_rds Path to jabba.simple.rds file
-#' @param complex Path to complex.rds file
+#' @param jabba_gg Path to jabba.simple.rds file
+#' @param events Path to complex.rds file
 #' @param signature_counts Path to signature_counts.txt file
 #' @param karyograph Optional path to the karyograph.rds file
-#' @param oncokb_maf Path to oncokb MAF file
+#' @param oncokb_snv Path to oncokb MAF file
 #' @param oncokb_cna Path to oncokb CNA file
 #' @param gencode_gr GRanges object with gencode annotations
 #' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
@@ -446,13 +446,13 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
 #' @export
 oncotable = function(
   pair,
-  annotated_bcf = NULL,
+  somatic_variant_annotations = NULL,
   fusions = NULL,
-  jabba_rds = NULL,
+  jabba_gg = NULL,
   karyograph = NULL,
-  complex = NULL,
+  events = NULL,
   signature_counts = NULL,
-  oncokb_maf = NULL,
+  oncokb_snv = NULL,
   oncokb_cna = NULL, 
   gencode,
   verbose = TRUE,
@@ -478,7 +478,7 @@ oncotable = function(
   ## collect complex events
   out <- rbind(
     out,
-    collect_complex_events(complex, verbose),
+    collect_complex_events(events, verbose),
     fill = TRUE,
     use.names = TRUE
   )
@@ -486,7 +486,7 @@ oncotable = function(
   ## collect copy number / jabba
   out <- rbind(
     out,
-    collect_copy_number_jabba(jabba_rds, pge, amp.thresh, del.thresh, verbose, karyograph),
+    collect_copy_number_jabba(jabba_gg, pge, amp.thresh, del.thresh, verbose, karyograph),
     fill = TRUE,
     use.names = TRUE
   )
@@ -502,7 +502,7 @@ oncotable = function(
   ## collect gene mutations
   out <- rbind(
     out,
-    collect_gene_mutations(annotated_bcf, jabba_rds, filter, verbose),
+    collect_gene_mutations(somatic_variant_annotations, jabba_gg, filter, verbose),
     fill = TRUE,
     use.names = TRUE
   )
@@ -510,7 +510,7 @@ oncotable = function(
   ## collect oncokb
   out <- rbind(
     out,
-    collect_oncokb(oncokb_maf, verbose),
+    collect_oncokb(oncokb_snv, verbose),
     fill = TRUE,
     use.names = TRUE
   )
@@ -578,7 +578,7 @@ create_oncotable <- function(
     }
 
     # Process each pair in parallel with error handling
-    results <- mclapply(seq_len(nrow(cohort)), function(i) {
+    mclapply(seq_len(nrow(cohort)), function(i) {
         tryCatch({
             row <- cohort[i,]
             
@@ -589,15 +589,15 @@ create_oncotable <- function(
             }
             
             # Validate required files exist
-            if (!file.exists(row$jabba_simple)) {
-                msg <- sprintf("JaBbA file not found for %s: %s", row$pair, row$jabba_simple)
+            if (!file.exists(row$jabba_gg)) {
+                msg <- sprintf("JaBbA file not found for %s: %s", row$pair, row$jabba_gg)
                 warning(msg)
                 return(NULL)
             }
 
             # Get ploidy from jabba output
             ploidy_ggraph <- tryCatch({
-                readRDS(row$jabba_simple)
+                readRDS(row$jabba_gg)
             }, error = function(e) {
                 msg <- sprintf("Error reading JaBbA file for %s: %s", row$pair, e$message)
                 warning(msg)
@@ -619,13 +619,13 @@ create_oncotable <- function(
             oncotable_result <- tryCatch({
                 oncotable(
                     pair = row$pair,
-                    annotated_bcf = row$annotated_bcf,
+                    somatic_variant_annotations = row$somatic_variant_annotations,
                     fusions = row$fusions,
-                    jabba_rds = row$jabba_simple,  # Changed from jabba_simple to jabba_rds
+                    jabba_gg = row$jabba_gg,
                     karyograph = row$karyograph,
-                    complex = row$events,          # Changed from events to complex
+                    events = row$events,
                     signature_counts = row$signature_counts,
-                    oncokb_maf = row$oncokb_maf,
+                    oncokb_snv = row$oncokb_snv,
                     oncokb_cna = row$oncokb_cna,
                     gencode = gencode,
                     verbose = TRUE,
@@ -645,21 +645,9 @@ create_oncotable <- function(
                 fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
             }
 
-            return(list(
-                pair = row$pair,
-                result = oncotable_result,
-                status = if(is.null(oncotable_result)) "failed" else "success"
-            ))
-
         }, error = function(e) {
             msg <- sprintf("Unexpected error processing %s: %s", cohort$pair[i], e$message)
             warning(msg)
-            return(list(
-                pair = cohort$pair[i],
-                result = NULL,
-                status = "failed",
-                error = e$message
-            ))
         })
     }, mc.cores = cores)
 
