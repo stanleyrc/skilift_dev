@@ -671,7 +671,6 @@ create_oncotable <- function(
     
     return(updated_cohort)
 }
-}
 
 #' @name create_filtered_events
 #' @title create_filtered_events 
