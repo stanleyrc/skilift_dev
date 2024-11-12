@@ -670,7 +670,6 @@ create_oncotable <- function(
     message(sprintf("\nProcessing complete - results written to %s", outdir))
     
     return(updated_cohort)
-}
 
 #' @name create_filtered_events
 #' @title create_filtered_events 
