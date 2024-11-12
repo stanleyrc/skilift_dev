@@ -683,111 +683,109 @@ create_oncotable <- function(
     return(summary_dt)
 }
 
-#' @name create_filtered_events
-#' @title create_filtered_events
+#' @name filtered_events_json
+#' @title filtered_events_json
 #' @description
+#'
 #' function to create filtered events json for case reports
-#' 
+#'
 #' @param pair patient id to be added to pgvdb or case reports
 #' @param oncotable oncotable task output
 #' @param jabba_gg JaBbA output ggraph or complex
 #' @param out_file path to write json
-#' @param temp_fix TRUE/FALSE whether to apply temporary fix
+#' @param cgc_file path to cgc file to annotate drivers
+#' @param oncokab_file path to oncokb gene tiers to annotate drivers
 #' @param return_table TRUE/FALSE whether to return the data.table that is used for creating the json
 #' @return data.table or NULL
 #' @export
-create_filtered_events <- function(
+#' @author Stanley Clarke, Tanubrata Dey
+
+filtered_events_json <- function(
     pair,
     oncotable,
     jabba_gg,
     out_file,
     temp_fix = FALSE,
     return_table = FALSE) {
-    # ... existing implementation ...
+
+    ot <- readRDS(oncotable)
+
+    # add a fusion_gene_coords column of NAs if no fusions
+    if (!"fusion_gene_coords" %in% colnames(ot)) {
+        ot[, fusion_genes := NA]
+        ot[, fusion_gene_coords := NA]
+    }
+    snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation)]
+    snvs <- snvs[!duplicated(variant.p)]
+    homdels <- ot[type == "homdel"]
+    amps <- ot[type == "amp"]
+    fusions <- ot[type == "fusion"]
+    possible_drivers <- rbind(snvs, homdels, amps, fusions)
+    filtered_events_columns <- c("gene", "fusion_genes", "id", "vartype", "type", "variant.g", "variant.p", "gene_location", "fusion_gene_coords")
+    if ("tier" %in% colnames(possible_drivers)) {
+        filtered_events_columns <- c(filtered_events_columns, "tier", "therapeutics", "resistances", "diagnoses", "prognoses")
+    }
+    if ("total_copies" %in% colnames(possible_drivers)) {
+        filtered_events_columns <- c(filtered_events_columns, "total_copies")
+    }
+    
+    res <- possible_drivers[, ..filtered_events_columns]
+    oncotable_col_to_filtered_events_col <- c(
+        "gene" = "gene",
+        "fusion_genes" = "fusion_genes",
+        "id" = "id",
+        "vartype" = "vartype",
+        "type" = "type",
+        "variant.g" = "Variant_g",
+        "variant.p" = "Variant",
+        "gene_location" = "Genome_Location",
+        "fusion_gene_coords" = "fusion_gene_coords",
+        "tier" = "Tier",
+        "therapeutics" = "therapeutics",
+        "resistances" = "resistances",
+        "diagnoses" = "diagnoses",
+        "prognoses" = "prognoses",
+        "total_copies" = "dosage"
+    )
+    intersected_columns <- intersect(filtered_events_columns, names(res))
+    setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
+
+    res <- res %>% unique(., by = c("gene", "Variant"))
+    if (nrow(res) > 0) {
+        res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
+        res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
+        res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
+        res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
+        res.mut <- res[!is.na(Variant), ]
+        if (nrow(res.mut) > 0) {
+            res.mut[, Variant := gsub("p.", "", Variant)]
+            res.mut[, vartype := "SNV"]
+            res.mut[type=="trunc", vartype := "DEL"]
+        }
+        res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
+        if (nrow(res.cn) > 0) {
+            jab <- readRDS(jabba_gg)
+            res.cn.gr <- GRanges(res.cn)
+            res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
+            res.cn.dt <- as.data.table(res.cn.gr)
+            res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
+            res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3))]
+            if (temp_fix) {
+                res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
+                res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
+            }
+            res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
+            res.final <- rbind(res.mut, res.cn.dt)
+        } else {
+            res.final <- res.mut
+            res.final[, c("seqnames", "start", "end") := NULL]
+        }
+        message(paste0("Writing json to ", out_file))
+        write_json(res.final, out_file, pretty = TRUE)
+        res.final[, sample := pair]
+        if (return_table) {
+            return(res.final)
+        }
+    }
 }
 
-#' @name lift_filtered_events
-#' @title lift_filtered_events
-#' @description
-#' Function to create filtered events json files for all samples in a Cohort object
-#'
-#' @param cohort Cohort object containing sample information
-#' @param output_data_dir Path to the data directory of the case-reports or pgv instance
-#' @param cores Number of cores to use for parallel processing (default: 1)
-#' @param temp_fix TRUE/FALSE whether to apply temporary fix in create_filtered_events (default: FALSE)
-#' @return None
-#' @export
-lift_filtered_events <- function(cohort, output_data_dir, cores = 1, temp_fix = FALSE) {
-    if (!inherits(cohort, "Cohort")) {
-        stop("Input must be a Cohort object")
-    }
-    
-    if (is.null(cohort$inputs) || nrow(cohort$inputs) == 0) {
-        stop("Cohort object contains no inputs")
-    }
-    
-    if (!dir.exists(output_data_dir)) {
-        dir.create(output_data_dir, recursive = TRUE)
-    }
-    
-    # Validate required columns exist
-    required_cols <- c("pair", "oncotable", "jabba_gg")
-    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
-    if (length(missing_cols) > 0) {
-        stop("Missing required columns in Cohort inputs: ", 
-             paste(missing_cols, collapse = ", "))
-    }
-    
-    # Process each sample in parallel
-    results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        tryCatch({
-            row <- cohort$inputs[i,]
-            pair <- row$pair
-            
-            # Create output directory for this sample
-            pair_outdir <- file.path(output_data_dir, pair)
-            if (!dir.exists(pair_outdir)) {
-                dir.create(pair_outdir, recursive = TRUE)
-            }
-            
-            # Construct output file path
-            out_file <- file.path(pair_outdir, "filtered.events.json")
-            
-            # Validate input files exist
-            if (!file.exists(row$oncotable)) {
-                warning(sprintf("Oncotable file not found for %s: %s", pair, row$oncotable))
-                return(FALSE)
-            }
-            if (!file.exists(row$jabba_gg)) {
-                warning(sprintf("JaBbA file not found for %s: %s", pair, row$jabba_gg))
-                return(FALSE)
-            }
-            
-            # Create filtered events json
-            create_filtered_events(
-                pair = pair,
-                oncotable = row$oncotable,
-                jabba_gg = row$jabba_gg,
-                out_file = out_file,
-                temp_fix = temp_fix,
-                return_table = FALSE
-            )
-            
-            return(TRUE)
-            
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", pair, e$message))
-            return(FALSE)
-        })
-    }, mc.cores = cores)
-    
-    # Summarize results
-    successful <- sum(unlist(results))
-    failed <- length(results) - successful
-    
-    message(sprintf(
-        "\nProcessing complete:\n- %d samples processed successfully\n- %d samples failed",
-        successful,
-        failed
-    ))
-}
