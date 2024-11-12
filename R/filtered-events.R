@@ -683,24 +683,20 @@ create_oncotable <- function(
     return(summary_dt)
 }
 
-#' @name filtered_events_json
-#' @title filtered_events_json
+#' @name create_filtered_events
+#' @title create_filtered_events
 #' @description
-#'
 #' function to create filtered events json for case reports
-#'
+#' 
 #' @param pair patient id to be added to pgvdb or case reports
 #' @param oncotable oncotable task output
 #' @param jabba_gg JaBbA output ggraph or complex
 #' @param out_file path to write json
-#' @param cgc_file path to cgc file to annotate drivers
-#' @param oncokab_file path to oncokb gene tiers to annotate drivers
+#' @param temp_fix TRUE/FALSE whether to apply temporary fix
 #' @param return_table TRUE/FALSE whether to return the data.table that is used for creating the json
 #' @return data.table or NULL
 #' @export
-#' @author Stanley Clarke, Tanubrata Dey
-
-filtered_events_json <- function(
+create_filtered_events <- function(
     pair,
     oncotable,
     jabba_gg,
@@ -789,3 +785,88 @@ filtered_events_json <- function(
     }
 }
 
+#' @name lift_filtered_events
+#' @title lift_filtered_events
+#' @description
+#' Function to create filtered events json files for all samples in a Cohort object
+#'
+#' @param cohort Cohort object containing sample information
+#' @param output_data_dir Path to the data directory of the case-reports or pgv instance
+#' @param cores Number of cores to use for parallel processing (default: 1)
+#' @param temp_fix TRUE/FALSE whether to apply temporary fix in create_filtered_events (default: FALSE)
+#' @return None
+#' @export
+lift_filtered_events <- function(cohort, output_data_dir, cores = 1, temp_fix = FALSE) {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+    
+    if (is.null(cohort$inputs) || nrow(cohort$inputs) == 0) {
+        stop("Cohort object contains no inputs")
+    }
+    
+    if (!dir.exists(output_data_dir)) {
+        dir.create(output_data_dir, recursive = TRUE)
+    }
+    
+    # Validate required columns exist
+    required_cols <- c("pair", "oncotable", "jabba_gg")
+    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns in Cohort inputs: ", 
+             paste(missing_cols, collapse = ", "))
+    }
+    
+    # Process each sample in parallel
+    results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        tryCatch({
+            row <- cohort$inputs[i,]
+            pair <- row$pair
+            
+            # Create output directory for this sample
+            pair_outdir <- file.path(output_data_dir, pair)
+            if (!dir.exists(pair_outdir)) {
+                dir.create(pair_outdir, recursive = TRUE)
+            }
+            
+            # Construct output file path
+            out_file <- file.path(pair_outdir, "filtered.events.json")
+            
+            # Validate input files exist
+            if (!file.exists(row$oncotable)) {
+                warning(sprintf("Oncotable file not found for %s: %s", pair, row$oncotable))
+                return(FALSE)
+            }
+            if (!file.exists(row$jabba_gg)) {
+                warning(sprintf("JaBbA file not found for %s: %s", pair, row$jabba_gg))
+                return(FALSE)
+            }
+            
+            # Create filtered events json
+            create_filtered_events(
+                pair = pair,
+                oncotable = row$oncotable,
+                jabba_gg = row$jabba_gg,
+                out_file = out_file,
+                temp_fix = temp_fix,
+                return_table = FALSE
+            )
+            
+            return(TRUE)
+            
+        }, error = function(e) {
+            warning(sprintf("Error processing %s: %s", pair, e$message))
+            return(FALSE)
+        })
+    }, mc.cores = cores)
+    
+    # Summarize results
+    successful <- sum(unlist(results))
+    failed <- length(results) - successful
+    
+    message(sprintf(
+        "\nProcessing complete:\n- %d samples processed successfully\n- %d samples failed",
+        successful,
+        failed
+    ))
+}
