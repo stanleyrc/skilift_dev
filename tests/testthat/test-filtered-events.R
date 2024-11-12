@@ -409,6 +409,45 @@ test_that("lift_filtered_events handles various input scenarios", {
   unlink(temp_dir, recursive = TRUE)
 })
 
+# integration test (only works on NYU hpc)
+test_that("create_oncotable works on real cohort", {
+  # Load real clinical pairs
+  clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
+  clinical_pairs = readRDS(clinical_pairs_path)
+  cohort <- Cohort$new(clinical_pairs[13:15], col_mapping = c("oncokb_snv" = "oncokb_maf_from_snpeff_all"))
+
+  # Create temp directory for output
+  temp_dir <- tempdir()
+
+  # Run create_oncotable and capture the returned cohort
+  updated_cohort <- (create_oncotable(
+    cohort = cohort,
+    amp_thresh_multiplier = 1.5,
+    gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
+    outdir = temp_dir,
+    cores = 15
+  ))
+
+  # Test that returned object is a Cohort
+  expect_true(inherits(updated_cohort, "Cohort"))
+
+  # Test that oncotable column exists in updated cohort
+  expect_true("oncotable" %in% names(updated_cohort$inputs))
+
+  # Test that output files were created for successful sample
+  test_pair_id <- "C46E0A12-024F-11EF-9EC7-77C4AC892824"
+  expect_true(file.exists(file.path(temp_dir, test_pair_id, "oncotable.rds")))
+
+  # Test that oncotable path is correctly set in cohort for successful sample
+  expect_equal(
+    updated_cohort$inputs[pair == test_pair_id, oncotable],
+    file.path(temp_dir, test_pair_id, "oncotable.rds")
+  )
+
+  # Cleanup
+  unlink(temp_dir, recursive = TRUE)
+
+})
 
 # test_that("oncotable produces expected output (fail-safe test)", {
 #   expected_oncotable <- readRDS(ot_test_paths$oncotable)
