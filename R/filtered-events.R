@@ -590,7 +590,7 @@ create_oncotable <- function(
         tryCatch({
             row <- cohort[i,]
             
-            # Create error log file for this pair
+            # Create output directory for this pair
             pair_outdir <- file.path(outdir, row$pair)
             if (!dir.exists(pair_outdir)) {
                 dir.create(pair_outdir, recursive = TRUE)
@@ -659,6 +659,10 @@ create_oncotable <- function(
         }, error = function(e) {
             msg <- sprintf("Unexpected error processing %s: %s", cohort$pair[i], e$message)
             warning(msg)
+        }, error = function(e) {
+            msg <- sprintf("Unexpected error processing %s: %s", cohort$pair[i], e$message)
+            warning(msg)
+            return(NULL)
         })
     }, mc.cores = cores)
 
@@ -670,6 +674,7 @@ create_oncotable <- function(
     message(sprintf("\nProcessing complete - results written to %s", outdir))
     
     return(updated_cohort)
+
 
 #' @name create_filtered_events
 #' @title create_filtered_events 
