@@ -88,6 +88,9 @@ Cohort <- R6Class("Cohort",
         reason = character()
       )
       
+      # Define metadata fields that should only check for NA/NULL
+      metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex")
+
       # Check each column for missing values
       for (col in names(self$inputs)) {
         # Skip pair column as it's our identifier
@@ -106,8 +109,8 @@ Cohort <- R6Class("Cohort",
           ))
         }
         
-        # For columns that should contain file paths, check if files exist
-        if (col %in% names(self$cohort_cols_to_x_cols)) {
+        # For non-metadata columns that should contain file paths, check if files exist
+        if (col %in% names(self$cohort_cols_to_x_cols) && !(col %in% metadata_fields)) {
           file_paths <- self$inputs[!is.na(get(col)), get(col)]
           for (path in file_paths) {
             if (!file.exists(path)) {
