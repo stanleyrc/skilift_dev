@@ -545,7 +545,7 @@ oncotable = function(
 #' @param gencode file to gencode annotations (uses v29lift37 by default)
 #' @param outdir path to directory in which to write oncotable outputs
 #' @param cores number of cores for parallel processing
-#' @return Named list of oncotable results
+#' @return None
 #' @export
 #' @author Shihab Dider, Joel Rosiene
 
@@ -663,24 +663,10 @@ create_oncotable <- function(
         })
     }, mc.cores = cores)
 
-    # Summarize results
-    successful <- sum(sapply(results, function(x) !is.null(x$result)))
-    failed <- length(results) - successful
+    # Print final message
+    message(sprintf("\nProcessing complete - results written to %s", outdir))
     
-    message(sprintf(
-        "\nProcessing complete:\n- %d samples processed successfully\n- %d samples failed",
-        successful,
-        failed
-    ))
-
-    # Create a summary data.table
-    summary_dt <- data.table(
-        pair = sapply(results, function(x) x$pair),
-        status = sapply(results, function(x) x$status),
-        error = sapply(results, function(x) if(is.null(x$error)) NA else x$error)
-    )
-    
-    return(summary_dt)
+    invisible(NULL)
 }
 
 #' @name create_filtered_events
