@@ -540,7 +540,7 @@ oncotable = function(
 #'
 #' function to create oncotable for use with filtered_events_json
 #'
-#' @param cohort data.table with columns: pair (required), annotated_bcf, signature_counts, fusions, jabba_simple, karyograph, events, oncokb_maf, oncokb_cna
+#' @param cohort Cohort object containing sample information
 #' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
 #' @param gencode file to gencode annotations (uses v29lift37 by default)
 #' @param outdir path to directory in which to write oncotable outputs
@@ -556,7 +556,9 @@ create_oncotable <- function(
     outdir,
     cores = 1) {
 
-    if (system("which bcftools", intern = TRUE) == "") {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
         stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
     } else {
         message("bcftools is available.")
@@ -577,8 +579,14 @@ create_oncotable <- function(
         dir.create(outdir, recursive = TRUE)
     }
 
-    # Process each pair in parallel with error handling
-    mclapply(seq_len(nrow(cohort)), function(i) {
+    # Create a copy of the cohort to modify
+    updated_cohort <- cohort
+    
+    # Add oncotable column if it doesn't exist
+    if (!"oncotable" %in% names(updated_cohort$inputs)) {
+        updated_cohort$inputs[, oncotable := NA_character_]
+    }
+    results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         tryCatch({
             row <- cohort[i,]
             
@@ -586,7 +594,9 @@ create_oncotable <- function(
             pair_outdir <- file.path(outdir, row$pair)
             if (!dir.exists(pair_outdir)) {
                 dir.create(pair_outdir, recursive = TRUE)
+                return(list(index = i, path = oncotable_path))
             }
+            return(NULL)
             
             # Validate required files exist
             if (!file.exists(row$jabba_gg)) {
@@ -641,7 +651,8 @@ create_oncotable <- function(
 
             if (!is.null(oncotable_result)) {
                 # Save successful results
-                saveRDS(oncotable_result, file.path(pair_outdir, "oncotable.rds"))
+                oncotable_path <- file.path(pair_outdir, "oncotable.rds")
+                saveRDS(oncotable_result, oncotable_path)
                 fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
             }
 
@@ -651,10 +662,14 @@ create_oncotable <- function(
         })
     }, mc.cores = cores)
 
-    # Print final message
+    # Update oncotable paths in the cohort
+    results <- Filter(Negate(is.null), results)
+    for (result in results) {
+        updated_cohort$inputs[result$index, oncotable := result$path]
+    }
     message(sprintf("\nProcessing complete - results written to %s", outdir))
     
-    invisible(NULL)
+    return(updated_cohort)
 }
 
 #' @name create_filtered_events
