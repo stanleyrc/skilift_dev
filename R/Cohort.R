@@ -267,7 +267,6 @@ Cohort <- R6Class("Cohort",
       
       result_dt <- data.table()
       
-      # browser()
       for (cohort_col in names(self$cohort_cols_to_x_cols)) {
         possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
         
