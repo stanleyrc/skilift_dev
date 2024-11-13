@@ -5,39 +5,26 @@
 \title{create_oncotable}
 \usage{
 create_oncotable(
-  pair,
-  annotated_bcf,
-  signature_counts = NULL,
-  fusions,
-  jabba_simple,
-  karyograph,
-  events,
-  gencode = NULL,
-  amp_thresh_multiplier = NULL,
-  outdir
+  cohort,
+  amp_thresh_multiplier = 1.5,
+  gencode = "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds",
+  outdir,
+  cores = 1
 )
 }
 \arguments{
-\item{pair}{patient id}
-
-\item{annotated_bcf}{bcf with variant annotations (snpeff)}
-
-\item{signature_counts}{output of Signatures task (optional)}
-
-\item{fusions}{output of fusions task}
-
-\item{jabba_simple}{jabba.simple.rds from JaBbA}
-
-\item{events}{output of events task}
-
-\item{gencode}{file to gencode annotations (uses v29lift37 by default)}
+\item{cohort}{data.table with columns: pair (required), annotated_bcf, signature_counts, fusions, jabba_simple, karyograph, events, oncokb_maf, oncokb_cna}
 
 \item{amp_thresh_multiplier}{amp.thresh for oncotable is amp_thresh_multiplier*ploidy}
 
+\item{gencode}{file to gencode annotations (uses v29lift37 by default)}
+
 \item{outdir}{path to directory in which to write oncotable outputs}
+
+\item{cores}{number of cores for parallel processing}
 }
 \value{
-data.table or NULL
+Named list of oncotable results
 }
 \description{
 function to create oncotable for use with filtered_events_json
