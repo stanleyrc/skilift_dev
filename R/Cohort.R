@@ -271,14 +271,25 @@ Cohort <- R6Class("Cohort",
         possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
         
         found_col <- NULL
+        # First try exact matches
         for (col in possible_cols) {
-          for (name in names(dt)) {
-            if (startsWith(name, col)) {
-              found_col <- name
-              break
-            }
+          if (col %in% names(dt)) {
+            found_col <- col
+            break
           }
-          if (!is.null(found_col)) break
+        }
+        
+        # If no exact match found, try prefix matches
+        if (is.null(found_col)) {
+          for (col in possible_cols) {
+            for (name in names(dt)) {
+              if (startsWith(name, col)) {
+                found_col <- name
+                break
+              }
+            }
+            if (!is.null(found_col)) break
+          }
         }
         
         if (!is.null(found_col)) {
