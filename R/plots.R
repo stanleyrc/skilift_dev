@@ -887,7 +887,7 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
 #' @export
 #' @author Johnathan Rafailov
 sigprofiler_decomposed_probs_json = function(probs,
-                                             is_indel,
+                                             is_indel = FALSE,
                                              data_dir,
                                              suffix = "_somatic",
                                              pairs = NULL,
@@ -1778,12 +1778,13 @@ dlrs = function(x) {
 #' @author Shihab Dider, Sukanya Panja
 create_mutations_catalog_json = function(
     sig_matrix_path,
-    is_indel,
+    is_indel = FALSE,
+    suffix = "_somatic",
     output_dir
 ) {
     sig_matrix = fread(sig_matrix_path)
     sig_matrix_dt = as.data.frame(sig_matrix)
-    samples = colnames(sig_matrix_dt)
+    samples = gsub(suffix, "", colnames(sig_matrix_dt))
     for(i in 2:(ncol(sig_matrix_dt))) { # skip first column as it has the tnc
         pair = samples[i]
 
@@ -1804,7 +1805,7 @@ create_mutations_catalog_json = function(
         }
         pair_data <- list(pair = pair, data = samp_data)
         system(paste("mkdir -p", paste0(output_dir, "/", pair)))
-        output_path = paste0(output_dir, "/", catalog_file_name)
+        output_path = paste0(output_dir, "/", pair, "/", catalog_file_name)
         write_json(
             pair_data,
             output_path,
