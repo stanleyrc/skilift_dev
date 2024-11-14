@@ -701,8 +701,9 @@ create_filtered_events <- function(
         ot[, fusion_genes := NA]
         ot[, fusion_gene_coords := NA]
     }
-    snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation)]
-    snvs <- snvs[!duplicated(variant.p)]
+    snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
+    snvs <- snvs[order(is.na(tier)), ]
+    snvs <- snvs[!duplicated(variant.p), ]
     homdels <- ot[type == "homdel"]
     amps <- ot[type == "amp"]
     fusions <- ot[type == "fusion"]
