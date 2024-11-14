@@ -520,16 +520,20 @@ create_somatic_json_oncokb = function(patient_id,
     merge(queries, by = "query.id", all = T) %>%
     merge(subject, by = "subject.id", all = T) %>%
     as.data.table()
+
+  
   mutations.dt[, ONCOGENIC := case_when(
                    is.na(ONCOGENIC) ~ "",
+                   grepl("Unknown", ONCOGENIC) ~ "",
                    T ~ ONCOGENIC)]
   mutations.dt[, MUTATION_EFFECT := case_when(
                    is.na(MUTATION_EFFECT) ~ "",
+                   grepl("Unknown", MUTATION_EFFECT) ~ "",
                    T ~ MUTATION_EFFECT)]
   mutations.dt[, HIGHEST_LEVEL := case_when(
                    HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL) ~ "",
                    T ~ gsub("LEVEL_", "", HIGHEST_LEVEL))]
-  
+  mutations.dt <- mutations.dt[FILTER == "PASS"]
 
   if (any(class(mutations.dt) == "data.table")) {
             seq_lengths <- gGnome::parse.js.seqlengths(
@@ -555,9 +559,9 @@ create_somatic_json_oncokb = function(patient_id,
             mutations.dt[, strand := NULL]
             # create an empty mutation annotation string, then add attributes to it if they exist
             mut_ann <- ""
-            if ("annotation" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0("Type: ", mutations.dt$annotation, "; ")
-            }
+            ## if ("annotation" %in% colnames(mutations.dt)) {
+            ##     mut_ann <- paste0("Type: ", mutations.dt$annotation, "; ")
+            ## }
             if ("gene" %in% colnames(mutations.dt)) {
                 mut_ann <- paste0(mut_ann, "Gene: ", mutations.dt$gene, "; ")
             }
@@ -571,7 +575,7 @@ create_somatic_json_oncokb = function(patient_id,
                 mut_ann <- paste0(mut_ann, "Genomic_variant: ", mutations.dt$variant.g, "; ")
             }
             if ("vaf" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "VAF: ", mutations.dt$vaf, "; ")
+                mut_ann <- paste0(mut_ann, "VAF: ", round(mutations.dt$vaf, 3), "; ")
             }
             if ("alt" %in% colnames(mutations.dt)) {
                 mut_ann <- paste0(mut_ann, "Alt_count: ", mutations.dt$alt, "; ")
