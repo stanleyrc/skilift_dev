@@ -370,7 +370,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
             diagnoses = dx_string,
             prognoses = px_string,
             fusion_gene_coords,
-            track = NA_character_,
+            track = "variants",
             source = "oncokb_fusions"
     )]
   }
@@ -478,6 +478,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
             minor_snv_copies,
             total_copies, 
             VAF,
+            vartype = "SNV",
             track = "variants",
             source = "oncokb_maf"
     )])
