@@ -47,7 +47,11 @@ Cohort <- R6Class("Cohort",
         activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
         matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
         hrdetect = c("hrdetect", "hrd"),
-        oncotable = c("oncotable")
+        oncotable = c("oncotable"),
+        estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
+        alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
+        insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
+        wgs_metrics = c("wgs_metrics", "wgs_stats")
       )
       
       # Merge user-provided mapping with default mapping
