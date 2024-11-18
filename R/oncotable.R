@@ -301,6 +301,7 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
     )
     return(oncokb_cna[, .(
             gene = HUGO_SYMBOL,
+            role = Role,
             value = min_cn,
             type = ifelse(
               ALTERATION == "Amplification",
@@ -362,6 +363,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
     non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
     out = non_silent_fusions[, .(
             gene = HUGO_SYMBOL,
+            role = Role,
             value = min_cn,
             vartype,
             tier = tier,
@@ -462,6 +464,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
     )
     return(oncokb[, .(
             gene = Hugo_Symbol, 
+            role = Role,
             variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
             variant.c = HGVSc,
             variant.p = HGVSp,
