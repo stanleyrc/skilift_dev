@@ -44,6 +44,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     germline_variant_annotations = c("gva1", "gva2"),
     oncokb_snv = c("osnv1", "osnv2"),
     oncokb_cna = c("ocna1", "ocna2"),
+    oncokb_fusions = c("ofus1", "ofus2"),
     jabba_gg = c("jgg1", "jgg2"),
     karyograph = c("kg1", "kg2"),
     balanced_jabba_gg = c("bjg1", "bjg2"),

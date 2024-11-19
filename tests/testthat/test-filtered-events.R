@@ -18,10 +18,11 @@ setup({
     karyograph = system.file('extdata/test_data/oncotable_test_data/karyograph.rds', package='Skilift'),
     # oncokb_maf = system.file('extdata/test_data/oncotable_test_data/oncokb.maf', package='Skilift'),
     oncokb_snvcn_maf = system.file('extdata/test_data/oncotable_test_data/oncokb_snvcn.maf', package='Skilift'),
-    oncokb_cna = system.file('extdata/test_data/oncotable_test_data/oncokb_cna.txt', package='Skilift')
+    oncokb_cna = system.file('extdata/test_data/oncotable_test_data/oncokb_cna.txt', package='Skilift'),
+    oncokb_fusions = system.file('extdata/test_data/oncotable_test_data/oncokb_fusions.tsv', package='Skilift')
   )
 
-  # gencode <<- process_gencode('~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds')
+  # gencode <<- process_gencode('/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds')
   test_rds_path <- system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift")
   gencode <<- process_gencode(test_rds_path)
 })
@@ -104,27 +105,96 @@ test_that("parse_oncokb_tier correctly assigns tiers", {
   expect_true(all(is.na(result$px_string)))
 })
 
-test_that("collect_oncokb handles missing file", {
-  result <- collect_oncokb(NULL, verbose = FALSE)
-  expect_equal(result$type, NA)
-  expect_equal(result$source, "oncokb_maf")
+test_that("collect_oncokb_fusions handles missing file", {
+  result <- collect_oncokb_fusions(NULL, gencode, verbose = FALSE)
+  expect_equal(result$vartype, NA)
+  expect_equal(result$source, "oncokb_fusions")
+  
+  result <- collect_oncokb_fusions("nonexistent.tsv", gencode, verbose = FALSE)
+  expect_equal(result$vartype, NA)
+  expect_equal(result$source, "oncokb_fusions")
 })
 
-test_that("collect_oncokb handles valid input", {
-  result <- collect_oncokb(ot_test_paths$oncokb_snvcn_maf, verbose = FALSE)
+test_that("collect_oncokb_fusions handles valid input", {
+  result <- collect_oncokb_fusions(ot_test_paths$oncokb_fusions, gencode, verbose = FALSE)
   
   # Check basic structure
   expect_true(is.data.table(result))
   expect_true(nrow(result) > 0)
   
   # Check required columns exist
-  expected_cols <- c("gene", "role", "variant.g", "variant.c", "variant.p", "annotation", "type", "tier", "tier_description", "therapeutics", "resistances", "diagnoses", "prognoses", "distance", "effect", "major_count", "minor_count", "major_snv_copies", "minor_snv_copies", "total_copies", "segment_cn", "ref", "alt", "VAF", "vartype", "track", "source")
+  expected_cols <- c("gene", "gene_summary", "role", "value", "vartype", "type",
+                    "tier", "tier_description", "variant_summary", "therapeutics",
+                    "resistances", "diagnoses", "prognoses", "effect",
+                    "effect_description", "fusion_genes", "fusion_gene_coords",
+                    "track", "source")
   expect_true(all(expected_cols %in% names(result)))
   
-  # Check values
+  # Check specific values
   expect_equal(result$track[1], "variants")
+  expect_equal(result$source[1], "oncokb_fusions")
   expect_true(all(result$tier %in% 1:3))
   expect_true(all(result$tier_description %in% c("Clinically Actionable", "Clinically Significant", "VUS")))
+  expect_true(all(result$vartype %in% c("fusion", "outframe_fusion")))
+  
+  # Check fusion gene coordinates format
+  expect_true(all(grepl("^[0-9XY]+:[0-9]+-[0-9]+.,", result$fusion_gene_coords)))
+})
+
+test_that("collect_oncokb_fusions handles empty input file", {
+  # Create temporary empty TSV file
+  temp_file <- tempfile(fileext = ".tsv")
+  empty_dt <- data.table(
+    FUSION = character(),
+    GENE_SUMMARY = character(),
+    Role = character(),
+    LEVEL_1 = character(),
+    LEVEL_2 = character(),
+    LEVEL_R1 = character(),
+    LEVEL_Dx1 = character(),
+    LEVEL_Px1 = character(),
+    ONCOGENIC = character(),
+    silent = logical(),
+    in.frame = logical()
+  )
+  fwrite(empty_dt, temp_file)
+  
+  result <- collect_oncokb_fusions(temp_file, gencode, verbose = FALSE)
+  expect_equal(result$vartype, NA)
+  expect_equal(result$source, "oncokb_fusions")
+  
+  unlink(temp_file)
+})
+
+test_that("collect_oncokb_fusions handles malformed gene names", {
+  # Create temporary TSV file with invalid gene names
+  temp_file <- tempfile(fileext = ".tsv")
+  malformed_dt <- data.table(
+    FUSION = c("INVALID1-INVALID2", "NONEXISTENT1-NONEXISTENT2"),
+    Hugo_Symbol = c("INVALID1-INVALID2", "NONEXISTENT1-NONEXISTENT2"),
+    GENE_SUMMARY = c("Test summary 1", "Test summary 2"),
+    VARIANT_SUMMARY = c("Test summary 1", "Test summary 2"),
+    min_cn = c(2, 2),
+    Role = c("Oncogene", "TSG"),
+    LEVEL_1 = c(NA, NA),
+    LEVEL_2 = c(NA, NA),
+    LEVEL_R1 = c(NA, NA),
+    LEVEL_Dx1 = c(NA, NA),
+    LEVEL_Px1 = c(NA, NA),
+    ONCOGENIC = c("Oncogenic", "Likely Oncogenic"),
+    silent = c(FALSE, FALSE),
+    in.frame = c(TRUE, FALSE),
+    MUTATION_EFFECT = c("Missense", "Truncating"),
+    MUTATION_EFFECT_DESCRIPTION = c("Test effect 1", "Test effect 2")
+  )
+  fwrite(malformed_dt, temp_file)
+  
+  result <- collect_oncokb_fusions(temp_file, gencode, verbose = FALSE)
+  # Should still return a valid data.table with NA coordinates for invalid genes
+  expect_true(is.data.table(result))
+  expect_true(all(is.na(result$fusion_gene_coords)))
+  
+  unlink(temp_file)
 })
 
 test_that("collect_oncokb_cna handles missing file", {
@@ -159,7 +229,7 @@ test_that("oncotable produces expected output", {
   result_oncotable <- suppressWarnings(oncotable(
     pair = "397089",
     somatic_variant_annotations = ot_test_paths$unit_annotated_bcf,
-    fusions = ot_test_paths$fusions,
+    oncokb_fusions = ot_test_paths$oncokb_fusions,
     jabba_gg = ot_test_paths$jabba_simple_gg,
     events = ot_test_paths$complex,
     signature_counts = NULL,  # Assuming signature_counts is not available in test paths
@@ -167,7 +237,7 @@ test_that("oncotable produces expected output", {
     verbose = TRUE,
     karyograph = ot_test_paths$karyograph,
     oncokb_snv = ot_test_paths$oncokb_snvcn_maf,
-    oncokb_cna = ot_test_paths$oncokb_cna
+    oncokb_cna = ot_test_paths$oncokb_cna,
   ))
 
   # saveRDS(result_oncotable, ot_test_paths$unit_oncotable)
@@ -182,9 +252,9 @@ test_that("create_oncotable handles Cohort objects correctly", {
       ot_test_paths$unit_annotated_bcf,
       "non_existent_file.bcf"
     ),
-    fusions = c(
-      ot_test_paths$fusions,
-      ot_test_paths$fusions
+    oncokb_fusions = c(
+      ot_test_paths$oncokb_fusions,
+      ot_test_paths$oncokb_fusions
     ),
     jabba_gg = c(
       ot_test_paths$jabba_simple_gg,
@@ -283,12 +353,13 @@ test_that("create_filtered_events creates correct output", {
   
   # Test data.table structure
   expect_true(is.data.table(result))
-  expect_true(all(c(
+  expected_colnames <- c(
     "gene", "fusion_genes", "id", "vartype", "type", "Variant_g", 
     "Variant", "Genome_Location", "fusion_gene_coords", "Tier",
-    "therapeutics", "resistances", "diagnoses", "prognoses", "dosage",
+    "therapeutics", "resistances", "diagnoses", "prognoses", "total_copies",
     "seqnames", "start", "end", "sample"
-  ) %in% names(result)))
+  )
+  expect_true(all(expected_colnames %in% names(result)))
   
   # Test JSON file creation
   expect_true(file.exists(out_file))
@@ -310,7 +381,7 @@ test_that("create_filtered_events creates correct output", {
   )
 
   expect_true(all(result_no_oncokb$tier == ""))
-  expect_true(all(result_no_oncokb$dosage == ""))
+  expect_true(all(result_no_oncokb$total_copies == ""))
 
   # Test without return_table
   result_no_return <- create_filtered_events(
@@ -366,12 +437,6 @@ test_that("lift_filtered_events handles various input scenarios", {
   expect_true(dir.exists(file.path(non_existent_dir, "397089")))
   expect_true(file.exists(file.path(non_existent_dir, "397089", "filtered.events.json")))
   
-  # Test: Existing output directory
-  existing_dir <- file.path(temp_dir, "existing")
-  dir.create(existing_dir)
-  lift_filtered_events(complete_cohort, existing_dir)
-  expect_true(file.exists(file.path(existing_dir, "397089", "filtered.events.json")))
-  
   # Test: Invalid input (not a Cohort object)
   expect_error(
     lift_filtered_events(data.table(), temp_dir),
@@ -395,15 +460,19 @@ test_that("lift_filtered_events handles various input scenarios", {
     all = FALSE
   )
   
+  # Test: Existing output directory
+  existing_dir <- file.path(temp_dir, "existing")
+  dir.create(existing_dir)
+  lift_filtered_events(complete_cohort, existing_dir)
+  expect_true(file.exists(file.path(existing_dir, "397089", "filtered.events.json")))
+  
   # Test: Output file content validation
   json_content <- jsonlite::fromJSON(
     file.path(existing_dir, "397089", "filtered.events.json")
   )
   expect_true(is.data.frame(json_content))
-  expect_true(all(c(
-    "gene", "fusion_genes", "id", "vartype", "type",
-    "Variant_g", "Variant", "Genome_Location", "fusion_gene_coords"
-  ) %in% names(json_content)))
+  expected_colnames <- c("gene", "id", "vartype", "type", "Variant_g", "Variant", "Genome_Location", "Tier", "total_copies", "seqnames", "start", "end", "therapeutics", "resistances", "prognoses", "fusion_genes") 
+  expect_true(all(expected_colnames %in% names(json_content)))
   
   # Cleanup
   unlink(temp_dir, recursive = TRUE)
@@ -417,7 +486,7 @@ test_that("create_oncotable works on real cohort", {
   # Load real clinical pairs
   clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
   clinical_pairs = readRDS(clinical_pairs_path)
-  cohort <- suppressWarnings(Cohort$new(clinical_pairs[13:15], col_mapping = c("oncokb_snv" = "oncokb_maf_from_snpeff_all")))
+  cohort <- suppressWarnings(Cohort$new(clinical_pairs[13:15], col_mapping = c("oncokb_snv" = "oncokb_maf")))
 
   # Create temp directory for output
   temp_dir <- tempdir()
@@ -458,7 +527,7 @@ test_that("create_oncotable works on real cohort", {
 #   result_oncotable <- suppressWarnings(oncotable(
 #     pair = "397089",
 #     annotated_bcf = ot_test_paths$annotated_bcf,
-#     fusions = ot_test_paths$fusions,
+#     oncokb_fusions = ot_test_paths$fusions,
 #     jabba_rds = ot_test_paths$jabba_simple_gg,
 #     complex = ot_test_paths$complex,
 #     signature_counts = NULL,  # Assuming signature_counts is not available in test paths
@@ -475,26 +544,26 @@ DEBUG <- FALSE
 if (DEBUG) 
 {
 
-# why is create_oncotable failing after memrge?
-# conclusion: missing min_cn in new oncokb_cna
+# why is create_oncotable failing after merge?
+# conclusion: missing min_cn in new oncokb_cna, some typos, wrong gencode file
 
 clinical_pairs_path = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/pairs.20241119_105207.rds"
 clinical_pairs = readRDS(clinical_pairs_path)
 cohort <- suppressWarnings(Cohort$new(clinical_pairs[14]))
 row <- cohort$inputs[1,]
-
-# devtools::load_all()
-oncotable(
+gc = process_gencode('/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds')
+devtools::load_all()
+ot <- oncotable(
     pair = row$pair,
     somatic_variant_annotations = row$somatic_variant_annotations,
-    fusions = row$fusions,
+    oncokb_fusions = clinical_pairs[14]$oncokb_fusions,
     jabba_gg = row$jabba_gg,
     karyograph = row$karyograph,
     events = row$events,
     signature_counts = row$signature_counts,
     oncokb_snv = row$oncokb_snv,
     oncokb_cna = row$oncokb_cna,
-    gencode = gencode,
+    gencode = gc,
     verbose = TRUE,
     amp.thresh = 2,
     filter = "PASS",
@@ -506,5 +575,6 @@ oncotable(
 
 file.copy(row$oncokb_snv, ot_test_paths$oncokb_snvcn_maf, overwrite = TRUE)
 file.copy(row$oncokb_cna, ot_test_paths$oncokb_cna, overwrite = TRUE)
+file.copy(row$oncokb_fusions, ot_test_paths$oncokb_fusions, overwrite = TRUE)
 
 }

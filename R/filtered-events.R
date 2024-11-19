@@ -301,6 +301,7 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
     )
     return(oncokb_cna[, .(
             gene = HUGO_SYMBOL,
+            gene_summary = GENE_SUMMARY,
             role = Role,
             value = min_cn,
             type = ifelse(
@@ -310,11 +311,13 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
             ),
             tier = tier,
             tier_description = tier_factor,
+            variant_summary = VARIANT_SUMMARY,
             therapeutics = tx_string,
             resistances = rx_string,
             diagnoses = dx_string,
             prognoses = px_string,
             effect = MUTATION_EFFECT,
+            effect_description = MUTATION_EFFECT_DESCRIPTION,
             track = "scna",
             source = "oncokb_cna"
     )])
@@ -335,7 +338,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
   out = data.table(vartype = NA, source = 'oncokb_fusions')
   if (is.null(oncokb_fusions) || !file.exists(oncokb_fusions)) {
     if (verbose) message('OncoKB Fusions file is missing or does not exist.')
-    return()
+    return(out)
   }
 
   oncokb_fusions <- data.table::fread(oncokb_fusions)
@@ -354,25 +357,34 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
 
     if (!NROW(non_silent_fusions) > 0) return(out)
 
-    genes = strsplit(non_silent_fusions$FUSIONS, "-")
+    genes = strsplit(non_silent_fusions$FUSION, "-")
     genes_matrix = do.call(rbind, genes)
     ixA = match(genes_matrix[,1], pge$gene_name)
     ixB = match(genes_matrix[,2], pge$gene_name)
+    # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
+    ixA = ixA[!is.na(ixA)]
+    ixB = ixB[!is.na(ixB)]
     coordA = gUtils::gr.string(pge[ixA])
     coordB = gUtils::gr.string(pge[ixB])
+    non_silent_fusions$fusion_genes = paste(genes_matrix[,1], genes_matrix[,2], sep = ",")
     non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
     out = non_silent_fusions[, .(
-            gene = HUGO_SYMBOL,
+            gene = Hugo_Symbol,
+            gene_summary = GENE_SUMMARY,
             role = Role,
             value = min_cn,
             vartype,
+            type = vartype,
             tier = tier,
             tier_description = tier_factor,
+            variant_summary = VARIANT_SUMMARY,
             therapeutics = tx_string,
             resistances = rx_string,
             diagnoses = dx_string,
             prognoses = px_string,
             effect = MUTATION_EFFECT,
+            effect_description = MUTATION_EFFECT_DESCRIPTION,
+            fusion_genes,
             fusion_gene_coords,
             track = "variants",
             source = "oncokb_fusions"
@@ -464,6 +476,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
     )
     return(oncokb[, .(
             gene = Hugo_Symbol, 
+            gene_summary = GENE_SUMMARY,
             role = Role,
             variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
             variant.c = HGVSc,
@@ -472,12 +485,14 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
             type = snpeff_ontology,
             tier = tier,
             tier_description = tier_factor,
+            variant_summary = VARIANT_SUMMARY,
             therapeutics = tx_string,
             resistances = rx_string,
             diagnoses = dx_string,
             prognoses = px_string,
             distance = NA_integer_,
             effect = MUTATION_EFFECT,
+            effect_description = MUTATION_EFFECT_DESCRIPTION,
             major_count = major.count, 
             minor_count = minor.count, 
             major_snv_copies, 
@@ -522,6 +537,7 @@ oncotable = function(
   signature_counts = NULL,
   oncokb_snv = NULL,
   oncokb_cna = NULL, 
+  oncokb_fusions = NULL,
   gencode,
   verbose = TRUE,
   amp.thresh = 4,
@@ -537,11 +553,22 @@ oncotable = function(
   }
 
   ## collect gene fusions
-  out <- rbind(out, collect_gene_fusions(
-    fusions,
-    pge,
-    verbose
-  ), fill = TRUE, use.names = TRUE)
+  # prefer fusions from oncokb
+  if (!is.null(oncokb_fusions) && file.exists(oncokb_fusions)){
+    out <- rbind(
+      out,
+      collect_oncokb_fusions(oncokb_fusions, pge, verbose),
+      fill = TRUE,
+      use.names = TRUE
+    )
+  } else {
+    out <- rbind(
+      out,
+      collect_gene_fusions(fusions, pge, verbose),
+      fill = TRUE,
+      use.names = TRUE
+    )
+  }
 
   ## collect complex events
   out <- rbind(
@@ -551,37 +578,41 @@ oncotable = function(
     use.names = TRUE
   )
 
-  ## collect copy number / jabba
-  out <- rbind(
-    out,
-    collect_copy_number_jabba(jabba_gg, pge, amp.thresh, del.thresh, verbose, karyograph),
-    fill = TRUE,
-    use.names = TRUE
-  )
-
-  ## collect oncokb_cna
-  out <- rbind(
-    out,
-    collect_oncokb_cna(oncokb_cna, verbose),
-    fill = TRUE,
-    use.names = TRUE
-  )
+  ## collect copy number
+  # prefer oncokb cna
+  if (!is.null(oncokb_cna) && file.exists(oncokb_cna)){
+    out <- rbind(
+      out,
+      collect_oncokb_cna(oncokb_cna, verbose),
+      fill = TRUE,
+      use.names = TRUE
+    )
+  } else {
+    out <- rbind(
+      out,
+      collect_copy_number_jabba(jabba_gg, pge, amp.thresh, del.thresh, verbose, karyograph),
+      fill = TRUE,
+      use.names = TRUE
+    )
+  }
 
   ## collect gene mutations
-  out <- rbind(
-    out,
-    collect_gene_mutations(somatic_variant_annotations, jabba_gg, filter, verbose),
-    fill = TRUE,
-    use.names = TRUE
-  )
-
-  ## collect oncokb
-  out <- rbind(
-    out,
-    collect_oncokb(oncokb_snv, verbose),
-    fill = TRUE,
-    use.names = TRUE
-  )
+  # prefer oncokb snv
+  if (!is.null(oncokb_snv) && file.exists(oncokb_snv)){
+    out <- rbind(
+      out,
+      collect_oncokb(oncokb_snv, verbose),
+      fill = TRUE,
+      use.names = TRUE
+    )
+  } else {
+    out <- rbind(
+      out,
+      collect_gene_mutations(somatic_variant_annotations, jabba_gg, filter, verbose),
+      fill = TRUE,
+      use.names = TRUE
+    )
+  }
 
   ## add gene locations
   gene_locations = readRDS(system.file("extdata", "data", "gene_locations.rds", package = "Skilift"))
@@ -597,6 +628,9 @@ oncotable = function(
 
   # remove all rows for which data was not passed 
   out <- out[!is.na(type)]
+
+  # coerce all empty strings to NA without affecting columns of levels
+  out <- out[, lapply(.SD, function(x) ifelse(as.character(x) == "", NA_character_, as.character(x)))]
 
   if (verbose) message('done processing sample')
   return(out)
@@ -620,7 +654,7 @@ oncotable = function(
 create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
-    gencode = "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds",
+    gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
     outdir,
     cores = 1) {
 
@@ -638,8 +672,8 @@ create_oncotable <- function(
         message("bcftools is available.")
     }
 
-    if (gencode == "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds") {
-        message("using default gencode: ~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds")
+    if (gencode == "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds") {
+        message("using default gencode: /gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds")
     }
 
     gencode <- process_gencode(gencode)
@@ -704,6 +738,7 @@ create_oncotable <- function(
                     signature_counts = row$signature_counts,
                     oncokb_snv = row$oncokb_snv,
                     oncokb_cna = row$oncokb_cna,
+                    oncokb_fusions = row$oncokb_fusions,
                     gencode = gencode,
                     verbose = TRUE,
                     amp.thresh = amp_thresh,
@@ -778,32 +813,36 @@ create_filtered_events <- function(
     amps <- ot[type == "amp"]
     fusions <- ot[type == "fusion"]
     possible_drivers <- rbind(snvs, homdels, amps, fusions)
-    filtered_events_columns <- c("gene", "fusion_genes", "id", "vartype", "type", "variant.g", "variant.p", "gene_location", "fusion_gene_coords")
-    if ("tier" %in% colnames(possible_drivers)) {
-        filtered_events_columns <- c(filtered_events_columns, "tier", "therapeutics", "resistances", "diagnoses", "prognoses")
-    }
-    if ("total_copies" %in% colnames(possible_drivers)) {
-        filtered_events_columns <- c(filtered_events_columns, "total_copies")
-    }
-    
-    res <- possible_drivers[, ..filtered_events_columns]
+
     oncotable_col_to_filtered_events_col <- c(
+        "id" = "id",
         "gene" = "gene",
         "fusion_genes" = "fusion_genes",
-        "id" = "id",
+        "fusion_gene_coords" = "fusion_gene_coords",
         "vartype" = "vartype",
         "type" = "type",
         "variant.g" = "Variant_g",
         "variant.p" = "Variant",
+        "total_copies" = "total_copies",
+        "segment_cn" = "segment_cn",
+        "ref" = "ref",
+        "alt" = "alt",
+        "VAF" = "VAF",
         "gene_location" = "Genome_Location",
-        "fusion_gene_coords" = "fusion_gene_coords",
         "tier" = "Tier",
+        "role" = "role",
+        "gene_summary" = "gene_summary",
+        "variant_summary" = "variant_summary",
+        "effect" = "effect",
+        "effect_description" = "effect_description",
         "therapeutics" = "therapeutics",
         "resistances" = "resistances",
         "diagnoses" = "diagnoses",
-        "prognoses" = "prognoses",
-        "total_copies" = "dosage"
+        "prognoses" = "prognoses"
     )
+    filtered_events_columns <- names(possible_drivers)[names(possible_drivers) %in% names(oncotable_col_to_filtered_events_col)]
+    
+    res <- possible_drivers[, ..filtered_events_columns]
     intersected_columns <- intersect(filtered_events_columns, names(res))
     setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
 
@@ -835,7 +874,6 @@ create_filtered_events <- function(
             res.final <- rbind(res.mut, res.cn.dt)
         } else {
             res.final <- res.mut
-            res.final[, c("seqnames", "start", "end") := NULL]
         }
         write_json(res.final, out_file, pretty = TRUE)
         res.final[, sample := pair]
