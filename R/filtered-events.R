@@ -301,6 +301,7 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
     )
     return(oncokb_cna[, .(
             gene = HUGO_SYMBOL,
+            role = Role,
             value = min_cn,
             type = ifelse(
               ALTERATION == "Amplification",
@@ -313,11 +314,72 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
             resistances = rx_string,
             diagnoses = dx_string,
             prognoses = px_string,
+            effect = MUTATION_EFFECT,
             track = "scna",
             source = "oncokb_cna"
     )])
   }
   return(data.table(type = NA, source = 'oncokb_cna'))
+}
+
+
+#' @title collect_oncokb_fusions
+#' @description
+#' Collects OncoKB Fusion data from a specified file and processes it.
+#'
+#' @param oncokb_fusions Path to the oncokb fusions file.
+#' @param verbose Logical flag to indicate if messages should be printed.
+#' @return A data.table containing processed OncoKB Fusion information.
+#' @author Kevin Hadi
+collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
+  out = data.table(vartype = NA, source = 'oncokb_fusions')
+  if (is.null(oncokb_fusions) || !file.exists(oncokb_fusions)) {
+    if (verbose) message('OncoKB Fusions file is missing or does not exist.')
+    return()
+  }
+
+  oncokb_fusions <- data.table::fread(oncokb_fusions)
+  
+  if (NROW(oncokb_fusions) > 0) {
+    oncokb_fusions = parse_oncokb_tier(
+        oncokb_fusions, 
+        tx_cols = c("LEVEL_1", "LEVEL_2"), 
+        rx_cols = c("LEVEL_R1"),
+        dx_cols = c("LEVEL_Dx1"),
+        px_cols = c("LEVEL_Px1")
+    )
+    
+    non_silent_fusions <- oncokb_fusions[silent == FALSE, ] # already de-duped
+    non_silent_fusions[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')]
+
+    if (!NROW(non_silent_fusions) > 0) return(out)
+
+    genes = strsplit(non_silent_fusions$FUSIONS, "-")
+    genes_matrix = do.call(rbind, genes)
+    ixA = match(genes_matrix[,1], pge$gene_name)
+    ixB = match(genes_matrix[,2], pge$gene_name)
+    coordA = gUtils::gr.string(pge[ixA])
+    coordB = gUtils::gr.string(pge[ixB])
+    non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
+    out = non_silent_fusions[, .(
+            gene = HUGO_SYMBOL,
+            role = Role,
+            value = min_cn,
+            vartype,
+            tier = tier,
+            tier_description = tier_factor,
+            therapeutics = tx_string,
+            resistances = rx_string,
+            diagnoses = dx_string,
+            prognoses = px_string,
+            effect = MUTATION_EFFECT,
+            fusion_gene_coords,
+            track = "variants",
+            source = "oncokb_fusions"
+    )]
+  }
+
+  return(out)
 }
 
 #' 
@@ -402,6 +464,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
     )
     return(oncokb[, .(
             gene = Hugo_Symbol, 
+            role = Role,
             variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
             variant.c = HGVSc,
             variant.p = HGVSp,
@@ -414,12 +477,17 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
             diagnoses = dx_string,
             prognoses = px_string,
             distance = NA_integer_,
-            major.count, 
-            minor.count, 
+            effect = MUTATION_EFFECT,
+            major_count = major.count, 
+            minor_count = minor.count, 
             major_snv_copies, 
             minor_snv_copies,
             total_copies, 
+            segment_cn,
+            ref,
+            alt,
             VAF,
+            vartype = "SNV",
             track = "variants",
             source = "oncokb_maf"
     )])
