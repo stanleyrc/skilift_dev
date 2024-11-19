@@ -410,11 +410,14 @@ test_that("lift_filtered_events handles various input scenarios", {
 })
 
 # integration test (only works on NYU hpc)
+will_run_integrations = FALSE
+if (will_run_integrations) {
+
 test_that("create_oncotable works on real cohort", {
   # Load real clinical pairs
   clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
   clinical_pairs = readRDS(clinical_pairs_path)
-  cohort <- Cohort$new(clinical_pairs[13:15], col_mapping = c("oncokb_snv" = "oncokb_maf_from_snpeff_all"))
+  cohort <- suppressWarnings(Cohort$new(clinical_pairs[13:15], col_mapping = c("oncokb_snv" = "oncokb_maf_from_snpeff_all")))
 
   # Create temp directory for output
   temp_dir <- tempdir()
@@ -465,4 +468,36 @@ test_that("create_oncotable works on real cohort", {
 #
 #   expect_equal(result_oncotable, expected_oncotable)
 # })
+}
 
+## Debug
+DEBUG <- FALSE
+if (DEBUG) 
+{
+
+# why is create_oncotable failing after memrge?
+
+clinical_pairs_path = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/pairs.20241119_105207.rds"
+clinical_pairs = readRDS(clinical_pairs_path)
+cohort <- suppressWarnings(Cohort$new(clinical_pairs[14]))
+row <- cohort$inputs[1,]
+
+# devtools::load_all()
+oncotable(
+    pair = row$pair,
+    somatic_variant_annotations = row$somatic_variant_annotations,
+    fusions = row$fusions,
+    jabba_gg = row$jabba_gg,
+    karyograph = row$karyograph,
+    events = row$events,
+    signature_counts = row$signature_counts,
+    oncokb_snv = row$oncokb_snv,
+    oncokb_cna = row$oncokb_cna,
+    gencode = gencode,
+    verbose = TRUE,
+    amp.thresh = 2,
+    filter = "PASS",
+    del.thresh = 0.5
+)
+
+}
