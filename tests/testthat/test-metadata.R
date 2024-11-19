@@ -1466,7 +1466,7 @@ test_that("add_coverage_parameters processes tumor coverage correctly", {
     expect_true(is.numeric(result$cov_slope))
     expect_true(is.numeric(result$cov_intercept))
     
-    unlink(temp_file)
+    unlink(coverage_file)
 })
 
 test_that("add_coverage_parameters handles NULL input gracefully", {
@@ -1496,7 +1496,7 @@ test_that("add_coverage_parameters maintains data.table structure", {
     # Check that original columns are preserved
     expect_true(all(names(metadata) %in% names(result)))
     
-    unlink(temp_file)
+    unlink(coverage_file)
 })
 
 test_that("add_coverage_parameters calculates parameters correctly", {
@@ -1520,7 +1520,7 @@ test_that("add_coverage_parameters calculates parameters correctly", {
     expect_equal(result$cov_slope, expected_slope)
     expect_equal(result$cov_intercept, expected_intercept)
     
-    unlink(temp_file)
+    unlink(coverage_file)
 })
 
 test_that("add_coverage_parameters handles invalid coverage data", {
@@ -1532,7 +1532,7 @@ test_that("add_coverage_parameters handles invalid coverage data", {
     coverage_file <- create_mock_coverage(field = "wrong_field")
     expect_error(add_coverage_parameters(metadata, coverage_file))
     
-    unlink(temp_file)
+    unlink(coverage_file)
 })
 
 test_that("add_coverage_parameters requires purity and ploidy", {
@@ -2558,8 +2558,7 @@ if (DEBUG) {
 # why is add_metadata so slow?
 # hypothesis: add_variant_counts
 # result: het_pileups, tumor_coverage, somatic_snvs, jabba_gg cause slow down
-# conclusion: operating on large objects slows things down, add_variant_counts (sage_count)
-good candidate for optimization
+# conclusion: operating on large objects slows things down, add_variant_counts (sage_count) good candidate for optimization
 
 metadata <- initialize_metadata_columns("TEST001")
 clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
