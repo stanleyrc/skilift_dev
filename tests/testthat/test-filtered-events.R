@@ -16,7 +16,7 @@ setup({
     complex = system.file('extdata/test_data/oncotable_test_data/complex.rds', package='Skilift'),
     fusions = system.file('extdata/test_data/oncotable_test_data/fusions.rds', package='Skilift'),
     karyograph = system.file('extdata/test_data/oncotable_test_data/karyograph.rds', package='Skilift'),
-    oncokb_maf = system.file('extdata/test_data/oncotable_test_data/oncokb.maf', package='Skilift'),
+    # oncokb_maf = system.file('extdata/test_data/oncotable_test_data/oncokb.maf', package='Skilift'),
     oncokb_snvcn_maf = system.file('extdata/test_data/oncotable_test_data/oncokb_snvcn.maf', package='Skilift'),
     oncokb_cna = system.file('extdata/test_data/oncotable_test_data/oncokb_cna.txt', package='Skilift')
   )
@@ -118,7 +118,7 @@ test_that("collect_oncokb handles valid input", {
   expect_true(nrow(result) > 0)
   
   # Check required columns exist
-  expected_cols <- c("gene", "variant.g", "variant.c", "variant.p", "annotation", "type", "tier", "tier_description", "therapeutics", "resistances", "diagnoses", "prognoses", "distance", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies", "total_copies", "VAF", "track", "source")
+  expected_cols <- c("gene", "role", "variant.g", "variant.c", "variant.p", "annotation", "type", "tier", "tier_description", "therapeutics", "resistances", "diagnoses", "prognoses", "distance", "effect", "major_count", "minor_count", "major_snv_copies", "minor_snv_copies", "total_copies", "segment_cn", "ref", "alt", "VAF", "vartype", "track", "source")
   expect_true(all(expected_cols %in% names(result)))
   
   # Check values
@@ -476,6 +476,7 @@ if (DEBUG)
 {
 
 # why is create_oncotable failing after memrge?
+# conclusion: missing min_cn in new oncokb_cna
 
 clinical_pairs_path = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/pairs.20241119_105207.rds"
 clinical_pairs = readRDS(clinical_pairs_path)
@@ -499,5 +500,11 @@ oncotable(
     filter = "PASS",
     del.thresh = 0.5
 )
+
+# update oncotable_test_data with new oncokb_*
+# copy file in row to ot_test_paths
+
+file.copy(row$oncokb_snv, ot_test_paths$oncokb_snvcn_maf, overwrite = TRUE)
+file.copy(row$oncokb_cna, ot_test_paths$oncokb_cna, overwrite = TRUE)
 
 }
