@@ -1,3 +1,6 @@
+
+
+
 library(VariantAnnotation)
 library(skidb)
 library(Biostrings)
@@ -458,6 +461,172 @@ create_gwalk_json = function(plot_metadata, datadir, settings = internal_setting
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
+create_somatic_json_oncokb = function(patient_id,
+                                snvplicity_gr,
+                                oncokb_maf,
+                                settings,
+                                datadir,
+                                yfield,
+                                ref = "hg19") {
+  somatic_json_path <- file.path(
+    datadir,
+    patient_id,
+    "mutations.json"
+  )
+
+  snvplicity_outputs = readRDS(snvplicity_gr)
+  oncokb_maf = fread(oncokb_maf)
+
+  gr_oncokb = gUtils::dt2gr(oncokb_maf)
+  gr_oncokb$ALT = gr_oncokb$Allele
+  gr_snvcn = snvplicity_outputs
+
+  ov = gUtils::gr.findoverlaps(gr_oncokb,
+                               gr_snvcn,
+                               by = "ALT",
+                               type = "equal")
+
+  ovQuery = data.table(query.id = integer(0), subject.id = integer(0))
+  if (NROW(ov) > 0)
+    ovQuery = gUtils::gr2dt(ov)[, .(query.id, subject.id)]
+  missingIds = setdiff(1:NROW(gr_oncokb), ov$query.id)
+
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+
+  if (length(missingIds) > 0) {
+    dt_oncokb = gUtils::gr2dt(gr_oncokb[missingIds])
+    invisible(dt_oncokb[, Reference_Allele_Fixed := ifelse(Reference_Allele == "-", "", Reference_Allele)])
+    invisible({
+      dt_oncokb[Variant_Type == "INS", end := start + nchar(Reference_Allele_Fixed)]
+      dt_oncokb[Variant_Type == "DEL", start := end - nchar(Reference_Allele_Fixed)]
+    })
+    dt_oncokb$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+                          gUtils::dt2gr(dt_oncokb),
+                          gr_snvcn,
+                          by = "ALT", type = "equal", qcol = c("oid")
+                        )
+    missingOvQuery = gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
+  }
+
+  subject = gUtils::gr2dt(gr_snvcn)
+  subject[, subject.id := .I]
+  queries = rbind(ovQuery, missingOvQuery)
+
+  oncokb_to_merge = oncokb_maf[, c("GENE_IN_ONCOKB", "VARIANT_IN_ONCOKB", "MUTATION_EFFECT","MUTATION_EFFECT_CITATIONS" ,"ONCOGENIC","LEVEL_1", "LEVEL_2" , "LEVEL_3A" , "LEVEL_3B", "LEVEL_4","LEVEL_R1", "LEVEL_R2" ,"HIGHEST_LEVEL", "HIGHEST_SENSITIVE_LEVEL" , "HIGHEST_RESISTANCE_LEVEL", "TX_CITATIONS", "LEVEL_Dx1", "LEVEL_Dx2", "LEVEL_Dx3", "HIGHEST_DX_LEVEL", "DX_CITATIONS",  "LEVEL_Px1","LEVEL_Px2", "LEVEL_Px3", "HIGHEST_PX_LEVEL","PX_CITATIONS")][queries$query.id]
+  oncokb_to_merge[, query.id := queries$query.id]
+
+  mutations.dt = oncokb_to_merge %>%
+    merge(queries, by = "query.id", all = T) %>%
+    merge(subject, by = "subject.id", all = T) %>%
+    as.data.table()
+
+  
+  mutations.dt[, ONCOGENIC := case_when(
+                   is.na(ONCOGENIC) ~ "",
+                   grepl("Unknown", ONCOGENIC) ~ "",
+                   T ~ ONCOGENIC)]
+  mutations.dt[, MUTATION_EFFECT := case_when(
+                   is.na(MUTATION_EFFECT) ~ "",
+                   grepl("Unknown", MUTATION_EFFECT) ~ "",
+                   T ~ MUTATION_EFFECT)]
+  mutations.dt[, HIGHEST_LEVEL := case_when(
+                   HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL) ~ "",
+                   T ~ gsub("LEVEL_", "", HIGHEST_LEVEL))]
+  mutations.dt <- mutations.dt[FILTER == "PASS"]
+
+  if (any(class(mutations.dt) == "data.table")) {
+            seq_lengths <- gGnome::parse.js.seqlengths(
+                settings,
+                js.type = "PGV",
+                ref = ref
+            )
+            # check for overlap in sequence names
+            mutations.reduced <- mutations.dt[seqnames %in% names(seq_lengths),]
+            if (length(mutations.reduced) == 0) {
+                stop(sprintf(
+                    'There is no overlap between the sequence names in the reference
+                    used by PGV and the sequences in your mutations. Here is an
+                    example sequence from your mutations: "%s". And here is an
+                    example sequence from the reference used by gGnome.js: "%s"',
+                    mutations.dt$seqnames[1], names(seq_lengths)[1]
+                ))
+            }
+            # coerce vaf col name to lower case to avoid col name mismatch for vaf/VAF column
+            setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+            mutations.dt = mutations.dt[!is.na(get(yfield)),]
+            mutations.dt[start == end, end := end +1]
+            mutations.dt[, strand := NULL]
+            # create an empty mutation annotation string, then add attributes to it if they exist
+            mut_ann <- ""
+            ## if ("annotation" %in% colnames(mutations.dt)) {
+            ##     mut_ann <- paste0("Type: ", mutations.dt$annotation, "; ")
+            ## }
+            if ("gene" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Gene: ", mutations.dt$gene, "; ")
+            }
+            if ("variant.c" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Variant: ", mutations.dt$variant.c, "; ")
+            }
+            if ("variant.p" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Protein_variant: ", mutations.dt$variant.p, "; ")
+            }
+            if ("variant.g" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Genomic_variant: ", mutations.dt$variant.g, "; ")
+            }
+            if ("vaf" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "VAF: ", round(mutations.dt$vaf, 3), "; ")
+            }
+            if ("alt" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Alt_count: ", mutations.dt$alt, "; ")
+            }
+            if ("ref" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Ref_count: ", mutations.dt$ref, "; ")
+            }
+            if ("normal.alt" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Normal_alt_count: ", mutations.dt$normal.alt, "; ")
+            }
+            if ("normal.ref" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Normal_ref_count: ", mutations.dt$normal.ref, "; ")
+            }
+            if ("FILTER" %in% colnames(mutations.dt)) {
+                mut_ann <- paste0(mut_ann, "Filter: ", mutations.dt$FILTER, "; ")
+            }
+            if ("ONCOGENIC" %in% colnames(mutations.dt)) {
+              mut_ann <- paste0(mut_ann, "Oncogenicity: ", mutations.dt$ONCOGENIC, "; ")
+            }
+            if ("MUTATION_EFFECT" %in% colnames(mutations.dt)) {
+              mut_ann <- paste0(mut_ann, "Effect: ", mutations.dt$MUTATION_EFFECT, "; ")
+            }
+            if ("HIGHEST_LEVEL" %in% colnames(mutations.dt)) {
+              mut_ann <- paste0(mut_ann, "Level: ", mutations.dt$HIGHEST_LEVEL, "; ")
+            }
+            mutations.dt[, annotation := mut_ann]
+            dt2json_mut(
+                dt = mutations.dt,
+                ref = ref,
+                settings = settings,
+                meta_data = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+                y_col = yfield,
+                file_name = somatic_json_path
+            )
+        } else {
+            warning(plot_metadata$x, " rds read was not mutations")
+        }
+
+
+ }
+
+
+
+#' @description
+#' Create mutations gGraph JSON file for SOMATIC MUTATIONS.
+#'
+#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
+#'
+#' @return NULL.
 create_somatic_json = function(plot_metadata, datadir, settings = internal_settings_path) {
   message("using function create_somatic_json")
     somatic_json_path <- file.path(
@@ -882,17 +1051,25 @@ dt2json_mut = function(dt,patient.id,ref,settings,file_name = paste(getwd(),"tes
 #' @param probs path to sigprofiler decomposed probabilities
 #' @param is_indel Boolean to indicate if the input matrix is for indels
 #' @param data_dir path to data directory of which each subdirectory contains jsons per patient
+#' @param suffix expected suffix of sample name in decomposed_probs_json matrix, default = "_somatic" but have also seen "_0000"
 #' @param pairs vector of samples for which to create jsons, by default = NULL, indicating process all patients
+#' @param pair_name expected pair name; only supply if you know the pair name and the input table is only for one sample!
 #' @param cores number of cores to parallelize with
 #' @return data.table or NULL
 #' @export
 #' @author Johnathan Rafailov
-sigprofiler_decomposed_probs_json = function(probs, is_indel, data_dir, pairs, cores = 1 ){
+sigprofiler_decomposed_probs_json = function(probs,
+                                             is_indel = FALSE,
+                                             data_dir,
+                                             suffix = "_somatic",
+                                             pairs = NULL,
+                                             pair_name = NULL,
+                                             cores = 1 ){
   fread(probs) -> decomposed.probs
 ###lets change first column to something more predictable
   colnames(decomposed.probs)[1] <- "samples"
 ### seems like _somatic is systematically ended to the end of all sample names in the beginning
-  decomposed.probs[, samples := gsub("_somatic", "", samples)]
+  decomposed.probs[, samples := gsub(suffix, "", samples)]
   if(!is.null(pairs)){decomposed.probs <- decomposed.probs[samples %in% pairs,]}
   decomposed.probs.per.sample <- melt(decomposed.probs,
                                       measure.vars = c(3:ncol(decomposed.probs)),
@@ -916,7 +1093,11 @@ sigprofiler_decomposed_probs_json = function(probs, is_indel, data_dir, pairs, c
       )
       catalog_file_name = "sbs_decomposed_prob.json"
     }
-    write_json(samp_data, paste0(data_dir, "/", pair, "/", catalog_file_name))    
+    if(!is.null(pair_name)){
+      write_json(samp_data, paste0(data_dir, "/", pair_name, "/", catalog_file_name))
+    } else {
+      write_json(samp_data, paste0(data_dir, "/", pair, "/", catalog_file_name))
+    }    
   }, mc.cores = cores)
 }
 
@@ -1774,12 +1955,13 @@ dlrs = function(x) {
 #' @author Shihab Dider, Sukanya Panja
 create_mutations_catalog_json = function(
     sig_matrix_path,
-    is_indel,
+    is_indel = FALSE,
+    suffix = "_somatic",
     output_dir
 ) {
     sig_matrix = fread(sig_matrix_path)
     sig_matrix_dt = as.data.frame(sig_matrix)
-    samples = colnames(sig_matrix_dt)
+    samples = gsub(suffix, "", colnames(sig_matrix_dt))
     for(i in 2:(ncol(sig_matrix_dt))) { # skip first column as it has the tnc
         pair = samples[i]
 
@@ -1800,7 +1982,7 @@ create_mutations_catalog_json = function(
         }
         pair_data <- list(pair = pair, data = samp_data)
         system(paste("mkdir -p", paste0(output_dir, "/", pair)))
-        output_path = paste0(output_dir, "/", catalog_file_name)
+        output_path = paste0(output_dir, "/", pair, "/", catalog_file_name)
         write_json(
             pair_data,
             output_path,
@@ -1999,9 +2181,8 @@ meta_data_json = function(
         gg = readRDS(jabba_gg)
         meta.dt$junction_count = nrow(gg$junctions$dt[type != "REF",])
         meta.dt$loose_count = nrow(as.data.table(gg$loose)[terminal == FALSE,])
-        if (nrow(gg$edges$dt) > 0) {
-            sv_like_types_count = table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
-        }
+        sv_like_types_count = tryCatch(table(gg$edges$dt[type == "ALT" & class != "REF"]$class),
+                                     error = function(e){0})
         meta.dt[,sv_count := (junction_count + (loose_count / 2))]
 
         #get loh
@@ -2065,12 +2246,16 @@ meta_data_json = function(
     ## Load beta/gamma for karyograph
     if(!is.null(coverage)) {
       rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
-                                       field = "foreground.X",
+                                       field = "foreground",
                                        purity = meta.dt$purity,
                                        ploidy = meta.dt$ploidy,
                                        return.params = T)
       meta.dt$cov_slope = rel2abs.cov[1] %>% unname
-      meta.dt$cov_intercept = rel2abs.cov[2] %>% unname
+      meta.dt$cov_intercept = if(rel2abs.cov[2] >= 0){
+                                rel2abs.cov[2] %>% unname %>% abs
+                              } else {
+                                rel2abs.cov[2] %>% unname
+                              }
     }
     
     if(!is.null(het_pileups_wgs)){
@@ -2082,7 +2267,11 @@ meta_data_json = function(
                                         ploidy = meta.dt$ploidy,
                                         return.params = T)
       meta.dt$hets_slope = rel2abs.hets[1] %>% unname
-      meta.dt$hets_intercept = rel2abs.hets[2] %>% unname
+      meta.dt$hets_intercept = if(rel2abs.hets[2] >= 0){
+                                 rel2abs.hets[2] %>% unname %>% abs
+                               } else {
+                                 rel2abs.hets[2] %>% unname
+                               }
     }
 
     ##add tmb
