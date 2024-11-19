@@ -6,6 +6,7 @@ tags
 */**/pgv_test
 */**/*.bw
 */**/test_bigwig_granges.rds
+inst/extdata/test_data/backup_oncotable_test_data/
 inst/extdata/test_data/oncotable_test_data/annotated.bcf*
 spec.md
 .aider*
