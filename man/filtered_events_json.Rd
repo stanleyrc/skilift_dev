@@ -9,9 +9,6 @@ filtered_events_json(
   oncotable,
   jabba_gg,
   out_file,
-  cgc_file =
-    "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v99_GRCh37/cancer_gene_census_fixed.csv",
-  oncokb_file = NULL,
   temp_fix = FALSE,
   return_table = FALSE
 )
@@ -25,9 +22,9 @@ filtered_events_json(
 
 \item{out_file}{path to write json}
 
-\item{cgc_file}{path to cgc file to annotate drivers}
-
 \item{return_table}{TRUE/FALSE whether to return the data.table that is used for creating the json}
+
+\item{cgc_file}{path to cgc file to annotate drivers}
 
 \item{oncokab_file}{path to oncokb gene tiers to annotate drivers}
 }
