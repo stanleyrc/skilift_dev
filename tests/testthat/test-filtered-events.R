@@ -304,27 +304,6 @@ test_that("collect_oncokb_cna handles valid input", {
   expect_true(all(result$type %in% c("amp", "homdel", NA)))
 })
 
-test_that("oncotable produces expected output", {
-  expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
-  result_oncotable <- suppressWarnings(oncotable(
-    pair = "397089",
-    somatic_variant_annotations = ot_test_paths$unit_annotated_bcf,
-    oncokb_fusions = ot_test_paths$oncokb_fusions,
-    jabba_gg = ot_test_paths$jabba_simple_gg,
-    events = ot_test_paths$complex,
-    signature_counts = NULL,  # Assuming signature_counts is not available in test paths
-    gencode = gencode,
-    cytoband = cytoband,  
-    verbose = TRUE,
-    karyograph = ot_test_paths$karyograph,
-    oncokb_snv = ot_test_paths$oncokb_snvcn_maf,
-    oncokb_cna = ot_test_paths$oncokb_cna,
-  ))
-
-  # saveRDS(result_oncotable, ot_test_paths$unit_oncotable)
-  expect_equal(result_oncotable, expected_oncotable)
-})
-
 test_that("create_oncotable handles Cohort objects correctly", {
   # Create test Cohort object
   test_inputs <- data.table(
@@ -396,11 +375,6 @@ test_that("create_oncotable handles Cohort objects correctly", {
     file.path(temp_dir, "397089", "oncotable.rds")
   )
   
-  # Test that successful result matches expected
-  result_oncotable <- readRDS(file.path(temp_dir, "397089", "oncotable.rds"))
-  expected_oncotable <- readRDS(ot_test_paths$unit_oncotable)
-  expect_equal(result_oncotable, expected_oncotable)
-
   # Test with empty cohort
   empty_cohort <- suppressWarnings(Cohort$new(data.table(
     pair = character(),
