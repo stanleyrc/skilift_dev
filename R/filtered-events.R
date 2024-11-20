@@ -19,6 +19,38 @@ process_gencode = function(gencode = NULL){
   return(gencode)
 }
 
+#' @title process_cytoband
+#' @description
+#'
+#' Helper script to process cytoband
+#'
+#' @param cytoband path to cytoband file provided by UCSC
+#' @return GenomicRanges::GRanges object
+#' @author Kevin Hadi
+process_cytoband = function(cyto = NULL, coarse=FALSE) {
+  fread("/gpfs/data/imielinskilab/DB/UCSC/hg19.cytoband.txt")
+  names(cyto) = c("seqnames", "start", "end", "band", "stain")
+  isZeroStart = any(cyto[, length(intersect(start, end)), by = seqnames]$V1 > 0) || any(cyto$start == 0)
+  if (isZeroStart) cyto$start = cyto$start + 1
+  cyto = gUtils::dt2gr(cyto)
+  GenomeInfoDb::seqlevelsStyle(cyto) = "NCBI"
+  cyto$chrom_name = as.character(seqnames(cyto))
+  pasteband = cyto$band
+  if (identical(coarse, TRUE)) {
+    pasteband = gsub("\\.[0-9]+", "", cyto$band) 
+  } 
+  # cyto$rough_band = gsub("\\.[0-9]+", "", cyto$band)
+  cyto$chromband = paste(
+    cyto$chrom_name, 
+    , 
+    pasteband
+    sep = ""
+  )
+  return(cyto)
+}
+
+
+
 #' @title collect_gene_fusions
 #' @description
 #' Collects gene fusion data from a specified file and processes it.
@@ -334,7 +366,7 @@ collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed OncoKB Fusion information.
 #' @author Kevin Hadi
-collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
+collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE) {
   out = data.table(vartype = NA, source = 'oncokb_fusions')
   if (is.null(oncokb_fusions) || !file.exists(oncokb_fusions)) {
     if (verbose) message('OncoKB Fusions file is missing or does not exist.')
@@ -364,8 +396,16 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
     # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
     ixA = ixA[!is.na(ixA)]
     ixB = ixB[!is.na(ixB)]
-    coordA = gUtils::gr.string(pge[ixA])
-    coordB = gUtils::gr.string(pge[ixB])
+    grA = pge[ixA]
+    grB = pge[ixB]
+    coordA = gUtils::gr.string(grA)
+    coordB = gUtils::gr.string(grB)
+    grovA = gUtils::gr.findoverlaps(grA, cyto, scol = "chromband")
+    grovB = gUtils::gr.findoverlaps(grB, cyto, scol = "chromband")
+    grovA = GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
+    grovB = GenomicRanges::sort(grovB) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
+    non_silent_fusions$cytoA = gUtils::gr2dt(grovA)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+    non_silent_fusions$cytoB = gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
     non_silent_fusions$fusion_genes = paste(genes_matrix[,1], genes_matrix[,2], sep = ",")
     non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
     out = non_silent_fusions[, .(
@@ -541,6 +581,7 @@ oncotable = function(
   oncokb_cna = NULL, 
   oncokb_fusions = NULL,
   gencode,
+  cytoband,
   verbose = TRUE,
   amp.thresh = 4,
   filter = 'PASS',
@@ -559,7 +600,7 @@ oncotable = function(
   if (!is.null(oncokb_fusions) && file.exists(oncokb_fusions)){
     out <- rbind(
       out,
-      collect_oncokb_fusions(oncokb_fusions, pge, verbose),
+      collect_oncokb_fusions(oncokb_fusions, pge, cytoband, verbose),
       fill = TRUE,
       use.names = TRUE
     )
@@ -657,6 +698,7 @@ create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
     gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
+    cytoband = "/gpfs/data/imielinskilab/DB/UCSC/hg19.cytoband.txt",
     outdir,
     cores = 1) {
 
@@ -679,6 +721,7 @@ create_oncotable <- function(
     }
 
     gencode <- process_gencode(gencode)
+    cytoband <- process_cytoband(cytoband)
 
     if (amp_thresh_multiplier == 1.5) {
         message("using default amp_thres_multiplier: 1.5")
@@ -742,6 +785,7 @@ create_oncotable <- function(
                     oncokb_cna = row$oncokb_cna,
                     oncokb_fusions = row$oncokb_fusions,
                     gencode = gencode,
+                    cytoband = cytoband,
                     verbose = TRUE,
                     amp.thresh = amp_thresh,
                     filter = "PASS",
