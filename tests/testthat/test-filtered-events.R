@@ -25,6 +25,9 @@ setup({
   # gencode <<- process_gencode('/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds')
   test_rds_path <- system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift")
   gencode <<- process_gencode(test_rds_path)
+
+  cytoband_path = system.file("extdata/data/cytoband.rds", package = "Skilift")
+  cytoband <<- readRDS(cytoband_path)
 })
 
 test_that("process_gencode handles NULL input", {
@@ -106,17 +109,22 @@ test_that("parse_oncokb_tier correctly assigns tiers", {
 })
 
 test_that("collect_oncokb_fusions handles missing file", {
-  result <- collect_oncokb_fusions(NULL, gencode, verbose = FALSE)
+  result <- collect_oncokb_fusions(NULL, gencode, cytoband, verbose = FALSE)  # Add cytoband
   expect_equal(result$vartype, NA)
   expect_equal(result$source, "oncokb_fusions")
   
-  result <- collect_oncokb_fusions("nonexistent.tsv", gencode, verbose = FALSE)
+  result <- collect_oncokb_fusions("nonexistent.tsv", gencode, cytoband, verbose = FALSE)  # Add cytoband
   expect_equal(result$vartype, NA)
   expect_equal(result$source, "oncokb_fusions")
 })
 
 test_that("collect_oncokb_fusions handles valid input", {
-  result <- collect_oncokb_fusions(ot_test_paths$oncokb_fusions, gencode, verbose = FALSE)
+  result <- collect_oncokb_fusions(
+    ot_test_paths$oncokb_fusions,
+    gencode,
+    cytoband,
+    verbose = FALSE
+  )
   
   # Check basic structure
   expect_true(is.data.table(result))
@@ -159,7 +167,7 @@ test_that("collect_oncokb_fusions handles empty input file", {
   )
   fwrite(empty_dt, temp_file)
   
-  result <- collect_oncokb_fusions(temp_file, gencode, verbose = FALSE)
+  result <- collect_oncokb_fusions(temp_file, gencode, cytoband, verbose = FALSE)  # Add cytoband
   expect_equal(result$vartype, NA)
   expect_equal(result$source, "oncokb_fusions")
   
@@ -189,7 +197,12 @@ test_that("collect_oncokb_fusions handles malformed gene names", {
   )
   fwrite(malformed_dt, temp_file)
   
-  result <- collect_oncokb_fusions(temp_file, gencode, verbose = FALSE)
+  result <- collect_oncokb_fusions(
+    temp_file,
+    gencode,
+    cytoband,
+    verbose = FALSE
+  )
   # Should still return a valid data.table with NA coordinates for invalid genes
   expect_true(is.data.table(result))
   expect_true(all(is.na(result$fusion_gene_coords)))
@@ -234,6 +247,7 @@ test_that("oncotable produces expected output", {
     events = ot_test_paths$complex,
     signature_counts = NULL,  # Assuming signature_counts is not available in test paths
     gencode = gencode,
+    cytoband = cytoband,  
     verbose = TRUE,
     karyograph = ot_test_paths$karyograph,
     oncokb_snv = ot_test_paths$oncokb_snvcn_maf,
@@ -288,6 +302,7 @@ test_that("create_oncotable handles Cohort objects correctly", {
     cohort = test_cohort,
     amp_thresh_multiplier = 1.5,
     gencode = system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift"),
+    cytoband = system.file("extdata/data/cytoband.rds", package = "Skilift"),  # Add cytoband parameter
     outdir = temp_dir,
     cores = 2
   ))
@@ -570,11 +585,34 @@ ot <- oncotable(
     del.thresh = 0.5
 )
 
-# update oncotable_test_data with new oncokb_*
-# copy file in row to ot_test_paths
-
+## update oncotable_test_data with new oncokb_*
 file.copy(row$oncokb_snv, ot_test_paths$oncokb_snvcn_maf, overwrite = TRUE)
 file.copy(row$oncokb_cna, ot_test_paths$oncokb_cna, overwrite = TRUE)
 file.copy(row$oncokb_fusions, ot_test_paths$oncokb_fusions, overwrite = TRUE)
 
+## create a subsetted gencode for testing
+# subset gene list (two genes split by "-"): 
+# [1] "DCDC2-RGL1"       "DNAH6-NCAM1"      "FOXP2-MDFIC"      "HDGFRP3-ADAMTSL3"
+# [5] "MAPK4-DCC"        "MET-MDFIC"        "PIGF-EML4"        "SMAP1-FAM184A"   
+# [9] "SPECC1-BCAS3"     "SPTBN1-EML4"      "SPTBN1-PIGF"      "STRN-CLHC1"      
+gencode <- process_gencode('/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds')
+# subset gencode on gRanges metadata col gene_name
+subset_genes = c("DCDC2", "RGL1", "DNAH6", "NCAM1", "FOXP2", "MDFIC", "HDGFRP3", "ADAMTSL3", "MAPK4", "DCC", "MET", "MDFIC", "PIGF", "EML4", "SMAP1", "FAM184A", "SPECC1", "BCAS3", "SPTBN1", "EML4", "SPTBN1", "PIGF", "STRN", "CLHC1")
+gencode_subset <- gencode[gencode$gene_name %in% subset_genes]
+
+# save to file
+test_rds_path <- system.file("extdata/test_data/test_gencode_v29lift37.rds", package = "Skilift")
+saveRDS(gencode_subset, test_rds_path)
+
+## extract genecode gene locations to its own file
+gencode <- process_gencode('/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds')
+gencode_dt <- as.data.table(gencode)
+# extract gene locations by type == "gene"
+gene_locations <- gencode_dt[type == "gene", .(gene_name, seqnames, start, end)]
+saveRDS(gene_locations, '~/git/skilift/inst/extdata/data/gene_locations.rds')
+
+## extract cytoband to its own file
+cytoband_path = "/gpfs/data/imielinskilab/DB/UCSC/hg19.cytoband.txt"
+cytoband <- process_cytoband(cytoband_path)
+saveRDS(cytoband, '~/git/skilift/inst/extdata/data/cytoband.rds')
 }
