@@ -887,7 +887,7 @@ create_filtered_events <- function(
         "type" = "type",
         "variant.g" = "Variant_g",
         "variant.p" = "Variant",
-        "total_copies" = "total_copies",
+        "total_copies" = "estimated_altered_copies",
         "segment_cn" = "segment_cn",
         "ref" = "ref",
         "alt" = "alt",
