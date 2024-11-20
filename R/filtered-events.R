@@ -384,6 +384,8 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, verbose = TRUE) {
             prognoses = px_string,
             effect = MUTATION_EFFECT,
             effect_description = MUTATION_EFFECT_DESCRIPTION,
+            exonA,
+            exonB,
             fusion_genes,
             fusion_gene_coords,
             track = "variants",
