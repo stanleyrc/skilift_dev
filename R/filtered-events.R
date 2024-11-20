@@ -538,7 +538,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
             gene = Hugo_Symbol, 
             gene_summary = GENE_SUMMARY,
             role = Role,
-            variant.g = paste("g.",  Start_Position, "-", End_Position, sep = ""), 
+            variant.g = paste(Chromosome, ":", Start_Position, "-", End_Position, " ", variant.g, sep = ""), 
             variant.c = HGVSc,
             variant.p = HGVSp,
             annotation = Consequence,
