@@ -28,15 +28,17 @@ process_gencode = function(gencode = NULL){
 #' @return GenomicRanges::GRanges object
 #' @author Kevin Hadi
 process_cytoband = function(cyto = NULL, coarse=FALSE) {
-  if (is.null(cyto))
+  if (is.null(cyto)) {
     stop('cytoband file must be provided')
-  else if (is.character(cyto)) {
-    if (grepl(".rds$", cyto))
+  } else if (is.character(cyto)) {
+    if (grepl(".rds$", cyto)) {
       cyto = readRDS(cyto)
-    else {
-      cyto = data.table::fread(cyto)
+      return(cyto)
+    } else {
+        cyto = data.table::fread(cyto)
     }
   }
+
   names(cyto) = c("seqnames", "start", "end", "band", "stain")
   isZeroStart = any(cyto[, length(intersect(start, end)), by = seqnames]$V1 > 0) || any(cyto$start == 0)
   if (isZeroStart) cyto$start = cyto$start + 1
@@ -407,13 +409,24 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     grB = pge[ixB]
     coordA = gUtils::gr.string(grA)
     coordB = gUtils::gr.string(grB)
-    grovA = gUtils::gr.findoverlaps(grA, cyto, scol = "chromband")
-    grovB = gUtils::gr.findoverlaps(grB, cyto, scol = "chromband")
-    grovA = GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
-    grovB = GenomicRanges::sort(grovB) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
-    non_silent_fusions$cytoA = gUtils::gr2dt(grovA)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
-    non_silent_fusions$cytoB = gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
-    non_silent_fusions$fusion_genes = paste(genes_matrix[,1], genes_matrix[,2], sep = ",")
+    grovA = gUtils::gr.findoverlaps(grA, cytoband, scol = "chromband")
+    grovB = gUtils::gr.findoverlaps(grB, cytoband, scol = "chromband")
+
+    if (length(grovA) > 0) {
+      grovA = GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
+      non_silent_fusions$cytoA = gUtils::gr2dt(grovA)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+    } else {
+      non_silent_fusions$cytoA = ""
+    }
+
+    if (length(grovB) > 0) {
+      grovB = GenomicRanges::sort(grovB) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
+      non_silent_fusions$cytoB = gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+    } else {
+      non_silent_fusions$cytoB = ""
+    }
+
+    non_silent_fusions$fusion_genes = paste0(genes_matrix[,1], "(", non_silent_fusions$exonA, ")::", genes_matrix[,2], "(", non_silent_fusions$exonB, ")@", non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB)
     non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
     out = non_silent_fusions[, .(
             gene = Hugo_Symbol,
@@ -431,8 +444,6 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
             prognoses = px_string,
             effect = MUTATION_EFFECT,
             effect_description = MUTATION_EFFECT_DESCRIPTION,
-            exonA,
-            exonB,
             fusion_genes,
             fusion_gene_coords,
             track = "variants",
@@ -705,7 +716,7 @@ create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
     gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
-    cytoband = "/gpfs/data/imielinskilab/DB/UCSC/hg19.cytoband.txt",
+    cytoband = system.file("extdata", "data", "cytoband.rds", package = "Skilift"),
     outdir,
     cores = 1) {
 
