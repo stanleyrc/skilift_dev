@@ -42,8 +42,7 @@ process_cytoband = function(cyto = NULL, coarse=FALSE) {
   # cyto$rough_band = gsub("\\.[0-9]+", "", cyto$band)
   cyto$chromband = paste(
     cyto$chrom_name, 
-    , 
-    pasteband
+    pasteband,
     sep = ""
   )
   return(cyto)
