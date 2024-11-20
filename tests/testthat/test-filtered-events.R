@@ -40,6 +40,73 @@ test_that("process_gencode handles .rds input", {
   expect_true(is(result, "GRanges"))
 })
 
+test_that("process_cytoband handles NULL input", {
+  expect_error(process_cytoband(NULL), "cytoband file must be provided")
+})
+
+test_that("process_cytoband handles .rds input", {
+  cytoband_path <- system.file("extdata/data/cytoband.rds", package = "Skilift")
+  result <- process_cytoband(cytoband_path)
+  expect_true(is(result, "GRanges"))
+  expect_true(all(c("band", "stain", "chrom_name", "chromband") %in% names(mcols(result))))
+})
+
+test_that("process_cytoband handles text file input", {
+  # Create a temporary cytoband text file
+  temp_file <- tempfile(fileext = ".txt")
+  cyto_data <- data.table(
+    seqnames = c("chr1", "chr1", "chr1"),
+    start = c(0, 2300000, 5400000),
+    end = c(2300000, 5400000, 7200000),
+    band = c("p36.33", "p36.32", "p36.31"),
+    stain = c("gneg", "gpos25", "gneg")
+  )
+  fwrite(cyto_data, temp_file, col.names = FALSE)
+  
+  result <- process_cytoband(temp_file)
+  expect_true(is(result, "GRanges"))
+  expect_true(all(c("band", "stain", "chrom_name", "chromband") %in% names(mcols(result))))
+  expect_equal(length(result), 3)
+  
+  unlink(temp_file)
+})
+
+test_that("process_cytoband handles coarse parameter", {
+  temp_file <- tempfile(fileext = ".txt")
+  cyto_data <- data.table(
+    seqnames = c("chr1", "chr1", "chr1"),
+    start = c(0, 2300000, 5400000),
+    end = c(2300000, 5400000, 7200000),
+    band = c("p36.33", "p36.32", "p36.31"),
+    stain = c("gneg", "gpos25", "gneg")
+  )
+  fwrite(cyto_data, temp_file, col.names = FALSE)
+  result_fine <- process_cytoband(temp_file, coarse = FALSE)
+  result_coarse <- process_cytoband(temp_file, coarse = TRUE)
+  
+  # Check that coarse bands have no decimal points
+  expect_true(any(grepl("\\.", result_fine$chromband)))
+  expect_false(any(grepl("\\.", result_coarse$chromband)))
+})
+
+test_that("process_cytoband handles zero-based coordinates", {
+  # Create a temporary cytoband text file with zero-based coordinates
+  temp_file <- tempfile(fileext = ".txt")
+  cyto_data <- data.table(
+    seqnames = c("chr1", "chr1", "chr1"),
+    start = c(0, 2300000, 5400000),
+    end = c(2300000, 5400000, 7200000),
+    band = c("p36.33", "p36.32", "p36.31"),
+    stain = c("gneg", "gpos25", "gneg")
+  )
+  fwrite(cyto_data, temp_file, col.names = FALSE)
+  
+  result <- process_cytoband(temp_file)
+  expect_true(min(start(result)) > 0)  # Should be 1-based
+  expect_equal(start(result)[1], 1)    # First start position should be 1
+  
+  unlink(temp_file)
+})
 test_that("collect_gene_fusions handles valid input", {
   fusions_path <- ot_test_paths$fusions
   result_fusions <- collect_gene_fusions(fusions_path, gencode, verbose = FALSE)
