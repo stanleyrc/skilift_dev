@@ -28,7 +28,15 @@ process_gencode = function(gencode = NULL){
 #' @return GenomicRanges::GRanges object
 #' @author Kevin Hadi
 process_cytoband = function(cyto = NULL, coarse=FALSE) {
-  fread("/gpfs/data/imielinskilab/DB/UCSC/hg19.cytoband.txt")
+  if (is.null(cyto))
+    stop('cytoband file must be provided')
+  else if (is.character(cyto)) {
+    if (grepl(".rds$", cyto))
+      cyto = readRDS(cyto)
+    else {
+      cyto = data.table::fread(cyto)
+    }
+  }
   names(cyto) = c("seqnames", "start", "end", "band", "stain")
   isZeroStart = any(cyto[, length(intersect(start, end)), by = seqnames]$V1 > 0) || any(cyto$start == 0)
   if (isZeroStart) cyto$start = cyto$start + 1
