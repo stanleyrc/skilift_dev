@@ -180,23 +180,30 @@ subsample_hetsnps <- function(
     if (is.null(het_pileups)) {
         stop("Please provide a valid path to a hetsnps file.")
     }
+
     if (is.null(mask)) {
         warning("No mask provided, using default mask.")
         maska_path <- system.file("extdata", "data", "maskA_re.rds", package = "Skilift")
         maska <- readRDS(maska_path)
+    } else {
+        maska <- readRDS(mask)
     }
 
+    # apply mask 
     allelic_hetsnps <- make_allelic_hetsnps(het_pileups)
     allelic_hetsnps <- gr.val(allelic_hetsnps, maska, "mask")
     allelic_hetsnps <- allelic_hetsnps %Q% (is.na(mask))
     allelic_hetsnps$mask <- NULL
-    # lets call major blue and minor red
-    allelic_hetsnps$col <- c("major" = "red", "minor" = "blue")[allelic_hetsnps$allele]
 
-    # lets subset a random amount of SNPS so we're under 250k points
+    # color by allele
+    allelic_hetsnps$col <- ifelse(allelic_hetsnps$allele == "major", "red", "blue")
+
+    # subset to unique sites
     unique_snps <- unique(gr2dt(allelic_hetsnps)[, .(seqnames, start, end)])
     n_snps <- nrow(unique_snps)
     message(paste(n_snps, "snps found"))
+
+    # subsample to reduce number of points drawn on front-end scatterplot
     if (!is.na(sample_size) && n_snps > sample_size) {
         message(paste("subsampling", sample_size, "points..."))
         snps_to_include <- unique_snps[sample(n_snps, sample_size)] %>% dt2gr()
@@ -331,6 +338,72 @@ lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
                 arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
             } else {
                 warning(sprintf("Tumor coverage file missing for %s", row$pair))
+            }
+        }, error = function(e) {
+            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+        })
+    }, mc.cores = cores)
+    
+    invisible(NULL)
+}
+
+#' @name lift_hetsnps
+#' @title lift_hetsnps
+#' @description
+#' Create hetsnps arrow files for all samples in a cohort
+#'
+#' @param cohort Cohort object containing sample information
+#' @param output_data_dir Base directory for output files
+#' @param cores Number of cores for parallel processing (default: 1)
+#' @return None
+#' @export
+lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+    
+    if (!dir.exists(output_data_dir)) {
+        dir.create(output_data_dir, recursive = TRUE)
+    }
+    
+    # Validate required columns exist
+    required_cols <- c("pair", "het_pileups")
+    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+    
+    # Process each sample in parallel
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        row <- cohort$inputs[i,]
+        pair_dir <- file.path(output_data_dir, row$pair)
+        
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
+        
+        out_file <- file.path(pair_dir, "hetsnps.arrow")
+        
+        tryCatch({
+            if (!is.null(row$het_pileups) && file.exists(row$het_pileups)) {
+                # Subsample hetsnps
+                hetsnps_gr <- subsample_hetsnps(
+                    het_pileups = row$het_pileups
+                )
+                
+                # Create arrow table
+                arrow_table <- granges_to_arrow_scatterplot(
+                    gr_path = hetsnps_gr,
+                    field = "count",
+                    ref = cohort$reference_name,
+                    cov.color.field = "col"
+                )
+                
+                # Write arrow table
+                message(sprintf("Writing hetsnps arrow file for %s", row$pair))
+                arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
+            } else {
+                warning(sprintf("Het pileups file missing for %s", row$pair))
             }
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
