@@ -410,10 +410,11 @@ test_that("create_filtered_events creates correct output", {
   # Test data.table structure
   expect_true(is.data.table(result))
   expected_colnames <- c(
-    "gene", "fusion_genes", "id", "vartype", "type", "Variant_g", 
-    "Variant", "Genome_Location", "fusion_gene_coords", "Tier",
-    "therapeutics", "resistances", "diagnoses", "prognoses", "total_copies",
-    "seqnames", "start", "end", "sample"
+    "gene", "gene_summary", "role", "vartype", "type", "Tier",
+    "variant_summary", "therapeutics", "resistances", "diagnoses", "prognoses",
+    "effect", "effect_description", "fusion_genes", "fusion_gene_coords",
+    "Variant_g", "Variant", "estimated_altered_copies", "segment_cn", "ref",
+    "alt", "VAF", "Genome_Location", "id", "seqnames", "start", "end", "sample"
   )
   expect_true(all(expected_colnames %in% names(result)))
   
@@ -527,7 +528,13 @@ test_that("lift_filtered_events handles various input scenarios", {
     file.path(existing_dir, "397089", "filtered.events.json")
   )
   expect_true(is.data.frame(json_content))
-  expected_colnames <- c("gene", "id", "vartype", "type", "Variant_g", "Variant", "Genome_Location", "Tier", "total_copies", "seqnames", "start", "end", "therapeutics", "resistances", "prognoses", "fusion_genes") 
+  expected_colnames <- c(
+    "gene", "vartype", "type", "Tier", "effect", "Variant_g", "Variant",
+    "estimated_altered_copies", "segment_cn", "ref", "alt", "VAF",
+    "Genome_Location", "id", "seqnames", "start", "end", "gene_summary",
+    "role", "variant_summary", "effect_description", "therapeutics",
+    "resistances", "prognoses", "fusion_genes", "fusion_gene_coords"
+  )
   expect_true(all(expected_colnames %in% names(json_content)))
   
   # Cleanup
