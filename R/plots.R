@@ -117,51 +117,6 @@ grab.hets <- function(agt.fname = NULL,
     return(agt.gr)
 }
 
-#' @name subsample_hetsnps
-#' @title subsample_hetsnps
-#' @description subsets the hetsnps to masked unique sites and colors by major/minor allele
-#'
-#' @param het_pileups_wgs sites.txt from het pileup
-#' @param mask rds file with masked regions
-#' @param sample_size number of snps to randomly sample
-#' @export
-#' @author Jonathan Rafailov, Shihab Dider
-subsample_hetsnps <- function(
-    het_pileups_wgs,
-    mask = NULL,
-    sample_size = 100000) {
-    if (is.null(het_pileups_wgs)) {
-        stop("het_pileups_wgs does not exist")
-    }
-    if (is.null(mask)) {
-        warning("mask does not exist, using default mask included with package.")
-        maska_path <- system.file("extdata", "data", "maskA_re.rds", package = "Skilift")
-        maska <- readRDS(maska_path)
-    }
-
-    hets.gr <- grab.hets(het_pileups_wgs)
-    hets.gr <- gr.val(hets.gr, maska, "mask")
-    hets.gr <- hets.gr %Q% (is.na(mask))
-    hets.gr$mask <- NULL
-    # lets call major blue and minor red
-    hets.gr$col <- c("major" = "red", "minor" = "blue")[hets.gr$allele]
-
-    # lets subset a random amount of SNPS so we're under 250k points
-    unique.snps <- unique(gr2dt(hets.gr)[, .(seqnames, start, end)])
-    n_snps <- nrow(unique.snps)
-    message(paste(n_snps, "snps found"))
-    if (!is.na(sample_size) && n_snps > sample_size) {
-        message(paste("subsampling", sample_size, "points..."))
-        snps.to.include <- unique.snps[sample(n_snps, sample_size)] %>% dt2gr()
-        subset.hets.gr <- hets.gr %&% snps.to.include
-    } else {
-        snps.to.include <- unique.snps %>% dt2gr()
-        subset.hets.gr <- hets.gr %&% snps.to.include
-    }
-
-    return(subset.hets.gr)
-}
-
 
 #' @description
 #' Create coverage arrow plot JSON file.
