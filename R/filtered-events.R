@@ -41,7 +41,7 @@ process_cytoband = function(cyto = NULL, coarse=FALSE) {
 
   names(cyto) = c("seqnames", "start", "end", "band", "stain")
   isZeroStart = any(cyto[, length(intersect(start, end)), by = seqnames]$V1 > 0) || any(cyto$start == 0)
-  if (isZeroStart) cyto$start = cytostart + 1
+  if (isZeroStart) cyto$start = cyto$start + 1
   cyto = gUtils::dt2gr(cyto)
   GenomeInfoDb::seqlevelsStyle(cyto) = "NCBI"
   cyto$chrom_name = as.character(seqnames(cyto))
