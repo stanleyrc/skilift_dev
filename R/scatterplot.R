@@ -122,6 +122,93 @@ granges_to_arrow_scatterplot = function(
     return(arrow_table)
 }
 
+#' @name make_allelic_hets
+#' @title make_allelic_hets
+#'
+#' @description
+#'
+#' returns melted hetsnps gRanges with allelic (major/minor) counts
+#'
+#' @param het_pileups (character) path to sites.txt with hetsnps
+#' @param min_normal_freq (numeric) in [0, 1] min frequency in normal to count as het site
+#' @param max_normal_freq (numeric) in [0, 1] max frequency in normal to count as het site
+#'
+#' @return GRanges with major and minor counts
+#' @author Jonathan Rafailov, Shihab Dider
+make_allelic_hetsnps <- function(
+    het_pileups = NULL,
+    min_normal_freq = 0.2,
+    max_normal_freq = 0.8
+) {
+    if (is.null(het_pileups) || !file.exists(het_pileups)) {
+        stop("Please provide a valid path to a hetsnps file.")
+    }
+
+    ## prepare and filter
+    hetsnps_dt <- fread(het_pileups)[alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq, ]
+    ## add major and minor
+    hetsnps_dt[, which.major := ifelse(alt.count.t > ref.count.t, "alt", "ref")]
+    hetsnps_dt[, major.count := ifelse(which.major == "alt", alt.count.t, ref.count.t)]
+    hetsnps_dt[, minor.count := ifelse(which.major == "alt", ref.count.t, alt.count.t)]
+
+    ## melt the data frame
+    hetsnps_melted <- rbind(
+        hetsnps_dt[, .(seqnames, start, end, count = major.count, allele = "major")],
+        hetsnps_dt[, .(seqnames, start, end, count = minor.count, allele = "minor")]
+    )
+
+    ## make GRanges
+    allelic_hetsnps <- dt2gr(hetsnps_melted[, .(seqnames, start, end, count, allele)])
+
+    return(allelic_hetsnps)
+}
+
+
+#' @name subsample_hetsnps
+#' @title subsample_hetsnps
+#' @description subsets the hetsnps to masked unique sites and colors by major/minor allele
+#'
+#' @param het_pileups sites.txt from het pileups
+#' @param mask rds file with masked regions
+#' @param sample_size number of snps to randomly sample
+#' @export
+#' @author Jonathan Rafailov, Shihab Dider
+subsample_hetsnps <- function(
+    het_pileups,
+    mask = NULL,
+    sample_size = 100000) {
+    if (is.null(het_pileups)) {
+        stop("Please provide a valid path to a hetsnps file.")
+    }
+    if (is.null(mask)) {
+        warning("No mask provided, using default mask.")
+        maska_path <- system.file("extdata", "data", "maskA_re.rds", package = "Skilift")
+        maska <- readRDS(maska_path)
+    }
+
+    allelic_hetsnps <- make_allelic_hetsnps(het_pileups)
+    allelic_hetsnps <- gr.val(allelic_hetsnps, maska, "mask")
+    allelic_hetsnps <- allelic_hetsnps %Q% (is.na(mask))
+    allelic_hetsnps$mask <- NULL
+    # lets call major blue and minor red
+    allelic_hetsnps$col <- c("major" = "red", "minor" = "blue")[allelic_hetsnps$allele]
+
+    # lets subset a random amount of SNPS so we're under 250k points
+    unique_snps <- unique(gr2dt(allelic_hetsnps)[, .(seqnames, start, end)])
+    n_snps <- nrow(unique_snps)
+    message(paste(n_snps, "snps found"))
+    if (!is.na(sample_size) && n_snps > sample_size) {
+        message(paste("subsampling", sample_size, "points..."))
+        snps_to_include <- unique_snps[sample(n_snps, sample_size)] %>% dt2gr()
+        subsampled_allelic_hetsnps <- allelic_hetsnps %&% snps_to_include
+    } else {
+        snps_to_include <- unique_snps %>% dt2gr()
+        subsampled_allelic_hetsnps <- allelic_hetsnps %&% snps_to_include
+    }
+
+    return(subsampled_allelic_hetsnps)
+}
+
 #' @description
 #' Create arrow scatterplot 
 #'
