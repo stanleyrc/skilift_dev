@@ -41,7 +41,7 @@ process_cytoband = function(cyto = NULL, coarse=FALSE) {
 
   names(cyto) = c("seqnames", "start", "end", "band", "stain")
   isZeroStart = any(cyto[, length(intersect(start, end)), by = seqnames]$V1 > 0) || any(cyto$start == 0)
-  if (isZeroStart) cyto$start = cyto$start + 1
+  if (isZeroStart) cyto$start = cytostart + 1
   cyto = gUtils::dt2gr(cyto)
   GenomeInfoDb::seqlevelsStyle(cyto) = "NCBI"
   cyto$chrom_name = as.character(seqnames(cyto))
@@ -403,7 +403,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     ixA = match(genes_matrix[,1], pge$gene_name)
     ixB = match(genes_matrix[,2], pge$gene_name)
     # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
-    ixA = ixA[!is.na(ixA)]
+    na.index = which(is.na(ixA)); ixA = ixA[!is.na(ixA)]
     ixB = ixB[!is.na(ixB)]
     grA = pge[ixA]
     grB = pge[ixB]
@@ -414,20 +414,24 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     
     if (length(grovA) > 0) {
       grovA = GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
-      non_silent_fusions$cytoA = gUtils::gr2dt(grovA)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+      non_silent_fusions$cytoA = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+                                        gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1, NA) 
     } else {
       non_silent_fusions$cytoA = ""
     }
 
     if (length(grovB) > 0) {
       grovB = GenomicRanges::sort(grovB) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
-      non_silent_fusions$cytoB = gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+      non_silent_fusions$cytoB = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+                                        gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1, NA) 
     } else {
       non_silent_fusions$cytoB = ""
     }
 
     non_silent_fusions$fusion_genes = paste0(genes_matrix[,1], "(", non_silent_fusions$exonA, ")::", genes_matrix[,2], "(", non_silent_fusions$exonB, ")@", non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB)
-    non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
+    non_silent_fusions$fusion_gene_coords = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+                                                   paste(coordA, coordB, sep = ","),
+                                                   NA)
     out = non_silent_fusions[, .(
             gene = Hugo_Symbol,
             gene_summary = GENE_SUMMARY,
@@ -825,15 +829,12 @@ create_oncotable <- function(
                 fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
                 return(list(index = i, path = oncotable_path))
             }
-            function(x) {
-              if (is.factor(x)) x <- as.character(x)  # Convert factors to characters
-              ifelse(x == "", NA_character_, x)       # Replace empty strings with NA
-            }
         }, error = function(e) {
             msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
             warning(msg)
         })
     }, mc.cores = cores)
+  
 
     # Update oncotable paths in the cohort
   results <- Filter(Negate(is.null), results)
