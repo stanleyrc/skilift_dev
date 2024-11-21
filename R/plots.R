@@ -117,6 +117,77 @@ grab.hets <- function(agt.fname = NULL,
     return(agt.gr)
 }
 
+#' @description
+#' Create arrow scatterplot 
+#'
+#' @param plot_metadata data.table with Plot metadata for a single plot, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
+#' @param datadir Path to data directory with patient directories.
+#' @param settings Path to settings.json file.
+#'
+#' @return NULL.
+create_scatterplot_arrow = function(plot_metadata, datadir, settings = internal_settings_path, color_field = NULL) {
+    cov_json_path <- file.path(
+        datadir,
+        plot_metadata$patient.id,
+        plot_metadata$source
+    )
+
+    if (!("field" %in% names(plot_metadata))) {
+        stop(warning("Please include a 'field' column which indicates the column name that contains the coverage data."))
+    }
+
+    # check if the input is a nested list
+    if (is(plot_metadata$x, "list")) {
+        x <- plot_metadata$x[[1]]
+    } else {
+        x <- plot_metadata$x
+    }
+
+    temp_file <- NULL
+    if (is(x, "GRanges")) {
+        # save granges to a temp file and assign path to plot_metadata$x
+        message("Saving GRanges to temp file")
+        temp_file <- tempfile(fileext = ".rds")
+        saveRDS(x, temp_file)
+        x <- temp_file
+    } else if (is(x, "character")) {
+        message("Using path to GRanges")
+    } else {
+        stop(warning("Please provide a GRanges object or a path to a GRanges object."))
+    }
+
+    if (!file.exists(cov_json_path) || plot_metadata$overwrite) {
+        if (file.exists(x)) {
+            arrow_table <- granges_to_arrow_scatterplot(x,
+                field = plot_metadata$field,
+                ref_seqinfo_json = settings,
+                ref = plot_metadata$ref,
+                cov.color.field = color_field
+            )
+            message('Writing arrow file...')
+
+            if (!dir.exists(dirname(cov_json_path))) {
+                dir.create(dirname(cov_json_path), recursive = TRUE)
+            }
+            arrow::write_feather(arrow_table, cov_json_path, compression = "uncompressed")
+        } else {
+            warning(
+                paste0(
+                    "Input coverage file does not exist for name: ",
+                    plot_metadata$sample,
+                    " so no coverage will be generated."
+                )
+            )
+        }
+    } else {
+        message(cov_json_path, " already exists! Set overwrite = TRUE if you want to overwrite it.")
+    }
+
+    if (!is.null(temp_file) && file.exists(temp_file)) {
+        file.remove(temp_file)
+    }
+}
+
 
 #' @description
 #' Create coverage arrow plot JSON file.
