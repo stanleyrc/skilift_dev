@@ -403,7 +403,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     ixA = match(genes_matrix[,1], pge$gene_name)
     ixB = match(genes_matrix[,2], pge$gene_name)
     # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
-    ixA = ixA[!is.na(ixA)]
+    na.index = which(is.na(ixA)); ixA = ixA[!is.na(ixA)]
     ixB = ixB[!is.na(ixB)]
     grA = pge[ixA]
     grB = pge[ixB]
@@ -411,23 +411,27 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     coordB = gUtils::gr.string(grB)
     grovA = gUtils::gr.findoverlaps(grA, cytoband, scol = "chromband")
     grovB = gUtils::gr.findoverlaps(grB, cytoband, scol = "chromband")
-
+    
     if (length(grovA) > 0) {
       grovA = GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
-      non_silent_fusions$cytoA = gUtils::gr2dt(grovA)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+      non_silent_fusions$cytoA = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+                                        gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1, NA) 
     } else {
       non_silent_fusions$cytoA = ""
     }
 
     if (length(grovB) > 0) {
       grovB = GenomicRanges::sort(grovB) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
-      non_silent_fusions$cytoB = gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1
+      non_silent_fusions$cytoB = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+                                        gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband,1))]), collapse = "-"), by =query.id]$V1, NA) 
     } else {
       non_silent_fusions$cytoB = ""
     }
 
     non_silent_fusions$fusion_genes = paste0(genes_matrix[,1], "(", non_silent_fusions$exonA, ")::", genes_matrix[,2], "(", non_silent_fusions$exonB, ")@", non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB)
-    non_silent_fusions$fusion_gene_coords = paste(coordA, coordB, sep = ",")
+    non_silent_fusions$fusion_gene_coords = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+                                                   paste(coordA, coordB, sep = ","),
+                                                   NA)
     out = non_silent_fusions[, .(
             gene = Hugo_Symbol,
             gene_summary = GENE_SUMMARY,
@@ -691,7 +695,10 @@ oncotable = function(
   out <- out[!is.na(type)]
 
   # coerce all empty strings to NA without affecting columns of levels
-  out <- out[, lapply(.SD, function(x) ifelse(as.character(x) == "", NA_character_, as.character(x)))]
+  out <- out[, lapply(.SD, function(x) {
+    if (is.factor(x)) x <- as.character(x)  # Convert factors to characters
+    ifelse(x == "", NA_character_, x)       # Replace empty strings with NA
+  })]
 
   if (verbose) message('done processing sample')
   return(out)
@@ -822,15 +829,15 @@ create_oncotable <- function(
                 fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
                 return(list(index = i, path = oncotable_path))
             }
-
         }, error = function(e) {
             msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
             warning(msg)
         })
     }, mc.cores = cores)
+  
 
     # Update oncotable paths in the cohort
-    results <- Filter(Negate(is.null), results)
+  results <- Filter(Negate(is.null), results)
     for (result in results) {
         updated_cohort$inputs[result$index, oncotable := result$path]
     }
@@ -873,8 +880,8 @@ create_filtered_events <- function(
       snvs <- snvs[order(is.na(tier)), ]
     }
     snvs <- snvs[!duplicated(variant.p), ]
-    homdels <- ot[type == "homdel"]
-    amps <- ot[type == "amp"]
+    homdels <- ot[type == "homdel"][, vartype := "HOMDEL"][, type := "SCNA"]
+  	amps <- ot[type == "amp"][, vartype := "AMP"][, type := "SCNA"]
     fusions <- ot[type == "fusion"]
     possible_drivers <- rbind(snvs, homdels, amps, fusions)
 
@@ -910,7 +917,7 @@ create_filtered_events <- function(
     intersected_columns <- intersect(filtered_events_columns, names(res))
     setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
 
-    res <- res %>% unique(., by = c("gene", "Variant"))
+  res <- res %>% unique(., by = c("gene","vartype", "Variant"))
     if (nrow(res) > 0) {
         res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
         res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
@@ -918,7 +925,7 @@ create_filtered_events <- function(
         res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
         res.mut <- res[!is.na(Variant), ]
         if (nrow(res.mut) > 0) {
-            res.mut[, Variant := gsub("p.", "", Variant)]
+            #res.mut[, Variant := gsub("p.", "", Variant)]
             res.mut[, vartype := "SNV"]
             res.mut[type=="trunc", vartype := "DEL"]
         }
@@ -928,8 +935,11 @@ create_filtered_events <- function(
             res.cn.gr <- GRanges(res.cn)
             res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
             res.cn.dt <- as.data.table(res.cn.gr)
-            res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
-            res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3))]
+            res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
+            res.cn.dt[, segment_cn := cn]
+            res.cn.dt[, Variant := vartype]
+            ## res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
+            ## res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3)                                                                                     )]
             if (temp_fix) {
                 res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
                 res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
