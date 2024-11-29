@@ -43,10 +43,11 @@ read_decomposed_mutationtype_probabilities <- function(
 #'
 #' @param sigmat_path Path to either the SBS or ID matrix
 #' @param is_indel Boolean to indicate if the matrix is for indels
-#' @return data.frame containing the mutations catalog with columns:
-#'   - id: row identifier
-#'   - insdel/tnc: mutation type (insdel for indels, tnc for SBS)
-#'   - mutations: count of mutations
+#' @return list containing:
+#'   - data: data.frame with columns:
+#'     - id: row identifier
+#'     - insdel/tnc: mutation type (insdel for indels, tnc for SBS)
+#'     - mutations: count of mutations
 #' @export
 #' @author Shihab Dider, Sukanya Panja
 create_mutations_catalog <- function(sigmat_path, is_indel = FALSE) {
@@ -54,8 +55,8 @@ create_mutations_catalog <- function(sigmat_path, is_indel = FALSE) {
     sig_matrix <- fread(sigmat_path)
     sig_matrix_dt <- as.data.frame(sig_matrix)
     
-    # Create the inner data frame structure
-    inner_data <- if (is_indel) {
+    # Create the data frame structure
+    result <- if (is_indel) {
         data.frame(
             id = 1:nrow(sig_matrix_dt),
             insdel = sig_matrix_dt[, 1],
@@ -69,10 +70,10 @@ create_mutations_catalog <- function(sigmat_path, is_indel = FALSE) {
         )
     }
     
-    result_df <- data.frame(data = I(list(inner_data)))
-    
-    return(result_df)
+    # Return as a list with 'data' element
+    return(list(data = result))
 }
+
 #' @name lift_signatures
 #' @title lift_signatures
 #' @description

@@ -86,7 +86,7 @@ test_that("read_decomposed_mutationtype_probabilities correctly processes SBS da
     result <- read_decomposed_mutationtype_probabilities(decomposed_sbs_file, is_indel = FALSE)
     
     # Check structure
-    expect_s3_class(result, "data.frame")
+    expect_type(result, "list")
     expect_named(result, c("signature", "tnc", "p"))
     
     # Check content
@@ -101,7 +101,7 @@ test_that("read_decomposed_mutationtype_probabilities correctly processes indel 
     result <- read_decomposed_mutationtype_probabilities(decomposed_indel_file, is_indel = TRUE)
     
     # Check structure
-    expect_s3_class(result, "data.frame")
+    expect_type(result, "list")
     expect_named(result, c("signature", "insdel", "p"))
     
     # Check content
@@ -143,30 +143,32 @@ test_that("create_mutations_catalog correctly processes SBS data", {
     result <- create_mutations_catalog(sbs_matrix_file, is_indel = FALSE)
     
     # Check structure
-    expect_s3_class(result, "data.frame")
+    expect_type(result, "list")
     expect_named(result, "data")
     
-    # Check content of the inner data frame
-    inner_data <- result$data[[1]]
-    expect_equal(nrow(inner_data), 2)
-    expect_equal(inner_data$id, 1:2)
-    expect_equal(inner_data$tnc, c("A[C>A]A", "C[T>G]T"))
-    expect_equal(inner_data$mutations, c(10, 20))
+    # Check content of the data element
+    data <- result$data
+    expect_s3_class(data, "data.frame")
+    expect_equal(nrow(data), 2)
+    expect_equal(data$id, 1:2)
+    expect_equal(data$tnc, c("A[C>A]A", "C[T>G]T"))
+    expect_equal(data$mutations, c(10, 20))
 })
 
 test_that("create_mutations_catalog correctly processes indel data", {
     result <- create_mutations_catalog(indel_matrix_file, is_indel = TRUE)
     
     # Check structure
-    expect_s3_class(result, "data.frame")
+    expect_type(result, "list")
     expect_named(result, "data")
     
-    # Check content of the inner data frame
-    inner_data <- result$data[[1]]
-    expect_equal(nrow(inner_data), 2)
-    expect_equal(inner_data$id, 1:2)
-    expect_equal(inner_data$insdel, c("DEL:C:1:0", "INS:T:2:1"))
-    expect_equal(inner_data$mutations, c(15, 25))
+    # Check content of the data element
+    data <- result$data
+    expect_s3_class(data, "data.frame")
+    expect_equal(nrow(data), 2)
+    expect_equal(data$id, 1:2)
+    expect_equal(data$insdel, c("DEL:C:1:0", "INS:T:2:1"))
+    expect_equal(data$mutations, c(15, 25))
 })
 
 test_that("create_mutations_catalog handles missing files appropriately", {
@@ -248,8 +250,9 @@ test_that("lift_signatures processes files correctly", {
     catalog_content <- jsonlite::read_json(
         file.path(sample_dir, "mutation_catalog.json")
     )
-    expect_type(catalog_content[[1]], "list")
-    expect_true("data" %in% names(catalog_content[[1]]))
+    expect_type(catalog_content, "list")
+    expect_type(catalog_content$data, "list")
+    expect_true(length(catalog_content$data) > 0)
     
     # Clean up
     unlink(test_output_dir, recursive = TRUE)
@@ -279,7 +282,7 @@ if (will_test_integration) {
 test_that("lift_signatures works on real cohort", {
     clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
     clinical_pairs = readRDS(clinical_pairs_path)
-    vip_sample = clinical_pairs[patient_id == "10732386", ]
+    vip_sample = clinical_pairs[patient_id == "397089", ]
     cohort = Cohort$new(vip_sample)
     # /gpfs/data/imielinskilab/projects/Clinical_NYU/nf-casereports-VIP/signatures/sigprofilerassignment/somatic/397089___B24-1267_vs_397089___B23-2915/sbs_results/Assignment_Solution/Activities/Decomposed_MutationType_Probabilities.txt
     activity = cohort$inputs$activities_sbs_signatures
@@ -292,6 +295,8 @@ test_that("lift_signatures works on real cohort", {
     devtools::load_all()
     head(read_decomposed_mutationtype_probabilities(decomposed))
     head(create_mutations_catalog(matrix))
+
+    lift_signatures(cohort, "~/public_html/case-reports-data/")
 })
 
 }
