@@ -424,7 +424,7 @@ test_that("create_filtered_events creates correct output", {
   expect_true(is.data.frame(json_content))
   
   # Test content validation
-  expect_true(all(result$type %in% c("trunc", "missense", "synonymous", "amp", "homdel", "fusion")))
+  expect_true(all(result$type %in% c("trunc", "missense", "synonymous", "SCNA", "fusion")))
   expect_true(all(!is.na(result$gene)))
   expect_true(all(!is.na(result$type)))
   
