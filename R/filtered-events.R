@@ -945,7 +945,7 @@ create_filtered_events <- function(
                 res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
             }
             res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
-            res.final <- rbind(res.mut, res.cn.dt)
+            res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
         } else {
             res.final <- res.mut
         }
