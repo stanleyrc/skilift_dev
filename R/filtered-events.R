@@ -890,6 +890,7 @@ create_filtered_events <- function(
         "gene" = "gene",
         "fusion_genes" = "fusion_genes",
         "fusion_gene_coords" = "fusion_gene_coords",
+        "value" = "fusion_cn",
         "vartype" = "vartype",
         "type" = "type",
         "variant.g" = "Variant_g",
