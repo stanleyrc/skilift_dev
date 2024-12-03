@@ -255,7 +255,7 @@ Cohort <- R6Class("Cohort",
         matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
         decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Decomposed_MutationType_Probabilities.txt",
         activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Assignment_Solution_Activities.txt",
-        matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID28.all",
+        matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
         decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
         hrdetect = "hrdetect/.*/hrdetect_results.rds"
       )
