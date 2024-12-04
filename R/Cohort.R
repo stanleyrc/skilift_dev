@@ -257,7 +257,11 @@ Cohort <- R6Class("Cohort",
         activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Assignment_Solution_Activities.txt",
         matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
         decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
-        hrdetect = "hrdetect/.*/hrdetect_results.rds"
+        hrdetect = "hrdetect/.*/hrdetect_results.rds",
+        estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
+        alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
+        insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
+        wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
       )
       
       for (col_name in names(path_patterns)) {
