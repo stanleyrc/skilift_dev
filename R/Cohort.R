@@ -199,7 +199,7 @@ Cohort <- R6Class("Cohort",
       
       # Read pipeline report
       report_lines <- readLines(report_path)
-      
+
       # Extract launch directory and samplesheet path
       launch_dir <- grep("launchDir:", report_lines, value = TRUE)
       samplesheet_path <- grep("input:", report_lines, value = TRUE)
@@ -213,7 +213,11 @@ Cohort <- R6Class("Cohort",
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
       samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
       samplesheet_filename <- gsub("^\\./", "", samplesheet_filename)
-      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
+      if(samplesheet_filename == "./samplesheet.csv" | samplesheet_filename == "samplesheet.csv") {
+          samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
+      } else {
+          samplesheet_path <- samplesheet_filename
+      }
       
       if (!file.exists(samplesheet_path)) {
         warning("Samplesheet not found: ", samplesheet_path)
