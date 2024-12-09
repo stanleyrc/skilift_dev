@@ -844,7 +844,15 @@ create_metadata <- function(
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
-    
+
+    # change NA to NULL
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
+    for (x in fix_entries) {
+        if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
+        ## if (exists(x) & is.na(get(x))) {
+            assign(x, NULL)
+        }
+    }
     # Add each component sequentially
     metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
@@ -868,7 +876,7 @@ create_metadata <- function(
     metadata <- add_sv_types(metadata, jabba_gg, events)
     metadata <- add_coverage_parameters(metadata, tumor_coverage)
     metadata <- add_het_pileups_parameters(metadata, het_pileups)
-    
+
     # Add TMB calculation
     metadata <- add_tmb(metadata, somatic_snvs, jabba_gg, genome, seqnames_genome_width)
     
@@ -880,7 +888,7 @@ create_metadata <- function(
     )
     
     # Add HRD scores
-    metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
+    metadata <- add_hrd_scores(metadata, hrdetect = hrdetect, onenesstwoness)
     
     return(metadata)
 }
@@ -925,9 +933,9 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-    
+
     # Process each sample in parallel
-    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+    out.lst = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
@@ -978,7 +986,11 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s\nCallstack: %s", row$pair, e$message, deparse(e$call)))
         })
+        return(data.table(x = i, pair = row$pair, outfile = out_file))
     }, mc.cores = cores)
-    
+
+
+    warning()
+    message()
     invisible(NULL)
 }
