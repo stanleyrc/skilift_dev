@@ -298,7 +298,7 @@ process_qc_metrics <- function(
 add_coverage_metrics <- function(
     metadata,
     tumor_coverage = NULL,
-    foreground_col_name = "foreground.X",
+    foreground_col_name = "foreground",
     estimate_library_complexity = NULL,
     alignment_summary_metrics = NULL,
     insert_size_metrics = NULL,
@@ -538,7 +538,7 @@ add_coverage_parameters <- function(metadata, tumor_coverage) {
             warning("Purity and ploidy not found in metadata, cov_slope and cov_intercept will not be calculated")
         }
         rel2abs.cov <- skitools::rel2abs(readRDS(tumor_coverage),
-            field = "foreground.X",
+            field = "foreground",
             purity = metadata$purity,
             ploidy = metadata$ploidy,
             return.params = TRUE
@@ -827,7 +827,7 @@ create_metadata <- function(
     somatic_snvs = NULL,
     germline_snvs = NULL,
     tumor_coverage = NULL,
-    foreground_col_name = "foreground.X",
+    foreground_col_name = "foreground",
     estimate_library_complexity = NULL,
     alignment_summary_metrics = NULL,
     insert_size_metrics = NULL,
@@ -960,6 +960,11 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
                 hrdetect = row$hrdetect,
                 onenesstwoness = row$onenesstwoness
             )
+
+            if (is.null(metadata)) {
+                warning(sprintf("No metadata generated for %s", row$pair))
+                return()
+            }
             
             # Write to JSON
             jsonlite::write_json(
