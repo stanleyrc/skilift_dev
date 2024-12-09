@@ -211,8 +211,9 @@ Cohort <- R6Class("Cohort",
       
       # Clean up paths
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
-      samplesheet_path <- gsub(".*input: ", "", samplesheet_path)
-      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_path))
+      samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
+      samplesheet_filename <- gsub("^\\./", "", samplesheet_filename)
+      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
       
       if (!file.exists(samplesheet_path)) {
         warning("Samplesheet not found: ", samplesheet_path)
@@ -239,7 +240,7 @@ Cohort <- R6Class("Cohort",
     extract_pipeline_outpath_to_column = function(path) {
       # Map of regex patterns to column names
       path_patterns <- list(
-        balanced_jabba_gg = "non_integer_balance/.*/balanced.gg.rds$",
+        balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
         tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
         het_pileups = "hetpileups/.*/sites.txt$",
         jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
@@ -247,7 +248,7 @@ Cohort <- R6Class("Cohort",
         fusions = "fusions/.*/fusions.rds$",
         structural_variants = "gridss_somatic/.*/.*high_confidence_somatic.vcf.bgz$",
         karyograph = "jabba/.*/karyograph.rds$",
-        allelic_jabba_gg = "lp_phased_balance/.*/balanced.gg.rds$",
+        allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
         somatic_snvs = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
         somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
         somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",

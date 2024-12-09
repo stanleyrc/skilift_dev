@@ -98,7 +98,8 @@ THe lifter methods are used to generate the plot files for Case Reports. Each li
 The lifter methods are:
 
 - `lift_copy_number_graph`: Create copy number gGraphs as JSON files. Use `is_allelic` to generate allelic copy number graph.
-- `lift_scatterplot`: Create scatterplots as Apache Arrow files from GRanges.
+- `lift_denoised_coverage`: Create coverage plot as Apache Arrow files from GRanges.
+- `lift_hetsnps`: Create hetSNP plots as Apace Arrow files from GRanges.
 - `lift_filtered_events`: Create filtered events as JSON files from oncotable.
 - `lift_multiplicity`: Create multiplicity plots as JSON files from SNVplicity (https://github.com/mskilab-org/SNVplicity). Set `is_germline = TRUE` to generate germline multiplicity plots.
 - `lift_segment_width_distribution`: Create segment width distribution plots as JSON files. 
@@ -120,10 +121,13 @@ lift_copy_number_graph(cohort, output_data_dir = output_data_dir, is_allelic = F
 lift_copy_number_graph(cohort, output_data_dir = output_data_dir, is_allelic = TRUE, cores = 1) # allelic
 
 # create scatterplots
-lift_scatterplot(cohort, output_data_dir = output_data_dir, cores = 1)
+lift_denoised_coverage(cohort, output_data_dir = output_data_dir, cores = 1) # coverage
+lift_hetsnps(cohort, output_data_dir = output_data_dir, cores = 1) #hetSNPs
 
 # create filtered events
-lift_filtered_events(cohort, output_data_dir = output_data_dir, cores = 1)
+oncotable_dir <- "~/path/to/oncotable_dir"
+cohort_w_oncotable <- create_oncotable(cohort, outdir = oncotable_dir, cores = 1)
+lift_filtered_events(cohort_w_oncotable, output_data_dir = output_data_dir, cores = 1)
 
 # create multiplicity plots
 lift_multiplicity(cohort, output_data_dir = output_data_dir, is_germline = FALSE, cores = 1)

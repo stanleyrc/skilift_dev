@@ -10,7 +10,7 @@ setup({
     mock_gr <- GRanges(
       seqnames = "1",
       ranges = IRanges(start = 1, end = 100),
-      foreground.X = 0.5,
+      foreground = 0.5,
       color = "#FF0000"
     )
     
@@ -164,7 +164,7 @@ test_that("subsample_hetsnps handles invalid input", {
 test_that("granges_to_arrow_scatterplot creates an arrow table correctly", {
   result <- granges_to_arrow_scatterplot(
     gr_path = mock_gr_path,
-    field = "foreground.X",
+    field = "foreground",
     ref = 'hg19',
     cov.color.field = "color",
     bin.width = NA
@@ -178,7 +178,7 @@ test_that("granges_to_arrow_scatterplot creates an arrow table correctly", {
 test_that("granges_to_arrow_scatterplot handles missing color field gracefully", {
   result <- granges_to_arrow_scatterplot(
     gr_path = mock_gr_path,
-    field = "foreground.X",
+    field = "foreground",
     ref = 'hg19',
     cov.color.field = NULL,
   )
@@ -195,7 +195,7 @@ test_that("create_scatterplot_arrow handles path input correctly", {
     source = "coverage.arrow",
     x = list(mock_gr_path),
     ref = "hg19",
-    field = "foreground.X",
+    field = "foreground",
     overwrite = TRUE
   )
   
@@ -217,7 +217,7 @@ test_that("create_scatterplot_arrow handles path not in list correctly", {
     source = "coverage.arrow",
     x = mock_gr_path,
     ref = "hg19",
-    field = "foreground.X",
+    field = "foreground",
     overwrite = TRUE
   )
   
@@ -239,11 +239,11 @@ test_that("create_scatterplot_arrow handles GRanges input correctly", {
     x = list(GRanges(
       seqnames = "1",
       ranges = IRanges(start = 1, end = 100),
-      foreground.X = 0.5,
+      foreground = 0.5,
       color = "#FF0000"
     )),
     ref = "hg19",
-    field = "foreground.X",
+    field = "foreground",
     overwrite = TRUE
   )
   
@@ -264,7 +264,7 @@ test_that("create_scatterplot_arrow warns when input path does not exist", {
     source = "coverage.arrow",
     x = list("non_existent_path.rds"),
     ref = "hg19",
-    field = "foreground.X",
+    field = "foreground",
     overwrite = TRUE
   )
   
@@ -282,7 +282,7 @@ test_that("create_scatterplot_arrow handles multiple entries in data.table corre
     source = c("coverage1.arrow", "coverage2.arrow"),
     x = list(mock_gr_path, mock_gr_path),
     ref = c("hg19", "hg19"),
-    field = c("foreground.X", "foreground.X"),
+    field = c("foreground", "foreground"),
     overwrite = TRUE
   )
   
@@ -314,7 +314,7 @@ test_that("lift_denoised_coverage handles various input scenarios", {
   mock_gr <- GRanges(
     seqnames = "1",
     ranges = IRanges(start = 1, end = 100),
-    foreground.X = 0.5
+    foreground = 0.5
   )
   mock_coverage_file <- tempfile(fileext = ".rds")
   saveRDS(mock_gr, mock_coverage_file)
