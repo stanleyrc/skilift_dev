@@ -77,7 +77,7 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-
+    
     # Validate required columns exist
     required_cols <- c("pair", "balanced_jabba_gg", "tumor_coverage")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]

@@ -196,7 +196,7 @@ Cohort <- R6Class("Cohort",
         warning("Pipeline report not found: ", report_path)
         return(NULL)
       }
-      ## browser()
+
       # Read pipeline report
       report_lines <- readLines(report_path)
 
@@ -218,10 +218,6 @@ Cohort <- R6Class("Cohort",
       } else {
           samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
       }
-      ## if(!file.exists(samplesheet_filename))
-      ## if(samplesheet_filename == "./samplesheet.csv" | samplesheet_filename == "samplesheet.csv") {
-      ## } else {
-      ## }
       
       if (!file.exists(samplesheet_path)) {
         warning("Samplesheet not found: ", samplesheet_path)
