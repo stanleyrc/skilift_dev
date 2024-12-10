@@ -656,7 +656,7 @@ compute_signature_averages <- function(
         sig.dt[, (sample_name_col) := NULL]
         sig.dt_avg <- copy(sig.dt)
         sig.dt_avg[, pair := NULL]
-        sig.dt_avg[, ("MutationType") := NULL]
+        ## sig.dt_avg[, ("MutationType") := NULL]
         row_sum <- sig.dt_avg %>% rowSums()
         sigs.dt <- melt.data.table(sig.dt_avg, measure.vars = names(sig.dt_avg)) %>% 
             setnames(., c("signature", "value"))
