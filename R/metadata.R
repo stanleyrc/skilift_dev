@@ -650,13 +650,11 @@ compute_signature_averages <- function(
         if (nrow(sig.dt) == 0) {
             stop("No signatures found in file")
         }
-        sample_name_col = grep("Sample", names(sig.dt), value = TRUE)
-        pair <- sig.dt[[sample_name_col]][1]
+        pair <- sig.dt$Samples[1]
         sig.dt[, pair := pair]
-        sig.dt[, (sample_name_col) := NULL]
+        sig.dt[, Samples := NULL]
         sig.dt_avg <- copy(sig.dt)
         sig.dt_avg[, pair := NULL]
-        ## sig.dt_avg[, ("MutationType") := NULL]
         row_sum <- sig.dt_avg %>% rowSums()
         sigs.dt <- melt.data.table(sig.dt_avg, measure.vars = names(sig.dt_avg)) %>% 
             setnames(., c("signature", "value"))
@@ -699,7 +697,6 @@ add_signatures <- function(
 ) {
     # Initialize list columns with proper length
     n <- nrow(metadata)
-
     metadata[, `:=`(
         deconstructsigs_sbs_fraction = list(list()),
         deletionInsertion = list(list()),
@@ -709,6 +706,7 @@ add_signatures <- function(
         sigprofiler_sbs_count = list(list()),
         signatures = list(list())
     )]
+
     if (!is.null(activities_sbs_signatures)) {
         signatures <- compute_signature_averages(
             sig_file = activities_sbs_signatures,
@@ -846,15 +844,13 @@ create_metadata <- function(
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
-
     # change NA to NULL
     fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
-        ## if (exists(x) & is.na(get(x))) {
             assign(x, NULL)
         }
-    }
+    }    
     # Add each component sequentially
     metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
@@ -869,7 +865,7 @@ create_metadata <- function(
         wgs_metrics
     )
     metadata <- add_variant_counts(metadata, somatic_snvs, genome)
-
+    
     # New SV-related function calls
     metadata <- add_sv_counts(metadata, jabba_gg)
     metadata <- add_purity_ploidy(metadata, jabba_gg)
@@ -878,9 +874,10 @@ create_metadata <- function(
     metadata <- add_sv_types(metadata, jabba_gg, events)
     metadata <- add_coverage_parameters(metadata, tumor_coverage)
     metadata <- add_het_pileups_parameters(metadata, het_pileups)
+    
     # Add TMB calculation
     metadata <- add_tmb(metadata, somatic_snvs, jabba_gg, genome, seqnames_genome_width)
-
+    
     metadata <- add_signatures(
         metadata,
         activities_sbs_signatures,
@@ -889,7 +886,7 @@ create_metadata <- function(
     )
     
     # Add HRD scores
-    metadata <- add_hrd_scores(metadata, hrdetect = hrdetect, onenesstwoness)
+    metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
     
     return(metadata)
 }
@@ -923,19 +920,20 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
         "activities_sbs_signatures", "activities_indel_signatures",
         "hrdetect", "onenesstwoness"
     )
-
+    
     # Check for required column
     if (!"pair" %in% names(cohort$inputs)) {
         stop("Missing required column 'pair' in cohort")
     }
+    
     # Warn about missing optional columns
     missing_cols <- all_cols[!all_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-
+    
     # Process each sample in parallel
-    out.lst = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
@@ -965,8 +963,6 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
                 het_pileups = row$het_pileups,
                 activities_sbs_signatures = row$activities_sbs_signatures,
                 activities_indel_signatures = row$activities_indel_signatures,
-                ## activities_sbs_signatures = row$decomposed_sbs_signatures,
-                ## activities_indel_signatures = row$decomposed_indel_signatures,
                 hrdetect = row$hrdetect,
                 onenesstwoness = row$onenesstwoness
             )
@@ -988,8 +984,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s\nCallstack: %s", row$pair, e$message, deparse(e$call)))
         })
-        return(data.table(x = i, pair = row$pair, outfile = out_file))
     }, mc.cores = cores)
-
+    
     invisible(NULL)
 }
