@@ -46,8 +46,10 @@ Cohort <- R6Class("Cohort",
         allelic_jabba_gg = c("allelic_jabba_gg", "lp_phased_balance", "allelic_gg"),
         activities_sbs_signatures = c("activities_sbs_signatures", "sbs_activities"),
         matrix_sbs_signatures = c("matrix_sbs_signatures", "sbs_matrix"),
+        decomposed_sbs_signatures = c("decomposed_sbs_signatures", "sbs_decomposed"),
         activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
         matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
+        decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
         hrdetect = c("hrdetect", "hrd"),
         oncotable = c("oncotable"),
         estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
@@ -210,8 +212,9 @@ Cohort <- R6Class("Cohort",
       
       # Clean up paths
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
-      samplesheet_path <- gsub(".*input: ", "", samplesheet_path)
-      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_path))
+      samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
+      samplesheet_filename <- gsub("^\\./", "", samplesheet_filename)
+      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
       
       if (!file.exists(samplesheet_path)) {
         warning("Samplesheet not found: ", samplesheet_path)
@@ -238,23 +241,29 @@ Cohort <- R6Class("Cohort",
     extract_pipeline_outpath_to_column = function(path) {
       # Map of regex patterns to column names
       path_patterns <- list(
-        "balanced_jabba_gg" = "non_integer_balance/.*/balanced.gg.rds$",
-        "tumor_coverage" = "dryclean_tumor/.*/drycleaned.cov.rds$",
-        "het_pileups" = "hetpileups/.*/sites.txt$",
-        "jabba_gg" = "jabba/.*/jabba.simple.gg.rds$",
-        "events" = "events/.*/complex.rds$",
-        "fusions" = "fusions/.*/fusions.rds$",
-        "structural_variants" = "gridss_somatic/.*/.*high_confidence_somatic.vcf.bgz$",
-        "karyograph" = "jabba/.*/karyograph.rds$",
-        "allelic_jabba_gg" = "lp_phased_balance/.*/balanced.gg.rds$",
-        "somatic_snvs" = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
-        "somatic_variant_annotations" = "snpeff/somatic/.*/.*ann.bcf$",
-        "somatic_snv_cn" = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
-        "activities_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Assignment_Solution_Activities.txt",
-        "activities_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Assignment_Solution_Activities.txt",
-        "matrix_sbs_signatures" = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
-        "matrix_indel_signatures" = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID28.all",
-        "hrdetect" = "hrdetect/.*/hrdetect_results.rds"
+        balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
+        tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
+        het_pileups = "hetpileups/.*/sites.txt$",
+        jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
+        events = "events/.*/complex.rds$",
+        fusions = "fusions/.*/fusions.rds$",
+        structural_variants = "gridss_somatic/.*/.*high_confidence_somatic.vcf.bgz$",
+        karyograph = "jabba/.*/karyograph.rds$",
+        allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
+        somatic_snvs = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
+        somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
+        somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
+        activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Assignment_Solution_Activities.txt",
+        matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
+        decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Decomposed_MutationType_Probabilities.txt",
+        activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Assignment_Solution_Activities.txt",
+        matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
+        decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
+        hrdetect = "hrdetect/.*/hrdetect_results.rds",
+        estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
+        alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
+        insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
+        wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
       )
       
       for (col_name in names(path_patterns)) {

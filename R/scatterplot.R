@@ -66,7 +66,7 @@ get_ref_metadata <- function(ref_seqinfo_json, ref = NULL) {
 #' @author Alon Shaiber, Shihab Dider
 granges_to_arrow_scatterplot = function(
     gr_path,
-    field = "foreground.X",
+    field = "foreground",
     ref = 'hg19',
     cov.color.field = NULL,
     ref_seqinfo_json = internal_settings_path,
@@ -258,7 +258,7 @@ lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
                 # Create arrow table
                 arrow_table <- granges_to_arrow_scatterplot(
                     gr_path = row$tumor_coverage,
-                    field = "foreground.X",
+                    field = "foreground",
                     ref = cohort$reference_name,
                 )
                 
