@@ -1,5 +1,6 @@
 #' @import R6
 #' @import data.table
+#' @export
 Cohort <- R6Class("Cohort",
   public = list(
     #' @field inputs data.table containing cohort information
