@@ -315,7 +315,6 @@ test_that("create_variant_qc handles VCF with non-PASS variants", {
 test_that("create_variant_qc handles invalid inputs gracefully", {
     # Test with non-existent file
     expect_error(create_variant_qc("nonexistent.vcf"))
-    unlink(vcf_file)
 })
 
 

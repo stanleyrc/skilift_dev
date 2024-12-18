@@ -7,7 +7,152 @@ Faciliates easier loading and manipulation of genomic data for use with [PGV](ht
     1. `git clone https://github.com/mskilab-org/skilift.git`
     2. `devtools::load_all("path/to/clone")`
 
-# Usage
+# Usage with Case Reports
+The basic workflow is as follows:
+1. Load the cohort data into a Cohort object
+2. Use lifter methods to generate the Case Report plot files
+
+## Cohort
+The Cohort class is a representation of a cohort of cases. It can be instantiated from a data table (a pairs table) or the path to the output directory of our nextflow case-reports pipeline (https://github.com/mskilab-org/nf-casereports/). It also takes a reference name (e.g 'hg38') to associate with the cohort (default reference is "hg19").
+
+```r
+# load a pairs table
+cohort <- Cohort$new(pairs_table, reference_name = 'hg19')
+
+# load a case-reports output directory
+cohort <- Cohort$new(output_dir, reference_name = 'hg19')
+```
+
+The Cohort does a prefix search on the column names of the pairs table to extract the columns containing paths to data files relevant to Case Reports. It maps these columns to a set of well-defined names:
+
+```r
+default_col_mapping <- list(
+    pair = c("pair", "patient_id", "pair_id", "sample"),
+    tumor_type = c("tumor_type"),
+    disease = c("disease"),
+    primary_site = c("primary_site"),
+    inferred_sex = c("inferred_sex"),
+    structural_variants = c("structural_variants", "gridss_somatic", "gridss_sv", "svaba_sv", "sv", "svs"),
+    tumor_coverage = c("tumor_coverage", "dryclean_tumor", "tumor_dryclean_cov"),
+    somatic_snvs = c("somatic_snvs", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf"),
+    germline_snvs = c("germline_snvs", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
+    het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
+    somatic_snv_cn = c("somatic_snv_cn", "multiplicity"),
+    germline_snv_cn = c("germline_snv_cn", "germline_multiplicity"),
+    somatic_variant_annotations = c("somatic_variant_annotations", "annotated_bcf"),
+    germline_variant_annotations = c("germline_variant_annotations", "annotated_vcf_germline"),
+    oncokb_snv = c("oncokb_snv", "oncokb_maf", "maf"),
+    oncokb_cna = c("oncokb_cna", "cna"),
+    oncokb_fusions = c("oncokb_fusions", "oncokb_fusion", "fusion_maf"),
+    jabba_gg = c("jabba_gg", "jabba_simple", "jabba_rds", "jabba_simple_gg"),
+    karyograph = c("karyograph"),
+    balanced_jabba_gg = c("balanced_jabba_gg", "non_integer_balance", "balanced_gg"),
+    events = c("events", "complex"),
+    fusions = c("fusions"),
+    allelic_jabba_gg = c("allelic_jabba_gg", "lp_phased_balance", "allelic_gg"),
+    activities_sbs_signatures = c("activities_sbs_signatures", "sbs_activities"),
+    matrix_sbs_signatures = c("matrix_sbs_signatures", "sbs_matrix"),
+    decomposed_sbs_signatures = c("decomposed_sbs_signatures", "sbs_decomposed"),
+    activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
+    matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
+    decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
+    hrdetect = c("hrdetect", "hrd"),
+    oncotable = c("oncotable"),
+    estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
+    alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
+    insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
+    wgs_metrics = c("wgs_metrics", "wgs_stats")
+)
+```
+
+If the column names in the pairs table match (either exactly or by prefix) any of those in the above mapping, the Cohort object will automatically map the columns to the corresponding names. Priority is established by order (e.g if there are columns "pair" and "pair_id", the "pair" field of the cohort will be mapped to "pair" of the pairs table, not "pair_id").
+
+In case the column names in the pairs table do not match those in default column mapping (or you want to change the default priority of the column names), you can pass a custom column mapping to the Cohort object:
+
+```r
+custom_col_mapping <- list(
+    pair = "pid"
+)
+
+cohort <- Cohort$new(pairs_table, reference_name = 'hg19', col_mapping = custom_col_mapping)
+```
+
+Once the Cohort object is instantiated, you can access the data:
+
+```r
+# get the data table
+cohort_table <- cohort$inputs
+```
+
+You can also validate the data (e.g check for missing values, invalid paths, etc) by calling the `validate_inputs` method on the Cohort object:
+
+```r
+# validate the data
+cohort$validate_inputs()
+```
+
+## Lifters
+
+THe lifter methods are used to generate the plot files for Case Reports. Each lifter takes a cohort object as input and generates the plot files (in parallel) for all samples in the cohort to a specified `output_data_dir`. Some lifters take additional parameters. 
+
+The lifter methods are:
+
+- `lift_copy_number_graph`: Create copy number gGraphs as JSON files. Use `is_allelic` to generate allelic copy number graph.
+- `lift_denoised_coverage`: Create coverage plot as Apache Arrow files from GRanges.
+- `lift_hetsnps`: Create hetSNP plots as Apace Arrow files from GRanges.
+- `lift_filtered_events`: Create filtered events as JSON files from oncotable.
+- `lift_multiplicity`: Create multiplicity plots as JSON files from SNVplicity (https://github.com/mskilab-org/SNVplicity). Set `is_germline = TRUE` to generate germline multiplicity plots.
+- `lift_segment_width_distribution`: Create segment width distribution plots as JSON files. 
+- `lift_signatures`: Create SBS and Indel signatures as JSON files from SigProfilerAssignment (https://github.com/AlexandrovLab/SigProfilerAssignment?tab=readme-ov-file)
+- `lift_variant_qc`: Create variant QC plots as JSON files from Strelka2 or Sage VCF files.
+- `lift_metadata`: Create metadata JSON files from assorted data (included qc metrics, etc).
+
+E.g
+
+```r
+# instantiate a cohort object
+pairs_table <- readRDS("./pairs.rds")
+cohort <- Cohort$new(pairs_table, reference_name = 'hg19')
+
+output_data_dir <- "~/public_html/case_reports_cohort_data"
+
+# create copy number gGraphs
+lift_copy_number_graph(cohort, output_data_dir = output_data_dir, is_allelic = FALSE, cores = 1)
+lift_copy_number_graph(cohort, output_data_dir = output_data_dir, is_allelic = TRUE, cores = 1) # allelic
+
+# create scatterplots
+lift_denoised_coverage(cohort, output_data_dir = output_data_dir, cores = 1) # coverage
+lift_hetsnps(cohort, output_data_dir = output_data_dir, cores = 1) #hetSNPs
+
+# create filtered events
+oncotable_dir <- "~/path/to/oncotable_dir"
+cohort_w_oncotable <- create_oncotable(cohort, outdir = oncotable_dir, cores = 1)
+lift_filtered_events(cohort_w_oncotable, output_data_dir = output_data_dir, cores = 1)
+
+# create multiplicity plots
+lift_multiplicity(cohort, output_data_dir = output_data_dir, is_germline = FALSE, cores = 1)
+lift_multiplicity(cohort, output_data_dir = output_data_dir, is_germline = TRUE, cores = 1) # germline
+
+# create segment width distribution plots
+lift_segment_width_distribution(cohort, output_data_dir = output_data_dir, cores = 1)
+
+# create signatures
+lift_signatures(cohort, output_data_dir = output_data_dir, cores = 1)
+
+# create variant qc plots
+lift_variant_qc(cohort, output_data_dir = output_data_dir, cores = 1)
+
+# create metadata
+lift_metadata(cohort, output_data_dir = output_data_dir, cores = 1)
+```
+
+Note that cohort only needs to be instantiated once, and can be reused for all
+lifter methods. The lifter will automatically use the appropriate columns in
+the cohort for that plot type. The lifter methods can be run in parallel, and
+the number of cores can be specified by setting the `cores` parameter. By
+default, the lifter methods will use 1 core.
+
+# Usage with PGV
 The Skilift class manages a database of patient metadata and genomic plot data. It provides an interface to load, update, query, and manipulate the datafiles.json of PGV programmatically. This object is only necessary if you want to push data to PGV.
 
 The key methods allow converting to/from JSON for data storage, validating the data, adding/removing plots, and generating plot JSON for visualization. The metadata and plots are stored as data tables for easy manipulation.
