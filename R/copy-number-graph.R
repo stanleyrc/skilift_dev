@@ -1,4 +1,3 @@
-
 #' @name lift_copy_number_graph
 #' @title lift_copy_number_graph
 #' @description
