@@ -556,7 +556,7 @@ add_coverage_parameters <- function(metadata, tumor_coverage) {
 #' @param het_pileups_wgs Path to heterozygous pileups WGS data
 #' @return Updated metadata with heterozygous pileups parameters
 #' @importFrom skitools rel2abs
-#' @importFrom gGnome gr2dt dt2gr grab.hets
+#' @importFrom gUtils gr2dt dt2gr
 add_het_pileups_parameters <- function(metadata, het_pileups) {
     if (!is.null(het_pileups)) {
         hets.read <- grab.hets(het_pileups) %>% gr2dt()

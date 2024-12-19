@@ -12,6 +12,7 @@ Remotes:
   github::mskilab-org/skidb,
   github::mskilab-org/skitools,
   bioc::VariantAnnotation,
+  bioc::MatrixGenerics,
   bioc::Biostrings
 Depends:
     R (>= 3.6.0),
@@ -26,6 +27,7 @@ Imports:
     gGnome,
     gUtils,
     VariantAnnotation,
+    MatrixGenerics,
     Biostrings,
     skidb,
     skitools,
