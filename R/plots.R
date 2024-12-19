@@ -1,5 +1,7 @@
 #' @importFrom gUtils dt2gr
 #' @importFrom magrittr `%>%`
+#' @importFrom VariantAnnotation readVcf geno
+#' @importMethodsFrom MatrixGenerics rowRanges
 #' @useDynLib Skilift, .registration=TRUE
 
 library(VariantAnnotation)
