@@ -7,7 +7,7 @@
 add_coverage_metrics(
   metadata,
   tumor_coverage = NULL,
-  foreground_col_name = "foreground.X",
+  foreground_col_name = "foreground",
   estimate_library_complexity = NULL,
   alignment_summary_metrics = NULL,
   insert_size_metrics = NULL,
