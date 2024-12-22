@@ -496,17 +496,23 @@ create_somatic_json <- function(plot_metadata, datadir, settings = internal_sett
         plot_metadata$patient.id,
         plot_metadata$source
     )
+    plot_metadata_x = plot_metadata$x[[1]]
     if (!file.exists(somatic_json_path) || plot_metadata$overwrite) {
-        if (any(class(plot_metadata$x[[1]]) == "data.table")) {
-            mutations.dt <- plot_metadata$x[[1]]
+        if (any(class(plot_metadata_x) == "data.table")) {
+            mutations.dt <- plot_metadata_x
         } else {
-            message(paste0("reading in ", plot_metadata$x))
-            if (grepl(plot_metadata$x, pattern = ".rds")) {
-                mutations.dt <- as.data.table(readRDS(plot_metadata$x[[1]]))
-            } else {
-                message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
-                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+            message(paste0("reading in ", plot_metadata_x))
+            is_rds = all(grepl(plot_metadata_x, pattern = ".rds"))
+            is_tabular = all(grepl(plot_metadata_x, pattern = "(.tsv|.csv|.txt)(.gz)?$"))
+            if (is_rds)
+                readfun <- function(x) as.data.table(readRDS(x))
+            else {
+                readfun <- data.table::fread
             }
+            if (!is_rds && !is_tabular) {
+                message("Expecting .rds or .tsv/.csv/.txt file. Attempting to read anyways as txt file")
+            }
+            mutations.dt <- readfun(plot_metadata_x) 
         }
         if (any(class(mutations.dt) == "data.table")) {
             seq_lengths <- gGnome::parse.js.seqlengths(
@@ -599,17 +605,23 @@ create_germline_json <- function(plot_metadata, datadir, settings = internal_set
         plot_metadata$patient.id,
         plot_metadata$source
     )
+    plot_metadata_x = plot_metadata$x[[1]]
     if (!file.exists(germline_json_path) || plot_metadata$overwrite) {
-        if (any(class(plot_metadata$x[[1]]) == "data.table")) {
-            mutations.dt <- plot_metadata$x[[1]]
+        if (any(class(plot_metadata_x) == "data.table")) {
+            mutations.dt <- plot_metadata_x
         } else {
-            message(paste0("reading in ", plot_metadata$x))
-            if (grepl(plot_metadata$x, pattern = ".rds")) {
-                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
-            } else {
-                message("Expected .rds ending for mutations. Attempting to read anyway: ", plot_metadata$x)
-                mutations.dt <- as.data.table(readRDS(plot_metadata$x))
+            message(paste0("reading in ", plot_metadata_x))
+            is_rds = all(grepl(plot_metadata_x, pattern = ".rds"))
+            is_tabular = all(grepl(plot_metadata_x, pattern = "(.tsv|.csv|.txt)(.gz)?$"))
+            if (is_rds)
+                readfun <- function(x) as.data.table(readRDS(x))
+            else {
+                readfun <- data.table::fread
             }
+            if (!is_rds && !is_tabular) {
+                message("Expecting .rds or .tsv/.csv/.txt file. Attempting to read anyways as txt file")
+            }
+            mutations.dt <- readfun(plot_metadata_x) 
         }
         if (any(class(mutations.dt) == "data.table")) {
             seq_lengths <- gGnome::parse.js.seqlengths(
