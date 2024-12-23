@@ -176,7 +176,9 @@ make_allelic_hetsnps <- function(
 subsample_hetsnps <- function(
     het_pileups,
     mask = NULL,
-    sample_size = 100000) {
+    sample_size = 100000,
+    seed = 42
+    ) {
     if (is.null(het_pileups)) {
         stop("Please provide a valid path to a hetsnps file.")
     }
@@ -206,6 +208,7 @@ subsample_hetsnps <- function(
     # subsample to reduce number of points drawn on front-end scatterplot
     if (!is.na(sample_size) && n_snps > sample_size) {
         message(paste("subsampling", sample_size, "points..."))
+        set.seed(seed) ## should set seed for reproducibility
         snps_to_include <- unique_snps[sample(n_snps, sample_size)] %>% dt2gr()
         subsampled_allelic_hetsnps <- allelic_hetsnps %&% snps_to_include
     } else {
@@ -318,6 +321,15 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
                 # Subsample hetsnps
                 hetsnps_gr <- subsample_hetsnps(
                     het_pileups = row$het_pileups
+                )
+
+                # col2numeric() in granges_to_arrow_scatterplot
+                # expects a hexadecimal color value, not a name
+                hetsnps_gr$col = grDevices::rgb(
+                    t(
+                        grDevices::col2rgb(hetsnps_gr$col)
+                    ), 
+                    maxColorValue = 255
                 )
                 
                 # Create arrow table
