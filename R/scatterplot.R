@@ -401,7 +401,7 @@ lift_coverage_track <- function(
     }
     
     # Validate required columns exist
-    required_cols <- c("pair", "tumor_coverage")
+    required_cols <- c("pair", cohort_column)
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
@@ -433,7 +433,7 @@ lift_coverage_track <- function(
                 message(sprintf("Writing coverage arrow file for %s", row$pair))
                 arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
             } else {
-                warning(sprintf("Tumor coverage file missing for %s", row$pair))
+                warning(sprintf("%s file missing for %s", cohort_column, row$pair))
             }
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
