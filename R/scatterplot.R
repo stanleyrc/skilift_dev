@@ -365,6 +365,9 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
+#' @param cohort_column Field in cohort inputs table that specifies the source data
+#' @param coverage_field Field in the input GRanges object that specifies the values to write to arrow
+#' @param color_field Field in the input GRanges object that specifies the color values. Note this must be a hexadecimal value.
 #' @return None
 #' @export
 lift_coverage_track <- function(cohort, output_data_dir, cores = 1, cohort_column = "tumor_coverage", coverage_field = "foreground", color_field = NULL) {
