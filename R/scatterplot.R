@@ -370,7 +370,14 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
 #' @param color_field Field in the input GRanges object that specifies the color values. Note this must be a hexadecimal value.
 #' @return None
 #' @export
-lift_coverage_track <- function(cohort, output_data_dir, cores = 1, cohort_column = "tumor_coverage", coverage_field = "foreground", color_field = NULL) {
+lift_coverage_track <- function(
+    cohort, 
+    output_data_dir, 
+    cores = 1, 
+    cohort_column = "tumor_coverage", 
+    coverage_field = "foreground", 
+    color_field = NULL
+    ) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -413,7 +420,7 @@ lift_coverage_track <- function(cohort, output_data_dir, cores = 1, cohort_colum
         out_file <- file.path(pair_dir, "coverage.arrow")
         
         tryCatch({
-            if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
+            if (!is.null(row[[cohort_column]]) && file.exists(row[[cohort_column]])) {
                 # Create arrow table
                 arrow_table <- granges_to_arrow_scatterplot(
                     gr_path = row[[cohort_column]],

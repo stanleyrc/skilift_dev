@@ -4,7 +4,7 @@
 \alias{subsample_hetsnps}
 \title{subsample_hetsnps}
 \usage{
-subsample_hetsnps(het_pileups, mask = NULL, sample_size = 1e+05)
+subsample_hetsnps(het_pileups, mask = NULL, sample_size = 1e+05, seed = 42)
 }
 \arguments{
 \item{het_pileups}{sites.txt from het pileups}
