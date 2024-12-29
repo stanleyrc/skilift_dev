@@ -44,8 +44,8 @@ CaseReportsData <- R6::R6Class(
     },
 
     create_case_row = function(case_dir) {
-      case_id <- self$get_case_id(case_dir)
-      files <- self$find_case_files(case_dir)
+      case_id <- private$get_case_id(case_dir)
+      files <- private$find_case_files(case_dir)
       
       # Create a named list with NA as default value
       expected_files <- c(
