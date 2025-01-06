@@ -332,6 +332,39 @@ add_coverage_metrics <- function(
     return(metadata)
 }
 
+#' @name vcf_count
+#' @title vcf_count
+#' @description
+#' takes in a vcf and returns a data.table with total count and count of variants with normal vaf greater than 0
+#'
+#' @param vcf_path Path to the VCF file
+#' @param genome Reference genome name (e.g., "hg19", "hg38")
+#' @return data.table
+#' @export
+#' @author Shihab Dider, Tanubrata Dey
+vcf_count <- function(
+    vcf_path,
+    genome) {
+    if (!file.exists(vcf_path)) {
+        stop("VCF file does not exist.")
+    }
+    vcf <- readVcf(vcf_path, genome)
+
+    # Filter for PASS variants
+    pass_variants <- rowRanges(vcf)$FILTER == "PASS"
+    vcf <- vcf[pass_variants, ]
+
+    snv_count <- length(vcf)
+
+    return(
+        data.table(
+            category = c("snv_count", "snv_count_normal_vaf_greater0"),
+            counts = c(snv_count, NA)
+        )
+    )
+}
+    
+
 
 #' @name add_variant_counts
 #' @title Add Variant Counts
@@ -348,8 +381,12 @@ add_variant_counts <- function(
     genome = "hg19"
 ) {
     if (!is.null(somatic_snvs)) {
-        snv_counts_dt <- sage_count(somatic_snvs, genome = genome)
+        # snv_counts_dt <- sage_count(somatic_snvs, genome = genome)
+        snv_counts_dt <- vcf_count(somatic_snvs, genome = genome)
+        
         metadata$snv_count <- snv_counts_dt[category == "snv_count", ]$counts
+        ## count up filtered variants in VCF 
+
         metadata$snv_count_normal_vaf_greater0 <- snv_counts_dt[category == "snv_count_normal_vaf_greater0", ]$counts
     }
     return(metadata)
@@ -462,6 +499,11 @@ add_genome_length <- function(
     jabba_gg = NULL,
     seqnames_genome_width = c(1:22, "X", "Y")
 ) {
+    if (is.numeric(seqnames_genome_width) && NROW(seqnames_genome_width) == 1) {
+        metadata$total_genome_length <- seqnames_genome_width
+        return(metadata)
+    }
+
     if (is.null(jabba_gg) || is.null(seqnames_genome_width)) {
         return(metadata)
     }
@@ -896,7 +938,7 @@ create_metadata <- function(
 #' @return None
 #' @export
 #' @importFrom parallel mclapply
-lift_metadata <- function(cohort, output_data_dir, cores = 1) {
+lift_metadata <- function(cohort, output_data_dir, cores = 1, seqnames_genome_width = c(1:22, "X", "Y")) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -958,7 +1000,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
                 activities_sbs_signatures = row$activities_sbs_signatures,
                 activities_indel_signatures = row$activities_indel_signatures,
                 hrdetect = row$hrdetect,
-                onenesstwoness = row$onenesstwoness
+                onenesstwoness = row$onenesstwoness,
+                seqnames_genome_width = seqnames_genome_width
             )
 
             if (is.null(metadata)) {
