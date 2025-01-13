@@ -1541,7 +1541,7 @@ test_that("add_coverage_parameters requires purity and ploidy", {
     metadata <- initialize_metadata_columns("TEST001")
     # Note: purity and ploidy are not set
     
-    mock_coverage <- list(foreground.X = c(1, 2, 3))
+    mock_coverage <- list(foreground = c(1, 2, 3))
     temp_file <- tempfile(fileext = ".rds")
     saveRDS(mock_coverage, temp_file)
     

@@ -197,10 +197,10 @@ Cohort <- R6Class("Cohort",
         warning("Pipeline report not found: ", report_path)
         return(NULL)
       }
-      
+
       # Read pipeline report
       report_lines <- readLines(report_path)
-      
+
       # Extract launch directory and samplesheet path
       launch_dir <- grep("launchDir:", report_lines, value = TRUE)
       samplesheet_path <- grep("input:", report_lines, value = TRUE)
@@ -209,12 +209,16 @@ Cohort <- R6Class("Cohort",
         warning("Could not find launch directory or samplesheet path in pipeline report")
         return(NULL)
       }
-      
+
       # Clean up paths
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
       samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
       samplesheet_filename <- gsub("^\\./", "", samplesheet_filename)
-      samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
+      if(grepl("^/", samplesheet_filename)) { #TRUE if the samplesheet is already a full path
+          samplesheet_path <- samplesheet_filename
+      } else {
+          samplesheet_path <- file.path(launch_dir, gsub("^\\./", "", samplesheet_filename))
+      }
       
       if (!file.exists(samplesheet_path)) {
         warning("Samplesheet not found: ", samplesheet_path)
@@ -253,10 +257,10 @@ Cohort <- R6Class("Cohort",
         somatic_snvs = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
         somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
         somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
-        activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Assignment_Solution_Activities.txt",
+        activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
         matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
-        decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/.*/Decomposed_MutationType_Probabilities.txt",
-        activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Assignment_Solution_Activities.txt",
+        decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Decomposed_MutationType_Probabilities*.txt",
+        activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/Assignment_Solution/Activities/indel_Assignment_Solution_Activities.txt",
         matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
         decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
         hrdetect = "hrdetect/.*/hrdetect_results.rds",
