@@ -4,7 +4,12 @@
 \alias{lift_metadata}
 \title{lift_metadata}
 \usage{
-lift_metadata(cohort, output_data_dir, cores = 1)
+lift_metadata(
+  cohort,
+  output_data_dir,
+  cores = 1,
+  seqnames_genome_width = c(1:22, "X", "Y")
+)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
