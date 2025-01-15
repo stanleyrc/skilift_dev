@@ -526,11 +526,21 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
     return(data.table(type = NA, source = 'oncokb_maf'))
   }
 
-  snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
+  # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
   
   if (NROW(oncokb) > 0) {
-    oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+    ## oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+    oncokb$short = dplyr::case_when(
+      grepl("frameshift", oncokb$Consequence) & grepl("fs$", oncokb$HGVSp)  ~ "trunc",
+      grepl("stop", oncokb$Consequence) & grepl("^p\\.", oncokb$HGVSp)  ~ "trunc",
+      grepl("lost", oncokb$Consequence) ~ "trunc",
+      grepl("missense", oncokb$Consequence) & grepl("^p\\.", oncokb$HGVSp)  ~ "missense",
+      grepl("splice", oncokb$Consequence)  ~ "splice",
+      grepl("(5|3)_prime_UTR_variant", oncokb$Consequence) ~ "UTR",
+      TRUE ~ NA_character_
+    )
+  
     oncokb = parse_oncokb_tier(
         oncokb, 
         tx_cols = c("LEVEL_1", "LEVEL_2"), 
@@ -546,7 +556,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
             variant.c = HGVSc,
             variant.p = HGVSp,
             annotation = Consequence,
-            type = snpeff_ontology,
+            type = short,
             tier = tier,
             tier_description = tier_factor,
             variant_summary = VARIANT_SUMMARY,
@@ -875,11 +885,18 @@ create_filtered_events <- function(
         ot[, fusion_genes := NA]
         ot[, fusion_gene_coords := NA]
     }
-    snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
+    # snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
+    snvs <- ot[vartype == "SNV"][!is.na(type)]
     if ("tier" %in% colnames(ot)) {
       snvs <- snvs[order(is.na(tier)), ]
     }
-    snvs <- snvs[!duplicated(variant.p), ]
+    snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
+    snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
+    snvs[, is_unique_c := !duplicated(cbind(gene, variant.c))]
+    snvs <-  snvs[is_unique_p | (is_unique_g & is_unique_c)]
+    snvs$is_unique_p = NULL
+    snvs$is_unique_g = NULL
+    snvs$is_unique_c = NULL
     homdels <- ot[type == "homdel"][, vartype := "HOMDEL"][, type := "SCNA"]
   	amps <- ot[type == "amp"][, vartype := "AMP"][, type := "SCNA"]
     fusions <- ot[type == "fusion"]
