@@ -101,7 +101,9 @@ grab.hets <- function(agt.fname = NULL,
     }
 
     ## prepare and filter
-    agt.dt <- fread(agt.fname)[alt.frac.n > min.frac & alt.frac.n < max.frac, ]
+    agt.dt <- fread(agt.fname)
+    if ("alt.frac.n" %in% colnames(agt.dt))
+        agt.dt <- agt.dt[alt.frac.n > min.frac & alt.frac.n < max.frac, ]
     ## add major and minor
     agt.dt[, which.major := ifelse(alt.count.t > ref.count.t, "alt", "ref")]
     agt.dt[, major.count := ifelse(which.major == "alt", alt.count.t, ref.count.t)]

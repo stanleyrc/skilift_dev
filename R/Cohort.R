@@ -160,29 +160,93 @@ Cohort <- R6Class("Cohort",
       }
       
       # Initialize data.table with all pairs from metadata
-      outputs <- data.table(pair = sample_metadata$pair)
+      ## outputs <- data.table(pair = sample_metadata$pair)
+
       
       # Get all file paths recursively
       pipeline_output_paths <- list.files(pipeline_outdir, recursive = TRUE, full.names = TRUE)
       
       # Process each path and build the data.table
-      for (path in pipeline_output_paths) {
-        column <- private$extract_pipeline_outpath_to_column(path)
-        if (!is.null(column)) {
-          # Extract the pair ID from the path components
-          path_parts <- strsplit(path, "/")[[1]]
-          # Find which pair this file belongs to by matching the path against each pair ID
-          for (curr_pair in outputs$pair) {
-            if (any(grepl(curr_pair, path_parts))) {
-              outputs[pair == curr_pair, (column) := path]
-              break
-            }
+      ## for (path in pipeline_output_paths) {
+      ##   column <- private$extract_pipeline_outpath_to_column(path)
+      ##   if (!is.null(column)) {
+      ##     # Extract the pair ID from the path components
+      ##     path_parts <- strsplit(path, "/")[[1]]
+      ##     # Find which pair this file belongs to by matching the path against each pair ID
+      ##     for (curr_pair in outputs$pair) {
+      ##       if (any(grepl(curr_pair, path_parts))) {
+      ##         outputs[pair == curr_pair, (column) := path]
+      ##         break
+      ##       }
+      ##     }
+      ##   }
+      ## }
+
+      # Merge with rest of sample metadata
+      ## outputs <- merge(outputs, sample_metadata, by = "pair", all.x = TRUE)
+
+      
+      extract_pipeline_outpath_to_column_dev = function(
+        path,
+        merged_dt = data.table(pair = character(0))
+      ) {
+        # Map of regex patterns to column names
+        path_patterns <- list(
+          balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
+          tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
+          het_pileups = "(hetpileups|amber)/.*/sites.txt$",
+          jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
+          events = "events/.*/complex.rds$",
+          fusions = "fusions/.*/fusions.rds$",
+          structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$", "tumor_only_junction_filter/.*/.*.somatic.filtered.sv.rds$", "gridss.*/.*.gridss.filtered.vcf.gz$"),
+          karyograph = "jabba/.*/karyograph.rds$",
+          allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
+          somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*sage.somatic.vcf.gz$"),
+          somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
+          somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
+          activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
+          matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
+          decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Decomposed_MutationType_Probabilities*.txt",
+          activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/Assignment_Solution/Activities/indel_Assignment_Solution_Activities.txt",
+          matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
+          decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
+          hrdetect = "hrdetect/.*/hrdetect_results.rds",
+          estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
+          alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
+          insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
+          wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
+        )
+        for (col_name in names(path_patterns)) {
+          ## TODO: Fix selection logic for tumor only (see path_patterns["somatic_snvs"])
+          patterns = path_patterns[[col_name]]
+          for (pattern in patterns) {
+            present_paths = grep(pattern, path, value = TRUE)
+            if (!length(present_paths) > 0) next
+            pair = basename(dirname(present_paths))
+            dt = data.table(
+              pair = pair,
+              V1 = present_paths
+            )
+            data.table::setnames(dt, "V1", col_name)
+            merged_dt = data.table::merge.data.table(
+              merged_dt,
+              dt,
+              by = "pair",
+              all.x = TRUE,
+              all.y = TRUE,
+              allow.cartesian = FALSE
+            )
+            break
           }
         }
+        ## missingCols = setdiff(names(path_patterns), names(merged_dt))
+        ## for (col in missingCols) {
+        ##   merged_dt[[col]] = NA_character_
+        ## }
+        return(merged_dt)
       }
-      
-      # Merge with rest of sample metadata
-      outputs <- merge(outputs, sample_metadata, by = "pair", all.x = TRUE)
+
+      outputs = extract_pipeline_outpath_to_column_dev(path = pipeline_output_paths, merged_dt = sample_metadata)
       
       if (nrow(outputs) == 0) {
         warning("No data could be extracted from pipeline directory")
@@ -247,14 +311,14 @@ Cohort <- R6Class("Cohort",
       path_patterns <- list(
         balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
         tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
-        het_pileups = "hetpileups/.*/sites.txt$",
+        het_pileups = "(hetpileups|amber)/.*/sites.txt$",
         jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
         events = "events/.*/complex.rds$",
         fusions = "fusions/.*/fusions.rds$",
         structural_variants = "gridss_somatic/.*/.*high_confidence_somatic.vcf.bgz$",
         karyograph = "jabba/.*/karyograph.rds$",
         allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
-        somatic_snvs = "sage/somatic/.*/.*sage.somatic.vcf.gz$",
+        somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*sage.somatic.vcf.gz$"),
         somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
         somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
         activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
@@ -271,7 +335,13 @@ Cohort <- R6Class("Cohort",
       )
       
       for (col_name in names(path_patterns)) {
-        if (grepl(path_patterns[[col_name]], path)) {
+        ## TODO: Fix selection logic for tumor only (see path_patterns["somatic_snvs"])
+        patterns = path_patterns[[col_name]]
+        for (pattern in patterns) {
+          is_pattern_present = any(grepl(pattern, path))
+          if (is_pattern_present) break
+        }
+        if (is_pattern_present) {
           return(col_name)
         }
       }

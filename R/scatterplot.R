@@ -85,6 +85,7 @@ granges_to_arrow_scatterplot = function(
         field = field,
         ref = ref,
         cov.color.field = cov.color.field,
+        bin.width = bin.width,
         ...
     )
 
@@ -145,7 +146,14 @@ make_allelic_hetsnps <- function(
     }
 
     ## prepare and filter
-    hetsnps_dt <- fread(het_pileups)[alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq, ]
+    hetsnps_dt <- fread(het_pileups)
+    
+    if (all(c("alt.frac.n", "alt.frac.t") %in% colnames(hetsnps_dt))) {
+         hetsnps_dt <- hetsnps_dt[
+            alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq, 
+        ]
+    }
+    # hetsnps_dt <- fread(hetsnps_dt)[alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq, ]
     ## add major and minor
     hetsnps_dt[, which.major := ifelse(alt.count.t > ref.count.t, "alt", "ref")]
     hetsnps_dt[, major.count := ifelse(which.major == "alt", alt.count.t, ref.count.t)]
@@ -177,7 +185,9 @@ subsample_hetsnps <- function(
     het_pileups,
     mask = NULL,
     sample_size = 100000,
-    seed = 42
+    seed = 42,
+    min_normal_freq = 0.2,
+    max_normal_freq = 0.8
     ) {
     if (is.null(het_pileups)) {
         stop("Please provide a valid path to a hetsnps file.")
@@ -192,7 +202,11 @@ subsample_hetsnps <- function(
     }
 
     # apply mask 
-    allelic_hetsnps <- make_allelic_hetsnps(het_pileups)
+    allelic_hetsnps <- make_allelic_hetsnps(
+        het_pileups, 
+        min_normal_freq = 0.2,
+        max_normal_freq = 0.8
+    )
     allelic_hetsnps <- gr.val(allelic_hetsnps, maska, "mask")
     allelic_hetsnps <- allelic_hetsnps %Q% (is.na(mask))
     allelic_hetsnps$mask <- NULL
@@ -337,7 +351,8 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
                     gr_path = hetsnps_gr,
                     field = "count",
                     ref = cohort$reference_name,
-                    cov.color.field = "col"
+                    cov.color.field = "col",
+                    bin.width = NA_integer_
                 )
                 
                 # Write arrow table
@@ -376,7 +391,8 @@ lift_coverage_track <- function(
     cores = 1, 
     cohort_column = "tumor_coverage", 
     coverage_field = "foreground", 
-    color_field = NULL
+    color_field = NULL,
+    bin.width = NA_integer_
     ) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
@@ -426,7 +442,8 @@ lift_coverage_track <- function(
                     gr_path = row[[cohort_column]],
                     field = coverage_field,
                     ref = cohort$reference_name,
-                    cov.color.field = color_field
+                    cov.color.field = color_field,
+                    bin.width = bin.width
                 )
                 
                 # Write arrow table
