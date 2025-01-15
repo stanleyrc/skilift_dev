@@ -10,7 +10,8 @@ lift_coverage_track(
   cores = 1,
   cohort_column = "tumor_coverage",
   coverage_field = "foreground",
-  color_field = NULL
+  color_field = NULL,
+  bin.width = NA_integer_
 )
 }
 \arguments{

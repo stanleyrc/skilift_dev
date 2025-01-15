@@ -185,68 +185,11 @@ Cohort <- R6Class("Cohort",
       # Merge with rest of sample metadata
       ## outputs <- merge(outputs, sample_metadata, by = "pair", all.x = TRUE)
 
-      
-      extract_pipeline_outpath_to_column_dev = function(
-        path,
-        merged_dt = data.table(pair = character(0))
-      ) {
-        # Map of regex patterns to column names
-        path_patterns <- list(
-          balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
-          tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
-          het_pileups = "(hetpileups|amber)/.*/sites.txt$",
-          jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
-          events = "events/.*/complex.rds$",
-          fusions = "fusions/.*/fusions.rds$",
-          structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$", "tumor_only_junction_filter/.*/.*somatic.filtered.sv.rds$", "gridss.*/.*.gridss.filtered.vcf.gz$"),
-          karyograph = "jabba/.*/karyograph.rds$",
-          allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
-          somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*sage.somatic.vcf.gz$"),
-          somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
-          somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
-          activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
-          matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
-          decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Decomposed_MutationType_Probabilities*.txt",
-          activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/Assignment_Solution/Activities/indel_Assignment_Solution_Activities.txt",
-          matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
-          decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
-          hrdetect = "hrdetect/.*/hrdetect_results.rds",
-          estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
-          alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
-          insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
-          wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
-        )
-        for (col_name in names(path_patterns)) {
-          ## TODO: Fix selection logic for tumor only (see path_patterns["somatic_snvs"])
-          patterns = path_patterns[[col_name]]
-          for (pattern in patterns) {
-            present_paths = grep(pattern, path, value = TRUE)
-            if (!length(present_paths) > 0) next
-            pair = basename(dirname(present_paths))
-            dt = data.table(
-              pair = pair,
-              V1 = present_paths
-            )
-            data.table::setnames(dt, "V1", col_name)
-            merged_dt = data.table::merge.data.table(
-              merged_dt,
-              dt,
-              by = "pair",
-              all.x = TRUE,
-              all.y = TRUE,
-              allow.cartesian = FALSE
-            )
-            break
-          }
-        }
-        ## missingCols = setdiff(names(path_patterns), names(merged_dt))
-        ## for (col in missingCols) {
-        ##   merged_dt[[col]] = NA_character_
-        ## }
-        return(merged_dt)
-      }
-
-      outputs = extract_pipeline_outpath_to_column_dev(path = pipeline_output_paths, merged_dt = sample_metadata)
+      # outputs = extract_pipeline_outpath_to_column_dev(path = pipeline_output_paths, merged_dt = sample_metadata)
+      outputs <- parse_pipeline_paths(
+        pipeline_output_paths,
+        initial_dt = sample_metadata
+      )
       
       if (nrow(outputs) == 0) {
         warning("No data could be extracted from pipeline directory")
@@ -401,3 +344,95 @@ Cohort <- R6Class("Cohort",
     }
   )
 )
+
+#' Expected nf-casereport patterns
+#' 
+#' Encoding the expected path variables
+#' 
+#' This variable contains the paths to be expected from
+#' the nf-casereport directory structure. 
+#' You can output the default template to modify it using
+#' base::dput(Skilift::nf_path_patterns)
+#' @export
+nf_path_patterns <- list(
+  balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
+  tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
+  het_pileups = "(hetpileups|amber)/.*/sites.txt$",
+  jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
+  events = "events/.*/complex.rds$",
+  fusions = "fusions/.*/fusions.rds$",
+  structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$", "tumor_only_junction_filter/.*/.*somatic.filtered.sv.rds$", "gridss.*/.*.gridss.filtered.vcf.gz$"),
+  karyograph = "jabba/.*/karyograph.rds$",
+  allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
+  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*sage.somatic.vcf.gz$"),
+  somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
+  somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
+  activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
+  matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
+  decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Decomposed_MutationType_Probabilities*.txt",
+  activities_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/Assignment_Solution/Activities/indel_Assignment_Solution_Activities.txt",
+  matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
+  decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
+  hrdetect = "hrdetect/.*/hrdetect_results.rds",
+  estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
+  alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
+  insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
+  wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
+)
+
+#' nf-casereport Parser
+#' 
+#' Parses outputs of the nf-casereport directory structure
+#' 
+#' This is a function that extracts paths from a 
+#' pipeline. The default structure is that the
+#' path patterns expected follow that of nf-casereport run.
+#' The columns it extracts are defined by
+#' variable Skilift::nf_column_map.
+#' You can output the default template to modify it using
+#' base::dput(Skilift::nf_path_patterns)
+#' @export
+parse_pipeline_paths = function(
+  paths,
+  initial_dt = data.table(pair = character(0)),
+  path_patterns = Skilift::nf_path_patterns,
+  id_name = "pair"
+) {
+  if (length(paths) == 1 && dir.exists(paths)) {
+    paths = list.files(
+      paths, 
+      recursive = TRUE,
+      full.names = TRUE
+    )
+  }
+  # Map of regex patterns to column names
+  for (col_name in names(path_patterns)) {
+    ## TODO: Fix selection logic for tumor only (see path_patterns["somatic_snvs"])
+    patterns = path_patterns[[col_name]]
+    for (pattern in patterns) {
+      present_paths = grep(pattern, paths, value = TRUE)
+      if (!length(present_paths) > 0) next
+      pair = basename(dirname(present_paths))
+      dt = data.table::data.table(
+        V0 = pair,
+        V1 = present_paths
+      )
+      data.table::setnames(dt, "V0", id_name)
+      data.table::setnames(dt, "V1", col_name)
+      initial_dt = data.table::merge.data.table(
+        initial_dt,
+        dt,
+        by = "pair",
+        all.x = TRUE,
+        all.y = TRUE,
+        allow.cartesian = FALSE
+      )
+      break
+    }
+  }
+  ## missingCols = setdiff(names(path_patterns), names(merged_dt))
+  ## for (col in missingCols) {
+  ##   merged_dt[[col]] = NA_character_
+  ## }
+  return(initial_dt)
+}
