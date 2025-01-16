@@ -1,5 +1,7 @@
 suppressWarnings(devtools::load_all())
 
+setwd("~/git/skilift/")
+
 library(testthat)
 
 # test_all <- function() { testthat::test_file("tests/run-all-tests.R") }
