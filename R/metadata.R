@@ -455,14 +455,23 @@ add_loh <- function(
 #' @description Adds total genome length from JaBbA graph
 #' @param metadata A data.table containing metadata
 #' @param jabba_gg Path to JaBbA graph RDS file
-#' @param seqnames_genome_width Vector of sequence names to include in genome length
+#' @param seqnames_genome_width_or_genome_length Vector of sequence names to include in genome length or genome length as a numeric
 #' @return Updated metadata with genome length information
 add_genome_length <- function(
     metadata,
     jabba_gg = NULL,
-    seqnames_genome_width = c(1:22, "X", "Y")
+    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
-    if (is.null(jabba_gg) || is.null(seqnames_genome_width)) {
+    if (is.null(jabba_gg) || is.null(seqnames_genome_width_or_genome_length)) {
+        return(metadata)
+    }
+
+    # if the seqnames_genome_width is numeric, then it is the actual length of the genome 
+    # (e.g for targeted panels or WES data)
+    # in that case just use the length directly
+    if (is.numeric(seqnames_genome_width_or_genome_length) && length(seqnames_genome_width_or_genome_length) == 1) {
+        total_genome_length <- seqnames_genome_width_or_genome_length
+        metadata$total_genome_length <- total_genome_length
         return(metadata)
     }
     
@@ -475,7 +484,7 @@ add_genome_length <- function(
         )
     )
     seqlengths.dt[, seqnames := gsub("chr", "", seqnames)]
-    seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width, ]
+    seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
     metadata$total_genome_length <- sum(seqlengths.dt$seqlengths)
     
     return(metadata)
@@ -585,14 +594,14 @@ add_het_pileups_parameters <- function(metadata, het_pileups) {
 #' @param somatic_snvs Path to somatic SNV VCF file
 #' @param jabba_gg Path to JaBbA graph RDS file
 #' @param genome The genome reference used
-#' @param seqnames_genome_width Sequence names for genome width calculation
+#' @param seqnames_genome_width_or_genome_length Sequence names for genome width calculation
 #' @return Updated metadata with TMB value added
 add_tmb <- function(
     metadata,
     somatic_snvs = NULL,
     jabba_gg = NULL,
     genome = "hg19",
-    seqnames_genome_width = c(1:22, "X", "Y")
+    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
     meta_dt <- copy(metadata)
     # First ensure we have snv_count
@@ -602,7 +611,7 @@ add_tmb <- function(
     
     # Then ensure we have total_genome_length
     if (is.null(meta_dt$total_genome_length) || is.na(meta_dt$total_genome_length)) {
-        meta_dt <- add_genome_length(meta_dt, jabba_gg, seqnames_genome_width)
+        meta_dt <- add_genome_length(meta_dt, jabba_gg, seqnames_genome_width_or_genome_length)
     }
     
     # Calculate TMB if we have both required values
@@ -813,7 +822,7 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
 #' @param onenesstwoness Oneness and twoness scores.
 #' @param genome The genome reference used.
 #' @param seqnames_loh Sequence names for loss of heterozygosity.
-#' @param seqnames_genome_width Sequence names and genome width.
+#' @param seqnames_genome_width_or_genome_length Sequence names and genome width in list or genome length as a numeric
 #' @return A data.table containing the metadata for a single sample pair.
 #' @export
 create_metadata <- function(
@@ -840,7 +849,7 @@ create_metadata <- function(
     onenesstwoness = NULL,
     genome = "hg19",
     seqnames_loh = c(1:22),
-    seqnames_genome_width = c(1:22, "X", "Y")
+    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
@@ -870,13 +879,13 @@ create_metadata <- function(
     metadata <- add_sv_counts(metadata, jabba_gg)
     metadata <- add_purity_ploidy(metadata, jabba_gg)
     metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
-    metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width)
+    metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
     metadata <- add_sv_types(metadata, jabba_gg, events)
     metadata <- add_coverage_parameters(metadata, tumor_coverage)
     metadata <- add_het_pileups_parameters(metadata, het_pileups)
     
     # Add TMB calculation
-    metadata <- add_tmb(metadata, somatic_snvs, jabba_gg, genome, seqnames_genome_width)
+    metadata <- add_tmb(metadata, somatic_snvs, jabba_gg, genome, seqnames_genome_width_or_genome_length)
     
     metadata <- add_signatures(
         metadata,
@@ -899,10 +908,11 @@ create_metadata <- function(
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
+#' @param genome_length Genome length for the samples (for targeted panels or WES data)
 #' @return None
 #' @export
 #' @importFrom parallel mclapply
-lift_metadata <- function(cohort, output_data_dir, cores = 1) {
+lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NULL) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -964,7 +974,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1) {
                 activities_sbs_signatures = row$activities_sbs_signatures,
                 activities_indel_signatures = row$activities_indel_signatures,
                 hrdetect = row$hrdetect,
-                onenesstwoness = row$onenesstwoness
+                onenesstwoness = row$onenesstwoness,
+                seqnames_genome_width_or_genome_length = genome_length # if genome length is provided
             )
 
             if (is.null(metadata)) {
