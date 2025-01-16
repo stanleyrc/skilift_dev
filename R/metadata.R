@@ -844,7 +844,13 @@ create_metadata <- function(
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
-    
+    # change NA to NULL
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
+    for (x in fix_entries) {
+        if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
+            assign(x, NULL)
+        }
+    }    
     # Add each component sequentially
     metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
