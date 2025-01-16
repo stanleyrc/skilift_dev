@@ -110,7 +110,6 @@ add_basic_metadata <- function(
 #' @param input_inferred_sex The inferred sex of the sample.
 #' @param jabba_gg A file path to the jabba_gg data.
 #' @param tumor_coverage Coverage data for the tumor.
-#' @importFrom gGnome readCov
 #' @return Updated metadata with inferred sex information added.
 add_sex_information <- function(
     metadata,
