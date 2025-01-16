@@ -332,6 +332,79 @@ add_coverage_metrics <- function(
     return(metadata)
 }
 
+#' @name sage_count
+#' @title sage_count
+#' @description
+#' takes in a SAGE vcf and returns a data.table with total count and count of variants with normal vaf greater than 0
+#'
+#' @param vcf_path Path to the SAGE VCF file
+#' @param genome Reference genome name (e.g., "hg19", "hg38")
+#' @return data.table
+#' @export
+#' @author Shihab Dider, Tanubrata Dey
+sage_count <- function(
+    vcf_path,
+    genome) {
+    if (!file.exists(vcf_path)) {
+        stop("VCF file does not exist.")
+    }
+    vcf <- readVcf(vcf_path, genome)
+
+    # Filter for PASS variants
+    pass_variants <- rowRanges(vcf)$FILTER == "PASS"
+    vcf <- vcf[pass_variants, ]
+
+    snv_count <- length(vcf)
+
+    # Extract VAF_N from the genotype (geno) slot
+    geno_data <- geno(vcf)
+    normal <- colnames(geno_data$DP)[1]
+    tumor <- colnames(geno_data$DP)[2]
+
+    if (normal %in% colnames(geno_data$DP)) {
+        if (!is.null(geno_data$AF)) {
+            VAF_N <- as.numeric(geno_data$AF[, normal])
+        } else if (!is.null(geno_data$TAR)) {
+            alt_count_N <- as.numeric(geno_data$TAR[, normal, 1])
+            total_read_depth_N <- as.numeric(geno_data$DP[, normal])
+            VAF_N <- alt_count_N / total_read_depth_N
+        } else if (!is.null(geno_data$AU)) {
+            vcf_dt <- as.data.table(rowRanges(vcf))
+
+            # ALT is stored as DNAStringSet, so we need to extract as a character
+            get_alt_allele <- function(dna_string_set) {
+                as.character(dna_string_set[[1]])
+            }
+
+            alt_alleles <- sapply(vcf_dt$ALT, get_alt_allele)
+
+            # Calculate the number of alternate alleles for each variant
+            alt_allele_counts <- geno_data$AU[, normal, 1] * (alt_alleles == "A") +
+                geno_data$CU[, normal, 1] * (alt_alleles == "C") +
+                geno_data$GU[, normal, 1] * (alt_alleles == "G") +
+                geno_data$TU[, normal, 1] * (alt_alleles == "T")
+
+            total_alleles <- geno_data$DP[, normal]
+
+            vcf_dt[, normal_VAF := round(alt_allele_counts / total_alleles, 2)]
+            VAF_N <- vcf_dt$normal_VAF
+        } else {
+            stop("No AF or TAR present in the VCF file.")
+        }
+        snv_count_normal_vaf_greater0 <- sum(VAF_N > 0, na.rm = TRUE)
+        return(data.table(
+            category = c("snv_count", "snv_count_normal_vaf_greater0"),
+            counts = c(snv_count, snv_count_normal_vaf_greater0)
+        ))
+    } else {
+        print("Tumor only run VCF provided, no VAF_N present.")
+        return(data.table(
+            category = c("snv_count", "snv_count_normal_vaf_greater0"),
+            counts = c(snv_count, NA)
+        ))
+    }
+}
+
 
 #' @name add_variant_counts
 #' @title Add Variant Counts
