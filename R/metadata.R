@@ -995,7 +995,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s\nCallstack: %s", row$pair, e$message, deparse(e$call)))
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
 }
