@@ -223,7 +223,7 @@ lift_multiplicity <- function(
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
 }

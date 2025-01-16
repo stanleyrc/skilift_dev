@@ -833,7 +833,7 @@ create_oncotable <- function(
             msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
             warning(msg)
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
   
 
     # Update oncotable paths in the cohort
@@ -1007,7 +1007,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
 }
