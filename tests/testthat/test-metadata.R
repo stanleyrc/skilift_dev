@@ -1256,6 +1256,23 @@ test_that("add_genome_length processes normal JaBbA graph correctly", {
     unlink(jabba_gg_file)
 })
 
+test_that("add_genome_length handles numeric genome length input", {
+    metadata <- initialize_metadata_columns("TEST001")
+    jabba_gg_file <- create_mock_jabba_gg()
+    
+    # Test with numeric genome length
+    total_length <- 1e8  # 100Mb for example
+    result <- add_genome_length(metadata, jabba_gg_file, seqnames_genome_width_or_genome_length = total_length)
+    
+    expect_equal(result$total_genome_length, total_length)
+    
+    # Test with different numeric value
+    result2 <- add_genome_length(metadata, jabba_gg_file, seqnames_genome_width_or_genome_length = 5e7)
+    expect_equal(result2$total_genome_length, 5e7)
+    
+    unlink(jabba_gg_file)
+})
+
 test_that("add_genome_length handles NULL inputs gracefully", {
     metadata <- initialize_metadata_columns("TEST001")
     
@@ -1263,8 +1280,8 @@ test_that("add_genome_length handles NULL inputs gracefully", {
     result <- add_genome_length(metadata, jabba_gg = NULL)
     expect_equal(result, metadata)
     
-    # Test with NULL seqnames_genome_width
-    result <- add_genome_length(metadata, jabba_gg = create_mock_jabba_gg(), seqnames_genome_width = NULL)
+    # Test with NULL seqnames_genome_width_or_genome_length
+    result <- add_genome_length(metadata, jabba_gg = create_mock_jabba_gg(), seqnames_genome_width_or_genome_length = NULL)
     expect_equal(result, metadata)
 })
 
@@ -1273,8 +1290,8 @@ test_that("add_genome_length handles different chromosome selections", {
     jabba_gg_file <- create_mock_jabba_gg()
     
     # Test with different chromosome selections
-    result1 <- add_genome_length(metadata, jabba_gg_file, seqnames_genome_width = c(1:22))
-    result2 <- add_genome_length(metadata, jabba_gg_file, seqnames_genome_width = c(1:11))
+    result1 <- add_genome_length(metadata, jabba_gg_file, seqnames_genome_width_or_genome_length = c(1:22))
+    result2 <- add_genome_length(metadata, jabba_gg_file, seqnames_genome_width_or_genome_length = c(1:11))
     
     # Results should be different due to different chromosome selections
     expect_false(identical(result1$total_genome_length, result2$total_genome_length))
@@ -1317,14 +1334,14 @@ test_that("add_genome_length handles sex chromosomes correctly", {
     
     # Test including sex chromosomes
     result <- add_genome_length(metadata, jabba_gg_file, 
-                              seqnames_genome_width = c(1:22, "X", "Y"))
+                              seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"))
     
     # Should include all chromosomes
     expect_equal(result$total_genome_length, 24 * 1e8)  # 22 + X + Y chromosomes
     
     # Test excluding sex chromosomes
     result2 <- add_genome_length(metadata, jabba_gg_file, 
-                                seqnames_genome_width = c(1:22))
+                                seqnames_genome_width_or_genome_length = c(1:22))
     
     # Should only include autosomes
     expect_equal(result2$total_genome_length, 22 * 1e8)  # Only autosomes
@@ -1648,7 +1665,7 @@ test_that("add_het_pileups_parameters handles invalid het pileups data", {
     unlink(invalid_het_pileups_file)
 })
 
-test_that("add_tmb calculates TMB correctly", {
+test_that("add_tmb calculates TMB correctly with chromosome-based genome length", {
     # Create mock metadata
     metadata <- initialize_metadata_columns("TEST001")
     
@@ -1661,8 +1678,39 @@ test_that("add_tmb calculates TMB correctly", {
     
     result <- add_tmb(metadata, vcf_file, jabba_gg_file)
     
-    # Expected TMB = 100 variants / (24 * 100Mb / 1Mb) = 0.0417
+    # Expected TMB = 100 variants / (24 * 100Mb / 1Mb) = 0.042
     expect_equal(result$tmb, 0.042)
+    
+    # Clean up
+    unlink(c(vcf_file, jabba_gg_file))
+})
+
+test_that("add_tmb calculates TMB correctly with numeric genome length", {
+    metadata <- initialize_metadata_columns("TEST001")
+    vcf_file <- create_mock_vcf(num_variants = 100)
+    jabba_gg_file <- create_mock_jabba_gg()
+    
+    # Test with specific genome length (e.g., for targeted panel)
+    result <- add_tmb(
+        metadata, 
+        vcf_file, 
+        jabba_gg_file, 
+        seqnames_genome_width_or_genome_length = 1e6  # 1Mb targeted region
+    )
+    
+    # Expected TMB = 100 variants / 1Mb = 100
+    expect_equal(result$tmb, 100)
+    
+    # Test with WES-like genome length
+    result2 <- add_tmb(
+        metadata,
+        vcf_file,
+        jabba_gg_file,
+        seqnames_genome_width_or_genome_length = 30e6  # 30Mb typical WES
+    )
+    
+    # Expected TMB = 100 variants / 30Mb = 3.333
+    expect_equal(result2$tmb, 3.333)
     
     # Clean up
     unlink(c(vcf_file, jabba_gg_file))
@@ -1722,8 +1770,8 @@ test_that("add_tmb handles different chromosome selections", {
     jabba_gg_file <- create_mock_jabba_gg()
     
     # Test with different chromosome selections
-    result1 <- add_tmb(metadata, vcf_file, jabba_gg_file, seqnames_genome_width = c(1:22, "X", "Y"))
-    result2 <- add_tmb(metadata2, vcf_file, jabba_gg_file, seqnames_genome_width = c(1:11))
+    result1 <- add_tmb(metadata, vcf_file, jabba_gg_file, seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"))
+    result2 <- add_tmb(metadata2, vcf_file, jabba_gg_file, seqnames_genome_width_or_genome_length = c(1:11))
     
     # Results should be different due to different genome lengths
     expect_false(identical(result1$tmb, result2$tmb))
@@ -2366,6 +2414,33 @@ test_that("create_metadata handles invalid inputs gracefully", {
         tumor_type = 123,  # Should be character
         disease = TRUE     # Should be character
     ))
+})
+
+test_that("create_metadata handles different genome length specifications", {
+    # Create mock files
+    mock_files <- create_mock_metadata_files()
+    
+    # Test with chromosome-based genome length
+    result1 <- suppressWarnings(create_metadata(
+        pair = "TEST001",
+        jabba_gg = mock_files$jabba_gg,
+        somatic_snvs = mock_files$somatic_snvs,
+        seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
+    ))
+    
+    # Test with numeric genome length
+    result2 <- suppressWarnings(create_metadata(
+        pair = "TEST001",
+        jabba_gg = mock_files$jabba_gg,
+        somatic_snvs = mock_files$somatic_snvs,
+        seqnames_genome_width_or_genome_length = 1e6  # 1Mb
+    ))
+    
+    # Results should be different due to different genome lengths
+    expect_false(identical(result1$tmb, result2$tmb))
+    
+    # Clean up
+    unlink(unlist(mock_files))
 })
 
 test_that("lift_metadata processes cohort correctly", {
