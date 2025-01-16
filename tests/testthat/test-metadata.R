@@ -417,7 +417,6 @@ setup({
         seqnames = "chr1",
         start = 1,
         end = length(foreground_values),
-        ## field = "foreground.X",
         field = "foreground",
         ncn = 2
     ) {
@@ -763,7 +762,6 @@ test_that("add_coverage_metrics processes tumor coverage correctly", {
     metadata <- initialize_metadata_columns("TEST001")
     
     # Create mock coverage data
-    ## mock_coverage <- list(foreground.X = c(1, 2, 1, 2, 1, 2))
     mock_coverage <- list(foreground = c(1, 2, 1, 2, 1, 2))
     temp_file <- tempfile(fileext = ".rds")
     saveRDS(mock_coverage, temp_file)
@@ -838,7 +836,6 @@ test_that("add_coverage_metrics combines coverage and QC metrics", {
     metadata <- initialize_metadata_columns("TEST001")
     
     # Create mock coverage data
-    ## mock_coverage <- list(foreground.X = c(1, 2, 1, 2, 1, 2))
     mock_coverage <- list(foreground = c(1, 2, 1, 2, 1, 2))
     coverage_file <- tempfile(fileext = ".rds")
     saveRDS(mock_coverage, coverage_file)
