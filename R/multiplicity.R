@@ -158,6 +158,7 @@ lift_multiplicity <- function(
     is_germline = FALSE,
     node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
     output_data_dir,
+    field = "total_copies",
     cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
@@ -201,14 +202,16 @@ lift_multiplicity <- function(
             # Create multiplicity data.table
             mult_dt <- create_multiplicity(
                 snv_cn = row[[snv_cn_col]],
-                is_germline = is_germline
+                is_germline = is_germline,
+                field = field
             )
             
             # Convert to intervals
             intervals_list <- multiplicity_to_intervals(
                 multiplicity = mult_dt,
                 reference_name = reference_name,
-                node_metadata = node_metadata
+                node_metadata = node_metadata,
+                field = field
             )
             
             # Write to JSON

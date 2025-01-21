@@ -548,6 +548,17 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
         dx_cols = c("LEVEL_Dx1"),
         px_cols = c("LEVEL_Px1")
     )
+
+    coerce_column_tuples = list(
+      c("total_snv_copies", "total_copies")
+    )
+    current_nms = names(oncokb)
+    for (col in coerce_column_tuples) {
+      if (col[1] %in% current_nms && !col[2] %in% current_nms) {
+        current_nms[current_nms == col[1]] = col[2]
+      }
+    }
+    names(oncokb) = current_nms
     return(oncokb[, .(
             gene = Hugo_Symbol, 
             gene_summary = GENE_SUMMARY,
