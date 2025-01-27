@@ -243,7 +243,14 @@ subsample_hetsnps <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
+lift_denoised_coverage <- function(
+    cohort,
+    output_data_dir,
+    cores = 1,
+    coverage_field = "foreground", 
+    color_field = NULL,
+    bin.width = NA_integer_
+) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -275,8 +282,10 @@ lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
                 # Create arrow table
                 arrow_table <- granges_to_arrow_scatterplot(
                     gr_path = row$tumor_coverage,
-                    field = "foreground",
+                    field = coverage_field,
                     ref = cohort$reference_name,
+                    cov.color.field = color_field,
+                    bin.width = bin.width
                 )
                 
                 # Write arrow table
