@@ -862,15 +862,12 @@ test_that("add_coverage_metrics combines coverage and QC metrics", {
     unlink(unlist(mock_files))
 })
 
-test_that("sage_count processes normal VCF correctly", {
+test_that("vcf_count processes VCF correctly", {
     # Create mock VCF with known values
-    vcf_file <- create_mock_vcf(
-        num_variants = 3,
-        normal_vaf_values = c(0.0, 0.1, 0.0)
-    )
+    vcf_file <- create_mock_vcf(num_variants = 3)
     
     # Test function
-    result <- sage_count(vcf_file, genome = "hg19")
+    result <- vcf_count(vcf_file, genome = "hg19")
     
     # Check structure
     expect_s3_class(result, "data.table")
@@ -878,104 +875,48 @@ test_that("sage_count processes normal VCF correctly", {
     expect_equal(nrow(result), 2)
     expect_equal(result$category, c("snv_count", "snv_count_normal_vaf_greater0"))
     
-    # Check counts
+    # Check counts - only total count should be populated
     expect_equal(result[category == "snv_count"]$counts, 3)
-    expect_equal(result[category == "snv_count_normal_vaf_greater0"]$counts, 1)
+    expect_true(is.na(result[category == "snv_count_normal_vaf_greater0"]$counts))
     
     # Clean up
     unlink(vcf_file)
 })
 
-test_that("sage_count handles tumor-only VCF", {
+test_that("vcf_count handles tumor-only VCF", {
     # Create header for tumor-only VCF
     header <- c(
         "##fileformat=VCFv4.2",
         "##reference=hg19",
-        "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">",
-        "##FORMAT=<ID=AF,Number=1,Type=Float,Description=\"Allele frequency\">",
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTUMOR"
     )
-    variants <- "chr1\t100\t.\tA\tT\t100\tPASS\t.\tDP:AF\t100:0.3"
+    variants <- "chr1\t100\t.\tA\tT\t100\tPASS\t.\t.\t."
     
     # Create temporary VCF file
     tumor_only_vcf <- tempfile(fileext = ".vcf")
     writeLines(c(header, variants), tumor_only_vcf)
     
     # Test function
-    result <- sage_count(tumor_only_vcf, genome = "hg19")
+    result <- vcf_count(tumor_only_vcf, genome = "hg19")
     
-    # Check results
+    # Check results - should only count total variants
     expect_equal(result[category == "snv_count"]$counts, 1)
-    expect_equal(result[category == "snv_count_normal_vaf_greater0"]$counts, 1)
+    expect_true(is.na(result[category == "snv_count_normal_vaf_greater0"]$counts))
     
     # Clean up
     unlink(tumor_only_vcf)
 })
 
-test_that("sage_count handles different VAF formats", {
-    # Test with AF format
-    vcf_af <- create_mock_vcf(
-        num_variants = 2,
-        normal_vaf_values = c(0.1, 0.2)
-    )
-    result_af <- sage_count(vcf_af, genome = "hg19")
-    expect_equal(result_af[category == "snv_count_normal_vaf_greater0"]$counts, 2)
-    unlink(vcf_af)
-    
-    # Test with AU/CU/GU/TU format
-    # Note: This is already tested in the create_mock_vcf function
-    vcf_allele_counts <- create_mock_vcf(
-        num_variants = 2,
-        normal_vaf_values = c(0.0, 0.1)
-    )
-    result_ac <- sage_count(vcf_allele_counts, genome = "hg19")
-    expect_equal(result_ac[category == "snv_count_normal_vaf_greater0"]$counts, 1)
-    unlink(vcf_allele_counts)
-})
-
-test_that("sage_count handles invalid inputs", {
-    # Test with non-existent file
-    expect_error(
-        sage_count("nonexistent.vcf", genome = "hg19"),
-        "VCF file does not exist"
-    )
-    
-    # Test with invalid VCF format
-    invalid_vcf <- tempfile(fileext = ".vcf")
-    writeLines("invalid content", invalid_vcf)
-    expect_error(sage_count(invalid_vcf, genome = "hg19"))
-    unlink(invalid_vcf)
-})
-
-test_that("sage_count works with different genome versions", {
-    # Create mock VCF with hg38 reference
-    vcf_hg38 <- create_mock_vcf(
-        num_variants = 3,
-        normal_vaf_values = c(0.0, 0.1, 0.2),
-        reference = "hg38"
-    )
-    
-    # Test with hg38
-    result <- sage_count(vcf_hg38, genome = "hg38")
-    expect_equal(result[category == "snv_count"]$counts, 3)
-    expect_equal(result[category == "snv_count_normal_vaf_greater0"]$counts, 2)
-    
-    # Clean up
-    unlink(vcf_hg38)
-})
-
-test_that("sage_count handles FILTER field correctly", {
-    # Create header with non-PASS variants and all required format fields
+test_that("vcf_count handles FILTER field correctly", {
+    # Create header with PASS and non-PASS variants
     header <- c(
         "##fileformat=VCFv4.2",
         "##reference=hg19",
-        "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">",
-        "##FORMAT=<ID=AF,Number=1,Type=Float,Description=\"Allele frequency\">",
-        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tNORMAL\tTUMOR"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
     )
     variants <- c(
-        "chr1\t100\t.\tA\tT\t100\tPASS\t.\tDP:AF\t100:0.1\t100:0.3",
-        "chr1\t200\t.\tC\tG\t100\tLowQual\t.\tDP:AF\t100:0.2\t100:0.4"
+        "chr1\t100\t.\tA\tT\t100\tPASS\t.",
+        "chr1\t200\t.\tC\tG\t100\tLowQual\t."
     )
     
     # Create temporary VCF file
@@ -983,11 +924,68 @@ test_that("sage_count handles FILTER field correctly", {
     writeLines(c(header, variants), filter_vcf)
     
     # Test function
-    result <- sage_count(filter_vcf, genome = "hg19")
+    result <- vcf_count(filter_vcf, genome = "hg19")
     
     # Should only count PASS variants
     expect_equal(result[category == "snv_count"]$counts, 1)
-    expect_equal(result[category == "snv_count_normal_vaf_greater0"]$counts, 1)
+    expect_true(is.na(result[category == "snv_count_normal_vaf_greater0"]$counts))
+    
+    # Clean up
+    unlink(filter_vcf)
+})
+
+test_that("vcf_count handles invalid inputs", {
+    # Test with non-existent file
+    expect_error(
+        vcf_count("nonexistent.vcf", genome = "hg19"),
+        "VCF file does not exist"
+    )
+    
+    # Test with invalid VCF format
+    invalid_vcf <- tempfile(fileext = ".vcf")
+    writeLines("invalid content", invalid_vcf)
+    expect_error(vcf_count(invalid_vcf, genome = "hg19"))
+    unlink(invalid_vcf)
+})
+
+test_that("vcf_count works with different genome versions", {
+    # Create mock VCF with hg38 reference
+    vcf_hg38 <- create_mock_vcf(
+        num_variants = 3,
+        reference = "hg38"
+    )
+    
+    # Test with hg38
+    result <- vcf_count(vcf_hg38, genome = "hg38")
+    expect_equal(result[category == "snv_count"]$counts, 3)
+    expect_true(is.na(result[category == "snv_count_normal_vaf_greater0"]$counts))
+    
+    # Clean up
+    unlink(vcf_hg38)
+})
+
+test_that("vcf_count handles FILTER field correctly", {
+    # Create header with non-PASS variants
+    header <- c(
+        "##fileformat=VCFv4.2",
+        "##reference=hg19",
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"
+    )
+    variants <- c(
+        "chr1\t100\t.\tA\tT\t100\tPASS\t.",
+        "chr1\t200\t.\tC\tG\t100\tLowQual\t."
+    )
+    
+    # Create temporary VCF file
+    filter_vcf <- tempfile(fileext = ".vcf")
+    writeLines(c(header, variants), filter_vcf)
+    
+    # Test function
+    result <- vcf_count(filter_vcf, genome = "hg19")
+    
+    # Should only count PASS variants
+    expect_equal(result[category == "snv_count"]$counts, 1)
+    expect_true(is.na(result[category == "snv_count_normal_vaf_greater0"]$counts))
     
     # Clean up
     unlink(filter_vcf)
@@ -998,14 +996,14 @@ test_that("add_variant_counts processes VCF correctly", {
     metadata <- initialize_metadata_columns("TEST001")
     
     # Create a temporary mock VCF file
-    temp_vcf <- create_mock_vcf()
+    temp_vcf <- create_mock_vcf(num_variants = 3)
     
     # Test with mock VCF
     result <- add_variant_counts(metadata, somatic_snvs = temp_vcf)
     
-    # Verify counts
-    expect_equal(result$snv_count, 3)  # Total SNVs
-    expect_equal(result$snv_count_normal_vaf_greater0, 1)  # SNVs with normal VAF > 0
+    # Verify counts - only total count should be populated
+    expect_equal(result$snv_count, 3)
+    expect_true(is.na(result$snv_count_normal_vaf_greater0))
     
     # Clean up
     unlink(temp_vcf)
@@ -1063,7 +1061,7 @@ test_that("add_variant_counts processes VCF with genotype fields correctly", {
     )
     result <- add_variant_counts(metadata, somatic_snvs = vcf_with_af)
     expect_equal(result$snv_count, 3)
-    expect_equal(result$snv_count_normal_vaf_greater0, 1)
+    expect_equal(result$snv_count_normal_vaf_greater0, NA_integer_)
     unlink(vcf_with_af)
     
     # Test tumor-only VCF (no NORMAL sample)
@@ -1607,7 +1605,6 @@ test_that("add_coverage_parameters processes tumor coverage correctly", {
     metadata$ploidy <- 2.1
     
     coverage_file <- create_mock_coverage()
-    browser()
     result <- suppressWarnings(add_coverage_parameters(metadata, coverage_file))
     
     # Check results

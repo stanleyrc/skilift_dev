@@ -424,7 +424,7 @@ test_that("create_filtered_events creates correct output", {
   expect_true(is.data.frame(json_content))
   
   # Test content validation
-  expect_true(all(result$type %in% c("trunc", "missense", "synonymous", "SCNA", "fusion")))
+  expect_true(all(result$type %in% c("trunc", "missense", "synonymous", "SCNA", "fusion", "noncoding", "promoter")))
   expect_true(all(!is.na(result$gene)))
   expect_true(all(!is.na(result$type)))
   
@@ -606,6 +606,11 @@ test_that("create_oncotable works on real cohort", {
 DEBUG <- FALSE
 if (DEBUG) 
 {
+# Update test data with variant.c column
+nbo_path <- system.file('extdata/test_data/oncotable_test_data/no_oncokb_unit_oncotable.rds', package='Skilift')
+nbo <- readRDS(nbo_path)
+nbo[, variant.c := NA_character_]
+saveRDS(nbo, nbo_path)
 
 # why is create_oncotable failing after merge?
 # conclusion: missing min_cn in new oncokb_cna, some typos, wrong gencode file

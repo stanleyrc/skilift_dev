@@ -498,12 +498,12 @@ add_genome_length <- function(
     jabba_gg = NULL,
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
-    if (is.numeric(seqnames_genome_width) && NROW(seqnames_genome_width) == 1) {
-        metadata$total_genome_length <- seqnames_genome_width
+    if (is.numeric(seqnames_genome_width_or_genome_length) && NROW(seqnames_genome_width_or_genome_length) == 1) {
+        metadata$total_genome_length <- seqnames_genome_width_or_genome_length
         return(metadata)
     }
 
-    if (is.null(jabba_gg) || is.null(seqnames_genome_width)) {
+    if (is.null(jabba_gg) || is.null(seqnames_genome_width_or_genome_length)) {
         return(metadata)
     }
     
