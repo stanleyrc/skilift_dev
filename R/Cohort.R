@@ -81,6 +81,15 @@ Cohort <- R6Class("Cohort",
       }
     },
 
+    #' Print method for cohort object
+    print = function(...) {
+      cat("Cohort methods:\n")
+      cat(format(self, ...), sep = "\n")
+      cat("\n")
+      base::print(self$inputs)
+    }
+    ,
+
     #' @description
     #' Validate inputs data.table for missing values and files
     #' @return NULL if all inputs are valid, or a data.table with details about missing data
@@ -336,6 +345,10 @@ Cohort <- R6Class("Cohort",
         warning("No data could be extracted from input data.table")
       }
       
+      if ("pair" %in% names(result_dt) && inherits(result_dt, "data.table")) {
+        data.table::setkey(result_dt, pair)
+      }
+      
       return(result_dt)
     },
     
@@ -435,4 +448,29 @@ parse_pipeline_paths = function(
   ##   merged_dt[[col]] = NA_character_
   ## }
   return(initial_dt)
+}
+
+
+
+#' Subset Cohort object
+#'
+#' Overloads subset operator for Cohort
+#'
+#' @export 
+'[.Cohort' = function(obj, i = NULL, j = NULL, with = TRUE, ...) {
+  is_i_given = any(deparse(substitute(i)) != "NULL")
+  is_j_given = any(deparse(substitute(j)) != "NULL")
+  tbl = data.table::copy(obj$inputs)
+  tblj = tbl
+  if (is_j_given) {
+    tblj = tbl[, j, with = with]
+  }
+  tbli = tblj
+  if (is_i_given) {
+    tbli = tblj[i,,with = with]
+  }
+  # obj_out$inputs = tbli
+  obj_out = Skilift::Cohort$new(tbli, reference_name = obj$reference_name)
+  invisible(obj_out$inputs[])
+  return(obj_out)
 }
