@@ -144,6 +144,8 @@ lift_variant_qc(cohort, output_data_dir = output_data_dir, cores = 1)
 
 # create metadata
 lift_metadata(cohort, output_data_dir = output_data_dir, cores = 1)
+# if targeted panel or exome data, set genome_length to the size of the target region
+lift_metadata(cohort, output_data_dir = output_data_dir, cores = 1, genome_length = 3e6)
 ```
 
 Note that cohort only needs to be instantiated once, and can be reused for all

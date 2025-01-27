@@ -288,7 +288,7 @@ lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
 }
@@ -364,7 +364,7 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
 }

@@ -42,4 +42,7 @@ LinkingTo: Rcpp
 Suggests:
     testthat (>= 2.0),
     covr,
-    pkgdown
+    pkgdown,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

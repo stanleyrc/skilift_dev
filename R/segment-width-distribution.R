@@ -157,7 +157,7 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
-    }, mc.cores = cores)
+    }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
 }
