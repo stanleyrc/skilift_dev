@@ -398,6 +398,13 @@ parse_pipeline_paths = function(
 }
 
 
+#' deparse1 copy
+#'
+#' Robustly deparse object
+#'
+deparse1 = function(expr, collapse = " ", width.cutoff = 500L, ...) {
+    paste(deparse(expr, width.cutoff, ...), collapse = collapse)
+}
 
 #' Subset Cohort object
 #'
@@ -405,19 +412,25 @@ parse_pipeline_paths = function(
 #'
 #' @export 
 '[.Cohort' = function(obj, i = NULL, j = NULL, with = TRUE, ...) {
-  is_i_given = any(deparse(substitute(i)) != "NULL")
-  is_j_given = any(deparse(substitute(j)) != "NULL")
+  expri = deparse1(substitute(i))
+  is_i_given = any(expri != "NULL")
+  vector_of_column_names = deparse1(substitute(j))
+  is_j_given = any(vector_of_column_names != "NULL")
   tbl = data.table::copy(obj$inputs)
   tblj = tbl
   if (is_j_given) {
-    tblj = tbl[, j, with = with]
+    selectj = unique(c("pair", vector_of_column_names))
+    tblj = base::subset(tblj, select = selectj) 
   }
+  colmap = as.list(names(tblj))
+  names(colmap) = names(tblj)
   tbli = tblj
   if (is_i_given) {
     tbli = tblj[i,,with = with]
   }
   # obj_out$inputs = tbli
-  obj_out = Skilift::Cohort$new(tbli, reference_name = obj$reference_name)
+  obj_out = Skilift::Cohort$new(x = NULL, reference_name = obj$reference_name)
+  obj_out$inputs = tblj[]
   invisible(obj_out$inputs[])
   return(obj_out)
 }
