@@ -164,6 +164,7 @@ Cohort <- R6Class("Cohort",
       
       # Get sample metadata first - this contains our patient IDs
       sample_metadata <- private$get_pipeline_samples_metadata(pipeline_outdir)
+
       if (is.null(sample_metadata)) {
         stop("Could not get sample metadata - this is required for patient IDs")
       }
@@ -193,6 +194,31 @@ Cohort <- R6Class("Cohort",
         warning("Pipeline report not found: ", report_path)
         return(NULL)
       }
+      nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow\\.log.*", all.files = TRUE, full.names = TRUE)
+      parsed_meta = lapply(nflogs, private$read_nf_log)
+      ## transpose the list
+      parsed_meta = do.call(Map, c(f = c, parsed_meta))
+      samplesheets = unique(parsed_meta$samplesheet)
+      samplesheets = samplesheets[nzchar(samplesheets)]
+      launchdir = unique(parsed_meta$launchdir)
+      launchdir = launchdir[nzchar(launchdir)]
+
+      unique_patients = Reduce(union, lapply(samplesheets, function(x) fread(x)$patient))
+      samplesheet = data.table::rbindlist(lapply(samplesheets, fread), fill = TRUE)
+
+      metadata <- data.table(
+        pair = samplesheet$patient,
+        tumor_type = samplesheet$tumor_type,
+        disease = samplesheet$disease,
+        primary_site = samplesheet$primary_site,
+        inferred_sex = samplesheet$sex
+      )
+      
+      # remove duplicates
+      metadata <- unique(metadata)
+      return(metadata)
+      
+      browser()
 
       # Read pipeline report
       report_lines <- readLines(report_path)
@@ -207,6 +233,7 @@ Cohort <- R6Class("Cohort",
       }
 
       # Clean up paths
+      browser()
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
       samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
       samplesheet_filename <- gsub("^\\./", "", samplesheet_filename)
@@ -358,7 +385,6 @@ parse_pipeline_paths = function(
   
   # Get the list of pairs we're looking for
   pairs_to_match <- unique(initial_dt[[id_name]])
-  
   # Map of regex patterns to column names
   for (col_name in names(path_patterns)) {
     patterns = path_patterns[[col_name]]
@@ -429,8 +455,61 @@ deparse1 = function(expr, collapse = " ", width.cutoff = 500L, ...) {
     tbli = tblj[i,,with = with]
   }
   # obj_out$inputs = tbli
-  obj_out = Skilift::Cohort$new(x = NULL, reference_name = obj$reference_name)
-  obj_out$inputs = tblj[]
+  obj_out = Skilift::Cohort$new(x = data.table(), reference_name = obj$reference_name)
+  obj_out$inputs = tbli[]
   invisible(obj_out$inputs[])
   return(obj_out)
 }
+
+
+#' Parse .nextflow.log
+#'
+#' Parse nextflow log files for launchdir and input options
+#' to get samplesheet
+#'
+#' @author Kevin Hadi 
+read_nf_log = function(nflog_path, max_lines = 1000000L) {
+    f = file(nflog_path, open = "r")
+    on.exit({close(f)})
+    line = readLines(f, n = 1L)
+    is_line_at_options = grepl("Input/output options", line)
+    is_line_at_launchdir = grepl("launchDir", line)
+    are_all_lines_parsed = is_line_at_options && is_line_at_launchdir
+    counter = 1
+    ansi_pattern = '\\\033\\[((?:\\d|;)*)([a-zA-Z])'
+    input_samplesheet = ""
+    launchdir = ""
+    while (!are_all_lines_parsed && counter <= max_lines) {
+        line = readLines(f, n = 1L)
+        if (!identical(is_line_at_options, TRUE)) {
+            is_line_at_options = length(line) && grepl("Input/output options", line)
+            if (identical(is_line_at_options, TRUE)) {
+                line = readLines(f, n = 1L)
+                input_samplesheet = gsub(ansi_pattern, "", line)
+                input_samplesheet = gsub("input[[:space:]]+:[[:space:]]+", "", trimws(input_samplesheet))
+            }
+        }
+        if (!identical(is_line_at_launchdir, TRUE)) {
+            is_line_at_launchdir = length(line) && grepl("launchDir", line)
+            if (identical(is_line_at_launchdir, TRUE)) {
+                launchdir_line = gsub(ansi_pattern, "", line)
+                launchdir = gsub("launchDir[[:space:]]+:[[:space:]]+", "", trimws(launchdir_line))
+            }
+        } 
+        are_all_lines_parsed = is_line_at_options && is_line_at_launchdir
+        counter = counter + 1
+    }
+    if (counter == max_lines && !are_all_lines_parsed) {
+        stop("Could not find Input/output options!")
+    }
+    return(
+        list(
+            samplesheet = input_samplesheet,
+            launchdir = launchdir
+        )
+    )
+}
+
+
+## Assign new methods
+Cohort$private_methods[["read_nf_log"]] = read_nf_log

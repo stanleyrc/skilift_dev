@@ -4,12 +4,7 @@
 \alias{lift_metadata}
 \title{lift_metadata}
 \usage{
-lift_metadata(
-  cohort,
-  output_data_dir,
-  cores = 1,
-  seqnames_genome_width = c(1:22, "X", "Y")
-)
+lift_metadata(cohort, output_data_dir, cores = 1, genome_length = NULL)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
@@ -17,6 +12,8 @@ lift_metadata(
 \item{output_data_dir}{Base directory for output files}
 
 \item{cores}{Number of cores for parallel processing (default: 1)}
+
+\item{genome_length}{Genome length for the samples (for targeted panels or WES data)}
 }
 \value{
 None

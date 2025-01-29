@@ -1,3 +1,5 @@
+#' @import ggplot2 
+
 #' @name create_ppfit_json
 #' @title create_ppfit_json
 #' @description
@@ -158,6 +160,191 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
     }, mc.cores = cores, mc.preschedule = FALSE)
+    
+    invisible(NULL)
+}
+
+
+
+
+
+#' Purity Ploidy Plot
+#' 
+#' Lorem Ipsem
+#' 
+#' @export
+#' @author Aditya Deshpande
+create_pp_plot <- function(jabba_gg = NA,
+                     het_pileups = NULL,
+                     seg.fname = NA,
+                     field = 'count',
+                     purity = NA,
+                     ploidy = NA,
+                     plot.min = -2,
+                     plot.max = 2,
+                     bins = 500,
+                     height = 800,
+                     width = 800,
+                     output.fname = './',
+                     is.wgs = FALSE) {
+    
+    suppressWarnings({
+        if (is.na(purity) || is.wgs) {
+            if (is.na(jabba_gg) || !file.exists(jabba_gg)) {
+                stop("jabba_gg does not exist and no purity and ploidy provided")
+            } else {
+                jab = readRDS(jabba_gg)
+                if (is.null(jab$meta$purity) & is.null(jab$purity)) {
+                    stop("jabba_gg does not have purity and ploidy values")
+                } else {
+                    purity = if (!is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
+                    ploidy = if (!is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
+                }
+            }
+        }
+
+        if (is.null(het_pileups) || !file.exists(het_pileups)) {
+            stop("het_pileups not supplied")
+        }
+        hets = Skilift:::grab.hets(het_pileups)
+        field = "count"
+        if (!field %in% names(values(hets))) {
+            stop("hets missing required field")
+        }
+        if (!field %in% names(mcols(hets))) {
+            stop("hets missing required field")
+        }
+        hets$cn = skitools::rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE) # added allele == T since this are hets
+        eqn = skitools::rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE, return.params = TRUE) # Trying to keep it as close to Zi's
+
+        seqlevelsStyle(hets) <- "NCBI"
+
+        # if (is.wgs) {
+        #     segs = gr.stripstrand(jab$segstats %Q% (strand(jab$segstats)=="+"))[, c()]
+        # } else {
+        #     segs = readRDS(seg.fname)
+        # }
+
+        segs = jab$nodes$gr[, c()]
+
+        major.segs = gr.val(segs, hets %Q% (allele == "major"), val = "cn", mean = TRUE, na.rm = TRUE)
+        minor.segs = gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
+
+        if (is.wgs) {
+            tiles = gr.tile(gr = segs, width = 1e4)
+            major.tiles = gr.val(tiles, major.segs, val = "cn", mean = TRUE, na.rm = TRUE)
+            minor.tiles = gr.val(tiles, minor.segs, val = "cn", mean = TRUE, na.rm = TRUE)
+            major.tiles.subs = as.data.table(major.tiles)[sample(.N,500)]
+            minor.tiles.subs = as.data.table(minor.tiles)[sample(.N,500)]
+            dt = cbind(major.tiles.subs[, .(seqnames, start, end, major.cn = cn)],
+                       minor.tiles.subs[, .(minor.cn = cn)])
+        } else {
+            dt = cbind(as.data.table(major.segs)[, .(seqnames, start, end, major.cn = cn)],
+                       as.data.table(minor.segs)[, .(minor.cn = cn)])
+        }
+
+        maxval = plot.max * ploidy # max dosage
+        minval = plot.min ## min dosage
+
+        dt = dt[major.cn < maxval & minor.cn < maxval &
+                major.cn > minval & minor.cn > minval &
+                grepl("[0-9]", seqnames)==TRUE,]
+
+        dt[, ratio := major.cn / minor.cn]
+        return(
+            list(
+                pp_plot_data = dt,
+                maxval = maxval,
+                minval = minval,
+                purity = purity,
+                ploidy = ploidy,
+                eqn = eqn
+            )
+        )
+    })
+}
+
+
+#' Lift 2d purity ploidy plot
+#'
+#' Lift 2d purity ploidy plot
+#'
+#' @author Aditya Deshpande
+#' @export
+lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+    
+    # Validate required columns exist
+    required_cols <- c("pair", "jabba_gg", "het_pileups")
+
+    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+    
+    # Process each sample in parallel
+    iterate_function = function(i) {
+        row <- cohort$inputs[i,]
+        pair_dir <- file.path(output_data_dir, row$pair)
+        
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
+        
+        # out_file <- file.path(pair_dir, "ppfit.json")
+        png_path = paste0(normalizePath(pair_dir), "/pp_plot.png")
+        
+        tryCatch({
+            pp_plot_list = create_pp_plot(
+                jabba_gg = row$jabba_gg,
+                het_pileups = row$het_pileups
+            )
+            pp_plot_data = pp_plot_list$pp_plot_data
+            maxval = pp_plot_list$maxval
+            minval = pp_plot_list$minval
+            purity = pp_plot_list$purity
+            ploidy = pp_plot_list$ploidy
+            eqn = pp_plot_list$eqn
+
+            pt = ggplot(pp_plot_data, aes(x = major.cn, y = minor.cn)) +
+            scale_x_continuous(breaks = 0:floor(maxval),
+                                labels = 0:floor(maxval) %>% as.character,
+                                sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"], # Trying to keep it as close to Zi's
+                                                    name = "Major count")) +
+            scale_y_continuous(breaks = 0:floor(maxval),
+                                labels = 0:floor(maxval) %>% as.character,
+                                sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"], # Trying to keep it as close to Zi's
+                                                    name = "Minor count")) +
+            labs(x = "Major CN", y = "Minor CN") +
+            theme_bw() +
+            theme(legend.position = "none",
+                    legend.title = element_text(size = 10, family = "sans"),
+                    legend.text = element_text(size = 10, family = "sans"),
+                    axis.title = element_text(size = 10, family = "sans"),
+                    axis.text.x = element_text(size = 10, family = "sans"),
+                    axis.text.y = element_text(size = 10, family = "sans")) +
+            stat_density_2d(geom = "polygon", contour = TRUE, aes(alpha = 0.5, fill = after_stat(level)),
+                            bins = 10) +
+            scale_fill_distiller(palette = "Blues", direction = 1) +
+            geom_point(size = 2, shape=4, alpha = 0.3) +
+            ggtitle(paste0("Purity: ", signif(purity, 2), " Ploidy: ", signif(ploidy, 2)))
+            grDevices::png(png_path, units = "in", height = 5, width = 5, res = 600)
+            print(pt)
+            grDevices::dev.off()
+            
+        }, error = function(e) {
+            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+        })
+    }
+
+    mclapply(
+        seq_len(nrow(cohort$inputs)), 
+        iterate_function, 
+        mc.cores = cores, 
+        mc.preschedule = FALSE
+    )
     
     invisible(NULL)
 }

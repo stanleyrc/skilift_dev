@@ -7,7 +7,7 @@
 add_genome_length(
   metadata,
   jabba_gg = NULL,
-  seqnames_genome_width = c(1:22, "X", "Y")
+  seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 )
 }
 \arguments{
@@ -15,7 +15,7 @@ add_genome_length(
 
 \item{jabba_gg}{Path to JaBbA graph RDS file}
 
-\item{seqnames_genome_width}{Vector of sequence names to include in genome length}
+\item{seqnames_genome_width_or_genome_length}{Vector of sequence names to include in genome length or genome length as a numeric}
 }
 \value{
 Updated metadata with genome length information
