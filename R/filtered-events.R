@@ -887,7 +887,8 @@ create_filtered_events <- function(
     jabba_gg,
     out_file,
     temp_fix = FALSE,
-    return_table = FALSE) {
+    return_table = FALSE,
+    in_heme_mode = FALSE) {
 
     ot <- readRDS(oncotable)
 
@@ -947,42 +948,49 @@ create_filtered_events <- function(
     setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
 
   res <- res %>% unique(., by = c("gene","vartype", "Variant"))
-    if (nrow(res) > 0) {
-        res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
-        res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
-        res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
-        res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
-        res.mut <- res[!is.na(Variant), ]
-        if (nrow(res.mut) > 0) {
-            #res.mut[, Variant := gsub("p.", "", Variant)]
-            res.mut[, vartype := "SNV"]
-            res.mut[type=="trunc", vartype := "DEL"]
-        }
-        res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
-        if (nrow(res.cn) > 0) {
-            jab <- readRDS(jabba_gg)
-            res.cn.gr <- GRanges(res.cn)
-            res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
-            res.cn.dt <- as.data.table(res.cn.gr)
-            res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
-            res.cn.dt[, segment_cn := cn]
-            res.cn.dt[, Variant := vartype]
-            ## res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
-            ## res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3)                                                                                     )]
-            if (temp_fix) {
-                res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
-                res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
-            }
-            res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
-            res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
-        } else {
-            res.final <- res.mut
-        }
-        write_json(res.final, out_file, pretty = TRUE)
-        res.final[, sample := pair]
-        if (return_table) {
-            return(res.final)
-        }
+  if (nrow(res) > 0) {
+      res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
+      res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
+      res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
+      res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
+      res.mut <- res[!is.na(Variant), ]
+      if (nrow(res.mut) > 0) {
+          #res.mut[, Variant := gsub("p.", "", Variant)]
+          res.mut[, vartype := "SNV"]
+          # TODO:
+          # truncating mutations are not always deletions
+          # initial logic may be misleading calling all small mutations "SNV"
+          # but we should encode this as something more robust
+          # res.mut[type=="trunc", vartype := "DEL"]
+      }
+      res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
+      if (nrow(res.cn) > 0) {
+          jab <- readRDS(jabba_gg)
+          res.cn.gr <- GRanges(res.cn)
+          res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
+          res.cn.dt <- as.data.table(res.cn.gr)
+          res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
+          res.cn.dt[, segment_cn := cn]
+          res.cn.dt[, Variant := vartype]
+          ## res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
+          ## res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3)                                                                                     )]
+          if (temp_fix) {
+              res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
+              res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
+          }
+          res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
+          res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
+      } else {
+          res.final <- res.mut
+      }
+      if (in_heme_mode) {
+        res.final = select_heme_events(res.final)
+      }
+      write_json(res.final, out_file, pretty = TRUE)
+      res.final[, sample := pair]
+      if (return_table) {
+          return(res.final)
+      }
     }
 }
 
@@ -996,7 +1004,7 @@ create_filtered_events <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
+lift_filtered_events <- function(cohort, output_data_dir, cores = 1, in_heme_mode = FALSE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1030,12 +1038,41 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
                 temp_fix = FALSE,
-                return_table = FALSE
+                return_table = FALSE,
+                in_heme_mode = in_heme_mode
             )
+            
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
     }, mc.cores = cores, mc.preschedule = FALSE)
     
     invisible(NULL)
+}
+
+#' Select Heme events from Addy's hemedb
+#' 
+#' bla bla
+#'
+#' @export
+select_heme_events <- function(
+  filtered_events, 
+  hemedb_path = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+) {
+  hemedb = readRDS(hemedb_path) 
+  is_small_mutation_heme = (
+    filtered_events$vartype == "SNV" &
+    (
+      filtered_events$gene %in% hemedb$GENE
+      |
+      filtered_events$Tier %in% c(1,2)
+    )
+  )
+  is_other_event = filtered_events$vartype != "SNV"
+  if (any(filtered_events$gene %in% c("FLT3", "DUX4", "KMT2A"))) {
+    .NotYetImplemented()
+  }
+  return(
+    filtered_events[is_small_mutation_heme | is_other_event]
+  )
 }
