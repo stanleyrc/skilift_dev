@@ -1,0 +1,219 @@
+---
+title: "Using Skilift with Case Reports"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using Skilift with Case Reports}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Introduction
+
+Skilift provides tools for loading and manipulating genomic data for use with Case Reports. The basic workflow involves:
+
+1. Loading cohort data into a Cohort object
+2. Using lifter methods to generate Case Report plot files
+
+This vignette demonstrates both approaches using example data.
+
+# Loading Data
+
+## From a Data Table
+
+First, let's create a sample pairs table (you would load your own):
+
+```{r}
+library(data.table)
+library(Skilift)
+
+# Create example pairs data
+pairs_table <- data.table(
+  pair = c("0124", "0125", "0128"),
+  tumor_type = c("BRCA", "LUAD", "PRAD"),
+  disease = c("Breast Cancer", "Lung Cancer", "Prostate Cancer"),
+  primary_site = c("Breast", "Lung", "Prostate"),
+  inferred_sex = c("F", "M", "M"),
+  structural_variants = c(
+    "path/to/0124/sv.vcf",
+    "path/to/0125/sv.vcf", 
+    "path/to/0128/sv.vcf"
+  )
+)
+
+# Create cohort object
+cohort <- Cohort$new(pairs_table, reference_name = "hg19")
+
+# View the loaded data
+print(cohort$inputs)
+```
+
+## From nf-casereports Pipeline Output Directory
+
+We can also load data from the output directory of our nf-casereports pipeline. 
+
+Let's create a mock directory structure (you would just pass the path to your pipeline output directory):
+
+```{r}
+# Create temporary directory for mock pipeline output
+pipeline_dir <- tempdir()
+
+# Create directory structure
+dir.create(file.path(pipeline_dir, "pipeline_info"), recursive = TRUE)
+dir.create(file.path(pipeline_dir, "dryclean_tumor/0124"), recursive = TRUE)
+dir.create(file.path(pipeline_dir, "jabba/0124"), recursive = TRUE)
+dir.create(file.path(pipeline_dir, "signatures/sigprofilerassignment/somatic/0124/SBS"), recursive = TRUE)
+
+# Create mock pipeline report
+cat(sprintf("launchDir: %s\ninput: ./samplesheet.csv", pipeline_dir), 
+    file = file.path(pipeline_dir, "pipeline_info/pipeline_report.txt"))
+
+# Create mock samplesheet
+samplesheet <- data.table(
+  patient = c("0124"),
+  tumor_type = c("BRCA"),
+  disease = c("Breast Cancer"), 
+  primary_site = c("Breast"),
+  sex = c("F")
+)
+fwrite(samplesheet, file.path(pipeline_dir, "samplesheet.csv"))
+
+# Create mock data files
+file.create(file.path(pipeline_dir, "dryclean_tumor/0124/drycleaned.cov.rds"))
+file.create(file.path(pipeline_dir, "jabba/0124/jabba.simple.gg.rds"))
+file.create(file.path(pipeline_dir, "signatures/sigprofilerassignment/somatic/0124/SBS/sigmat_results.SBS96.all"))
+
+# Create cohort from pipeline directory
+pipeline_cohort <- Cohort$new(pipeline_dir, reference_name = "hg19")
+
+# View the loaded data
+print(pipeline_cohort$inputs)
+```
+
+# Validating Input Data
+
+We can validate the input data to check for missing values or files:
+
+```{r}
+# Validate the pairs table cohort
+cohort$validate_inputs()
+
+# Validate the pipeline cohort 
+pipeline_cohort$validate_inputs()
+```
+
+# Generating Plot Files
+
+Once we have a valid cohort object, we can use the lifter methods to generate plot files for Case Reports. Here's an example workflow:
+
+```{r, eval=FALSE}
+output_data_dir <- "~/case_reports_data"
+
+# Create copy number graphs
+lift_copy_number_graph(cohort, output_data_dir = output_data_dir, is_allelic = FALSE)
+lift_copy_number_graph(cohort, output_data_dir = output_data_dir, is_allelic = TRUE)
+
+# Create coverage plots
+lift_denoised_coverage(cohort, output_data_dir = output_data_dir)
+lift_hetsnps(cohort, output_data_dir = output_data_dir)
+
+# Create filtered events
+oncotable_dir <- "~/oncotable_dir"
+cohort_w_oncotable <- create_oncotable(cohort, outdir = oncotable_dir)
+lift_filtered_events(cohort_w_oncotable, output_data_dir = output_data_dir)
+
+# Create multiplicity plots
+lift_multiplicity(cohort, output_data_dir = output_data_dir, is_germline = FALSE)
+lift_multiplicity(cohort, output_data_dir = output_data_dir, is_germline = TRUE)
+
+# Create segment width distribution plots
+lift_segment_width_distribution(cohort, output_data_dir = output_data_dir)
+
+# Create signatures
+lift_signatures(cohort, output_data_dir = output_data_dir)
+
+# Create variant QC plots
+lift_variant_qc(cohort, output_data_dir = output_data_dir)
+
+# Create metadata
+lift_metadata(cohort, output_data_dir = output_data_dir)
+# if targeted panel or exome data, set genome_length to the size of the target region
+lift_metadata(cohort, output_data_dir = output_data_dir, cores = 1, genome_length = 3e6)
+```
+
+Note that the lifter methods can be run in parallel by setting the `cores` parameter. By default, they use a single core.
+
+# Custom Column Mapping
+
+If your input data uses different column names than the defaults, you can provide a custom mapping:
+
+```{r}
+# Create data with custom column names
+custom_pairs <- data.table(
+  pid = c("0124", "0125"),
+  cancer = c("BRCA", "LUAD"),
+  sv_files = c("path/to/0124/sv.vcf", "path/to/0125/sv.vcf")
+)
+
+# Define custom mapping
+custom_mapping <- list(
+  pair = "pid",
+  tumor_type = "cancer",
+  structural_variants = "sv_files"
+)
+
+# Create cohort with custom mapping
+custom_cohort <- Cohort$new(
+  custom_pairs, 
+  reference_name = "hg19",
+  col_mapping = custom_mapping
+)
+
+print(custom_cohort$inputs)
+```
+
+This is also useful when you want to coerce certain columns to map to specific cohort columns. The default column mapping does an exact search followed by a prefix search, which can sometimes lead to unexpected column mappings. In general, specifying the full column name in the custom column mapping is the safest way to ensure the column is mapped correctly. This is also to help enforce good practices for naming pairs table columns (going from general to specific in the naming scheme).
+
+You can always view the column mapping by printing the cohort object:
+
+```{r}
+blank_cohort <- Cohort$new(data.table(), reference_name = "hg19")
+print(blank_cohort$cohort_cols_to_x_cols)
+```
+
+Note that this is updated when you supply a custom column mapping:
+
+```{r}
+# Create data with custom column names
+custom_pairs <- data.table(
+  pid = c("0124", "0125"),
+  cancer = c("BRCA", "LUAD"),
+  sv_files = c("path/to/0124/sv.vcf", "path/to/0125/sv.vcf")
+)
+
+# Define custom mapping
+custom_mapping <- list(
+  pair = "pid",
+  tumor_type = "cancer",
+  structural_variants = "sv_files"
+)
+
+# Create cohort with custom mapping
+custom_cohort <- Cohort$new(
+  custom_pairs, 
+  reference_name = "hg19",
+  col_mapping = custom_mapping
+)
+
+print(custom_cohort$cohort_cols_to_x_cols[["pair"]])
+print(custom_cohort$cohort_cols_to_x_cols[["tumor_type"]])
+print(custom_cohort$cohort_cols_to_x_cols[["structural_variants"]])
+```
+
+The new column names have been prepended to the beginning of each list of possible column names. This is because the order of the list corresponds to the order of the column names searched for in the pairs table.

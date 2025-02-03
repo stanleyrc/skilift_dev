@@ -1,0 +1,1421 @@
+gene,vartype,fusion_genes,id,track,type,source,fusion_gene_coords,value,variant.g,variant.p,distance,annotation
+DCDC2,fusion,"DCDC2,RGL1",397089,variants,fusion,fusions,"6:24171984-24358280,1:183605220-183897665",,,,,
+RGL1,fusion,"DCDC2,RGL1",397089,variants,fusion,fusions,"6:24171984-24358280,1:183605220-183897665",,,,,
+STRN,fusion,"STRN,CLHC1",397089,variants,fusion,fusions,"2:37070783-37193615,2:55401927-55459699",,,,,
+CLHC1,fusion,"STRN,CLHC1",397089,variants,fusion,fusions,"2:37070783-37193615,2:55401927-55459699",,,,,
+SMAP1,fusion,"SMAP1,FAM184A",397089,variants,fusion,fusions,"6:71377479-71571718,6:119280928-119470552",,,,,
+FAM184A,fusion,"SMAP1,FAM184A",397089,variants,fusion,fusions,"6:71377479-71571718,6:119280928-119470552",,,,,
+MET,fusion,"MET,MDFIC",397089,variants,fusion,fusions,"7:116312444-116438440,7:114562209-114659256",,,,,
+MDFIC,fusion,"MET,MDFIC",397089,variants,fusion,fusions,"7:116312444-116438440,7:114562209-114659256",,,,,
+FBXL17,fusion,FBXL17,397089,variants,fusion,fusions,5:107194736-107717799,,,,,
+CTNNA3,fusion,CTNNA3,397089,variants,fusion,fusions,10:67672276-69455927,,,,,
+MYLK,fusion,MYLK,397089,variants,fusion,fusions,3:123328896-123603178,,,,,
+ADAMTSL3,fusion,ADAMTSL3,397089,variants,fusion,fusions,15:84322838-84708594,,,,,
+SPECC1,fusion,SPECC1,397089,variants,fusion,fusions,17:19912657-20222339,,,,,
+ITPR1,fusion,ITPR1,397089,variants,fusion,fusions,3:4535029-4889524,,,,,
+PARK2,outframe_fusion,PARK2,397089,variants,outframe_fusion,fusions,:-,,,,,
+HDGFRP3,outframe_fusion,"HDGFRP3,ADAMTSL3",397089,variants,outframe_fusion,fusions,":-,15:84322838-84708594",,,,,
+ADAMTSL3,outframe_fusion,"HDGFRP3,ADAMTSL3",397089,variants,outframe_fusion,fusions,":-,15:84322838-84708594",,,,,
+PIGF,outframe_fusion,"PIGF,EML4",397089,variants,outframe_fusion,fusions,"2:46808076-46844258,2:42396490-42559688",,,,,
+EML4,outframe_fusion,"PIGF,EML4",397089,variants,outframe_fusion,fusions,"2:46808076-46844258,2:42396490-42559688",,,,,
+SPTBN1,outframe_fusion,"SPTBN1,PIGF",397089,variants,outframe_fusion,fusions,"2:54683422-54898582,2:46808076-46844258",,,,,
+PIGF,outframe_fusion,"SPTBN1,PIGF",397089,variants,outframe_fusion,fusions,"2:54683422-54898582,2:46808076-46844258",,,,,
+SPTBN1,outframe_fusion,"SPTBN1,PIGF,EML4",397089,variants,outframe_fusion,fusions,"2:54683422-54898582,2:46808076-46844258,2:42396490-42559688",,,,,
+PIGF,outframe_fusion,"SPTBN1,PIGF,EML4",397089,variants,outframe_fusion,fusions,"2:54683422-54898582,2:46808076-46844258,2:42396490-42559688",,,,,
+EML4,outframe_fusion,"SPTBN1,PIGF,EML4",397089,variants,outframe_fusion,fusions,"2:54683422-54898582,2:46808076-46844258,2:42396490-42559688",,,,,
+DNAH6,outframe_fusion,"DNAH6,NCAM1",397089,variants,outframe_fusion,fusions,"2:84743579-85046713,11:112831969-113149158",,,,,
+NCAM1,outframe_fusion,"DNAH6,NCAM1",397089,variants,outframe_fusion,fusions,"2:84743579-85046713,11:112831969-113149158",,,,,
+FOXP2,outframe_fusion,"FOXP2,MDFIC",397089,variants,outframe_fusion,fusions,"7:113726382-114333827,7:114562209-114659256",,,,,
+MDFIC,outframe_fusion,"FOXP2,MDFIC",397089,variants,outframe_fusion,fusions,"7:113726382-114333827,7:114562209-114659256",,,,,
+SPECC1,outframe_fusion,"SPECC1,BCAS3",397089,variants,outframe_fusion,fusions,"17:19912657-20222339,17:58754814-59470199",,,,,
+BCAS3,outframe_fusion,"SPECC1,BCAS3",397089,variants,outframe_fusion,fusions,"17:19912657-20222339,17:58754814-59470199",,,,,
+MAPK4,outframe_fusion,"MAPK4,DCC",397089,variants,outframe_fusion,fusions,"18:48086448-48258194,18:49866542-51062273",,,,,
+DCC,outframe_fusion,"MAPK4,DCC",397089,variants,outframe_fusion,fusions,"18:48086448-48258194,18:49866542-51062273",,,,,
+,,,397089,complex sv,chromothripsis,complex,,2,,,,
+,,,397089,complex sv,rigma,complex,,8,,,,
+,,,397089,complex sv,pyrgo,complex,,3,,,,
+,,,397089,complex sv,bfb,complex,,3,,,,
+,,,397089,simple sv,del,complex,,4,,,,
+,,,397089,simple sv,dup,complex,,4,,,,
+,,,397089,pp,purity,,,,,,,
+,,,397089,pp,ploidy,,,,,,,
+CD99,,,397089,variants,homdel,,,0,,,,
+MYLK,,,397089,variants,hetdel,,,1,,,,
+OPHN1,,,397089,variants,hetdel,,,1,,,,
+SYTL4,,,397089,variants,hetdel,,,1,,,,
+TFEC,,,397089,variants,hetdel,,,1,,,,
+CAV2,,,397089,variants,hetdel,,,1,,,,
+WNT2,,,397089,variants,hetdel,,,1,,,,
+GLIS3,,,397089,variants,homdel,,,0,,,,
+VAMP7,,,397089,variants,homdel,,,0,,,,
+IL9R,,,397089,variants,homdel,,,0,,,,
+GNGT1,,,397089,variants,hetdel,,,1,,,,
+FOXP2,,,397089,variants,hetdel,,,1,,,,
+MORC4,,,397089,variants,hetdel,,,1,,,,
+MDFIC,,,397089,variants,hetdel,,,1,,,,
+FGF5,,,397089,variants,hetdel,,,1,,,,
+MAPK4,,,397089,variants,homdel,,,0,,,,
+RGL1,,,397089,variants,hetdel,,,1,,,,
+FBXL17,,,397089,variants,hetdel,,,1,,,,
+DIAPH2,,,397089,variants,hetdel,,,1,,,,
+RABGAP1L,,,397089,variants,hetdel,,,1,,,,
+SHROOM4,,,397089,variants,hetdel,,,1,,,,
+PPP2R3B,,,397089,variants,homdel,,,0,,,,
+SPRY3,,,397089,variants,homdel,,,0,,,,
+DHRSX,,,397089,variants,homdel,,,0,,,,
+ASMTL,,,397089,variants,homdel,,,0,,,,
+SLC25A6,,,397089,variants,homdel,,,0,,,,
+GTPBP6,,,397089,variants,homdel,,,0,,,,
+P2RY8,,,397089,variants,homdel,,,0,,,,
+PLCXD1,,,397089,variants,homdel,,,0,,,,
+CTNNA3,,,397089,variants,hetdel,,,1,,,,
+IL3RA,,,397089,variants,homdel,,,0,,,,
+SHOX,,,397089,variants,homdel,,,0,,,,
+DCC,,,397089,variants,homdel,,,0,,,,
+ASMT,,,397089,variants,homdel,,,0,,,,
+AKAP17A,,,397089,variants,homdel,,,0,,,,
+CSF2RA,,,397089,variants,homdel,,,0,,,,
+CRLF2,,,397089,variants,homdel,,,0,,,,
+ZBED1,,,397089,variants,homdel,,,0,,,,
+GPR52,,,397089,variants,hetdel,,,1,,,,
+CACYBP,,,397089,variants,hetdel,,,1,,,,
+MRPS14,,,397089,variants,hetdel,,,1,,,,
+TNN,,,397089,variants,hetdel,,,1,,,,
+KIAA0040,,,397089,variants,hetdel,,,1,,,,
+TNR,,,397089,variants,hetdel,,,1,,,,
+COP1,,,397089,variants,hetdel,,,1,,,,
+PAPPA2,,,397089,variants,hetdel,,,1,,,,
+ASTN1,,,397089,variants,hetdel,,,1,,,,
+BRINP2,,,397089,variants,hetdel,,,1,,,,
+SEC16B,,,397089,variants,hetdel,,,1,,,,
+RASAL2,,,397089,variants,hetdel,,,1,,,,
+CLEC20A,,,397089,variants,hetdel,,,1,,,,
+TEX35,,,397089,variants,hetdel,,,1,,,,
+C1ORF220,,,397089,variants,hetdel,,,1,,,,
+RALGPS2,,,397089,variants,hetdel,,,1,,,,
+ANGPTL1,,,397089,variants,hetdel,,,1,,,,
+FAM20B,,,397089,variants,hetdel,,,1,,,,
+TOR3A,,,397089,variants,hetdel,,,1,,,,
+ABL2,,,397089,variants,hetdel,,,1,,,,
+SOAT1,,,397089,variants,hetdel,,,1,,,,
+AXDND1,,,397089,variants,hetdel,,,1,,,,
+AL160286.1,,,397089,variants,hetdel,,,1,,,,
+NPHS2,,,397089,variants,hetdel,,,1,,,,
+TDRD5,,,397089,variants,hetdel,,,1,,,,
+FAM163A,,,397089,variants,hetdel,,,1,,,,
+TOR1AIP2,,,397089,variants,hetdel,,,1,,,,
+IFRG15,,,397089,variants,hetdel,,,1,,,,
+TOR1AIP1,,,397089,variants,hetdel,,,1,,,,
+CEP350,,,397089,variants,hetdel,,,1,,,,
+QSOX1,,,397089,variants,hetdel,,,1,,,,
+LHX4,,,397089,variants,hetdel,,,1,,,,
+ACBD6,,,397089,variants,hetdel,,,1,,,,
+XPR1,,,397089,variants,hetdel,,,1,,,,
+KIAA1614,,,397089,variants,hetdel,,,1,,,,
+AL162431.1,,,397089,variants,hetdel,,,1,,,,
+STX6,,,397089,variants,hetdel,,,1,,,,
+MR1,,,397089,variants,hetdel,,,1,,,,
+IER5,,,397089,variants,hetdel,,,1,,,,
+CACNA1E,,,397089,variants,hetdel,,,1,,,,
+ZNF648,,,397089,variants,hetdel,,,1,,,,
+GLUL,,,397089,variants,hetdel,,,1,,,,
+TEDDM1,,,397089,variants,hetdel,,,1,,,,
+RGSL1,,,397089,variants,hetdel,,,1,,,,
+RNASEL,,,397089,variants,hetdel,,,1,,,,
+RGS16,,,397089,variants,hetdel,,,1,,,,
+RGS8,,,397089,variants,hetdel,,,1,,,,
+NPL,,,397089,variants,hetdel,,,1,,,,
+DHX9,,,397089,variants,hetdel,,,1,,,,
+SHCBP1L,,,397089,variants,hetdel,,,1,,,,
+LAMC1,,,397089,variants,hetdel,,,1,,,,
+LAMC2,,,397089,variants,hetdel,,,1,,,,
+NMNAT2,,,397089,variants,hetdel,,,1,,,,
+SMG7,,,397089,variants,hetdel,,,1,,,,
+NCF2,,,397089,variants,hetdel,,,1,,,,
+ARPC5,,,397089,variants,hetdel,,,1,,,,
+APOBEC4,,,397089,variants,hetdel,,,1,,,,
+ME2,,,397089,variants,homdel,,,0,,,,
+ELAC1,,,397089,variants,homdel,,,0,,,,
+AC091551.1,,,397089,variants,homdel,,,0,,,,
+SMAD4,,,397089,variants,homdel,,,0,,,,
+MEX3C,,,397089,variants,homdel,,,0,,,,
+ANTXR2,,,397089,variants,hetdel,,,1,,,,
+PRDM8,,,397089,variants,hetdel,,,1,,,,
+DUSP22,,,397089,variants,hetdel,,,1,,,,
+IRF4,,,397089,variants,hetdel,,,1,,,,
+EXOC2,,,397089,variants,hetdel,,,1,,,,
+HUS1B,,,397089,variants,hetdel,,,1,,,,
+FOXQ1,,,397089,variants,hetdel,,,1,,,,
+FOXF2,,,397089,variants,hetdel,,,1,,,,
+FOXC1,,,397089,variants,hetdel,,,1,,,,
+GMDS,,,397089,variants,hetdel,,,1,,,,
+MYLK4,,,397089,variants,hetdel,,,1,,,,
+WRNIP1,,,397089,variants,hetdel,,,1,,,,
+SERPINB1,,,397089,variants,hetdel,,,1,,,,
+SERPINB9,,,397089,variants,hetdel,,,1,,,,
+SERPINB6,,,397089,variants,hetdel,,,1,,,,
+NQO2,,,397089,variants,hetdel,,,1,,,,
+RIPK1,,,397089,variants,hetdel,,,1,,,,
+BPHL,,,397089,variants,hetdel,,,1,,,,
+TUBB2A,,,397089,variants,hetdel,,,1,,,,
+TUBB2B,,,397089,variants,hetdel,,,1,,,,
+PSMG4,,,397089,variants,hetdel,,,1,,,,
+SLC22A23,,,397089,variants,hetdel,,,1,,,,
+PXDC1,,,397089,variants,hetdel,,,1,,,,
+FAM50B,,,397089,variants,hetdel,,,1,,,,
+C6ORF50,,,397089,variants,hetdel,,,1,,,,
+PRPF4B,,,397089,variants,hetdel,,,1,,,,
+FAM217A,,,397089,variants,hetdel,,,1,,,,
+C6orf201,,,397089,variants,hetdel,,,1,,,,
+ECI2,,,397089,variants,hetdel,,,1,,,,
+CDYL,,,397089,variants,hetdel,,,1,,,,
+RPP40,,,397089,variants,hetdel,,,1,,,,
+PPP1R3G,,,397089,variants,hetdel,,,1,,,,
+LYRM4,,,397089,variants,hetdel,,,1,,,,
+FARS2,,,397089,variants,hetdel,,,1,,,,
+NRN1,,,397089,variants,hetdel,,,1,,,,
+F13A1,,,397089,variants,hetdel,,,1,,,,
+LY86,,,397089,variants,hetdel,,,1,,,,
+RREB1,,,397089,variants,hetdel,,,1,,,,
+SSR1,,,397089,variants,hetdel,,,1,,,,
+CAGE1,,,397089,variants,hetdel,,,1,,,,
+RIOK1,,,397089,variants,hetdel,,,1,,,,
+DSP,,,397089,variants,hetdel,,,1,,,,
+SNRNP48,,,397089,variants,hetdel,,,1,,,,
+BMP6,,,397089,variants,hetdel,,,1,,,,
+TXNDC5,,,397089,variants,hetdel,,,1,,,,
+BLOC1S5-TXNDC5,,,397089,variants,hetdel,,,1,,,,
+BLOC1S5,,,397089,variants,hetdel,,,1,,,,
+EEF1E1-BLOC1S5,,,397089,variants,hetdel,,,1,,,,
+EEF1E1,,,397089,variants,hetdel,,,1,,,,
+SLC35B3,,,397089,variants,hetdel,,,1,,,,
+TFAP2A,,,397089,variants,hetdel,,,1,,,,
+GCNT2,,,397089,variants,hetdel,,,1,,,,
+C6orf52,,,397089,variants,hetdel,,,1,,,,
+PAK1IP1,,,397089,variants,hetdel,,,1,,,,
+TMEM14C,,,397089,variants,hetdel,,,1,,,,
+TMEM14B,,,397089,variants,hetdel,,,1,,,,
+AL024498.2,,,397089,variants,hetdel,,,1,,,,
+MAK,,,397089,variants,hetdel,,,1,,,,
+GCM2,,,397089,variants,hetdel,,,1,,,,
+SYCP2L,,,397089,variants,hetdel,,,1,,,,
+ELOVL2,,,397089,variants,hetdel,,,1,,,,
+SMIM13,,,397089,variants,hetdel,,,1,,,,
+ERVFRD-1,,,397089,variants,hetdel,,,1,,,,
+NEDD9,,,397089,variants,hetdel,,,1,,,,
+TMEM170B,,,397089,variants,hetdel,,,1,,,,
+ADTRP,,,397089,variants,hetdel,,,1,,,,
+HIVEP1,,,397089,variants,hetdel,,,1,,,,
+EDN1,,,397089,variants,hetdel,,,1,,,,
+PHACTR1,,,397089,variants,hetdel,,,1,,,,
+TBC1D7,,,397089,variants,hetdel,,,1,,,,
+GFOD1,,,397089,variants,hetdel,,,1,,,,
+AL583828.1,,,397089,variants,hetdel,,,1,,,,
+SIRT5,,,397089,variants,hetdel,,,1,,,,
+NOL7,,,397089,variants,hetdel,,,1,,,,
+AL441883.1,,,397089,variants,hetdel,,,1,,,,
+RANBP9,,,397089,variants,hetdel,,,1,,,,
+MCUR1,,,397089,variants,hetdel,,,1,,,,
+RNF182,,,397089,variants,hetdel,,,1,,,,
+CD83,,,397089,variants,hetdel,,,1,,,,
+JARID2,,,397089,variants,hetdel,,,1,,,,
+DTNBP1,,,397089,variants,hetdel,,,1,,,,
+MYLIP,,,397089,variants,hetdel,,,1,,,,
+GMPR,,,397089,variants,hetdel,,,1,,,,
+ATXN1,,,397089,variants,hetdel,,,1,,,,
+STMND1,,,397089,variants,hetdel,,,1,,,,
+RBM24,,,397089,variants,hetdel,,,1,,,,
+CAP2,,,397089,variants,hetdel,,,1,,,,
+FAM8A1,,,397089,variants,hetdel,,,1,,,,
+NUP153,,,397089,variants,hetdel,,,1,,,,
+KIF13A,,,397089,variants,hetdel,,,1,,,,
+NHLRC1,,,397089,variants,hetdel,,,1,,,,
+TPMT,,,397089,variants,hetdel,,,1,,,,
+KDM1B,,,397089,variants,hetdel,,,1,,,,
+DEK,,,397089,variants,hetdel,,,1,,,,
+RNF144B,,,397089,variants,hetdel,,,1,,,,
+E2F3,,,397089,variants,hetdel,,,1,,,,
+CDKAL1,,,397089,variants,hetdel,,,1,,,,
+TFPI2,,,397089,variants,hetdel,,,1,,,,
+GNG11,,,397089,variants,hetdel,,,1,,,,
+BET1,,,397089,variants,hetdel,,,1,,,,
+COL1A2,,,397089,variants,hetdel,,,1,,,,
+CASD1,,,397089,variants,hetdel,,,1,,,,
+SGCE,,,397089,variants,hetdel,,,1,,,,
+PEG10,,,397089,variants,hetdel,,,1,,,,
+PUS7,,,397089,variants,hetdel,,,1,,,,
+RINT1,,,397089,variants,hetdel,,,1,,,,
+EFCAB10,,,397089,variants,hetdel,,,1,,,,
+ATXN7L1,,,397089,variants,hetdel,,,1,,,,
+CDHR3,,,397089,variants,hetdel,,,1,,,,
+SYPL1,,,397089,variants,hetdel,,,1,,,,
+NAMPT,,,397089,variants,hetdel,,,1,,,,
+CCDC71L,,,397089,variants,hetdel,,,1,,,,
+PIK3CG,,,397089,variants,hetdel,,,1,,,,
+PRKAR2B,,,397089,variants,hetdel,,,1,,,,
+HBP1,,,397089,variants,hetdel,,,1,,,,
+COG5,,,397089,variants,hetdel,,,1,,,,
+GPR22,,,397089,variants,hetdel,,,1,,,,
+DUS4L,,,397089,variants,hetdel,,,1,,,,
+BCAP29,,,397089,variants,hetdel,,,1,,,,
+SLC26A4,,,397089,variants,hetdel,,,1,,,,
+CBLL1,,,397089,variants,hetdel,,,1,,,,
+SLC26A3,,,397089,variants,hetdel,,,1,,,,
+DLD,,,397089,variants,hetdel,,,1,,,,
+LAMB1,,,397089,variants,hetdel,,,1,,,,
+LAMB4,,,397089,variants,hetdel,,,1,,,,
+NRCAM,,,397089,variants,hetdel,,,1,,,,
+PNPLA8,,,397089,variants,hetdel,,,1,,,,
+THAP5,,,397089,variants,hetdel,,,1,,,,
+DNAJB9,,,397089,variants,hetdel,,,1,,,,
+FLJ00325,,,397089,variants,hetdel,,,1,,,,
+IMMP2L,,,397089,variants,hetdel,,,1,,,,
+LRRN3,,,397089,variants,hetdel,,,1,,,,
+DOCK4,,,397089,variants,hetdel,,,1,,,,
+ZNF277,,,397089,variants,hetdel,,,1,,,,
+IFRD1,,,397089,variants,hetdel,,,1,,,,
+LSMEM1,,,397089,variants,hetdel,,,1,,,,
+TMEM168,,,397089,variants,hetdel,,,1,,,,
+BMT2,,,397089,variants,hetdel,,,1,,,,
+GPR85,,,397089,variants,hetdel,,,1,,,,
+SMIM30,,,397089,variants,hetdel,,,1,,,,
+TSRM,,,397089,variants,hetdel,,,1,,,,
+TES,,,397089,variants,hetdel,,,1,,,,
+ASZ1,,,397089,variants,hetdel,,,1,,,,
+CFTR,,,397089,variants,hetdel,,,1,,,,
+CTTNBP2,,,397089,variants,hetdel,,,1,,,,
+LSM8,,,397089,variants,hetdel,,,1,,,,
+ANKRD7,,,397089,variants,hetdel,,,1,,,,
+KCND2,,,397089,variants,hetdel,,,1,,,,
+TSPAN12,,,397089,variants,hetdel,,,1,,,,
+ING3,,,397089,variants,hetdel,,,1,,,,
+CPED1,,,397089,variants,hetdel,,,1,,,,
+WNT16,,,397089,variants,hetdel,,,1,,,,
+FAM3C,,,397089,variants,hetdel,,,1,,,,
+PTPRZ1,,,397089,variants,hetdel,,,1,,,,
+AASS,,,397089,variants,hetdel,,,1,,,,
+FEZF1,,,397089,variants,hetdel,,,1,,,,
+CADPS2,,,397089,variants,hetdel,,,1,,,,
+RNF133,,,397089,variants,hetdel,,,1,,,,
+RNF148,,,397089,variants,hetdel,,,1,,,,
+TAS2R16,,,397089,variants,hetdel,,,1,,,,
+SLC13A1,,,397089,variants,hetdel,,,1,,,,
+IQUB,,,397089,variants,hetdel,,,1,,,,
+NDUFA5,,,397089,variants,hetdel,,,1,,,,
+ASB15,,,397089,variants,hetdel,,,1,,,,
+LMOD2,,,397089,variants,hetdel,,,1,,,,
+WASL,,,397089,variants,hetdel,,,1,,,,
+HYAL4,,,397089,variants,hetdel,,,1,,,,
+SPAM1,,,397089,variants,hetdel,,,1,,,,
+TMEM229A,,,397089,variants,hetdel,,,1,,,,
+SSU72P8,,,397089,variants,hetdel,,,1,,,,
+GPR37,,,397089,variants,hetdel,,,1,,,,
+C7orf77,,,397089,variants,hetdel,,,1,,,,
+POT1,,,397089,variants,hetdel,,,1,,,,
+GRM8,,,397089,variants,hetdel,,,1,,,,
+ZNF800,,,397089,variants,hetdel,,,1,,,,
+GCC1,,,397089,variants,hetdel,,,1,,,,
+ARF5,,,397089,variants,hetdel,,,1,,,,
+FSCN3,,,397089,variants,hetdel,,,1,,,,
+PAX4,,,397089,variants,hetdel,,,1,,,,
+SND1,,,397089,variants,hetdel,,,1,,,,
+LRRC4,,,397089,variants,hetdel,,,1,,,,
+LEP,,,397089,variants,hetdel,,,1,,,,
+RBM28,,,397089,variants,hetdel,,,1,,,,
+PRRT4,,,397089,variants,hetdel,,,1,,,,
+IMPDH1,,,397089,variants,hetdel,,,1,,,,
+HILPDA,,,397089,variants,hetdel,,,1,,,,
+METTL2B,,,397089,variants,hetdel,,,1,,,,
+FAM71F2,,,397089,variants,hetdel,,,1,,,,
+FAM71F1,,,397089,variants,hetdel,,,1,,,,
+CALU,,,397089,variants,hetdel,,,1,,,,
+OPN1SW,,,397089,variants,hetdel,,,1,,,,
+CCDC136,,,397089,variants,hetdel,,,1,,,,
+FLNC,,,397089,variants,hetdel,,,1,,,,
+KCP,,,397089,variants,hetdel,,,1,,,,
+ATP6V1F,,,397089,variants,hetdel,,,1,,,,
+ATP6V1FNB,,,397089,variants,hetdel,,,1,,,,
+IRF5,,,397089,variants,hetdel,,,1,,,,
+TNPO3,,,397089,variants,hetdel,,,1,,,,
+AC011005.1,,,397089,variants,hetdel,,,1,,,,
+TSPAN33,,,397089,variants,hetdel,,,1,,,,
+SMO,,,397089,variants,hetdel,,,1,,,,
+AHCYL2,,,397089,variants,hetdel,,,1,,,,
+STRIP2,,,397089,variants,hetdel,,,1,,,,
+SMKR1,,,397089,variants,hetdel,,,1,,,,
+NRF1,,,397089,variants,hetdel,,,1,,,,
+UBE2H,,,397089,variants,hetdel,,,1,,,,
+ZC3HC1,,,397089,variants,hetdel,,,1,,,,
+KLHDC10,,,397089,variants,hetdel,,,1,,,,
+TMEM209,,,397089,variants,hetdel,,,1,,,,
+SSMEM1,,,397089,variants,hetdel,,,1,,,,
+CPA2,,,397089,variants,hetdel,,,1,,,,
+CPA4,,,397089,variants,hetdel,,,1,,,,
+CPA5,,,397089,variants,hetdel,,,1,,,,
+CPA1,,,397089,variants,hetdel,,,1,,,,
+CEP41,,,397089,variants,hetdel,,,1,,,,
+MEST,,,397089,variants,hetdel,,,1,,,,
+COPG2,,,397089,variants,hetdel,,,1,,,,
+TSGA13,,,397089,variants,hetdel,,,1,,,,
+KLF14,,,397089,variants,hetdel,,,1,,,,
+MKLN1,,,397089,variants,hetdel,,,1,,,,
+PODXL,,,397089,variants,hetdel,,,1,,,,
+PLXNA4,,,397089,variants,hetdel,,,1,,,,
+CHCHD3,,,397089,variants,hetdel,,,1,,,,
+EXOC4,,,397089,variants,hetdel,,,1,,,,
+LRGUK,,,397089,variants,hetdel,,,1,,,,
+SLC35B4,,,397089,variants,hetdel,,,1,,,,
+AKR1B1,,,397089,variants,hetdel,,,1,,,,
+AKR1B10,,,397089,variants,hetdel,,,1,,,,
+AKR1B15,,,397089,variants,hetdel,,,1,,,,
+BPGM,,,397089,variants,hetdel,,,1,,,,
+CALD1,,,397089,variants,hetdel,,,1,,,,
+AGBL3,,,397089,variants,hetdel,,,1,,,,
+CYREN,,,397089,variants,hetdel,,,1,,,,
+AC083862.1,,,397089,variants,hetdel,,,1,,,,
+TMEM140,,,397089,variants,hetdel,,,1,,,,
+WDR91,,,397089,variants,hetdel,,,1,,,,
+STRA8,,,397089,variants,hetdel,,,1,,,,
+CNOT4,,,397089,variants,hetdel,,,1,,,,
+NUP205,,,397089,variants,hetdel,,,1,,,,
+STMP1,,,397089,variants,hetdel,,,1,,,,
+SLC13A4,,,397089,variants,hetdel,,,1,,,,
+FAM180A,,,397089,variants,hetdel,,,1,,,,
+MTPN,,,397089,variants,hetdel,,,1,,,,
+AC015987.2,,,397089,variants,hetdel,,,1,,,,
+LUZP6,,,397089,variants,hetdel,,,1,,,,
+CHRM2,,,397089,variants,hetdel,,,1,,,,
+PTN,,,397089,variants,hetdel,,,1,,,,
+DGKI,,,397089,variants,hetdel,,,1,,,,
+CREB3L2,,,397089,variants,hetdel,,,1,,,,
+AKR1D1,,,397089,variants,hetdel,,,1,,,,
+TRIM24,,,397089,variants,hetdel,,,1,,,,
+SVOPL,,,397089,variants,hetdel,,,1,,,,
+ATP6V0A4,,,397089,variants,hetdel,,,1,,,,
+TMEM213,,,397089,variants,hetdel,,,1,,,,
+KIAA1549,,,397089,variants,hetdel,,,1,,,,
+ZC3HAV1L,,,397089,variants,hetdel,,,1,,,,
+ZC3HAV1,,,397089,variants,hetdel,,,1,,,,
+TTC26,,,397089,variants,hetdel,,,1,,,,
+UBN2,,,397089,variants,hetdel,,,1,,,,
+FMC1,,,397089,variants,hetdel,,,1,,,,
+LUC7L2,,,397089,variants,hetdel,,,1,,,,
+C7orf55-LUC7L2,,,397089,variants,hetdel,,,1,,,,
+KLRG2,,,397089,variants,hetdel,,,1,,,,
+CLEC2L,,,397089,variants,hetdel,,,1,,,,
+HIPK2,,,397089,variants,hetdel,,,1,,,,
+TBXAS1,,,397089,variants,hetdel,,,1,,,,
+PARP12,,,397089,variants,hetdel,,,1,,,,
+KDM7A,,,397089,variants,hetdel,,,1,,,,
+SLC37A3,,,397089,variants,hetdel,,,1,,,,
+RAB19,,,397089,variants,hetdel,,,1,,,,
+MKRN1,,,397089,variants,hetdel,,,1,,,,
+DENND2A,,,397089,variants,hetdel,,,1,,,,
+ADCK2,,,397089,variants,hetdel,,,1,,,,
+NDUFB2,,,397089,variants,hetdel,,,1,,,,
+BRAF,,,397089,variants,hetdel,,,1,,,,
+MRPS33,,,397089,variants,hetdel,,,1,,,,
+TMEM178B,,,397089,variants,hetdel,,,1,,,,
+AGK,,,397089,variants,hetdel,,,1,,,,
+KIAA1147,,,397089,variants,hetdel,,,1,,,,
+WEE2,,,397089,variants,hetdel,,,1,,,,
+SSBP1,,,397089,variants,hetdel,,,1,,,,
+TAS2R3,,,397089,variants,hetdel,,,1,,,,
+TAS2R4,,,397089,variants,hetdel,,,1,,,,
+TAS2R5,,,397089,variants,hetdel,,,1,,,,
+PRSS37,,,397089,variants,hetdel,,,1,,,,
+MGAM,,,397089,variants,hetdel,,,1,,,,
+OR9A4,,,397089,variants,hetdel,,,1,,,,
+CLEC5A,,,397089,variants,hetdel,,,1,,,,
+TAS2R38,,,397089,variants,hetdel,,,1,,,,
+MGAM2,,,397089,variants,hetdel,,,1,,,,
+PRSS58,,,397089,variants,hetdel,,,1,,,,
+MTRNR2L6,,,397089,variants,hetdel,,,1,,,,
+PRSS1,,,397089,variants,hetdel,,,1,,,,
+EPHB6,,,397089,variants,hetdel,,,1,,,,
+TRPV6,,,397089,variants,hetdel,,,1,,,,
+TRPV5,,,397089,variants,hetdel,,,1,,,,
+LLCFC1,,,397089,variants,hetdel,,,1,,,,
+KEL,,,397089,variants,hetdel,,,1,,,,
+OR9A2,,,397089,variants,hetdel,,,1,,,,
+OR6V1,,,397089,variants,hetdel,,,1,,,,
+PIP,,,397089,variants,hetdel,,,1,,,,
+TAS2R39,,,397089,variants,hetdel,,,1,,,,
+TAS2R40,,,397089,variants,hetdel,,,1,,,,
+GSTK1,,,397089,variants,hetdel,,,1,,,,
+TMEM139,,,397089,variants,hetdel,,,1,,,,
+CASP2,,,397089,variants,hetdel,,,1,,,,
+CLCN1,,,397089,variants,hetdel,,,1,,,,
+FAM131B,,,397089,variants,hetdel,,,1,,,,
+ZYX,,,397089,variants,hetdel,,,1,,,,
+EPHA1,,,397089,variants,hetdel,,,1,,,,
+TAS2R60,,,397089,variants,hetdel,,,1,,,,
+TAS2R41,,,397089,variants,hetdel,,,1,,,,
+CTAGE15,,,397089,variants,hetdel,,,1,,,,
+TCAF2,,,397089,variants,hetdel,,,1,,,,
+TCAF2C,,,397089,variants,hetdel,,,1,,,,
+CTAGE6,,,397089,variants,hetdel,,,1,,,,
+TCAF1,,,397089,variants,hetdel,,,1,,,,
+OR2F2,,,397089,variants,hetdel,,,1,,,,
+OR2F1,,,397089,variants,hetdel,,,1,,,,
+OR6B1,,,397089,variants,hetdel,,,1,,,,
+OR2A5,,,397089,variants,hetdel,,,1,,,,
+OR2A25,,,397089,variants,hetdel,,,1,,,,
+OR2A12,,,397089,variants,hetdel,,,1,,,,
+OR2A2,,,397089,variants,hetdel,,,1,,,,
+OR2A14,,,397089,variants,hetdel,,,1,,,,
+CTAGE4,,,397089,variants,hetdel,,,1,,,,
+ARHGEF35,,,397089,variants,hetdel,,,1,,,,
+OR2A42,,,397089,variants,hetdel,,,1,,,,
+OR2A7,,,397089,variants,hetdel,,,1,,,,
+CTAGE8,,,397089,variants,hetdel,,,1,,,,
+OR2A1,,,397089,variants,hetdel,,,1,,,,
+ARHGEF5,,,397089,variants,hetdel,,,1,,,,
+NOBOX,,,397089,variants,hetdel,,,1,,,,
+TPK1,,,397089,variants,hetdel,,,1,,,,
+CNTNAP2,,,397089,variants,hetdel,,,1,,,,
+C7orf33,,,397089,variants,hetdel,,,1,,,,
+CUL1,,,397089,variants,hetdel,,,1,,,,
+EZH2,,,397089,variants,hetdel,,,1,,,,
+PDIA4,,,397089,variants,hetdel,,,1,,,,
+ZNF786,,,397089,variants,hetdel,,,1,,,,
+ZNF425,,,397089,variants,hetdel,,,1,,,,
+ZNF398,,,397089,variants,hetdel,,,1,,,,
+ZNF282,,,397089,variants,hetdel,,,1,,,,
+ZNF212,,,397089,variants,hetdel,,,1,,,,
+ZNF783,,,397089,variants,hetdel,,,1,,,,
+ZNF777,,,397089,variants,hetdel,,,1,,,,
+ZNF746,,,397089,variants,hetdel,,,1,,,,
+KRBA1,,,397089,variants,hetdel,,,1,,,,
+ZNF467,,,397089,variants,hetdel,,,1,,,,
+SSPO,,,397089,variants,hetdel,,,1,,,,
+ZNF862,,,397089,variants,hetdel,,,1,,,,
+ATP6V0E2,,,397089,variants,hetdel,,,1,,,,
+ACTR3C,,,397089,variants,hetdel,,,1,,,,
+LRRC61,,,397089,variants,hetdel,,,1,,,,
+ZBED6CL,,,397089,variants,hetdel,,,1,,,,
+RARRES2,,,397089,variants,hetdel,,,1,,,,
+REPIN1,,,397089,variants,hetdel,,,1,,,,
+AC073111.3,,,397089,variants,hetdel,,,1,,,,
+ZNF775,,,397089,variants,hetdel,,,1,,,,
+AC073111.5,,,397089,variants,hetdel,,,1,,,,
+GIMAP8,,,397089,variants,hetdel,,,1,,,,
+GIMAP7,,,397089,variants,hetdel,,,1,,,,
+GIMAP4,,,397089,variants,hetdel,,,1,,,,
+GIMAP6,,,397089,variants,hetdel,,,1,,,,
+GIMAP2,,,397089,variants,hetdel,,,1,,,,
+GIMAP1,,,397089,variants,hetdel,,,1,,,,
+GIMAP1-GIMAP5,,,397089,variants,hetdel,,,1,,,,
+GIMAP5,,,397089,variants,hetdel,,,1,,,,
+TMEM176B,,,397089,variants,hetdel,,,1,,,,
+TMEM176A,,,397089,variants,hetdel,,,1,,,,
+AOC1,,,397089,variants,hetdel,,,1,,,,
+KCNH2,,,397089,variants,hetdel,,,1,,,,
+NOS3,,,397089,variants,hetdel,,,1,,,,
+ATG9B,,,397089,variants,hetdel,,,1,,,,
+ABCB8,,,397089,variants,hetdel,,,1,,,,
+ASIC3,,,397089,variants,hetdel,,,1,,,,
+CDK5,,,397089,variants,hetdel,,,1,,,,
+SLC4A2,,,397089,variants,hetdel,,,1,,,,
+FASTK,,,397089,variants,hetdel,,,1,,,,
+TMUB1,,,397089,variants,hetdel,,,1,,,,
+AGAP3,,,397089,variants,hetdel,,,1,,,,
+GBX1,,,397089,variants,hetdel,,,1,,,,
+ASB10,,,397089,variants,hetdel,,,1,,,,
+IQCA1L,,,397089,variants,hetdel,,,1,,,,
+AC021097.3,,,397089,variants,hetdel,,,1,,,,
+AC021097.2,,,397089,variants,hetdel,,,1,,,,
+ABCF2,,,397089,variants,hetdel,,,1,,,,
+CHPF2,,,397089,variants,hetdel,,,1,,,,
+SMARCD3,,,397089,variants,hetdel,,,1,,,,
+NUB1,,,397089,variants,hetdel,,,1,,,,
+WDR86,,,397089,variants,hetdel,,,1,,,,
+CRYGN,,,397089,variants,hetdel,,,1,,,,
+RHEB,,,397089,variants,hetdel,,,1,,,,
+PRKAG2,,,397089,variants,hetdel,,,1,,,,
+GALNTL5,,,397089,variants,hetdel,,,1,,,,
+GALNT11,,,397089,variants,hetdel,,,1,,,,
+KMT2C,,,397089,variants,hetdel,,,1,,,,
+XRCC2,,,397089,variants,hetdel,,,1,,,,
+ACTR3B,,,397089,variants,hetdel,,,1,,,,
+DPP6,,,397089,variants,hetdel,,,1,,,,
+PAXIP1,,,397089,variants,hetdel,,,1,,,,
+HTR5A,,,397089,variants,hetdel,,,1,,,,
+INSIG1,,,397089,variants,hetdel,,,1,,,,
+EN2,,,397089,variants,hetdel,,,1,,,,
+CNPY1,,,397089,variants,hetdel,,,1,,,,
+RBM33,,,397089,variants,hetdel,,,1,,,,
+SHH,,,397089,variants,hetdel,,,1,,,,
+RNF32,,,397089,variants,hetdel,,,1,,,,
+LMBR1,,,397089,variants,hetdel,,,1,,,,
+NOM1,,,397089,variants,hetdel,,,1,,,,
+MNX1,,,397089,variants,hetdel,,,1,,,,
+UBE3C,,,397089,variants,hetdel,,,1,,,,
+DNAJB6,,,397089,variants,hetdel,,,1,,,,
+AC006372.1,,,397089,variants,hetdel,,,1,,,,
+PTPRN2,,,397089,variants,hetdel,,,1,,,,
+NCAPG2,,,397089,variants,hetdel,,,1,,,,
+ESYT2,,,397089,variants,hetdel,,,1,,,,
+WDR60,,,397089,variants,hetdel,,,1,,,,
+VIPR2,,,397089,variants,hetdel,,,1,,,,
+RFX3,,,397089,variants,homdel,,,0,,,,
+AL365202.1,,,397089,variants,homdel,,,0,,,,
+MTAP,,,397089,variants,homdel,,,0,,,,
+AL359922.1,,,397089,variants,homdel,,,0,,,,
+CDKN2A,,,397089,variants,homdel,,,0,,,,
+CDKN2B,,,397089,variants,homdel,,,0,,,,
+ARSD,,,397089,variants,hetdel,,,1,,,,
+ARSE,,,397089,variants,hetdel,,,1,,,,
+ARSH,,,397089,variants,hetdel,,,1,,,,
+ARSF,,,397089,variants,hetdel,,,1,,,,
+MXRA5,,,397089,variants,hetdel,,,1,,,,
+PRKX,,,397089,variants,hetdel,,,1,,,,
+NLGN4X,,,397089,variants,hetdel,,,1,,,,
+VCX3A,,,397089,variants,hetdel,,,1,,,,
+PUDP,,,397089,variants,hetdel,,,1,,,,
+STS,,,397089,variants,hetdel,,,1,,,,
+VCX,,,397089,variants,hetdel,,,1,,,,
+PNPLA4,,,397089,variants,hetdel,,,1,,,,
+VCX2,,,397089,variants,hetdel,,,1,,,,
+VCX3B,,,397089,variants,hetdel,,,1,,,,
+ANOS1,,,397089,variants,hetdel,,,1,,,,
+FAM9A,,,397089,variants,hetdel,,,1,,,,
+FAM9B,,,397089,variants,hetdel,,,1,,,,
+TBL1X,,,397089,variants,hetdel,,,1,,,,
+GPR143,,,397089,variants,hetdel,,,1,,,,
+SHROOM2,,,397089,variants,hetdel,,,1,,,,
+CLDN34,,,397089,variants,hetdel,,,1,,,,
+WWC3,,,397089,variants,hetdel,,,1,,,,
+CLCN4,,,397089,variants,hetdel,,,1,,,,
+MID1,,,397089,variants,hetdel,,,1,,,,
+HCCS,,,397089,variants,hetdel,,,1,,,,
+ARHGAP6,,,397089,variants,hetdel,,,1,,,,
+AMELX,,,397089,variants,hetdel,,,1,,,,
+MSL3,,,397089,variants,hetdel,,,1,,,,
+FRMPD4,,,397089,variants,hetdel,,,1,,,,
+PRPS2,,,397089,variants,hetdel,,,1,,,,
+TLR7,,,397089,variants,hetdel,,,1,,,,
+TLR8,,,397089,variants,hetdel,,,1,,,,
+TMSB4X,,,397089,variants,hetdel,,,1,,,,
+FAM9C,,,397089,variants,hetdel,,,1,,,,
+ATXN3L,,,397089,variants,hetdel,,,1,,,,
+EGFL6,,,397089,variants,hetdel,,,1,,,,
+TCEANC,,,397089,variants,hetdel,,,1,,,,
+RAB9A,,,397089,variants,hetdel,,,1,,,,
+TRAPPC2,,,397089,variants,hetdel,,,1,,,,
+OFD1,,,397089,variants,hetdel,,,1,,,,
+GPM6B,,,397089,variants,hetdel,,,1,,,,
+GEMIN8,,,397089,variants,hetdel,,,1,,,,
+GLRA2,,,397089,variants,hetdel,,,1,,,,
+FANCB,,,397089,variants,hetdel,,,1,,,,
+MOSPD2,,,397089,variants,hetdel,,,1,,,,
+ASB9,,,397089,variants,hetdel,,,1,,,,
+ASB11,,,397089,variants,hetdel,,,1,,,,
+PIGA,,,397089,variants,hetdel,,,1,,,,
+VEGFD,,,397089,variants,hetdel,,,1,,,,
+PIR,,,397089,variants,hetdel,,,1,,,,
+BMX,,,397089,variants,hetdel,,,1,,,,
+ACE2,,,397089,variants,hetdel,,,1,,,,
+AC097625.1,,,397089,variants,hetdel,,,1,,,,
+CLTRN,,,397089,variants,hetdel,,,1,,,,
+CA5B,,,397089,variants,hetdel,,,1,,,,
+ZRSR2,,,397089,variants,hetdel,,,1,,,,
+AP1S2,,,397089,variants,hetdel,,,1,,,,
+GRPR,,,397089,variants,hetdel,,,1,,,,
+MAGEB17,,,397089,variants,hetdel,,,1,,,,
+CTPS2,,,397089,variants,hetdel,,,1,,,,
+S100G,,,397089,variants,hetdel,,,1,,,,
+SYAP1,,,397089,variants,hetdel,,,1,,,,
+TXLNG,,,397089,variants,hetdel,,,1,,,,
+RBBP7,,,397089,variants,hetdel,,,1,,,,
+REPS2,,,397089,variants,hetdel,,,1,,,,
+NHS,,,397089,variants,hetdel,,,1,,,,
+SCML1,,,397089,variants,hetdel,,,1,,,,
+RAI2,,,397089,variants,hetdel,,,1,,,,
+BEND2,,,397089,variants,hetdel,,,1,,,,
+SCML2,,,397089,variants,hetdel,,,1,,,,
+CDKL5,,,397089,variants,hetdel,,,1,,,,
+RS1,,,397089,variants,hetdel,,,1,,,,
+PPEF1,,,397089,variants,hetdel,,,1,,,,
+PHKA2,,,397089,variants,hetdel,,,1,,,,
+ADGRG2,,,397089,variants,hetdel,,,1,,,,
+PDHA1,,,397089,variants,hetdel,,,1,,,,
+MAP3K15,,,397089,variants,hetdel,,,1,,,,
+SH3KBP1,,,397089,variants,hetdel,,,1,,,,
+BCLAF3,,,397089,variants,hetdel,,,1,,,,
+MAP7D2,,,397089,variants,hetdel,,,1,,,,
+EIF1AX,,,397089,variants,hetdel,,,1,,,,
+RPS6KA3,,,397089,variants,hetdel,,,1,,,,
+CNKSR2,,,397089,variants,hetdel,,,1,,,,
+KLHL34,,,397089,variants,hetdel,,,1,,,,
+SMPX,,,397089,variants,hetdel,,,1,,,,
+MBTPS2,,,397089,variants,hetdel,,,1,,,,
+YY2,,,397089,variants,hetdel,,,1,,,,
+SMS,,,397089,variants,hetdel,,,1,,,,
+PHEX,,,397089,variants,hetdel,,,1,,,,
+CBLL2,,,397089,variants,hetdel,,,1,,,,
+DDX53,,,397089,variants,hetdel,,,1,,,,
+PTCHD1,,,397089,variants,hetdel,,,1,,,,
+PRDX4,,,397089,variants,hetdel,,,1,,,,
+ACOT9,,,397089,variants,hetdel,,,1,,,,
+SAT1,,,397089,variants,hetdel,,,1,,,,
+APOO,,,397089,variants,hetdel,,,1,,,,
+CXorf58,,,397089,variants,hetdel,,,1,,,,
+KLHL15,,,397089,variants,hetdel,,,1,,,,
+EIF2S3,,,397089,variants,hetdel,,,1,,,,
+ZFX,,,397089,variants,hetdel,,,1,,,,
+PDK3,,,397089,variants,hetdel,,,1,,,,
+PCYT1B,,,397089,variants,hetdel,,,1,,,,
+POLA1,,,397089,variants,hetdel,,,1,,,,
+ARX,,,397089,variants,hetdel,,,1,,,,
+MAGEB18,,,397089,variants,hetdel,,,1,,,,
+MAGEB6B,,,397089,variants,hetdel,,,1,,,,
+MAGEB6,,,397089,variants,hetdel,,,1,,,,
+MAGEB5,,,397089,variants,hetdel,,,1,,,,
+PPP4R3C,,,397089,variants,hetdel,,,1,,,,
+DCAF8L2,,,397089,variants,hetdel,,,1,,,,
+MAGEB10,,,397089,variants,hetdel,,,1,,,,
+DCAF8L1,,,397089,variants,hetdel,,,1,,,,
+IL1RAPL1,,,397089,variants,hetdel,,,1,,,,
+MAGEB2,,,397089,variants,hetdel,,,1,,,,
+MAGEB3,,,397089,variants,hetdel,,,1,,,,
+MAGEB4,,,397089,variants,hetdel,,,1,,,,
+MAGEB1,,,397089,variants,hetdel,,,1,,,,
+NR0B1,,,397089,variants,hetdel,,,1,,,,
+CXorf21,,,397089,variants,hetdel,,,1,,,,
+GK,,,397089,variants,hetdel,,,1,,,,
+TAB3,,,397089,variants,hetdel,,,1,,,,
+FTHL17,,,397089,variants,hetdel,,,1,,,,
+DMD,,,397089,variants,hetdel,,,1,,,,
+FAM47A,,,397089,variants,hetdel,,,1,,,,
+TMEM47,,,397089,variants,hetdel,,,1,,,,
+FAM47C,,,397089,variants,hetdel,,,1,,,,
+PRRG1,,,397089,variants,hetdel,,,1,,,,
+AF241726.2,,,397089,variants,hetdel,,,1,,,,
+LANCL3,,,397089,variants,hetdel,,,1,,,,
+XK,,,397089,variants,hetdel,,,1,,,,
+CYBB,,,397089,variants,hetdel,,,1,,,,
+DYNLT3,,,397089,variants,hetdel,,,1,,,,
+HYPM,,,397089,variants,hetdel,,,1,,,,
+AL121578.2,,,397089,variants,hetdel,,,1,,,,
+SYTL5,,,397089,variants,hetdel,,,1,,,,
+SRPX,,,397089,variants,hetdel,,,1,,,,
+RPGR,,,397089,variants,hetdel,,,1,,,,
+OTC,,,397089,variants,hetdel,,,1,,,,
+TSPAN7,,,397089,variants,hetdel,,,1,,,,
+MID1IP1,,,397089,variants,hetdel,,,1,,,,
+BCOR,,,397089,variants,hetdel,,,1,,,,
+ATP6AP2,,,397089,variants,hetdel,,,1,,,,
+MPC1L,,,397089,variants,hetdel,,,1,,,,
+CXorf38,,,397089,variants,hetdel,,,1,,,,
+MED14,,,397089,variants,hetdel,,,1,,,,
+USP9X,,,397089,variants,hetdel,,,1,,,,
+DDX3X,,,397089,variants,hetdel,,,1,,,,
+NYX,,,397089,variants,hetdel,,,1,,,,
+CASK,,,397089,variants,hetdel,,,1,,,,
+GPR34,,,397089,variants,hetdel,,,1,,,,
+GPR82,,,397089,variants,hetdel,,,1,,,,
+PPP1R2C,,,397089,variants,hetdel,,,1,,,,
+MAOA,,,397089,variants,hetdel,,,1,,,,
+MAOB,,,397089,variants,hetdel,,,1,,,,
+NDP,,,397089,variants,hetdel,,,1,,,,
+EFHC2,,,397089,variants,hetdel,,,1,,,,
+FUNDC1,,,397089,variants,hetdel,,,1,,,,
+DUSP21,,,397089,variants,hetdel,,,1,,,,
+KDM6A,,,397089,variants,hetdel,,,1,,,,
+CXorf36,,,397089,variants,hetdel,,,1,,,,
+KRBOX4,,,397089,variants,hetdel,,,1,,,,
+ZNF674,,,397089,variants,hetdel,,,1,,,,
+CHST7,,,397089,variants,hetdel,,,1,,,,
+SLC9A7,,,397089,variants,hetdel,,,1,,,,
+RP2,,,397089,variants,hetdel,,,1,,,,
+JADE3,,,397089,variants,hetdel,,,1,,,,
+RGN,,,397089,variants,hetdel,,,1,,,,
+NDUFB11,,,397089,variants,hetdel,,,1,,,,
+RBM10,,,397089,variants,hetdel,,,1,,,,
+UBA1,,,397089,variants,hetdel,,,1,,,,
+CDK16,,,397089,variants,hetdel,,,1,,,,
+USP11,,,397089,variants,hetdel,,,1,,,,
+ZNF157,,,397089,variants,hetdel,,,1,,,,
+ZNF41,,,397089,variants,hetdel,,,1,,,,
+ARAF,,,397089,variants,hetdel,,,1,,,,
+SYN1,,,397089,variants,hetdel,,,1,,,,
+TIMP1,,,397089,variants,hetdel,,,1,,,,
+CFP,,,397089,variants,hetdel,,,1,,,,
+ELK1,,,397089,variants,hetdel,,,1,,,,
+UXT,,,397089,variants,hetdel,,,1,,,,
+ZNF81,,,397089,variants,hetdel,,,1,,,,
+ZNF182,,,397089,variants,hetdel,,,1,,,,
+ZNF630,,,397089,variants,hetdel,,,1,,,,
+SPACA5,,,397089,variants,hetdel,,,1,,,,
+SPACA5B,,,397089,variants,hetdel,,,1,,,,
+SSX5,,,397089,variants,hetdel,,,1,,,,
+SSX1,,,397089,variants,hetdel,,,1,,,,
+SSX3,,,397089,variants,hetdel,,,1,,,,
+SSX4,,,397089,variants,hetdel,,,1,,,,
+SSX4B,,,397089,variants,hetdel,,,1,,,,
+SLC38A5,,,397089,variants,hetdel,,,1,,,,
+FTSJ1,,,397089,variants,hetdel,,,1,,,,
+PORCN,,,397089,variants,hetdel,,,1,,,,
+EBP,,,397089,variants,hetdel,,,1,,,,
+TBC1D25,,,397089,variants,hetdel,,,1,,,,
+RBM3,,,397089,variants,hetdel,,,1,,,,
+WDR13,,,397089,variants,hetdel,,,1,,,,
+WAS,,,397089,variants,hetdel,,,1,,,,
+SUV39H1,,,397089,variants,hetdel,,,1,,,,
+GLOD5,,,397089,variants,hetdel,,,1,,,,
+GATA1,,,397089,variants,hetdel,,,1,,,,
+HDAC6,,,397089,variants,hetdel,,,1,,,,
+ERAS,,,397089,variants,hetdel,,,1,,,,
+PCSK1N,,,397089,variants,hetdel,,,1,,,,
+TIMM17B,,,397089,variants,hetdel,,,1,,,,
+PQBP1,,,397089,variants,hetdel,,,1,,,,
+SLC35A2,,,397089,variants,hetdel,,,1,,,,
+PIM2,,,397089,variants,hetdel,,,1,,,,
+OTUD5,,,397089,variants,hetdel,,,1,,,,
+KCND1,,,397089,variants,hetdel,,,1,,,,
+GRIPAP1,,,397089,variants,hetdel,,,1,,,,
+TFE3,,,397089,variants,hetdel,,,1,,,,
+CCDC120,,,397089,variants,hetdel,,,1,,,,
+PRAF2,,,397089,variants,hetdel,,,1,,,,
+WDR45,,,397089,variants,hetdel,,,1,,,,
+GPKOW,,,397089,variants,hetdel,,,1,,,,
+MAGIX,,,397089,variants,hetdel,,,1,,,,
+PLP2,,,397089,variants,hetdel,,,1,,,,
+PRICKLE3,,,397089,variants,hetdel,,,1,,,,
+SYP,,,397089,variants,hetdel,,,1,,,,
+CACNA1F,,,397089,variants,hetdel,,,1,,,,
+CCDC22,,,397089,variants,hetdel,,,1,,,,
+FOXP3,,,397089,variants,hetdel,,,1,,,,
+PPP1R3F,,,397089,variants,hetdel,,,1,,,,
+GAGE10,,,397089,variants,hetdel,,,1,,,,
+GAGE12J,,,397089,variants,hetdel,,,1,,,,
+GAGE13,,,397089,variants,hetdel,,,1,,,,
+GAGE2E,,,397089,variants,hetdel,,,1,,,,
+GAGE2D,,,397089,variants,hetdel,,,1,,,,
+GAGE12I,,,397089,variants,hetdel,,,1,,,,
+GAGE2C,,,397089,variants,hetdel,,,1,,,,
+GAGE2B,,,397089,variants,hetdel,,,1,,,,
+GAGE12B,,,397089,variants,hetdel,,,1,,,,
+GAGE12C,,,397089,variants,hetdel,,,1,,,,
+GAGE12D,,,397089,variants,hetdel,,,1,,,,
+GAGE12F,,,397089,variants,hetdel,,,1,,,,
+GAGE12E,,,397089,variants,hetdel,,,1,,,,
+GAGE12G,,,397089,variants,hetdel,,,1,,,,
+GAGE12H,,,397089,variants,hetdel,,,1,,,,
+GAGE1,,,397089,variants,hetdel,,,1,,,,
+GAGE2A,,,397089,variants,hetdel,,,1,,,,
+PAGE1,,,397089,variants,hetdel,,,1,,,,
+PAGE4,,,397089,variants,hetdel,,,1,,,,
+USP27X,,,397089,variants,hetdel,,,1,,,,
+CLCN5,,,397089,variants,hetdel,,,1,,,,
+AKAP4,,,397089,variants,hetdel,,,1,,,,
+CCNB3,,,397089,variants,hetdel,,,1,,,,
+DGKK,,,397089,variants,hetdel,,,1,,,,
+BMP15,,,397089,variants,hetdel,,,1,,,,
+NUDT10,,,397089,variants,hetdel,,,1,,,,
+CXorf67,,,397089,variants,hetdel,,,1,,,,
+NUDT11,,,397089,variants,hetdel,,,1,,,,
+CENPVL3,,,397089,variants,hetdel,,,1,,,,
+CENPVL2,,,397089,variants,hetdel,,,1,,,,
+CENPVL1,,,397089,variants,hetdel,,,1,,,,
+GSPT2,,,397089,variants,hetdel,,,1,,,,
+MAGED1,,,397089,variants,hetdel,,,1,,,,
+MAGED4B,,,397089,variants,hetdel,,,1,,,,
+MAGED4,,,397089,variants,hetdel,,,1,,,,
+XAGE2,,,397089,variants,hetdel,,,1,,,,
+XAGE1B,,,397089,variants,hetdel,,,1,,,,
+XAGE1A,,,397089,variants,hetdel,,,1,,,,
+XAGE1C,,,397089,variants,hetdel,,,1,,,,
+XAGE1D,,,397089,variants,hetdel,,,1,,,,
+XAGE1E,,,397089,variants,hetdel,,,1,,,,
+SSX7,,,397089,variants,hetdel,,,1,,,,
+ITIH6,,,397089,variants,hetdel,,,1,,,,
+MAGED2,,,397089,variants,hetdel,,,1,,,,
+TRO,,,397089,variants,hetdel,,,1,,,,
+PFKFB1,,,397089,variants,hetdel,,,1,,,,
+APEX2,,,397089,variants,hetdel,,,1,,,,
+ALAS2,,,397089,variants,hetdel,,,1,,,,
+PAGE2B,,,397089,variants,hetdel,,,1,,,,
+PAGE2,,,397089,variants,hetdel,,,1,,,,
+FAM104B,,,397089,variants,hetdel,,,1,,,,
+MTRNR2L10,,,397089,variants,hetdel,,,1,,,,
+PAGE5,,,397089,variants,hetdel,,,1,,,,
+PAGE3,,,397089,variants,hetdel,,,1,,,,
+MAGEH1,,,397089,variants,hetdel,,,1,,,,
+USP51,,,397089,variants,hetdel,,,1,,,,
+FOXR2,,,397089,variants,hetdel,,,1,,,,
+RRAGB,,,397089,variants,hetdel,,,1,,,,
+AL353698.1,,,397089,variants,hetdel,,,1,,,,
+KLF8,,,397089,variants,hetdel,,,1,,,,
+UBQLN2,,,397089,variants,hetdel,,,1,,,,
+NBDY,,,397089,variants,hetdel,,,1,,,,
+SPIN3,,,397089,variants,hetdel,,,1,,,,
+SPIN2B,,,397089,variants,hetdel,,,1,,,,
+SPIN2A,,,397089,variants,hetdel,,,1,,,,
+FAAH2,,,397089,variants,hetdel,,,1,,,,
+ZXDB,,,397089,variants,hetdel,,,1,,,,
+NLRP2B,,,397089,variants,hetdel,,,1,,,,
+ZXDA,,,397089,variants,hetdel,,,1,,,,
+SPIN4,,,397089,variants,hetdel,,,1,,,,
+ARHGEF9,,,397089,variants,hetdel,,,1,,,,
+AMER1,,,397089,variants,hetdel,,,1,,,,
+ASB12,,,397089,variants,hetdel,,,1,,,,
+MTMR8,,,397089,variants,hetdel,,,1,,,,
+ZC4H2,,,397089,variants,hetdel,,,1,,,,
+ZC3H12B,,,397089,variants,hetdel,,,1,,,,
+LAS1L,,,397089,variants,hetdel,,,1,,,,
+MSN,,,397089,variants,hetdel,,,1,,,,
+VSIG4,,,397089,variants,hetdel,,,1,,,,
+HEPH,,,397089,variants,hetdel,,,1,,,,
+EDA2R,,,397089,variants,hetdel,,,1,,,,
+AR,,,397089,variants,hetdel,,,1,,,,
+PABPC1L2B,,,397089,variants,hetdel,,,1,,,,
+PABPC1L2A,,,397089,variants,hetdel,,,1,,,,
+NAP1L2,,,397089,variants,hetdel,,,1,,,,
+CDX4,,,397089,variants,hetdel,,,1,,,,
+CHIC1,,,397089,variants,hetdel,,,1,,,,
+ZCCHC13,,,397089,variants,hetdel,,,1,,,,
+SLC16A2,,,397089,variants,hetdel,,,1,,,,
+RLIM,,,397089,variants,hetdel,,,1,,,,
+NEXMIF,,,397089,variants,hetdel,,,1,,,,
+ABCB7,,,397089,variants,hetdel,,,1,,,,
+UPRT,,,397089,variants,hetdel,,,1,,,,
+ZDHHC15,,,397089,variants,hetdel,,,1,,,,
+MAGEE2,,,397089,variants,hetdel,,,1,,,,
+PBDC1,,,397089,variants,hetdel,,,1,,,,
+MAGEE1,,,397089,variants,hetdel,,,1,,,,
+FGF16,,,397089,variants,hetdel,,,1,,,,
+ATRX,,,397089,variants,hetdel,,,1,,,,
+MAGT1,,,397089,variants,hetdel,,,1,,,,
+COX7B,,,397089,variants,hetdel,,,1,,,,
+ATP7A,,,397089,variants,hetdel,,,1,,,,
+PGK1,,,397089,variants,hetdel,,,1,,,,
+PGAM4,,,397089,variants,hetdel,,,1,,,,
+TAF9B,,,397089,variants,hetdel,,,1,,,,
+CYSLTR1,,,397089,variants,hetdel,,,1,,,,
+RTL3,,,397089,variants,hetdel,,,1,,,,
+LPAR4,,,397089,variants,hetdel,,,1,,,,
+P2RY10,,,397089,variants,hetdel,,,1,,,,
+GPR174,,,397089,variants,hetdel,,,1,,,,
+ITM2A,,,397089,variants,hetdel,,,1,,,,
+TBX22,,,397089,variants,hetdel,,,1,,,,
+TENT5D,,,397089,variants,hetdel,,,1,,,,
+BRWD3,,,397089,variants,hetdel,,,1,,,,
+HMGN5,,,397089,variants,hetdel,,,1,,,,
+SH3BGRL,,,397089,variants,hetdel,,,1,,,,
+POU3F4,,,397089,variants,hetdel,,,1,,,,
+CYLC1,,,397089,variants,hetdel,,,1,,,,
+RPS6KA6,,,397089,variants,hetdel,,,1,,,,
+HDX,,,397089,variants,hetdel,,,1,,,,
+APOOL,,,397089,variants,hetdel,,,1,,,,
+SATL1,,,397089,variants,hetdel,,,1,,,,
+ZNF711,,,397089,variants,hetdel,,,1,,,,
+POF1B,,,397089,variants,hetdel,,,1,,,,
+CHM,,,397089,variants,hetdel,,,1,,,,
+DACH2,,,397089,variants,hetdel,,,1,,,,
+KLHL4,,,397089,variants,hetdel,,,1,,,,
+CPXCR1,,,397089,variants,hetdel,,,1,,,,
+TGIF2LX,,,397089,variants,hetdel,,,1,,,,
+PABPC5,,,397089,variants,hetdel,,,1,,,,
+PCDH11X,,,397089,variants,hetdel,,,1,,,,
+NAP1L3,,,397089,variants,hetdel,,,1,,,,
+FAM133A,,,397089,variants,hetdel,,,1,,,,
+PCDH19,,,397089,variants,hetdel,,,1,,,,
+TNMD,,,397089,variants,hetdel,,,1,,,,
+TSPAN6,,,397089,variants,hetdel,,,1,,,,
+SRPX2,,,397089,variants,hetdel,,,1,,,,
+CSTF2,,,397089,variants,hetdel,,,1,,,,
+NOX1,,,397089,variants,hetdel,,,1,,,,
+XKRX,,,397089,variants,hetdel,,,1,,,,
+ARL13A,,,397089,variants,hetdel,,,1,,,,
+TRMT2B,,,397089,variants,hetdel,,,1,,,,
+TMEM35A,,,397089,variants,hetdel,,,1,,,,
+CENPI,,,397089,variants,hetdel,,,1,,,,
+DRP2,,,397089,variants,hetdel,,,1,,,,
+TAF7L,,,397089,variants,hetdel,,,1,,,,
+TIMM8A,,,397089,variants,hetdel,,,1,,,,
+BTK,,,397089,variants,hetdel,,,1,,,,
+RPL36A,,,397089,variants,hetdel,,,1,,,,
+RPL36A-HNRNPH2,,,397089,variants,hetdel,,,1,,,,
+GLA,,,397089,variants,hetdel,,,1,,,,
+HNRNPH2,,,397089,variants,hetdel,,,1,,,,
+ARMCX4,,,397089,variants,hetdel,,,1,,,,
+ARMCX1,,,397089,variants,hetdel,,,1,,,,
+ARMCX6,,,397089,variants,hetdel,,,1,,,,
+ARMCX3,,,397089,variants,hetdel,,,1,,,,
+ARMCX2,,,397089,variants,hetdel,,,1,,,,
+NXF5,,,397089,variants,hetdel,,,1,,,,
+ZMAT1,,,397089,variants,hetdel,,,1,,,,
+TCEAL2,,,397089,variants,hetdel,,,1,,,,
+TCEAL6,,,397089,variants,hetdel,,,1,,,,
+BEX5,,,397089,variants,hetdel,,,1,,,,
+TCP11X1,,,397089,variants,hetdel,,,1,,,,
+NXF2,,,397089,variants,hetdel,,,1,,,,
+AC235565.2,,,397089,variants,hetdel,,,1,,,,
+NXF2B,,,397089,variants,hetdel,,,1,,,,
+TCP11X2,,,397089,variants,hetdel,,,1,,,,
+TMSB15A,,,397089,variants,hetdel,,,1,,,,
+ARMCX5,,,397089,variants,hetdel,,,1,,,,
+GPRASP1,,,397089,variants,hetdel,,,1,,,,
+GPRASP2,,,397089,variants,hetdel,,,1,,,,
+BHLHB9,,,397089,variants,hetdel,,,1,,,,
+RAB40AL,,,397089,variants,hetdel,,,1,,,,
+BEX1,,,397089,variants,hetdel,,,1,,,,
+NXF3,,,397089,variants,hetdel,,,1,,,,
+BEX4,,,397089,variants,hetdel,,,1,,,,
+TCEAL8,,,397089,variants,hetdel,,,1,,,,
+TCEAL5,,,397089,variants,hetdel,,,1,,,,
+BEX2,,,397089,variants,hetdel,,,1,,,,
+TCEAL7,,,397089,variants,hetdel,,,1,,,,
+TCEAL9,,,397089,variants,hetdel,,,1,,,,
+BEX3,,,397089,variants,hetdel,,,1,,,,
+RAB40A,,,397089,variants,hetdel,,,1,,,,
+TCEAL4,,,397089,variants,hetdel,,,1,,,,
+TCEAL3,,,397089,variants,hetdel,,,1,,,,
+TCEAL1,,,397089,variants,hetdel,,,1,,,,
+MORF4L2,,,397089,variants,hetdel,,,1,,,,
+GLRA4,,,397089,variants,hetdel,,,1,,,,
+TMEM31,,,397089,variants,hetdel,,,1,,,,
+PLP1,,,397089,variants,hetdel,,,1,,,,
+RAB9B,,,397089,variants,hetdel,,,1,,,,
+TMSB15B,,,397089,variants,hetdel,,,1,,,,
+H2BFWT,,,397089,variants,hetdel,,,1,,,,
+H2BFM,,,397089,variants,hetdel,,,1,,,,
+SLC25A53,,,397089,variants,hetdel,,,1,,,,
+ZCCHC18,,,397089,variants,hetdel,,,1,,,,
+FAM199X,,,397089,variants,hetdel,,,1,,,,
+ESX1,,,397089,variants,hetdel,,,1,,,,
+IL1RAPL2,,,397089,variants,hetdel,,,1,,,,
+TEX13A,,,397089,variants,hetdel,,,1,,,,
+NRK,,,397089,variants,hetdel,,,1,,,,
+SERPINA7,,,397089,variants,hetdel,,,1,,,,
+MUM1L1,,,397089,variants,hetdel,,,1,,,,
+RBM41,,,397089,variants,hetdel,,,1,,,,
+NUP62CL,,,397089,variants,hetdel,,,1,,,,
+PIH1D3,,,397089,variants,hetdel,,,1,,,,
+FRMPD3,,,397089,variants,hetdel,,,1,,,,
+PRPS1,,,397089,variants,hetdel,,,1,,,,
+TSC22D3,,,397089,variants,hetdel,,,1,,,,
+NCBP2L,,,397089,variants,hetdel,,,1,,,,
+MID2,,,397089,variants,hetdel,,,1,,,,
+TEX13B,,,397089,variants,hetdel,,,1,,,,
+VSIG1,,,397089,variants,hetdel,,,1,,,,
+PSMD10,,,397089,variants,hetdel,,,1,,,,
+ATG4A,,,397089,variants,hetdel,,,1,,,,
+COL4A6,,,397089,variants,hetdel,,,1,,,,
+COL4A5,,,397089,variants,hetdel,,,1,,,,
+AL035425.2,,,397089,variants,hetdel,,,1,,,,
+IRS4,,,397089,variants,hetdel,,,1,,,,
+GUCY2F,,,397089,variants,hetdel,,,1,,,,
+NXT2,,,397089,variants,hetdel,,,1,,,,
+KCNE5,,,397089,variants,hetdel,,,1,,,,
+ACSL4,,,397089,variants,hetdel,,,1,,,,
+TMEM164,,,397089,variants,hetdel,,,1,,,,
+AMMECR1,,,397089,variants,hetdel,,,1,,,,
+RTL9,,,397089,variants,hetdel,,,1,,,,
+CHRDL1,,,397089,variants,hetdel,,,1,,,,
+PAK3,,,397089,variants,hetdel,,,1,,,,
+CAPN6,,,397089,variants,hetdel,,,1,,,,
+DCX,,,397089,variants,hetdel,,,1,,,,
+SERTM2,,,397089,variants,hetdel,,,1,,,,
+ALG13,,,397089,variants,hetdel,,,1,,,,
+TRPC5,,,397089,variants,hetdel,,,1,,,,
+TRPC5OS,,,397089,variants,hetdel,,,1,,,,
+SRY,,,397089,variants,homdel,,,0,,,,
+RPS4Y1,,,397089,variants,homdel,,,0,,,,
+ZFY,,,397089,variants,homdel,,,0,,,,
+TGIF2LY,,,397089,variants,homdel,,,0,,,,
+PCDH11Y,,,397089,variants,homdel,,,0,,,,
+AC012067.1,,,397089,variants,homdel,,,0,,,,
+TSPY2,,,397089,variants,homdel,,,0,,,,
+AMELY,,,397089,variants,homdel,,,0,,,,
+TBL1Y,,,397089,variants,homdel,,,0,,,,
+TSPY4,,,397089,variants,homdel,,,0,,,,
+TSPY8,,,397089,variants,homdel,,,0,,,,
+TSPY3,,,397089,variants,homdel,,,0,,,,
+TSPY1,,,397089,variants,homdel,,,0,,,,
+TSPY10,,,397089,variants,homdel,,,0,,,,
+USP9Y,,,397089,variants,homdel,,,0,,,,
+DDX3Y,,,397089,variants,homdel,,,0,,,,
+UTY,,,397089,variants,homdel,,,0,,,,
+AC010877.1,,,397089,variants,homdel,,,0,,,,
+TMSB4Y,,,397089,variants,homdel,,,0,,,,
+VCY,,,397089,variants,homdel,,,0,,,,
+VCY1B,,,397089,variants,homdel,,,0,,,,
+NLGN4Y,,,397089,variants,homdel,,,0,,,,
+CDY2B,,,397089,variants,homdel,,,0,,,,
+CDY2A,,,397089,variants,homdel,,,0,,,,
+HSFY1,,,397089,variants,homdel,,,0,,,,
+HSFY2,,,397089,variants,homdel,,,0,,,,
+AC009977.1,,,397089,variants,homdel,,,0,,,,
+KDM5D,,,397089,variants,homdel,,,0,,,,
+EIF1AY,,,397089,variants,homdel,,,0,,,,
+RPS4Y2,,,397089,variants,homdel,,,0,,,,
+PRORY,,,397089,variants,homdel,,,0,,,,
+RBMY1B,,,397089,variants,homdel,,,0,,,,
+RBMY1A1,,,397089,variants,homdel,,,0,,,,
+RBMY1D,,,397089,variants,homdel,,,0,,,,
+RBMY1E,,,397089,variants,homdel,,,0,,,,
+PRY2,,,397089,variants,homdel,,,0,,,,
+RBMY1F,,,397089,variants,homdel,,,0,,,,
+RBMY1J,,,397089,variants,homdel,,,0,,,,
+PRY,,,397089,variants,homdel,,,0,,,,
+BPY2,,,397089,variants,homdel,,,0,,,,
+DAZ1,,,397089,variants,homdel,,,0,,,,
+DAZ2,,,397089,variants,homdel,,,0,,,,
+AC016752.1,,,397089,variants,homdel,,,0,,,,
+CDY1B,,,397089,variants,homdel,,,0,,,,
+BPY2B,,,397089,variants,homdel,,,0,,,,
+DAZ3,,,397089,variants,homdel,,,0,,,,
+DAZ4,,,397089,variants,homdel,,,0,,,,
+BPY2C,,,397089,variants,homdel,,,0,,,,
+CDY1,,,397089,variants,homdel,,,0,,,,
+AC007965.1,,,397089,variants,homdel,,,0,,,,
+,,,397089,,,signature_counts,,,,,,
+,,,397089,tmb,count,annotated_bcf,,6633,,,,
+,,,397089,tmb,density,annotated_bcf,,2.1426536475215,,,,
+CELF2,SNV,,397089,variants,promoter,annotated_bcf,,,10:10835020-10835020 G>A,"",3759,upstream_gene_variant
+IDI1,DEL,,397089,variants,promoter,annotated_bcf,,,10:1095054-1095054 AACCTGAGCCGTG>A,"",232,upstream_gene_variant
+USP6NL,SNV,,397089,variants,promoter,annotated_bcf,,,10:11657489-11657489 T>G,"",3701,upstream_gene_variant
+HTRA1,SNV,,397089,variants,promoter,annotated_bcf,,,10:124216777-124216777 C>G,"",4264,upstream_gene_variant
+VIM,DEL,,397089,variants,promoter,annotated_bcf,,,10:17266838-17266838 CA>C,"",3419,upstream_gene_variant
+ST8SIA6-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,10:17424807-17424807 G>A,"",4128,upstream_gene_variant
+LOC100130992,SNV,,397089,variants,promoter,annotated_bcf,,,10:22539460-22539460 T>C,"",1541,upstream_gene_variant
+WAC,INS,,397089,variants,promoter,annotated_bcf,,,10:28817389-28817389 C>CA,"",4127,upstream_gene_variant
+CUL2,INS,,397089,variants,promoter,annotated_bcf,,,10:35384479-35384479 T>TTG,"",4910,upstream_gene_variant
+FRMPD2,SNV,,397089,variants,promoter,annotated_bcf,,,10:49460666-49460666 C>G,"",866,upstream_gene_variant
+SNORD98,INS,,397089,variants,promoter,annotated_bcf,,,10:70512640-70512640 A>AATAGATAGATAG,"",2288,upstream_gene_variant
+DUSP13,SNV,,397089,variants,promoter,annotated_bcf,,,10:76860693-76860693 T>A,"",1445,upstream_gene_variant
+ALKBH8,SNV,,397089,variants,promoter,annotated_bcf,,,11:107436485-107436485 C>A,"",24,upstream_gene_variant
+EXPH5,DEL,,397089,variants,promoter,annotated_bcf,,,11:108466919-108466919 CA>C,"",2546,upstream_gene_variant
+ZBTB16,SNV,,397089,variants,missense,annotated_bcf,,,11:113934200-113934200 G>C,p.Glu60Gln,"",missense_variant
+NXPE2,DEL,,397089,variants,promoter,annotated_bcf,,,11:114545298-114545298 CA>C,"",3901,upstream_gene_variant
+UPK2,DEL,,397089,variants,promoter,annotated_bcf,,,11:118825224-118825224 CA>C,"",1783,upstream_gene_variant
+RPL23AP64,SNV,,397089,variants,promoter,annotated_bcf,,,11:118877377-118877377 C>G,"",3074,upstream_gene_variant
+MIR4493,SNV,,397089,variants,promoter,annotated_bcf,,,11:123255746-123255746 A>T,"",3526,upstream_gene_variant
+SPA17,DEL,,397089,variants,promoter,annotated_bcf,,,11:124541827-124541827 CT>C,"",1912,upstream_gene_variant
+CHEK1,SNV,,397089,variants,missense,annotated_bcf,,,11:125513719-125513719 G>C,p.Val283Leu,"",missense_variant
+PATE3,SNV,,397089,variants,promoter,annotated_bcf,,,11:125656291-125656291 G>A,"",1715,upstream_gene_variant
+PUS3,DEL,,397089,variants,promoter,annotated_bcf,,,11:125777502-125777502 CA>C,"",4387,upstream_gene_variant
+SOX6,INS,,397089,variants,promoter,annotated_bcf,,,11:16434746-16434746 C>CA,"",4317,upstream_gene_variant
+LINC00294,SNV,,397089,variants,promoter,annotated_bcf,,,11:33097006-33097006 C>T,"",690,upstream_gene_variant
+LOC100507205,DEL,,397089,variants,promoter,annotated_bcf,,,11:42278180-42278180 GA>G,"",2941,upstream_gene_variant
+OR51E1,SNV,,397089,variants,promoter,annotated_bcf,,,11:4663844-4663844 G>C,"",1312,upstream_gene_variant
+LRP4-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,11:46865280-46865280 A>G,"",2682,upstream_gene_variant
+MYBPC3,SNV,,397089,variants,missense,annotated_bcf,,,11:47355264-47355264 G>T,p.Gln1012Lys,"",missense_variant
+OR51I1,DEL,,397089,variants,promoter,annotated_bcf,,,11:5463512-5463512 TA>T,"",730,upstream_gene_variant
+OR5J2,DEL,,397089,variants,promoter,annotated_bcf,,,11:55939793-55939793 AT>A,"",4300,upstream_gene_variant
+PGA3,SNV,,397089,variants,promoter,annotated_bcf,,,11:60970435-60970435 T>A,"",550,upstream_gene_variant
+PRKCDBP,INS,,397089,variants,promoter,annotated_bcf,,,11:6343009-6343009 C>CAAA,"",1270,upstream_gene_variant
+LOC100996455,INS,,397089,variants,promoter,annotated_bcf,,,11:64211620-64211620 T>TTTTC,"",4908,upstream_gene_variant
+CARNS1,DEL,,397089,variants,promoter,annotated_bcf,,,11:67183016-67183016 CGG>C,"",132,upstream_gene_variant
+PLEKHB1,DEL,,397089,variants,promoter,annotated_bcf,,,11:73355604-73355604 GAA>G,"",1618,upstream_gene_variant
+LOC646029,DEL,,397089,variants,promoter,annotated_bcf,,,11:77281635-77281635 TA>T,"",498,upstream_gene_variant
+MIR4300,DEL,,397089,variants,promoter,annotated_bcf,,,11:81603400-81603400 AT>A,"",1523,upstream_gene_variant
+ZNF143,DEL,,397089,variants,promoter,annotated_bcf,,,11:9477952-9477952 TTTTATTTATTTATTTATTTA>T,"",4559,upstream_gene_variant
+FAM76B,SNV,,397089,variants,promoter,annotated_bcf,,,11:95526522-95526522 T>G,"",3568,upstream_gene_variant
+RIC8B,DEL,,397089,variants,promoter,annotated_bcf,,,12:107167146-107167146 GACTTT>G,"",1187,upstream_gene_variant
+VPS29,INS,,397089,variants,promoter,annotated_bcf,,,12:110942283-110942283 C>CA,"",2339,upstream_gene_variant
+XLOC_009911,DEL,,397089,variants,promoter,annotated_bcf,,,12:121341535-121341535 GC>G,"",962,upstream_gene_variant
+CAMKK2,DEL,,397089,variants,promoter,annotated_bcf,,,12:121714705-121714705 TG>T,"",2318,upstream_gene_variant
+ARHGDIB,SNV,,397089,variants,promoter,annotated_bcf,,,12:15106000-15106000 A>G,"",4170,upstream_gene_variant
+KRAS,SNV,,397089,variants,missense,annotated_bcf,,,12:25398285-25398285 C>A,p.Gly12Cys,"",missense_variant
+LOC105369738,SNV,,397089,variants,promoter,annotated_bcf,,,12:43036509-43036509 A>T,"",3876,upstream_gene_variant
+IRAK4,DEL,,397089,variants,promoter,annotated_bcf,,,12:44152468-44152468 CCACACA>C,"",278,upstream_gene_variant
+TUBA1A,INS,,397089,variants,promoter,annotated_bcf,,,12:49585494-49585494 T>TTCTC,"",2388,upstream_gene_variant
+PRPH,SNV,,397089,variants,promoter,annotated_bcf,,,12:49687451-49687451 G>C,"",1458,upstream_gene_variant
+KRT5,DEL,,397089,variants,trunc,annotated_bcf,,,12:52908745-52908745 CG>C,p.Arg585fs,"",frameshift_variant
+HOXC4,DEL,,397089,variants,promoter,annotated_bcf,,,12:54445747-54445747 AT>A,"",1913,upstream_gene_variant
+DGKA,SNV,,397089,variants,splice,annotated_bcf,,,12:56335035-56335035 G>C,"","",splice_acceptor_variant&intron_variant
+LRP1,INS,,397089,variants,trunc,annotated_bcf,,,12:57567696-57567696 G>GC,p.Asp1163fs,"",frameshift_variant
+SRGAP1,SNV,,397089,variants,promoter,annotated_bcf,,,12:64236912-64236912 C>A,"",1629,upstream_gene_variant
+RAP1B,DEL,,397089,variants,promoter,annotated_bcf,,,12:69000916-69000916 GA>G,"",3702,upstream_gene_variant
+RPL13P5,SNV,,397089,variants,promoter,annotated_bcf,,,12:6991200-6991200 C>G,"",1945,upstream_gene_variant
+TMTC3,SNV,,397089,variants,promoter,annotated_bcf,,,12:88533867-88533867 T>A,"",2206,upstream_gene_variant
+LINC00936,SNV,,397089,variants,promoter,annotated_bcf,,,12:90101802-90101802 G>A,"",930,upstream_gene_variant
+PHC1,INS,,397089,variants,promoter,annotated_bcf,,,12:9067053-9067053 C>CG,"",262,upstream_gene_variant
+ING1,INS,,397089,variants,promoter,annotated_bcf,,,13:111364877-111364877 A>AG,"",2481,upstream_gene_variant
+ANKRD26P3,SNV,,397089,variants,promoter,annotated_bcf,,,13:19923993-19923993 C>T,"",4880,upstream_gene_variant
+ATP8A2,SNV,,397089,variants,promoter,annotated_bcf,,,13:26041941-26041941 G>A,"",971,upstream_gene_variant
+MIR487B,SNV,,397089,variants,promoter,annotated_bcf,,,14:101512732-101512732 C>T,"",60,upstream_gene_variant
+LOC100507437,SNV,,397089,variants,promoter,annotated_bcf,,,14:105889384-105889384 G>C,"",3308,upstream_gene_variant
+ACIN1,SNV,,397089,variants,promoter,annotated_bcf,,,14:23542677-23542677 G>C,"",1898,upstream_gene_variant
+SPTSSA,DEL,,397089,variants,promoter,annotated_bcf,,,14:34932100-34932100 GCA>G,"",633,upstream_gene_variant
+FOXA1,SNV,,397089,variants,missense,annotated_bcf,,,14:38061178-38061178 G>C,p.Gln271Glu,"",missense_variant
+MDGA2,SNV,,397089,variants,promoter,annotated_bcf,,,14:48146178-48146178 A>T,"",2021,upstream_gene_variant
+MIR5580,INS,,397089,variants,promoter,annotated_bcf,,,14:54416481-54416481 A>AT,"",1280,upstream_gene_variant
+ATG14,SNV,,397089,variants,promoter,annotated_bcf,,,14:55882449-55882449 C>T,"",3873,upstream_gene_variant
+RPL13AP3,SNV,,397089,variants,promoter,annotated_bcf,,,14:56232823-56232823 C>G,"",140,upstream_gene_variant
+MAP3K9,DEL,,397089,variants,promoter,annotated_bcf,,,14:71280446-71280446 CA>C,"",4559,upstream_gene_variant
+ENTPD5,SNV,,397089,variants,promoter,annotated_bcf,,,14:74487233-74487233 T>C,"",1207,upstream_gene_variant
+YLPM1,SNV,,397089,variants,missense,annotated_bcf,,,14:75230557-75230557 A>T,p.Gln122Leu,"",missense_variant
+TSHR,SNV,,397089,variants,missense,annotated_bcf,,,14:81609343-81609343 C>G,p.Ser314Cys,"",missense_variant
+LOC101928767,SNV,,397089,variants,promoter,annotated_bcf,,,14:86398181-86398181 C>T,"",2841,upstream_gene_variant
+TTC8,SNV,,397089,variants,promoter,annotated_bcf,,,14:89288151-89288151 A>T,"",2346,upstream_gene_variant
+FOXN3,SNV,,397089,variants,promoter,annotated_bcf,,,14:90089061-90089061 G>A,"",3567,upstream_gene_variant
+CHSY1,SNV,,397089,variants,promoter,annotated_bcf,,,15:101792777-101792777 A>G,"",640,upstream_gene_variant
+NIPA1,DEL,,397089,variants,promoter,annotated_bcf,,,15:23089631-23089631 CT>C,"",3196,upstream_gene_variant
+SNORD116-15,SNV,,397089,variants,promoter,annotated_bcf,,,15:25325902-25325902 G>C,"",531,upstream_gene_variant
+SPRED1,INS,,397089,variants,promoter,annotated_bcf,,,15:38543724-38543724 T>TCTCTCTCA,"",1327,upstream_gene_variant
+LTK,DEL,,397089,variants,promoter,annotated_bcf,,,15:41809027-41809027 AATAG>A,"",2943,upstream_gene_variant
+VPS39,DEL,,397089,variants,promoter,annotated_bcf,,,15:42502357-42502357 CA>C,"",1834,upstream_gene_variant
+TGM7,SNV,,397089,variants,missense,annotated_bcf,,,15:43568793-43568793 C>T,p.Gly665Arg,"",missense_variant
+DUT,INS,,397089,variants,promoter,annotated_bcf,,,15:48620936-48620936 G>GT,"",2684,upstream_gene_variant
+CLN6,INS,,397089,variants,promoter,annotated_bcf,,,15:68525285-68525285 C>CA,"",3206,upstream_gene_variant
+PML,SNV,,397089,variants,missense,annotated_bcf,,,15:74324964-74324964 G>C,p.Glu436Gln,"",missense_variant
+UBE2Q2,DEL,,397089,variants,promoter,annotated_bcf,,,15:76131923-76131923 GTT>G,"",3703,upstream_gene_variant
+RASGRF1,INS,,397089,variants,promoter,annotated_bcf,,,15:79383506-79383506 G>GC,"",292,upstream_gene_variant
+BCL2A1,SNV,,397089,variants,promoter,annotated_bcf,,,15:80266183-80266183 C>G,"",2540,upstream_gene_variant
+TICRR,DEL,,397089,variants,promoter,annotated_bcf,,,15:90118018-90118018 CAAA>C,"",799,upstream_gene_variant
+SNX29,INS,,397089,variants,promoter,annotated_bcf,,,16:12066719-12066719 C>CA,"",3871,upstream_gene_variant
+PDILT,DEL,,397089,variants,promoter,annotated_bcf,,,16:20420612-20420612 CA>C,"",4580,upstream_gene_variant
+OTOA,DEL,,397089,variants,promoter,annotated_bcf,,,16:21686384-21686384 GTCTTTCTT>G,"",3450,upstream_gene_variant
+EARS2,SNV,,397089,variants,missense,annotated_bcf,,,16:23546303-23546303 C>G,p.Arg288Ser,"",missense_variant
+PALB2,SNV,,397089,variants,splice,annotated_bcf,,,16:23640594-23640594 A>T,p.Thr839Thr,"",splice_region_variant&synonymous_variant
+SH2B1,DEL,,397089,variants,promoter,annotated_bcf,,,16:28871570-28871570 ATTTTT>A,"",3507,upstream_gene_variant
+MIR762,SNV,,397089,variants,promoter,annotated_bcf,,,16:30902176-30902176 C>G,"",3048,upstream_gene_variant
+PRSS53,SNV,,397089,variants,promoter,annotated_bcf,,,16:31101621-31101621 G>C,"",1491,upstream_gene_variant
+ZNF174,SNV,,397089,variants,promoter,annotated_bcf,,,16:3446237-3446237 C>G,"",4953,upstream_gene_variant
+NMRAL1,SNV,,397089,variants,missense,annotated_bcf,,,16:4511878-4511878 G>C,p.Pro268Arg,"",missense_variant
+NFAT5,DEL,,397089,variants,promoter,annotated_bcf,,,16:69599205-69599205 TG>T,"",663,upstream_gene_variant
+TAT,DEL,,397089,variants,promoter,annotated_bcf,,,16:71612969-71612969 GAAA>G,"",1972,upstream_gene_variant
+PRCAT47,INS,,397089,variants,promoter,annotated_bcf,,,16:80927408-80927408 T>TA,"",916,upstream_gene_variant
+TAF1C,SNV,,397089,variants,missense,annotated_bcf,,,16:84212630-84212630 C>T,p.Val843Ile,"",missense_variant
+LINC00917,SNV,,397089,variants,promoter,annotated_bcf,,,16:86381664-86381664 C>A,"",2379,upstream_gene_variant
+PRPF8,SNV,,397089,variants,promoter,annotated_bcf,,,17:1591154-1591154 G>A,"",2978,upstream_gene_variant
+NCOR1,SNV,,397089,variants,missense,annotated_bcf,,,17:15968807-15968807 G>C,p.Ala1648Gly,"",missense_variant
+SGK494,SNV,,397089,variants,promoter,annotated_bcf,,,17:26944953-26944953 T>C,"",3742,upstream_gene_variant
+MIR4733,SNV,,397089,variants,promoter,annotated_bcf,,,17:29425634-29425634 G>C,"",4191,upstream_gene_variant
+ZNF830,SNV,,397089,variants,missense,annotated_bcf,,,17:33289005-33289005 G>T,p.Lys140Asn,"",missense_variant
+CCL5,SNV,,397089,variants,promoter,annotated_bcf,,,17:34211125-34211125 T>G,"",3748,upstream_gene_variant
+CACNB1,SNV,,397089,variants,promoter,annotated_bcf,,,17:37358857-37358857 G>C,"",4901,upstream_gene_variant
+PTRF,DEL,,397089,variants,promoter,annotated_bcf,,,17:40578823-40578823 AT>A,"",3486,upstream_gene_variant
+ARL4D,DEL,,397089,variants,promoter,annotated_bcf,,,17:41473325-41473325 CA>C,"",3027,upstream_gene_variant
+MIR196A1,SNV,,397089,variants,promoter,annotated_bcf,,,17:46713267-46713267 C>T,"",3346,upstream_gene_variant
+VMP1,DEL,,397089,variants,promoter,annotated_bcf,,,17:57782621-57782621 AACTGC>A,"",2204,upstream_gene_variant
+VMP1,INS,,397089,variants,promoter,annotated_bcf,,,17:57782627-57782627 T>TAATAG,"",2198,upstream_gene_variant
+FAM57A,INS,,397089,variants,promoter,annotated_bcf,,,17:632787-632787 A>AACACAC,"",2998,upstream_gene_variant
+NOL11,INS,,397089,variants,promoter,annotated_bcf,,,17:65713685-65713685 T>TA,"",263,upstream_gene_variant
+TMEM94,SNV,,397089,variants,promoter,annotated_bcf,,,17:73469480-73469480 T>C,"",3099,upstream_gene_variant
+RNF157-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,17:74132008-74132008 G>A,"",4629,upstream_gene_variant
+MXRA7,SNV,,397089,variants,promoter,annotated_bcf,,,17:74711747-74711747 A>T,"",4660,upstream_gene_variant
+TP53,DEL,,397089,variants,trunc,annotated_bcf,,,17:7579419-7579419 AG>A,p.Ser90fs,"",frameshift_variant
+HEXDC,DEL,,397089,variants,promoter,annotated_bcf,,,17:80371769-80371769 GAAGA>G,"",4482,upstream_gene_variant
+HEXDC,INS,,397089,variants,promoter,annotated_bcf,,,17:80376170-80376170 G>GC,"",81,upstream_gene_variant
+AQP4,SNV,,397089,variants,promoter,annotated_bcf,,,18:24448549-24448549 G>C,"",2741,upstream_gene_variant
+LOXHD1,SNV,,397089,variants,promoter,annotated_bcf,,,18:44142869-44142869 G>A,"",3599,upstream_gene_variant
+NFIX,DEL,,397089,variants,promoter,annotated_bcf,,,19:13134927-13134927 CA>C,"",467,upstream_gene_variant
+GAMT,DEL,,397089,variants,promoter,annotated_bcf,,,19:1403174-1403174 ATTTTTTTTT>A,"",1606,upstream_gene_variant
+NDUFB7,DEL,,397089,variants,promoter,annotated_bcf,,,19:14684671-14684671 AT>A,"",1783,upstream_gene_variant
+ABHD8,SNV,,397089,variants,promoter,annotated_bcf,,,19:17414317-17414317 G>T,"",35,upstream_gene_variant
+AP3D1,DEL,,397089,variants,promoter,annotated_bcf,,,19:2153383-2153383 TG>T,"",1828,upstream_gene_variant
+FAM187B,SNV,,397089,variants,promoter,annotated_bcf,,,19:35721826-35721826 G>A,"",2198,upstream_gene_variant
+MAG,SNV,,397089,variants,missense,annotated_bcf,,,19:35801476-35801476 C>G,p.Pro516Ala,"",missense_variant
+DMKN,DEL,,397089,variants,promoter,annotated_bcf,,,19:35993572-35993572 AC>A,"",760,upstream_gene_variant
+ARHGAP33,SNV,,397089,variants,missense,annotated_bcf,,,19:36271935-36271935 T>A,p.Cys315Ser,"",missense_variant
+DPF1,INS,,397089,variants,promoter,annotated_bcf,,,19:38717143-38717143 T>TACACACACACACACACACACAC,"",2254,upstream_gene_variant
+CD79A,SNV,,397089,variants,promoter,annotated_bcf,,,19:42378860-42378860 G>C,"",2330,upstream_gene_variant
+ATP1A3,SNV,,397089,variants,missense,annotated_bcf,,,19:42471431-42471431 G>A,p.Arg1008Cys,"",missense_variant
+CHAF1A,SNV,,397089,variants,missense,annotated_bcf,,,19:4409617-4409617 C>G,p.Ser274Cys,"",missense_variant
+ZNF155,SNV,,397089,variants,promoter,annotated_bcf,,,19:44487727-44487727 A>G,"",595,upstream_gene_variant
+DMWD,SNV,,397089,variants,promoter,annotated_bcf,,,19:46296661-46296661 G>C,"",601,upstream_gene_variant
+PPP5D1,DEL,,397089,variants,promoter,annotated_bcf,,,19:47107804-47107804 GT>G,"",3348,upstream_gene_variant
+PLA2G4C-AS1,DEL,,397089,variants,promoter,annotated_bcf,,,19:48562073-48562073 CA>C,"",2554,upstream_gene_variant
+ARRDC5,INS,,397089,variants,promoter,annotated_bcf,,,19:4907288-4907288 A>AT,"",4410,upstream_gene_variant
+MED25,SNV,,397089,variants,splice,annotated_bcf,,,19:50335564-50335564 G>C,"","",splice_acceptor_variant&intron_variant
+LOC101928517,SNV,,397089,variants,promoter,annotated_bcf,,,19:51689180-51689180 C>T,"",3958,upstream_gene_variant
+PPP2R1A,SNV,,397089,variants,missense,annotated_bcf,,,19:52714522-52714522 G>C,"","",structural_interaction_variant
+ZNF808,SNV,,397089,variants,promoter,annotated_bcf,,,19:53029095-53029095 T>G,"",1814,upstream_gene_variant
+ZNF677,SNV,,397089,variants,promoter,annotated_bcf,,,19:53761772-53761772 C>T,"",3669,upstream_gene_variant
+VN1R4,SNV,,397089,variants,promoter,annotated_bcf,,,19:53772816-53772816 T>C,"",1898,upstream_gene_variant
+MIR520F,DEL,,397089,variants,promoter,annotated_bcf,,,19:54183741-54183741 GTGTT>G,"",1671,upstream_gene_variant
+ZNF549,SNV,,397089,variants,promoter,annotated_bcf,,,19:58038395-58038395 G>A,"",298,upstream_gene_variant
+MUC16,SNV,,397089,variants,missense,annotated_bcf,,,19:9077595-9077595 G>A,p.Ser3284Phe,"",missense_variant
+OR7G1,SNV,,397089,variants,promoter,annotated_bcf,,,19:9226616-9226616 C>G,"",177,upstream_gene_variant
+CYB561D1,DEL,,397089,variants,promoter,annotated_bcf,,,1:110035318-110035318 AT>A,"",1382,upstream_gene_variant
+C1orf127,DEL,,397089,variants,promoter,annotated_bcf,,,1:11044655-11044655 CT>C,"",2562,upstream_gene_variant
+KCNC4-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,1:110754100-110754100 C>G,"",1491,upstream_gene_variant
+PLOD1,SNV,,397089,variants,promoter,annotated_bcf,,,1:11992655-11992655 G>C,"",2069,upstream_gene_variant
+MEX3A,SNV,,397089,variants,promoter,annotated_bcf,,,1:156056538-156056538 C>G,"",4749,upstream_gene_variant
+NTRK1,SNV,,397089,variants,promoter,annotated_bcf,,,1:156828526-156828526 G>C,"",2145,upstream_gene_variant
+CD1B,SNV,,397089,variants,promoter,annotated_bcf,,,1:158306179-158306179 C>G,"",4858,upstream_gene_variant
+PEX19,DEL,,397089,variants,promoter,annotated_bcf,,,1:160257898-160257898 AT>A,"",2958,upstream_gene_variant
+SPEN,SNV,,397089,variants,missense,annotated_bcf,,,1:16203122-16203122 G>C,p.Arg277Thr,"",missense_variant
+POU2F1,SNV,,397089,variants,promoter,annotated_bcf,,,1:167297320-167297320 T>A,"",961,upstream_gene_variant
+NADK,SNV,,397089,variants,missense,annotated_bcf,,,1:1687718-1687718 C>G,"","",structural_interaction_variant
+SERPINC1,INS,,397089,variants,promoter,annotated_bcf,,,1:173887947-173887947 C>CA,"",1432,upstream_gene_variant
+CDC73,SNV,,397089,variants,missense,annotated_bcf,,,1:193094334-193094334 T>A,p.Val75Asp,"",missense_variant
+MIR4735,DEL,,397089,variants,promoter,annotated_bcf,,,1:196556044-196556044 GA>G,"",4434,upstream_gene_variant
+NEK7,INS,,397089,variants,promoter,annotated_bcf,,,1:198125000-198125000 A>AC,"",1107,upstream_gene_variant
+ARL8A,DEL,,397089,variants,promoter,annotated_bcf,,,1:202117975-202117975 CTTTTTT>C,"",4105,upstream_gene_variant
+CAMK2N1,DEL,,397089,variants,promoter,annotated_bcf,,,1:20817007-20817007 CCACACACACA>C,"",4280,upstream_gene_variant
+FAM43B,DEL,,397089,variants,promoter,annotated_bcf,,,1:20876455-20876455 AT>A,"",2476,upstream_gene_variant
+DTL,SNV,,397089,variants,promoter,annotated_bcf,,,1:212207435-212207435 G>A,"",1460,upstream_gene_variant
+LYST,DEL,,397089,variants,promoter,annotated_bcf,,,1:236032771-236032771 CA>C,"",2545,upstream_gene_variant
+MDS2,DEL,,397089,variants,promoter,annotated_bcf,,,1:23950261-23950261 CT>C,"",3562,upstream_gene_variant
+OR2G6,DEL,,397089,variants,promoter,annotated_bcf,,,1:248684341-248684341 TAAAAAA>T,"",606,upstream_gene_variant
+RNF19B,SNV,,397089,variants,promoter,annotated_bcf,,,1:33431029-33431029 C>G,"",615,upstream_gene_variant
+RSPO1,SNV,,397089,variants,missense,annotated_bcf,,,1:38079529-38079529 G>A,p.Pro158Ser,"",missense_variant
+FOXJ3,SNV,,397089,variants,promoter,annotated_bcf,,,1:42800965-42800965 C>G,"",329,upstream_gene_variant
+FOXJ3,INS,,397089,variants,promoter,annotated_bcf,,,1:42803887-42803887 C>CA,"",2340,upstream_gene_variant
+MIR4422,DEL,,397089,variants,promoter,annotated_bcf,,,1:55689985-55689985 CA>C,"",1328,upstream_gene_variant
+ROR1-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,1:64583742-64583742 C>G,"",4268,upstream_gene_variant
+HES2,SNV,,397089,variants,trunc,annotated_bcf,,,1:6478960-6478960 G>T,p.Cys165*,"",stop_gained
+SLC45A1,SNV,,397089,variants,promoter,annotated_bcf,,,1:8377686-8377686 T>G,"",459,upstream_gene_variant
+ZNHIT6,SNV,,397089,variants,promoter,annotated_bcf,,,1:86177046-86177046 A>G,"",2930,upstream_gene_variant
+CST1,DEL,,397089,variants,promoter,annotated_bcf,,,20:23732422-23732422 GT>G,"",849,upstream_gene_variant
+GGTLC1,DEL,,397089,variants,promoter,annotated_bcf,,,20:23973129-23973129 CA>C,"",3714,upstream_gene_variant
+CPXM1,DEL,,397089,variants,promoter,annotated_bcf,,,20:2782759-2782759 CAA>C,"",1468,upstream_gene_variant
+TTLL9,DEL,,397089,variants,promoter,annotated_bcf,,,20:30455434-30455434 GTTTTTTTTT>G,"",3070,upstream_gene_variant
+MIR1289-1,SNV,,397089,variants,promoter,annotated_bcf,,,20:34045965-34045965 C>T,"",4046,upstream_gene_variant
+LINC01441,SNV,,397089,variants,promoter,annotated_bcf,,,20:54043892-54043892 G>C,"",157,upstream_gene_variant
+LINC00654,DEL,,397089,variants,promoter,annotated_bcf,,,20:5487714-5487714 CA>C,"",2473,upstream_gene_variant
+CTCFL,SNV,,397089,variants,promoter,annotated_bcf,,,20:56104230-56104230 C>T,"",4047,upstream_gene_variant
+LOC100130587,SNV,,397089,variants,promoter,annotated_bcf,,,20:61986610-61986610 G>A,"",4730,upstream_gene_variant
+LOC105372751,SNV,,397089,variants,promoter,annotated_bcf,,,21:25797480-25797480 GC>AA,"",3574,upstream_gene_variant
+KRTAP19-3,INS,,397089,variants,promoter,annotated_bcf,,,21:31867026-31867026 C>CA,"",2752,upstream_gene_variant
+THAP7-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,22:21352337-21352337 G>C,"",3874,upstream_gene_variant
+PISD,INS,,397089,variants,promoter,annotated_bcf,,,22:32060050-32060050 C>CT,"",1501,upstream_gene_variant
+CACNA1I,SNV,,397089,variants,missense,annotated_bcf,,,22:40082200-40082200 C>G,p.Ser2154Arg,"",missense_variant
+PARVG,SNV,,397089,variants,promoter,annotated_bcf,,,22:44567102-44567102 G>C,"",1734,upstream_gene_variant
+LONRF2,INS,,397089,variants,promoter,annotated_bcf,,,2:100940580-100940580 T>TA,"",1386,upstream_gene_variant
+NMS,DEL,,397089,variants,splice,annotated_bcf,,,2:101098726-101098726 CT>C,"","",splice_region_variant&intron_variant
+RGPD4-AS1,DEL,,397089,variants,promoter,annotated_bcf,,,2:108442921-108442921 CTTTTTTTTTT>C,"",339,upstream_gene_variant
+GREB1,SNV,,397089,variants,missense,annotated_bcf,,,2:11777973-11777973 C>G,p.Phe1826Leu,"",missense_variant
+RAB6C,INS,,397089,variants,promoter,annotated_bcf,,,2:130734889-130734889 G>GT,"",2345,upstream_gene_variant
+THSD7B,SNV,,397089,variants,missense,annotated_bcf,,,2:137852517-137852517 G>T,p.Trp342Leu,"",missense_variant
+GALNT13,SNV,,397089,variants,promoter,annotated_bcf,,,2:154728192-154728192 T>C,"",219,upstream_gene_variant
+TTC21B,SNV,,397089,variants,missense,annotated_bcf,,,2:166802195-166802195 C>T,p.Glu90Lys,"",missense_variant
+KCNS3,INS,,397089,variants,promoter,annotated_bcf,,,2:18054866-18054866 A>ATT,"",4247,upstream_gene_variant
+CFLAR-AS1,INS,,397089,variants,promoter,annotated_bcf,,,2:202026143-202026143 A>AT,"",3629,upstream_gene_variant
+NBEAL1,SNV,,397089,variants,missense,annotated_bcf,,,2:204066387-204066387 G>C,p.Val2425Leu,"",missense_variant
+MYL1,DEL,,397089,variants,trunc,annotated_bcf,,,2:211179765-211179765 AT>A,p.Met1fs,"",frameshift_variant&start_lost
+DES,DEL,,397089,variants,promoter,annotated_bcf,,,2:220279592-220279592 CAAAGTGTGGTGTATACATACAA>C,"",3506,upstream_gene_variant
+SGPP2,SNV,,397089,variants,promoter,annotated_bcf,,,2:223285322-223285322 C>A,"",3904,upstream_gene_variant
+CHRNG,SNV,,397089,variants,promoter,annotated_bcf,,,2:233402772-233402772 T>A,"",1665,upstream_gene_variant
+NGEF,SNV,,397089,variants,missense,annotated_bcf,,,2:233744366-233744366 G>C,p.His656Asp,"",missense_variant
+ATG16L1,SNV,,397089,variants,promoter,annotated_bcf,,,2:234156078-234156078 G>C,"",4139,upstream_gene_variant
+RAB17,DEL,,397089,variants,promoter,annotated_bcf,,,2:238500886-238500886 TAAAAA>T,"",1118,upstream_gene_variant
+DNMT3A,SNV,,397089,variants,missense,annotated_bcf,,,2:25464538-25464538 G>C,p.Arg659Gly,"",missense_variant
+TCF23,INS,,397089,variants,promoter,annotated_bcf,,,2:27369329-27369329 A>AT,"",2615,upstream_gene_variant
+ALK,SNV,,397089,variants,missense,annotated_bcf,,,2:29432664-29432664 C>T,"","",structural_interaction_variant
+LOC388942,DEL,,397089,variants,promoter,annotated_bcf,,,2:42101615-42101615 CA>C,"",3079,upstream_gene_variant
+C2orf61,SNV,,397089,variants,promoter,annotated_bcf,,,2:47384837-47384837 G>C,"",2320,upstream_gene_variant
+CLHC1,DEL,,397089,variants,trunc,annotated_bcf,,,2:55436943-55436943 TTCATGGA>T,p.Ser173fs,"",frameshift_variant
+BCL11A,DEL,,397089,variants,promoter,annotated_bcf,,,2:60784728-60784728 GA>G,"",4096,upstream_gene_variant
+LOC102800447,SNV,,397089,variants,promoter,annotated_bcf,,,2:67311687-67311687 C>T,"",1891,upstream_gene_variant
+FAM136A,SNV,,397089,variants,promoter,annotated_bcf,,,2:70533236-70533236 C>G,"",4059,upstream_gene_variant
+CLEC4F,INS,,397089,variants,promoter,annotated_bcf,,,2:71050252-71050252 T>TTG,"",2521,upstream_gene_variant
+PCGF1,SNV,,397089,variants,promoter,annotated_bcf,,,2:74735354-74735354 T>C,"",533,upstream_gene_variant
+SNAR-H,DEL,,397089,variants,promoter,annotated_bcf,,,2:78186874-78186874 CT>C,"",4723,upstream_gene_variant
+REG1A,SNV,,397089,variants,promoter,annotated_bcf,,,2:79344966-79344966 A>T,"",2618,upstream_gene_variant
+REEP1,SNV,,397089,variants,promoter,annotated_bcf,,,2:86565202-86565202 G>A,"",425,upstream_gene_variant
+MBOAT2,SNV,,397089,variants,promoter,annotated_bcf,,,2:9144113-9144113 G>A,"",234,upstream_gene_variant
+CPSF3,SNV,,397089,variants,promoter,annotated_bcf,,,2:9558827-9558827 T>G,"",4839,upstream_gene_variant
+ZAP70,SNV,,397089,variants,promoter,annotated_bcf,,,2:98350517-98350517 C>G,"",352,upstream_gene_variant
+TRMT10C,DEL,,397089,variants,promoter,annotated_bcf,,,3:101276206-101276206 CA>C,"",4473,upstream_gene_variant
+ZPLD1,SNV,,397089,variants,promoter,annotated_bcf,,,3:102152624-102152624 C>A,"",1235,upstream_gene_variant
+CBLB,SNV,,397089,variants,splice,annotated_bcf,,,3:105587757-105587757 G>A,"","",splice_region_variant
+SEC22A,INS,,397089,variants,promoter,annotated_bcf,,,3:122920712-122920712 T>TGGTTTGATTCCGCGGACGC,"",61,upstream_gene_variant
+LOC101927056,SNV,,397089,variants,promoter,annotated_bcf,,,3:125605082-125605082 T>C,"",162,upstream_gene_variant
+LINC01565,SNV,,397089,variants,promoter,annotated_bcf,,,3:128296746-128296746 G>C,"",1817,upstream_gene_variant
+COL6A5,SNV,,397089,variants,missense,annotated_bcf,,,3:130137765-130137765 G>A,p.Arg1647Gln,"",missense_variant
+DBR1,DEL,,397089,variants,promoter,annotated_bcf,,,3:137898600-137898600 GA>G,"",4810,upstream_gene_variant
+CPB1,INS,,397089,variants,trunc,annotated_bcf,,,3:148562299-148562299 C>CA,p.Glu205fs,"",frameshift_variant
+PFN2,INS,,397089,variants,promoter,annotated_bcf,,,3:149692697-149692697 G>GT,"",3957,upstream_gene_variant
+TSC22D2,SNV,,397089,variants,promoter,annotated_bcf,,,3:150123910-150123910 T>A,"",2212,upstream_gene_variant
+LOC101928105,SNV,,397089,variants,promoter,annotated_bcf,,,3:150461266-150461266 G>C,"",4494,upstream_gene_variant
+MECOM,DEL,,397089,variants,promoter,annotated_bcf,,,3:168867723-168867723 CTG>C,"",3631,upstream_gene_variant
+ACTL6A,DEL,,397089,variants,promoter,annotated_bcf,,,3:179279179-179279179 CAA>C,"",1488,upstream_gene_variant
+TNK2,SNV,,397089,variants,missense,annotated_bcf,,,3:195622241-195622241 C>T,p.Gly16Asp,"",missense_variant
+MIR3135A,DEL,,397089,variants,promoter,annotated_bcf,,,3:20179033-20179033 CT>C,"",23,upstream_gene_variant
+OSBPL10,SNV,,397089,variants,promoter,annotated_bcf,,,3:32028253-32028253 A>T,"",4911,upstream_gene_variant
+PDCD6IP,SNV,,397089,variants,promoter,annotated_bcf,,,3:33839742-33839742 G>C,"",321,upstream_gene_variant
+CHL1-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,3:428782-428782 GA>TG,"",1304,upstream_gene_variant
+ABHD14A,INS,,397089,variants,promoter,annotated_bcf,,,3:52007535-52007535 C>CT,"",1506,upstream_gene_variant
+ALAS1,DEL,,397089,variants,promoter,annotated_bcf,,,3:52227999-52227999 AAAAGAAAGAAAG>A,"",4099,upstream_gene_variant
+FOXP1,INS,,397089,variants,promoter,annotated_bcf,,,3:71294951-71294951 A>AC,"",636,upstream_gene_variant
+EBLN2,INS,,397089,variants,promoter,annotated_bcf,,,3:73109087-73109087 G>GA,"",1722,upstream_gene_variant
+CISD2,SNV,,397089,variants,promoter,annotated_bcf,,,4:103788641-103788641 G>C,"",1494,upstream_gene_variant
+LEF1-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,4:109086543-109086543 A>C,"",2138,upstream_gene_variant
+TRIM2,INS,,397089,variants,promoter,annotated_bcf,,,4:154121868-154121868 G>GAA,"",3697,upstream_gene_variant
+NELFA,DEL,,397089,variants,promoter,annotated_bcf,,,4:2012396-2012396 CAA>C,"",1435,upstream_gene_variant
+KCNIP4,SNV,,397089,variants,promoter,annotated_bcf,,,4:21951462-21951462 G>A,"",1088,upstream_gene_variant
+TNIP2,DEL,,397089,variants,trunc,annotated_bcf,,,4:2757768-2757768 GC>G,p.Gly83fs,"",frameshift_variant
+LOC100133461,DEL,,397089,variants,promoter,annotated_bcf,,,4:3683763-3683763 CA>C,"",4182,upstream_gene_variant
+MIR5591,SNV,,397089,variants,promoter,annotated_bcf,,,4:39410937-39410937 A>G,"",2593,upstream_gene_variant
+PTPN13,DEL,,397089,variants,promoter,annotated_bcf,,,4:87510835-87510835 CA>C,"",4632,upstream_gene_variant
+DMP1,SNV,,397089,variants,promoter,annotated_bcf,,,4:88567568-88567568 C>G,"",3886,upstream_gene_variant
+APC,SNV,,397089,variants,missense,annotated_bcf,,,5:112174683-112174683 A>T,p.Gln1131Leu,"",missense_variant
+LOC102467225,SNV,,397089,variants,promoter,annotated_bcf,,,5:117927683-117927683 G>C,"",4200,upstream_gene_variant
+HTR4,SNV,,397089,variants,promoter,annotated_bcf,,,5:148038510-148038510 C>G,"",4420,upstream_gene_variant
+PDGFRB,SNV,,397089,variants,missense,annotated_bcf,,,5:149514374-149514374 G>C,"","",structural_interaction_variant
+SMIM3,SNV,,397089,variants,promoter,annotated_bcf,,,5:150154933-150154933 A>T,"",2575,upstream_gene_variant
+SPARC,SNV,,397089,variants,promoter,annotated_bcf,,,5:151067615-151067615 C>T,"",1000,upstream_gene_variant
+CLINT1,DEL,,397089,variants,promoter,annotated_bcf,,,5:157290473-157290473 GC>G,"",4291,upstream_gene_variant
+LOC101927835,SNV,,397089,variants,promoter,annotated_bcf,,,5:163895668-163895668 A>G,"",1260,upstream_gene_variant
+LOC105374698,DEL,,397089,variants,promoter,annotated_bcf,,,5:28292195-28292195 CAAA>C,"",4424,upstream_gene_variant
+LSP1P3,SNV,,397089,variants,promoter,annotated_bcf,,,5:28924616-28924616 C>G,"",2361,upstream_gene_variant
+IL7R,SNV,,397089,variants,splice,annotated_bcf,,,5:35876082-35876082 C>G,"","",splice_region_variant&intron_variant
+ADAMTS16,SNV,,397089,variants,missense,annotated_bcf,,,5:5319196-5319196 G>A,p.Ser1207Asn,"",missense_variant
+NDUFAF2,INS,,397089,variants,promoter,annotated_bcf,,,5:60236983-60236983 T>TA,"",3972,upstream_gene_variant
+CD180,SNV,,397089,variants,promoter,annotated_bcf,,,5:66493987-66493987 T>A,"",1370,upstream_gene_variant
+SLC30A5,DEL,,397089,variants,promoter,annotated_bcf,,,5:68388659-68388659 CT>C,"",1116,upstream_gene_variant
+SNX3,INS,,397089,variants,promoter,annotated_bcf,,,6:108586116-108586116 C>CA,"",3653,upstream_gene_variant
+FRK,DEL,,397089,variants,promoter,annotated_bcf,,,6:116383625-116383625 GA>G,"",1705,upstream_gene_variant
+NKAIN2,SNV,,397089,variants,promoter,annotated_bcf,,,6:124120322-124120322 G>C,"",4669,upstream_gene_variant
+SYNE1,DEL,,397089,variants,promoter,annotated_bcf,,,6:152961109-152961109 GAA>G,"",2576,upstream_gene_variant
+PHF10,SNV,,397089,variants,promoter,annotated_bcf,,,6:170124514-170124514 G>C,"",408,upstream_gene_variant
+LOC101928663,DEL,,397089,variants,promoter,annotated_bcf,,,6:25262842-25262842 TA>T,"",1208,upstream_gene_variant
+BTN3A2,DEL,,397089,variants,promoter,annotated_bcf,,,6:26365702-26365702 CTG>C,"",2703,upstream_gene_variant
+VN1R10P,SNV,,397089,variants,promoter,annotated_bcf,,,6:27291363-27291363 C>T,"",1177,upstream_gene_variant
+HLA-F,SNV,,397089,variants,promoter,annotated_bcf,,,6:29691084-29691084 T>C,"",33,upstream_gene_variant
+DAXX,SNV,,397089,variants,missense,annotated_bcf,,,6:33288285-33288285 C>G,p.Val387Leu,"",missense_variant
+GLO1,INS,,397089,variants,promoter,annotated_bcf,,,6:38675479-38675479 G>GGAAAGAAA,"",4528,upstream_gene_variant
+MRPS10,SNV,,397089,variants,promoter,annotated_bcf,,,6:42186498-42186498 G>A,"",865,upstream_gene_variant
+SPATS1,DEL,,397089,variants,promoter,annotated_bcf,,,6:44308803-44308803 AT>A,"",1593,upstream_gene_variant
+SPATS1,SNV,,397089,variants,promoter,annotated_bcf,,,6:44308932-44308932 G>A,"",1465,upstream_gene_variant
+RUNX2,SNV,,397089,variants,splice,annotated_bcf,,,6:45512946-45512946 T>A,"","",splice_region_variant&intron_variant
+MCM3,DEL,,397089,variants,promoter,annotated_bcf,,,6:52154316-52154316 CTTT>C,"",4638,upstream_gene_variant
+TMEM14A,SNV,,397089,variants,promoter,annotated_bcf,,,6:52534342-52534342 G>C,"",1542,upstream_gene_variant
+HMGCLL1,SNV,,397089,variants,promoter,annotated_bcf,,,6:55444845-55444845 G>A,"",833,upstream_gene_variant
+PMPCB,INS,,397089,variants,promoter,annotated_bcf,,,7:102934334-102934334 T>TG,"",3538,upstream_gene_variant
+FAM71F1,DEL,,397089,variants,promoter,annotated_bcf,,,7:128345707-128345707 GTGTTTT>G,"",3407,upstream_gene_variant
+BRAT1,DEL,,397089,variants,promoter,annotated_bcf,,,7:2599399-2599399 TGGG>T,"",4008,upstream_gene_variant
+HOXA11,SNV,,397089,variants,promoter,annotated_bcf,,,7:27228132-27228132 C>A,"",3297,upstream_gene_variant
+MAGI2-AS2,DEL,,397089,variants,promoter,annotated_bcf,,,7:78638175-78638175 TTTC>T,"",128,upstream_gene_variant
+LOC101927269,INS,,397089,variants,promoter,annotated_bcf,,,7:80007872-80007872 G>GT,"",4118,upstream_gene_variant
+CYP3A4,DEL,,397089,variants,promoter,annotated_bcf,,,7:99385130-99385130 AAAG>A,"",3320,upstream_gene_variant
+FAM86B2,SNV,,397089,variants,promoter,annotated_bcf,,,8:12297191-12297191 C>G,"",3339,upstream_gene_variant
+KIAA1456,SNV,,397089,variants,promoter,annotated_bcf,,,8:12801810-12801810 C>G,"",1373,upstream_gene_variant
+LINC00824,SNV,,397089,variants,promoter,annotated_bcf,,,8:129577150-129577150 G>C,"",225,upstream_gene_variant
+TG,SNV,,397089,variants,missense,annotated_bcf,,,8:134024226-134024226 G>C,p.Val2115Leu,"",missense_variant
+TRAPPC9,INS,,397089,variants,promoter,annotated_bcf,,,8:141469597-141469597 C>CAA,"",920,upstream_gene_variant
+SLC45A4,SNV,,397089,variants,promoter,annotated_bcf,,,8:142238713-142238713 C>G,"",40,upstream_gene_variant
+MIR1302-7,SNV,,397089,variants,promoter,annotated_bcf,,,8:142870912-142870912 C>G,"",3238,upstream_gene_variant
+DPYSL2,DEL,,397089,variants,promoter,annotated_bcf,,,8:26432831-26432831 GAAGTAA>G,"",2508,upstream_gene_variant
+EPHX2,DEL,,397089,variants,promoter,annotated_bcf,,,8:27348216-27348216 GACAC>G,"",302,upstream_gene_variant
+EXTL3-AS1,SNV,,397089,variants,promoter,annotated_bcf,,,8:28562508-28562508 C>G,"",3527,upstream_gene_variant
+MIR124-2,SNV,,397089,variants,promoter,annotated_bcf,,,8:65289498-65289498 G>C,"",2208,upstream_gene_variant
+TERF1,DEL,,397089,variants,promoter,annotated_bcf,,,8:73920273-73920273 GA>G,"",823,upstream_gene_variant
+ZFHX4-AS1,DEL,,397089,variants,promoter,annotated_bcf,,,8:77596283-77596283 GT>G,"",774,upstream_gene_variant
+LINC01230,INS,,397089,variants,promoter,annotated_bcf,,,9:1044443-1044443 G>GCCCCA,"",3699,upstream_gene_variant
+LINC01492,INS,,397089,variants,splice,annotated_bcf,,,9:106038433-106038433 G>GAAAAAA,"","",splice_region_variant&intron_variant
+RALGPS1,DEL,,397089,variants,promoter,annotated_bcf,,,9:129676615-129676615 CCCCG>C,"",437,upstream_gene_variant
+PRRC2B,SNV,,397089,variants,missense,annotated_bcf,,,9:134350031-134350031 G>C,p.Asp839His,"",missense_variant
+IFNK,SNV,,397089,variants,promoter,annotated_bcf,,,9:27522925-27522925 A>T,"",1387,upstream_gene_variant
+BAG1,DEL,,397089,variants,promoter,annotated_bcf,,,9:33269524-33269524 TAAAC>T,"",4766,upstream_gene_variant
+ANKRD18B,INS,,397089,variants,promoter,annotated_bcf,,,9:33521998-33521998 A>AT,"",2412,upstream_gene_variant
+IL1RAPL2,INS,,397089,variants,promoter,annotated_bcf,,,X:103809439-103809439 T>TA,"",1556,upstream_gene_variant
+ARHGAP6,SNV,,397089,variants,missense,annotated_bcf,,,X:11162190-11162190 G>C,p.Leu696Val,"",missense_variant
+MIR1911,DEL,,397089,variants,promoter,annotated_bcf,,,X:113992848-113992848 CA>C,"",4895,upstream_gene_variant
+MSL3,DEL,,397089,variants,promoter,annotated_bcf,,,X:11777469-11777469 AG>A,"",265,upstream_gene_variant
+SPANXA2-OT1,DEL,,397089,variants,promoter,annotated_bcf,,,X:140587826-140587826 GTT>G,"",3016,upstream_gene_variant
+MIR514B,DEL,,397089,variants,promoter,annotated_bcf,,,X:146335926-146335926 GA>G,"",4179,upstream_gene_variant
+MECP2,SNV,,397089,variants,promoter,annotated_bcf,,,X:153364789-153364789 A>C,"",1601,upstream_gene_variant
+DDX3X,SNV,,397089,variants,promoter,annotated_bcf,,,X:41192771-41192771 C>G,"",644,upstream_gene_variant
+INE1,SNV,,397089,variants,promoter,annotated_bcf,,,X:47062120-47062120 G>A,"",2127,upstream_gene_variant
+MAGED1,DEL,,397089,variants,promoter,annotated_bcf,,,X:51543717-51543717 TTTTC>T,"",2437,upstream_gene_variant
+SNORA11,SNV,,397089,variants,promoter,annotated_bcf,,,X:54836821-54836821 T>G,"",3982,upstream_gene_variant
+MIR325,SNV,,397089,variants,promoter,annotated_bcf,,,X:76226618-76226618 A>C,"",692,upstream_gene_variant

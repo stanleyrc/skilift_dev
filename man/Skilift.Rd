@@ -59,6 +59,8 @@ Path to the datafiles.json}
 \item \href{#method-Skilift-update_datafiles_json}{\code{Skilift$update_datafiles_json()}}
 \item \href{#method-Skilift-to_datatable}{\code{Skilift$to_datatable()}}
 \item \href{#method-Skilift-add_plots}{\code{Skilift$add_plots()}}
+\item \href{#method-Skilift-fill_plots_names}{\code{Skilift$fill_plots_names()}}
+\item \href{#method-Skilift-add_plots__DEV}{\code{Skilift$add_plots__DEV()}}
 \item \href{#method-Skilift-remove_plots}{\code{Skilift$remove_plots()}}
 \item \href{#method-Skilift-validate}{\code{Skilift$validate()}}
 \item \href{#method-Skilift-list_higlass_tilesets}{\code{Skilift$list_higlass_tilesets()}}
@@ -184,6 +186,24 @@ Number of cores to use for parallel execution}
 \subsection{Returns}{
 NULL.
 }
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Skilift-fill_plots_names"></a>}}
+\if{latex}{\out{\hypertarget{method-Skilift-fill_plots_names}{}}}
+\subsection{Method \code{fill_plots_names()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Skilift$fill_plots_names()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Skilift-add_plots__DEV"></a>}}
+\if{latex}{\out{\hypertarget{method-Skilift-add_plots__DEV}{}}}
+\subsection{Method \code{add_plots__DEV()}}{
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Skilift$add_plots__DEV(plots_to_add, cores = 2)}\if{html}{\out{</div>}}
+}
+
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-Skilift-remove_plots"></a>}}
