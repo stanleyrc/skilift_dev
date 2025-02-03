@@ -6,7 +6,14 @@ Authors@R: c(person(given = "Shihab", family = "Dider", role = c("aut"), email =
 	person(given = "Max", family = "Chao", role = c("aut", "cre"), email = "mchao@nygenome.org"))
 Description: Interface layer between backend and PGV and Case Reports frontend
 Remotes: 
-  github::mskilab-org/skilift
+  github::mskilab-org/skilift,
+  github::mskilab-org/gUtils,
+  github::mskilab-org/gGnome,
+  github::mskilab-org/skidb,
+  github::mskilab-org/skitools,
+  bioc::VariantAnnotation,
+  bioc::MatrixGenerics,
+  bioc::Biostrings
 Depends:
     R (>= 3.6.0),
     data.table (>= 1.10), 
@@ -17,11 +24,25 @@ Imports:
     data.table (>= 1.10), 
     R6,
     jsonlite,
-    gGnome
+    gGnome,
+    gUtils,
+    VariantAnnotation,
+    MatrixGenerics,
+    Biostrings,
+    skidb,
+    skitools,
+    magrittr,
+    Rcpp
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
-RoxygenNote: 7.2.3
+Encoding: UTF-8
+RoxygenNote: 7.3.2
+StagedInstall: no
+LinkingTo: Rcpp
 Suggests:
     testthat (>= 2.0),
     covr,
-    pkgdown
+    pkgdown,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

@@ -8,7 +8,8 @@ write_distributions_to_json(
   distributions,
   common_dir,
   cores = 1,
-  overwrite = FALSE
+  overwrite = FALSE,
+  haveSignatures = TRUE
 )
 }
 \arguments{
