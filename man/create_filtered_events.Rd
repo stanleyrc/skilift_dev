@@ -11,7 +11,7 @@ create_filtered_events(
   out_file,
   temp_fix = FALSE,
   return_table = FALSE,
-  in_heme_mode = FALSE
+  cohort_type = "paired"
 )
 }
 \arguments{
