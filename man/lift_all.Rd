@@ -8,7 +8,7 @@ lift_all(
   cohort,
   output_data_dir,
   cores = 1,
-  settings = NULL,
+  settings = Skilift:::internal_settings_path,
   max_cn = 100,
   annotations = NULL,
   coverage_field = "foreground",

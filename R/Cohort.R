@@ -22,6 +22,9 @@ Cohort <- R6Class("Cohort",
     #' one of c("paired", "heme", "tumor_only")
     cohort_type = NULL,
 
+    #' @field character
+    nextflow_results_path = NULL,
+
     #' @description
     #' Initialize a new Cohort object
     #' @param x Either a data.table or path to pipeline output directory
@@ -34,6 +37,7 @@ Cohort <- R6Class("Cohort",
       if (!cohort_type %in% default_cohort_types) {
         stop("cohort_type must be one of: ",  paste(default_cohort_types, collapse = ", "))
       }
+      self$cohort_type = cohort_type
       
       # Merge user-provided mapping with default mapping
       default_col_mapping = Skilift::default_col_mapping
@@ -53,12 +57,7 @@ Cohort <- R6Class("Cohort",
           }
         }
       }
-
-      # self$unified_map = private$unify_colmap_nfmap(
-      #   default_col_mapping,
-      #   path_patterns
-      # )
-
+      
       self$path_patterns = path_patterns
       
       self$cohort_cols_to_x_cols <- default_col_mapping
@@ -66,6 +65,7 @@ Cohort <- R6Class("Cohort",
       
       if (is.character(x) && length(x) == 1) {
         self$inputs <- private$construct_from_path(x)
+        self$nextflow_results_path = x
       } else if (is.data.table(x)) {
         self$inputs <- private$construct_from_datatable(x)
       } else {
@@ -557,7 +557,19 @@ deparse1 = function(expr, collapse = " ", width.cutoff = 500L, ...) {
     tbli = tblj[i,,with = with]
   }
   # obj_out$inputs = tbli
-  obj_out = Skilift::Cohort$new(x = data.table(), reference_name = obj$reference_name)
+  suppressWarnings({
+    obj_out = Skilift::Cohort$new(
+      x = data.table()
+    )
+  })
+  attributes_to_copy = c(
+    "reference_name",
+    "cohort_type",
+    "nextflow_results_path"
+  )
+  for (attribute in attributes_to_copy) {
+    obj_out[[attribute]] = obj[[attribute]]
+  }
   obj_out$inputs = tbli[]
   invisible(obj_out$inputs[])
   return(obj_out)

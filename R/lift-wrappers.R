@@ -91,7 +91,7 @@ lift_all <- function(
   cohort,
   output_data_dir,
   cores = 1,
-  settings = NULL,
+  settings = Skilift:::internal_settings_path,
   max_cn = 100,
   annotations = NULL,
   coverage_field = "foreground",
@@ -100,6 +100,7 @@ lift_all <- function(
   node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
   field = "total_copies",
   genome_length = c(1:22, "X", "Y"),
+  path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
   ...
 ) {
   
@@ -115,10 +116,22 @@ lift_all <- function(
     dir.create(output_data_dir, recursive = TRUE)
   }
 
+  if (!is.null(cohort$nextflow_results_path)) {
+    oncotable_dir = file.path(cohort$nextflow_results_path, "oncotable")
+  } else {
+    oncotable_dir = file.path(output_data_dir, "oncotable")
+    warning("Oncotable outputs will be placed in: ", oncotable_dir)
+  }
   
+
+  message("Uploading in ", cohort$cohort_type, " mode")
+
   if (cohort$cohort_type == "paired") {
     lift_paired(
-      cohort = cohort, output_data_dir = output_data_dir,  cores = cores,
+      cohort = cohort, 
+      output_data_dir = output_data_dir,  
+      oncotable_dir = oncotable_dir,
+      cores = cores,
       settings = settings,
       max_cn = max_cn,
       annotations = annotations,
@@ -132,7 +145,10 @@ lift_all <- function(
     )
   } else if (cohort$cohort_type == "heme") {
     lift_heme(
-      cohort = cohort, output_data_dir = output_data_dir,  cores = cores,
+      cohort = cohort, 
+      output_data_dir = output_data_dir,  
+      oncotable_dir = oncotable_dir,
+      cores = cores,
       settings = settings,
       max_cn = max_cn,
       annotations = annotations,
@@ -146,7 +162,10 @@ lift_all <- function(
     )
   } else if (cohort$cohort_type == "tumor_only") {
     lift_tumor_only(
-      cohort = cohort, output_data_dir = output_data_dir,  cores = cores,
+      cohort = cohort, 
+      output_data_dir = output_data_dir,  
+      oncotable_dir = oncotable_dir,
+      cores = cores,
       settings = settings,
       max_cn = max_cn,
       annotations = annotations,
@@ -158,6 +177,11 @@ lift_all <- function(
       genome_length = genome_length,
       ... = ...
     )
+  }
+
+  datafiles_json_path = file.path(dirname(output_data_dir), "datafiles.json")
+  if (!file.exists(datafiles_json_path)) {
+    warning("Creating datafiles.json directory")
   }
 }
 
@@ -173,7 +197,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       settings = settings,
       is_allelic = TRUE,
       max_cn = max_cn,
-      annotations = annotations
+      annotations = annotations,
     )
   }
   
@@ -219,11 +243,8 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
   } else if (has_required_columns(cohort, Skilift:::required_columns$oncotable, any = TRUE)) {
     cohort <- create_oncotable(
       cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      amp_thresh_multiplier = amp_thresh_multiplier,
-      gencode = gencode,
-      cytoband = cytoband,
+      outdir = oncotable_dir,
+      cores = cores
     )
 
     lift_filtered_events(
@@ -300,6 +321,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
 }
 
 lift_heme = function(cohort, output_data_dir, ...) {
+  list2env(list(...), envir = environment())
 
   if (has_required_columns(cohort, Skilift:::required_columns$allelic_copy_number_graph)) {
     lift_copy_number_graph(
@@ -355,11 +377,8 @@ lift_heme = function(cohort, output_data_dir, ...) {
   } else if (has_required_columns(cohort, Skilift:::required_columns$oncotable, any = TRUE)) {
     cohort <- create_oncotable(
       cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      amp_thresh_multiplier = amp_thresh_multiplier,
-      gencode = gencode,
-      cytoband = cytoband,
+      outdir = oncotable_dir,
+      cores = cores
     )
 
     lift_filtered_events(
@@ -426,15 +445,15 @@ lift_heme = function(cohort, output_data_dir, ...) {
   
 
   if (has_required_columns(cohort, Skilift:::required_columns$karyotype)) {
-    .NotYetImplemented()
+    warning("not implemented yet")
   }
 
   if (has_required_columns(cohort, Skilift:::required_columns$aggregated_events)) {
-    .NotYetImplemented()
+    warning("not implemented yet")
   }
 
   if (has_required_columns(cohort, Skilift:::required_columns$highlighted_events)) {
-    .NotYetImplemented()
+    warning("not implemented yet")
   }
 
   
@@ -496,11 +515,8 @@ lift_paired = function(cohort, output_data_dir, ...) {
   } else if (has_required_columns(cohort, Skilift:::required_columns$oncotable, any = TRUE)) {
     cohort <- create_oncotable(
       cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      amp_thresh_multiplier = amp_thresh_multiplier,
-      gencode = gencode,
-      cytoband = cytoband,
+      outdir = oncotable_dir,
+      cores = cores
     )
 
     lift_filtered_events(
