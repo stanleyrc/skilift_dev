@@ -29,7 +29,10 @@ process_gencode = function(gencode = NULL){
 #' @author Kevin Hadi
 process_cytoband = function(cyto = NULL, coarse=FALSE) {
   if (is.null(cyto)) {
-    stop('cytoband file must be provided')
+    cyto = system.file("extdata", "data", "cytoband.rds", package = "Skilift")
+    warning('Using default cytoband, hg19')
+    cyto = readRDS(cyto)
+    return(cyto)
   } else if (is.character(cyto)) {
     if (grepl(".rds$", cyto)) {
       cyto = readRDS(cyto)
