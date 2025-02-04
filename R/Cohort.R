@@ -12,65 +12,57 @@ Cohort <- R6Class("Cohort",
     #' @field cohort_cols_to_x_cols mapping of cohort columns to possible input columns
     cohort_cols_to_x_cols = NULL,
 
+    #' @field unified list of cohort column names and nf-casereport map
+    unified_map = NULL,
+
+    #' @field unified list of cohort column names and nf-casereport map
+    path_patterns = NULL,
+
+    #' @field enum
+    #' one of c("paired", "heme", "tumor_only")
+    cohort_type = NULL,
+
     #' @description
     #' Initialize a new Cohort object
     #' @param x Either a data.table or path to pipeline output directory
     #' @param reference_name character string specifying genome reference
     #' @param col_mapping Optional list mapping cohort columns to possible input columns
-    initialize = function(x, reference_name = "hg19", col_mapping = NULL) {
+    initialize = function(x, reference_name = "hg19", col_mapping = NULL, path_patterns = Skilift::nf_path_patterns, cohort_type = "paired") {
       self$reference_name <- reference_name
-      
-      default_col_mapping <- list(
-        pair = c("pair", "patient_id", "pair_id", "sample"),
-        tumor_type = c("tumor_type"),
-        disease = c("disease"),
-        primary_site = c("primary_site"),
-        inferred_sex = c("inferred_sex"),
-        structural_variants = c("structural_variants", "gridss_somatic", "gridss_sv", "svaba_sv", "sv", "svs"),
-        tumor_coverage = c("tumor_coverage", "dryclean_tumor", "tumor_dryclean_cov"),
-        somatic_snvs = c("somatic_snvs", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf"),
-        germline_snvs = c("germline_snvs", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
-        het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
-        somatic_snv_cn = c("somatic_snv_cn", "multiplicity"),
-        germline_snv_cn = c("germline_snv_cn", "germline_multiplicity"),
-        somatic_variant_annotations = c("somatic_variant_annotations", "annotated_bcf"),
-        germline_variant_annotations = c("germline_variant_annotations", "annotated_vcf_germline"),
-        oncokb_snv = c("oncokb_snv", "oncokb_maf", "maf"),
-        oncokb_cna = c("oncokb_cna", "cna"),
-        oncokb_fusions = c("oncokb_fusions", "oncokb_fusion", "fusion_maf"),
-        jabba_gg = c("jabba_gg", "jabba_simple", "jabba_rds", "jabba_simple_gg"),
-        karyograph = c("karyograph"),
-        balanced_jabba_gg = c("balanced_jabba_gg", "non_integer_balance", "balanced_gg"),
-        events = c("events", "complex"),
-        fusions = c("fusions"),
-        allelic_jabba_gg = c("allelic_jabba_gg", "lp_phased_balance", "allelic_gg"),
-        activities_sbs_signatures = c("activities_sbs_signatures", "sbs_activities"),
-        matrix_sbs_signatures = c("matrix_sbs_signatures", "sbs_matrix"),
-        decomposed_sbs_signatures = c("decomposed_sbs_signatures", "sbs_decomposed"),
-        activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
-        matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
-        decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
-        hrdetect = c("hrdetect", "hrd"),
-        oncotable = c("oncotable"),
-        estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
-        alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
-        insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
-        wgs_metrics = c("wgs_metrics", "wgs_stats")
-      )
+
+      default_cohort_types = c("paired", "heme", "tumor_only")
+      if (!cohort_type %in% default_cohort_types) {
+        stop("cohort_type must be one of: ",  paste(default_cohort_types, collapse = ", "))
+      }
       
       # Merge user-provided mapping with default mapping
-      if (!is.null(col_mapping)) {
+      default_col_mapping = Skilift::default_col_mapping
+      if (!is.null(col_mapping)) {        
         for (col_name in names(col_mapping)) {
+          col_mapping
           if (col_name %in% names(default_col_mapping)) {
             # col_mapping goes first to override default_mapping
-            default_col_mapping[[col_name]] <- unique(c(col_mapping[[col_name]], default_col_mapping[[col_name]]))
+            default_col_mapping[[col_name]] <- unique(
+              c(
+                col_mapping[[col_name]], 
+                default_col_mapping[[col_name]]
+              )
+            )
           } else {
             default_col_mapping[[col_name]] <- col_mapping[[col_name]]
           }
         }
       }
+
+      # self$unified_map = private$unify_colmap_nfmap(
+      #   default_col_mapping,
+      #   path_patterns
+      # )
+
+      self$path_patterns = path_patterns
       
       self$cohort_cols_to_x_cols <- default_col_mapping
+
       
       if (is.character(x) && length(x) == 1) {
         self$inputs <- private$construct_from_path(x)
@@ -176,9 +168,11 @@ Cohort <- R6Class("Cohort",
       # Get all file paths recursively
       pipeline_output_paths <- list.files(pipeline_outdir, recursive = TRUE, full.names = TRUE)
       
+      
       outputs <- parse_pipeline_paths(
         pipeline_output_paths,
-        initial_dt = sample_metadata
+        initial_dt = sample_metadata,
+        path_patterns = self$path_patterns
       )
       
       if (nrow(outputs) == 0) {
@@ -203,22 +197,25 @@ Cohort <- R6Class("Cohort",
       launchdir = unique(parsed_meta$launchdir)
       launchdir = launchdir[nzchar(launchdir)]
 
-      unique_patients = Reduce(union, lapply(samplesheets, function(x) fread(x)$patient))
+      # unique_patients = Reduce(union, lapply(samplesheets, function(x) fread(x)$patient))
+      
+      samplesheets = samplesheets[file.exists(samplesheets)]
       samplesheet = data.table::rbindlist(lapply(samplesheets, fread), fill = TRUE)
 
       metadata <- data.table(
         pair = samplesheet$patient,
+        sample = samplesheet$sample,
+        status = samplesheet$status,
+        sex = samplesheet$sex,
         tumor_type = samplesheet$tumor_type,
         disease = samplesheet$disease,
-        primary_site = samplesheet$primary_site,
-        inferred_sex = samplesheet$sex
+        primary_site = samplesheet$primary_site
       )
       
       # remove duplicates
       metadata <- unique(metadata)
+
       return(metadata)
-      
-      browser()
 
       # Read pipeline report
       report_lines <- readLines(report_path)
@@ -233,7 +230,6 @@ Cohort <- R6Class("Cohort",
       }
 
       # Clean up paths
-      browser()
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
       samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
       samplesheet_filename <- gsub("^\\./", "", samplesheet_filename)
@@ -320,7 +316,18 @@ Cohort <- R6Class("Cohort",
       stop("Method not implemented yet")
     }
   )
+  ,
+  active = list()
 )
+
+
+#' Default nf_modes for Cohort
+#' 
+#' Lorem ipsem
+#'
+#' Lorem Ipsem
+#'@export
+
 
 #' Expected nf-casereport patterns
 #' 
@@ -334,16 +341,24 @@ Cohort <- R6Class("Cohort",
 nf_path_patterns <- list(
   balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
   tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
+  fragcounter_tumor_coverage = "fragcounter_tumor/.*/cov.rds$",
+  cbs_seg = "cbs/.*(?<!n)seg.rds$",
+  cbs_cov = "cbs/.*cov.rds$",
   het_pileups = "(hetpileups|amber)/.*/sites.txt$",
+  amber_baf = "amber/.*amber.baf.tsv.gz",
+  purple_solution = "purple/.*purple.purity.range.tsv",
   jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
   events = "events/.*/complex.rds$",
   fusions = "fusions/.*/fusions.rds$",
-  structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$", "tumor_only_junction_filter/.*/.*somatic.filtered.sv.rds$", "gridss.*/.*.gridss.filtered.vcf.gz$"),
+  structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$",  "tumor_only_junction_filter/.*/.*somatic.filtered.sv.rds$"),
+  structural_variants_unfiltered = "gridss.*/.*.gridss.filtered.vcf.gz$",
   karyograph = "jabba/.*/karyograph.rds$",
   allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
-  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*sage.somatic.vcf.gz$"),
+  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$"),
+  somatic_snvs_unfiltered = c("sage/somatic/.*/.*sage.somatic.vcf.gz$"),
   somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
-  somatic_snv_cn = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
+  multiplicity = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
+  ## discard for heme/tumor-only
   activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
   matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
   decomposed_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/Decomposed_MutationType_Probabilities*.txt",
@@ -351,11 +366,98 @@ nf_path_patterns <- list(
   matrix_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/ID/sigmat_results.ID83.all",
   decomposed_indel_signatures = "signatures/sigprofilerassignment/somatic/.*/indel_results/.*/Decomposed_MutationType_Probabilities.txt",
   hrdetect = "hrdetect/.*/hrdetect_results.rds",
+  ## ^^ discard for heme/tumor-only
   estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
   alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
   insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
   wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
 )
+
+#' Default column mappings
+#' 
+#' Defines naming convention cohort inputs table
+#' 
+#' This variable contains the possible regex patterns 
+#' from an input data.table with columns corresponding to processed data.
+#' You can output the default template to modify it using
+#' base::dput(Skilift::default_col_mapping)
+#' @export
+default_col_mapping <- list(
+  pair = c("pair", "patient_id", "pair_id", "sample"),
+  tumor_type = c("tumor_type"),
+  disease = c("disease"),
+  primary_site = c("primary_site"),
+  inferred_sex = c("inferred_sex"),
+  structural_variants = c("structural_variants", "gridss_somatic", "gridss_sv", "svaba_sv", "sv", "svs"),
+  structural_variants_unfiltered = "structural_variants_unfiltered",
+  tumor_coverage = c("tumor_coverage", "dryclean_tumor", "tumor_dryclean_cov"),
+  somatic_snvs = c("somatic_snvs", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf"),
+  somatic_snvs_unfiltered = "somatic_snvs_unfiltered",
+  germline_snvs = c("germline_snvs", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
+  het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
+  multiplicity = c("multiplicity"),
+  germline_multiplicity = c("germline_multiplicity"),
+  somatic_variant_annotations = c("somatic_variant_annotations", "annotated_bcf"),
+  germline_variant_annotations = c("germline_variant_annotations", "annotated_vcf_germline"),
+  oncokb_snv = c("oncokb_snv", "oncokb_maf", "maf"),
+  oncokb_cna = c("oncokb_cna", "cna"),
+  oncokb_fusions = c("oncokb_fusions", "oncokb_fusion", "fusion_maf"),
+  jabba_gg = c("jabba_gg", "jabba_simple", "jabba_rds", "jabba_simple_gg"),
+  karyograph = c("karyograph"),
+  balanced_jabba_gg = c("balanced_jabba_gg", "non_integer_balance", "balanced_gg"),
+  events = c("events", "complex"),
+  fusions = c("fusions"),
+  allelic_jabba_gg = c("allelic_jabba_gg", "lp_phased_balance", "allelic_gg"),
+  activities_sbs_signatures = c("activities_sbs_signatures", "sbs_activities"),
+  matrix_sbs_signatures = c("matrix_sbs_signatures", "sbs_matrix"),
+  decomposed_sbs_signatures = c("decomposed_sbs_signatures", "sbs_decomposed"),
+  activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
+  matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
+  decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
+  hrdetect = c("hrdetect", "hrd"),
+  oncotable = c("oncotable"),
+  estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
+  alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
+  insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
+  wgs_metrics = c("wgs_metrics", "wgs_stats")
+)
+
+#' Create unified column and nf casereports map
+#' 
+#' Parse column mapping and nf-casereport path mapping
+#'
+#' Takes in a list of named column regex patterns and
+#' a list of named nf-casereport path regex patterns and
+#' coerces them into a unified object for later use.
+#' To be added as an active binding.
+#' Not exported.
+unify_colmap_nfmap = function(col_mapping, path_patterns) {
+  if (!inherits(col_mapping, "list") || !inherits(path_patterns, "list")) {
+    stop("col_mapping and path_patterns objects must be lists")
+  }
+  expected_map_fields = c(
+    "column_name_regex", 
+    "nf_path_regex"
+  )
+
+  unified_map = list()
+
+  all_col_names = union(
+    names(col_mapping),
+    names(path_patterns)
+  )
+
+  for (col in all_col_names) {
+    unified_map[[col]] = list(
+      column_name_regex = default_col_mapping[[col]],
+      nf_path_regex = nf_path_patterns[[col]]
+    )    
+  }
+  return(unified_map)
+}
+
+Cohort$private_methods[["unify_colmap_nfmap"]] = unify_colmap_nfmap
+      
 
 #' nf-casereport Parser
 #' 
@@ -389,14 +491,14 @@ parse_pipeline_paths = function(
   for (col_name in names(path_patterns)) {
     patterns = path_patterns[[col_name]]
     for (pattern in patterns) {
-      present_paths = grep(pattern, paths, value = TRUE)
+      present_paths = grep(pattern, paths, value = TRUE, perl = TRUE)
       if (!length(present_paths) > 0) next
       
       # Create mapping between paths and pairs
       dt <- data.table()
       for (pair in pairs_to_match) {
         # Find paths that contain this pair name
-        pair_paths <- grep(paste0("/", pair, "/"), present_paths, value = TRUE)
+        pair_paths <- grep(paste0("/", pair, "/"), present_paths, value = TRUE, perl = TRUE)
         if (length(pair_paths) > 0) {
           dt <- rbindlist(list(dt, data.table(
             pair = pair,
