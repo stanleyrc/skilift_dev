@@ -170,7 +170,7 @@ lift_multiplicity <- function(
     }
     
     # Determine which column to use based on is_germline
-    snv_cn_col <- if(is_germline) "germline_snv_cn" else "somatic_snv_cn"
+    snv_cn_col <- if(is_germline) "germline_multiplicity" else "multiplicity"
     
     # Validate required column exists
     if (!snv_cn_col %in% names(cohort$inputs)) {
