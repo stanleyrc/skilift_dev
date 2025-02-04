@@ -888,7 +888,7 @@ create_filtered_events <- function(
     out_file,
     temp_fix = FALSE,
     return_table = FALSE,
-    in_heme_mode = FALSE) {
+    cohort_type = "paired") {
 
     ot <- readRDS(oncotable)
 
@@ -983,7 +983,7 @@ create_filtered_events <- function(
       } else {
           res.final <- res.mut
       }
-      if (in_heme_mode) {
+      if (cohort_type == "heme") {
         res.final = select_heme_events(res.final)
       }
       write_json(res.final, out_file, pretty = TRUE)
@@ -1004,7 +1004,7 @@ create_filtered_events <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_filtered_events <- function(cohort, output_data_dir, cores = 1, in_heme_mode = FALSE) {
+lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1020,6 +1020,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, in_heme_mod
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
+    cohort_type = cohort$cohort_type
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
@@ -1039,7 +1040,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, in_heme_mod
                 out_file = out_file,
                 temp_fix = FALSE,
                 return_table = FALSE,
-                in_heme_mode = in_heme_mode
+                cohort_type = cohort_type
             )
             
         }, error = function(e) {
