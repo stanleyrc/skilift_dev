@@ -1,0 +1,1 @@
+saveRDS(data.table(jabba = c("simple1", "simple2")), "inst/extdata/test_data/jabba.simple.gg.rds")

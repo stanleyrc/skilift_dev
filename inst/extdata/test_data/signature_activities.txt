@@ -1,0 +1,9 @@
+SampleID Activity1 Activity2
+Sample1  0.5       0.3
+Sample2  0.4       0.6
+SampleID Activity1 Activity2
+Sample1  0.5       0.3
+Sample2  0.4       0.6
+SampleID Activity1 Activity2
+Sample1  0.5       0.3
+Sample2  0.4       0.6

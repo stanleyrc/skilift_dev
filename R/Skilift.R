@@ -1,5 +1,29 @@
 source("src/higlass_and_ggraph.R")  # import auxiliary functions for import datatables and granges bigwigs
 
+#' Global Variables
+empty_plot_default = data.table(
+    patient.id = character(),
+    sample = character(),
+    type = character(),
+    source = character(),
+    title = character(),
+    visible = logical(),
+    figure = character(),
+    tag = character(),
+    server = character(),
+    uuid = character(),
+    defaultChartType = character()
+)
+default_plot_types = vector("list", base::NCOL(empty_plot_default))
+names(default_plot_types) = names(empty_plot_default)
+jx = 1:NCOL(empty_plot_default)
+for (j in jx) {
+  na = NA
+  class(na) = class(empty_plot_default[[j]])
+  default_plot_types[[j]] = na
+}
+
+
 #' @title Skilift Object
 #'
 #' @description
@@ -91,9 +115,16 @@ Skilift <- R6Class("Skilift",
       }
 
       # Make sure all required paths exist
-      if (!dir.exists(self$datadir) || !file.exists(self$settings) || !file.exists(private$datafiles_json_path)) {
-        stop("datadir, settings, and datafiles.json must all exist")
+      if (
+        !dir.exists(self$datadir) 
+        || !file.exists(self$settings) 
+        # || !file.exists(private$datafiles_json_path) # unnecessary if empty json is being written later by default?
+        ) {
+        # stop("datadir, settings, and datafiles.json must all exist")
+        stop("datadir and settings must both exist")
       }
+      
+      self$plots = Skilift:::empty_plot_default
 
       # Load the JSON data
       self$load_json(private$datafiles_json_path)
@@ -137,19 +168,8 @@ Skilift <- R6Class("Skilift",
                                     description = list())
         setnames(self$metadata, old = names(self$metadata), new = c("patient.id", "ref", "description")) # Rename columns
 
-        self$plots <- data.table(
-                                 patient.id = character(),
-                                 sample = character(),
-                                 type = character(),
-                                 source = character(),
-                                 title = character(),
-                                 visible = logical(),
-                                 figure = character(),
-                                 tag = character(),
-                                 server = character(),
-                                 uuid = character(),
-                                 defaultChartType = character()
-        )
+        ## global variable defined above
+        self$plots <- Skilift:::empty_plot_default
         self$validate()
 
         return(invisible())
@@ -184,6 +204,8 @@ Skilift <- R6Class("Skilift",
                                     })
 
       self$plots <- rbindlist(plots_list, fill = TRUE)
+      self$fill_plots_names()
+
       self$validate()
     },
 
@@ -296,7 +318,6 @@ Skilift <- R6Class("Skilift",
     #' @return NULL.
     add_plots = function(plots_to_add, cores=2) {
       new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
-
       if (!("overwrite" %in% tolower(names(new_plots)))) {
         new_plots[, overwrite := FALSE]
       }
@@ -350,7 +371,7 @@ Skilift <- R6Class("Skilift",
         if (is(gobject, "GRanges")) {
           if (plot$type == "mutations") {
             plot$source = plot$source #' default to mutations.json but allow override via source for mutations
-            plot$x = plot$x
+            # plot$x = plot$x # if this is to unlist the object - maybe do that explicitly?
           } else {
             plot <- handle_granges(plot)
           }
@@ -509,13 +530,19 @@ Skilift <- R6Class("Skilift",
           type_vector[i] <- plot$type
         }
         if (!is.null(plot$x)) {
-          x_vector[[i]] <- plot$x
+          xval <- plot$x
+          while (is.list(xval)) xval = xval[[1]]
+          x_vector[[i]] <- xval
         }
       } # Break the loop into three pieces to parallize the plot creation
 
       new_plots$source <- source_vector
       new_plots$type <- type_vector
-      new_plots$x <- x_vector
+      ## Need to wrap in list due to odd data.table behavior
+      ## If new_plots is nrow == 1, directly assigning will unlist x
+      ## This will work regardless of list length
+      new_plots$x <- list(x_vector) # 
+      
       print('new_plots')
       print(new_plots)
 
@@ -599,28 +626,36 @@ Skilift <- R6Class("Skilift",
       
       if (!any(is.null(plot$source))) {
                                         # Use mclapply to create the plot files in parallel
-        new_plots <- parallel::mclapply(seq_len(nrow(new_plots)), function(i) {
-                                          plot <- new_plots[i, ]
-                                          if (plot$type == "bigwig") {
-                                            uuid <- create_plot_file(plot)
-                                            if (!(is.na(uuid) || is.null(uuid))) {
-                                              plot$server <- gsub("/$", "", self$higlass_metadata$endpoint)
-                                              plot$uuid <- uuid
-                                              plot$source <- NULL
-                                            } else {
-                                              message("No uuid for plot, skipping adding to plots table")
-                                            }
-                                          } else {
-                                            create_plot_file(plot)
-                                          }
-                                          plot  # Return the modified plot
-
+        new_plots <- parallel::mclapply(
+          seq_len(nrow(new_plots)), 
+          function(i) {
+            plot <- new_plots[i, ]
+            is_x_empty = is.list(plot$x) && base::lengths(x) == 0
+            source_file_path = file.path(self$datadir, plot$patient_id, plot$source)
+            # don't do anything if plot already exists
+            if (is_x_empty && file.exists(source_file_path)) {
+              return(plot)
+            }
+            if (plot$type == "bigwig") {
+              uuid <- create_plot_file(plot)
+              if (!(is.na(uuid) || is.null(uuid))) {
+                plot$server <- gsub("/$", "", self$higlass_metadata$endpoint)
+                plot$uuid <- uuid
+                plot$source <- NULL
+              } else {
+                message("No uuid for plot, skipping adding to plots table")
+              }
+            } else {
+              create_plot_file(plot)
+            }
+            return(plot)  # Return the modified plot
         }, mc.cores = cores)
 
         # Assign the updated new_plots object
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
-                                        #change allelic & mutations to genome for type to render in pgv
+
+      # change allelic & mutations to genome for type to render in pgv
       new_plots[type %in% c("allelic", "mutations", "ppfit"), type := "genome"]
       # Last piece of the loop
       for (i in seq_len(nrow(new_plots))) {
@@ -662,8 +697,429 @@ Skilift <- R6Class("Skilift",
         }
       }
 
+      
+      plot_colnames = names(self$plots)
+      default_plot_types = Skilift:::default_plot_types # global variable in namespace
+      jx = NROW(default_plot_types)
+      for (j in jx) {
+        nm = names(default_plot_types[j])
+        if (!nm %in% plot_colnames) {
+          # message("adding missing plot column name: ", nm)
+          self$plots[[nm]] = default_plot_types[[j]]
+        }
+
+          
+      }
+
       self$update_datafiles_json()
     },
+
+    fill_plots_names = function() {
+      plot_colnames = names(self$plots)
+      default_plot_types = Skilift:::default_plot_types # global variable in namespace
+      jx = seq_len(NROW(default_plot_types))
+      for (j in jx) {
+        nm = names(default_plot_types[j])
+        if (!nm %in% plot_colnames) {
+          # message("adding missing plot column name: ", nm)
+          self$plots[[nm]] = default_plot_types[[j]]
+        }          
+      }
+    }
+    ,
+
+    add_plots__DEV = function(plots_to_add, cores=2) {
+      new_plots <- data.table::setDT(plots_to_add) # Convert to data.table if required
+      if (!("overwrite" %in% tolower(names(new_plots)))) {
+        new_plots[, overwrite := FALSE]
+      }
+      # Check if required columns exist
+      required_columns <- c("patient.id", "x")
+      empty <- data.table::data.table(
+        patient.id = character(),
+        x = list(), # either a list of the [server, uuid] or an object (GRanges, gWalk, gGraph, JSON), or a filepath
+        stringsAsFactors = FALSE
+        )
+      
+      # intializing empty defaults
+      if (is.null(new_plots$source)) new_plots$source = NA_character_
+      if (is.null(new_plots$type)) new_plots$type = NA_character_
+      ## Need to wrap in list due to odd data.table behavior
+      ## If new_plots is nrow == 1, directly assigning will unlist x
+      ## This will work regardless of list length
+      if (is.null(new_plots$x)) new_plots$x = list(x_vector)
+      new_plots$is_valid = TRUE ## assume valid until proven not 
+
+
+      if (!all(required_columns %in% names(new_plots))) {
+        warning("Required columns not found, creating an empty data.table (called 'empty') with required columns instead...")
+        message("(All plots must have an 'x' column containing either list(list(server=, uuid=)) or an object (GRanges, gWalk, gGraph, JSON), or a filepath to a valid RDS data file)")
+
+        return(empty)
+      }
+
+      if (any(!new_plots$patient.id %in% self$metadata$patient.id)) {
+        if (!("ref" %in% names(new_plots)) | any(is.na(new_plots$ref)) | any(is.null(new_plots$ref))) {
+          warning("You are trying to add a new patient without specifying its reference. Make sure all references are non-null")
+          message("Creating an empty data.table (called 'empty') with required columns instead...")
+          empty$ref <- character()
+          return(empty)
+        }
+      }
+
+      handle_granges <- function(plot) {
+        if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
+          warning("Plot type must be specified by the user for GRanges objects and should be either type='scatterplot' or type='bigwig'. This plot will be skipped.")
+          return(NULL)
+        }
+        if (plot$type == "scatterplot") {
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- 'coverage.arrow'
+          }
+          if (is.null(plot$field)) {
+            warning("The column name in GRanges containing scores for scatterplot was not specified, using 'foreground' as default.")
+            plot$field <- "foreground" # Use default value
+          }
+        } else if (plot$type == "bigwig") {
+          timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
+          unique_filename <- paste0(timestamp, '.bw')
+          plot$source  <- unique_filename
+        }
+        return(plot)
+      }
+
+      handle_gobject = function(gobject, plot) {
+        # GRanges
+        if (is(gobject, "GRanges")) {
+          if (plot$type == "mutations") {
+            plot$source = plot$source #' default to mutations.json but allow override via source for mutations
+            # plot$x = plot$x # if this is to unlist the object - maybe do that explicitly?
+          } else {
+            plot <- handle_granges(plot)
+          }
+        # gGraph
+        } else if (is(gobject, "gGraph")) {
+          if (is.null(plot$type)) {
+            warning("Plot type for gGraph has not been specified, using default type: 'genome'. If plotting an allelic graph, ppfit, or mutations plot, specify type as 'allelic', 'ppfit', or 'mutations' respectively.")
+            plot$type <- 'genome'
+          }
+
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- switch(plot$type,
+            "genome" = 'genome.json',
+            "allelic" = 'allelic.json',
+            "ppfit" = 'ppfit.json',
+            "mutations" = 'mutations.json',
+            'genome.json') # default case
+          }
+        # gWalk
+        } else if (is(gobject, "gWalk")) {
+          plot$type <- 'walk'
+          if (!"source" %in% names(plot) || is.na(plot$source)) {
+            plot$source <- 'walks.json'
+          }
+        }
+        return(plot)
+      }
+
+      handle_gtrack = function(gtrack_obj, plot) {
+        gtrack_data <- gtrack_obj@data[[1]]
+        if (is.null(gtrack_data) || length(gtrack_data) == 0) {
+          warning("No data found in gTrack gRanges This plot will be skipped.")
+          return(NULL)
+        }
+
+        is_scatterplot = gtrack_obj$circles
+        is_barplot = gtrack_obj$bars
+        is_small_scatterplot = length(gtrack_data) <= 200000
+        is_bigwig = !is_small_scatterplot || is_barplot
+        is_ggraph = length(gtrack_obj@edges[[1]]) != 0
+
+        if (is_scatterplot) {
+          if (!"type" %in% names(plot) || is.na(plot$type) || !(plot$type %in% c("scatterplot", "bigwig"))) {
+            plot$type = is_bigwig ? "bigwig" : "scatterplot"
+            warning("Plot type not specified for gTrack scatterplot. Using default type based on number of ranges (<200k will produce an scatterplot arrow, otherwise a bigwig): ", plot$type, ". To override, specify type='scatterplot' or type='bigwig'.")
+          }
+          if (plot$type == "scatterplot") {
+            if (!"source" %in% names(plot) || is.na(plot$source)) {
+              plot$source <- 'coverage.arrow'
+            }
+            if (is.null(plot$field)) {
+              warning("The column name in GRanges containing scores for scatterplot was not specified, using 'foreground' as default.")
+              plot$field <- "foreground" # Use default value
+            }
+          } else if (plot$type == "bigwig") {
+            timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
+            unique_filename <- paste0(timestamp, '.bw')
+            plot$source  <- unique_filename
+          }
+        }
+
+        return(plot)
+      }
+
+      # Define the function to create plot files
+      create_plot_file <- function(plot, plot_index) {
+        tryCatch({
+          if (!is.null(plot$source)) {
+            plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
+
+            if (plot$type == "bigwig") {
+
+              # field contains the column name in GRanges that corresponds to bigwig scores
+              if (is.null(plot$field)) {
+                warning("The column name in GRanges containing scores for bigwig was not specified, using 'foreground' as default")
+                score_col_name <- "foreground" # Use default value
+              } else {
+                score_col_name <- plot$field
+              }
+
+              # Find ref chrom lengths with matching patient.id
+              settings_data <- jsonlite::fromJSON(self$settings)
+              chrom_lengths <- as.data.table(settings_data$coordinates$sets[[plot$ref]])[,.(chromosome,startPoint,endPoint)]
+              colnames(chrom_lengths) = c("seqnames","start","end")
+              chrom_lengths[!grepl("chr",seqnames), seqnames := paste0("chr",seqnames)] # weird fix because hg38_chr does not have chr on Y and M
+
+              if (is(plot$x[[1]], "GRanges")) {
+                bigwig_grange <- plot$x[[1]]
+              } else if (endsWith(plot$x, ".rds")) {
+                bigwig_grange <- readRDS(plot$x)
+              } else {
+                stop(message("Invalid file/object. File must be a valid GRanges or .rds file. Please check your extension and/or filetype."))
+              }
+
+              gr2bw(gr = bigwig_grange,
+                    output_filepath = plot_file,
+                    score_col_name = score_col_name,
+                    chrom_lengths = chrom_lengths
+              )
+
+              # Call upload_to_higlass function with parameters
+              uuid <- self$upload_to_higlass(patient.id = plot$patient.id,
+                                             datafile = plot_file,
+                                             filetype = "bigwig",
+                                             datatype = "vector",
+                                             name = plot$source,
+                                             coordSystem = plot$ref)
+
+              # Bigwig should be deleted after uploading
+              if (plot$overwrite && !is.null(uuid)) {
+                warning("Overwrite = TRUE: removing bigwig file after successful upload to higlass")
+                file.remove(plot_file)
+              }
+              return(uuid)
+            } else if (grepl("\\.json$", plot$x)) {
+                file.copy(plot$x, plot_file)
+            } else {
+                # Use the plot type to determine the conversion function to use
+                switch(plot$type,
+                "genome" = create_ggraph_json(plot, self$datadir, self$settings),
+                "allelic" = create_allelic_json(plot, self$datadir, self$settings),
+                "ppfit" = create_ppfit_genome_json(plot, self$datadir, self$settings),
+                "scatterplot" = create_cov_arrow(plot, self$datadir, self$settings),
+                "walk" = create_gwalk_json(plot, self$datadir, self$settings),
+                "mutations" = if(plot$subtype == "somatic"){
+                                create_somatic_json(plot, self$datadir, self$settings)
+                              } else if (plot$subtype == "germline") {
+                                create_germline_json(plot, self$datadir, self$settings)
+                              }
+              )
+            }
+          }
+        }, error = function(e) {
+            message("Error in creating plot file: ", e$message)
+            print(e)
+            traceback()
+          })
+      }
+
+
+      ix = seq_len(NROW(new_plots)) 
+      iterate_plot_table = function(i, new_plots) {
+        tryCatch({
+          plot <- data.table::copy(new_plots[i,])
+          patient_dir <- file.path(self$datadir, plot$patient.id)
+          is_x_empty = is.list(plot$x) && base::lengths(plot$x) == 0
+          source_full_path = NA_character_
+          if (!is.na(plot$source))
+            source_full_path = file.path(self$datadir, plot$patient.id, plot$source)
+          is_file_to_be_directly_uploaded = is_x_empty && file.exists(source_full_path)
+
+          if (!dir.exists(patient_dir)) {
+            warning(paste("Patient directory does not exist. Creating a directory for new patient: ", plot$patient.id))
+            dir.create(patient_dir)
+          }
+
+          is_plot_gtrack <- FALSE
+          is_plot_gobject <- FALSE
+          is_plot_higlass <- FALSE
+          is_plot_json <- FALSE
+          is_plot_rds <- FALSE
+
+          if (is(plot$x, "list")) {
+            is_plot_gtrack <- is(plot$x[[1]], "gTrack")
+            is_plot_gobject <- is(plot$x[[1]], "GRanges") || is(plot$x[[1]], "gGraph") || is(plot$x[[1]], "gWalk")
+            is_plot_higlass <- length(plot$x) == 2 && all(sapply(plot$x, is.character))
+          } else if (NROW(plot$x) > 0) {
+            is_plot_json <- file.exists(plot$x) && tools::file_ext(plot$x) == 'json'
+            is_plot_rds <- file.exists(plot$x) && tools::file_ext(plot$x) == 'rds'
+          }
+
+          # gTrack
+          if (is_plot_gtrack) {
+            plot <- handle_gtrack(plot$x[[1]], plot)
+            plot$x <- list(plot$x[[1]]@data)
+          # GRanges, gGraph, gWalk
+          } else if (is_plot_gobject) {
+            plot <- handle_gobject(plot$x[[1]], plot)
+          # higlass
+          } else if (is_plot_higlass) {
+            plot$type <- 'bigwig'
+            plot$server <- plot$x[[1]][[1]]
+            plot$uuid  <- plot$x[[1]][[2]]
+          # json
+          } else if (is_plot_json) {
+            if (!"type" %in% names(plot) || is.na(plot$type)) {
+              warning("Type must be specified by the user for JSON files. This plot will be skipped.")
+              next
+            } else {
+              if (!"source" %in% names(plot) || is.na(plot$source)) {
+                plot$source  <- basename(plot$x)
+              }
+            }
+          # rds
+          } else if (is_plot_rds) {
+            rds_object <- readRDS(plot$x)
+            if (is(rds_object, "gTrack")) {
+              plot <- handle_gtrack(rds_object, plot)
+            } else if (is(rds_object, "GRanges") || is(rds_object, "gGraph") || is(rds_object, "gWalk")) {
+              plot <- handle_gobject(rds_object, plot)
+            }
+          } else if (is_file_to_be_directly_uploaded) {
+            return(plot)
+          } else {
+            plot$is_valid = FALSE
+            offending = paste("Row", i, plot$patient.id, plot$source)
+            warning(offending, ": Invalid file/object. File must be a valid GRanges, gGraph, gWalk, gTrack, JSON, or .rds file. Please check your extension and/or filetype and make sure the file/object exists.")
+            return(plot)
+          }
+
+
+          # Check if source already exists, if so, increment
+          if (!is.na(plot$source)) {
+            if (plot$overwrite && file.exists(source_full_path)) {
+              warning("Existing source for plot will be overwritten.")
+            } else if (!plot$overwrite && file.exists(source_full_path)) {
+              base_name <- tools::file_path_sans_ext(plot$source)
+              ext <- tools::file_ext(plot$source)
+              counter <- 2
+              while (file.exists(file.path(self$datadir, plot$patient.id, paste0(base_name, counter, ".", ext)))) {
+                counter <- counter + 1
+              }
+              plot$source <- paste0(base_name, counter, ".", ext)
+            }
+          }
+
+          ## create plot file
+          if (plot$type == "bigwig") {
+            uuid <- create_plot_file(plot)
+            if (!(is.na(uuid) || is.null(uuid))) {
+              plot$server <- gsub("/$", "", self$higlass_metadata$endpoint)
+              plot$uuid <- uuid
+              plot$source <- NULL
+            } else {
+              message("No uuid for plot, skipping adding to plots table")
+            }
+          } else {
+            create_plot_file(plot)
+          }
+        }, error = function(e) {
+          message("Error in plot iteration: ", e$message)
+          print(e)
+          print(plot)
+          traceback()
+        })
+      }
+
+      lst_new_plots = mclapply(
+        X = seq_len(NROW(new_plots)), 
+        FUN = iterate_plot_table, 
+        new_plots = new_plots,
+        mc.cores = cores
+      )
+
+      new_plots = data.table::rbindlist(lst_new_plots,fill = TRUE)
+      new_plots[type %in% c("allelic", "mutations", "ppfit"), type := "genome"]
+      
+      is_na_source = is.na(new_plots$source)
+      source_full_path  <- ifelse(
+        !is_na_source,
+        file.path(self$datadir, new_plots$patient.id, new_plots$source),
+        NA_character_
+      )
+
+      is_source_path_present = file.exists(source_full_path)
+      non_existent_paths = source_full_path[!file.exists(source_full_path) & !is_na_source]
+      if (NROW(non_existent_paths) > 0) {
+        for (path in non_existent_paths) warning("File does not exist: ", path, " skipping adding to Skilift")
+      }
+      new_plots = new_plots[is_source_path_present, ]
+
+      common_columns <- intersect(names(new_plots), names(self$plots))
+      extended_data <- new_plots[, ..common_columns]
+
+      newplots_to_add = rbind(self$plots, extended_data, fill = TRUE)
+
+      is_duplicate_row = duplicated(newplots_to_add)
+      if (any(is_duplicate_row)) {
+        dup_rows = newplots_to_add[is_duplicate_row,]
+        for (i in seq_len(NROW(dup_rows))) {
+          warning("Row already in plots, skipping (plot file will still be overwritten if overwrite flag was set): ")
+          print(dup_rows[i,])
+        }
+      }
+
+      self$plots <- newplots_to_add[!is_duplicate_row,]
+
+      if (any(new_plots$patient.id %in% self$metadata$patient.id)) {
+        match_ix = base::match(new_plots$patient.id, self$metadata$patient.id)
+        is_matched = NROW(match_ix) > 0
+        if (is_matched && !is.null(new_plots$description) && any(!is.na(new_plots$description))) {
+          self$metadata[match_ix,"description"] = ifelse(
+            !is.na(new_plots$description),
+            new_plots$description,
+            self$metadata[match_ix,"description"]
+          )
+        }
+        if (is_matched && !is.null(new_plots$ref) && any(!is.na(new_plots$ref))) {
+          self$metadata[match_ix,"ref"] = ifelse(
+            !is.na(new_plots$ref),
+            new_plots$ref,
+            self$metadata[match_ix,"ref"]
+          )
+        }
+      } 
+
+      is_plot_new_patient = !new_plots$patient.id %in% self$metadata$patient.id
+      if (any(is_plot_new_patient)) {
+        new_plots_for_metadata = new_plots[is_plot_new_patient,]
+        new_metadata = data.frame(
+          patient.id = new_plots_for_metadata$patient.id, 
+          description = NA_character_, 
+          ref = new_plots_for_metadata$ref
+        )
+        if ("description" %in% colnames(new_plots)) {
+          new_metadata$description = new_plots_for_metadata$description
+        }
+        self$metadata <- rbind(self$metadata, new_metadata, fill = TRUE)
+      }
+      
+      
+      self$fill_plots_names()
+
+      self$update_datafiles_json()
+    }
+    ,
 
     #' @description
     #' Remove plots from the Skilift
@@ -784,21 +1240,23 @@ Skilift <- R6Class("Skilift",
         }
 
         # Check if all source files exist in proper directory and server is not null
-        missing_files <- self$plots[(is.na(server) | is.null(server)) & !file.exists(file.path(self$datadir, patient.id, source)), .(patient.id, source)]
+        # missing_files <- self$plots[(is.na(server) | is.null(server)) & !file.exists(file.path(self$datadir, patient.id, source)), .(patient.id, source)]
+        missing_files <- self$plots[is.na(server) & !file.exists(file.path(self$datadir, patient.id, source)), .(patient.id, source)]
+        
 
-        missing_servers <- self$plots[(is.na(source) | is.null(source)) & (is.na(server) | is.null(server) & (is.na(uuid) | is.null(uuid)))]
+        # missing_servers <- self$plots[(is.na(source) | is.null(source)) & (is.na(server) | is.null(server) & (is.na(uuid) | is.null(uuid)))]
+        missing_servers <- self$plots[is.na(source) & is.na(server) & is.na(uuid)]
+
         # All plots must have a patient.id and either a source or server and uuid
         missing_values <- self$plots[
-                                     (is.na(patient.id) | is.null(patient.id)) |
-                                       (
-                                        (is.na(source) | is.null(source)) &
-                                          (
-                                           (is.na(server) | is.null(server)) &
-                                             (is.na(uuid) | is.null(uuid))
-                                          )
-                                        ),
-                .SDcols = c("patient.id", "source", "server", "uuid"),
-                ]
+          is.na(patient.id) |
+          (
+            is.na(source) & 
+            is.na(server) &
+            is.na(uuid)
+          ),
+          ,.SDcols = c("patient.id", "source", "server", "uuid")
+        ]
 
         # Construct error message and table with missing source and missing values
         error_message <- ""
