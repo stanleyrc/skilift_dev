@@ -25,6 +25,23 @@ create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copi
     setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
     mutations.dt <- mutations.dt[!is.na(get(field)), ]
     mutations.dt[start == end, end := end + 1]
+    mutations.dt[, vaf := round(vaf, 3)] ##### ROUND for frontend legibility
+    mutations.dt[, ONCOGENIC := fcase(
+                     is.na(ONCOGENIC), "",
+                     grepl("Unknown", ONCOGENIC), "", ##necessitated by frontend implementation
+                     default = ONCOGENIC
+                   )]
+    mutations.dt[, MUTATION_EFFECT := fcase(
+                     is.na(MUTATION_EFFECT), "",
+                     grepl("Unknown", MUTATION_EFFECT), "", ##extraneous string
+                     default = MUTATION_EFFECT
+                   )]
+    mutations.dt[, HIGHEST_LEVEL := fcase(
+                     HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
+                     default = gsub("LEVEL_", "", HIGHEST_LEVEL) ##extraneous string
+                   )]
+
+    mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
     
     if ("strand" %in% colnames(mutations.dt)) {
         mutations.dt[, strand := NULL]
@@ -33,23 +50,27 @@ create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copi
     # Create annotation string
     mut_ann <- ""
     annotation_fields <- list(
-        annotation = "Type",
-        gene = "Gene",
-        variant.c = "Variant",
-        variant.p = "Protein_variant",
-        variant.g = "Genomic_variant",
-        vaf = "VAF",
-        alt = "Alt_count",
-        ref = "Ref_count",
-        normal.alt = "Normal_alt_count",
-        normal.ref = "Normal_ref_count",
-        FILTER = "Filter"
+      Variant_Classification = "Type",
+      Gene = "Gene",
+      HGVSc = "Variant",
+      HGVSp = "Protein_variant",
+      variant.g = "Genomic_variant",
+      vaf = "VAF",
+      alt = "Alt_count",
+      ref = "Ref_count",
+      normal.alt = "Normal_alt_count",
+      normal.ref = "Normal_ref_count",
+      FILTER = "Filter",
+      ONCOGENIC = "Oncogenicity",
+      MUTATION_EFFECT = "Effect",
+      HIGHEST_LEVEL = "Level"
     )
-
+    
     for (col in names(annotation_fields)) {
-        if (col %in% colnames(mutations.dt)) {
-            mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
-        }
+      if (col %in% colnames(mutations.dt)) {
+        print(col)
+        mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
+      }
     }
     
     mutations.dt[, annotation := mut_ann]
@@ -112,7 +133,7 @@ multiplicity_to_intervals <- function(
 
     # Create graph object and convert to data.table
     jab <- gG(nodes = gr)
-    node_cols <- c("snode.id", "y_value", node_metadata)
+    node_cols <- c("snode.id", "y_value", "annotation")###node_metadata)
     node_dt <- gr2dt(jab$nodes$gr[, node_cols])
 
     # Create final node data
@@ -156,9 +177,9 @@ multiplicity_to_intervals <- function(
 lift_multiplicity <- function(
     cohort,
     is_germline = FALSE,
-    node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+    node_metadata = c("Variant_Classification","Gene", "HGVSc", "HGVSp","variant.g","vaf","alt","ref","normal.alt","normal.ref","FILTER","ONCOGENIC","MUTATION_EFFECT","HIGHEST_LEVEL"),
     output_data_dir,
-    field = "total_copies",
+    field = "altered_copies",
     cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
@@ -182,6 +203,8 @@ lift_multiplicity <- function(
     if (is.null(reference_name)) {
         stop("Reference name not found in cohort object")
     }
+
+    #browser()
     
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
@@ -196,8 +219,8 @@ lift_multiplicity <- function(
         out_file <- file.path(
             pair_dir,
             if(is_germline) "germline_mutations.json" else "mutations.json"
-        )
-        
+        ) %>% normalizePath
+
         tryCatch({
             # Create multiplicity data.table
             mult_dt <- create_multiplicity(
@@ -205,6 +228,8 @@ lift_multiplicity <- function(
                 is_germline = is_germline,
                 field = field
             )
+
+            #browser()
             
             # Convert to intervals
             intervals_list <- multiplicity_to_intervals(
@@ -213,7 +238,8 @@ lift_multiplicity <- function(
                 node_metadata = node_metadata,
                 field = field
             )
-            
+
+            #browser()
             # Write to JSON
             jsonlite::write_json(
                 intervals_list,
@@ -222,6 +248,8 @@ lift_multiplicity <- function(
                 auto_unbox = TRUE,
                 digits = 4
             )
+
+            message(sprintf("Successfully processed %s, saved at %s", row$pair, out_file))
             
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
