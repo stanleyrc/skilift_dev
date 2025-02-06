@@ -3,7 +3,7 @@
 \docType{data}
 \name{nf_path_patterns}
 \alias{nf_path_patterns}
-\title{Default nf_modes for Cohort}
+\title{Expected nf-casereport patterns}
 \format{
 An object of class \code{list} of length 30.
 }
@@ -11,9 +11,12 @@ An object of class \code{list} of length 30.
 nf_path_patterns
 }
 \description{
-Lorem ipsem
+Encoding the expected path variables
 }
 \details{
-Lorem Ipsem
+This variable contains the paths to be expected from
+the nf-casereport directory structure. 
+You can output the default template to modify it using
+base::dput(Skilift::nf_path_patterns)
 }
 \keyword{datasets}
