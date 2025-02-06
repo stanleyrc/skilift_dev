@@ -10,7 +10,7 @@ lift_denoised_coverage(
   cores = 1,
   coverage_field = "foreground",
   color_field = NULL,
-  bin.width = NA_integer_
+  bin.width = 10000
 )
 }
 \arguments{
