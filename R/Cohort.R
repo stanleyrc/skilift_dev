@@ -321,14 +321,6 @@ Cohort <- R6Class("Cohort",
 )
 
 
-#' Default nf_modes for Cohort
-#' 
-#' Lorem ipsem
-#'
-#' Lorem Ipsem
-#'@export
-
-
 #' Expected nf-casereport patterns
 #' 
 #' Encoding the expected path variables
@@ -534,6 +526,14 @@ deparse1 = function(expr, collapse = " ", width.cutoff = 500L, ...) {
     paste(deparse(expr, width.cutoff, ...), collapse = collapse)
 }
 
+cohort_attributes = c(
+  "inputs",
+  "reference_name",
+  "cohort_type",
+  "nextflow_results_path"
+)
+
+
 #' Subset Cohort object
 #'
 #' Overloads subset operator for Cohort
@@ -562,11 +562,8 @@ deparse1 = function(expr, collapse = " ", width.cutoff = 500L, ...) {
       x = data.table()
     )
   })
-  attributes_to_copy = c(
-    "reference_name",
-    "cohort_type",
-    "nextflow_results_path"
-  )
+  attributes_to_copy = Skilift:::cohort_attributes
+  attributes_to_copy = attributes_to_copy[!attributes_to_copy %in% "inputs"]
   for (attribute in attributes_to_copy) {
     obj_out[[attribute]] = obj[[attribute]]
   }
@@ -627,3 +624,19 @@ read_nf_log = function(nflog_path, max_lines = 1000000L) {
 
 ## Assign new methods
 Cohort$private_methods[["read_nf_log"]] = read_nf_log
+
+
+#' Refresh Cohort object
+#'
+#' Reinstantiate Cohort object
+#'
+#' @export
+refresh_cohort = function(cohort) {
+  obj_out = Skilift::Cohort$new(
+      x = data.table()
+  )
+  for (attribute in Skilift:::cohort_attributes) {
+    obj_out[[attribute]] = cohort[[attribute]]
+  }
+  return(obj_out)
+}
