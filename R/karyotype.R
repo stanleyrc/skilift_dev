@@ -104,7 +104,7 @@ annotate_karyotype = function(
 	)
     k_bands = paste(bedpe$first.band, bedpe$second.band, sep = ";")
 
-    if (isBig)
+    if (any(isBig))
       annotated_tra_inv = glue::glue('{k_type}({k_chrom})({k_bands})')[isBig]
   }
 
