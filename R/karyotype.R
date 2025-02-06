@@ -61,7 +61,7 @@ annotate_karyotype = function(
   cyto_by_arm = gGnome::gr_construct_by(cyto, "arm")
   rcyto_by_arm = GenomicRanges::reduce(cyto_by_arm)
   rcyto_arm = gGnome::gr_deconstruct_by(rcyto_by_arm, by = "arm", meta = TRUE)
-  rcyto_arm_dt = gUtils::gr2dt(rcyto)
+  rcyto_arm_dt = gUtils::gr2dt(rcyto_arm)
 
   annotated_tra_inv = ""
 
