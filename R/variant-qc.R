@@ -1,5 +1,3 @@
-#' @importFrom VariantAnnotation readVcf geno
-
 #' @name create_variant_qc
 #' @title create_variant_qc
 #' @description

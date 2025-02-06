@@ -1,5 +1,3 @@
-#' @importMethodsFrom S4Vectors split
-
 #' SV in GRangesList to bedpe
 #' 
 #' Convert GRangesList representation of SVs to bedpe-like format
