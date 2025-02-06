@@ -249,7 +249,7 @@ lift_denoised_coverage <- function(
     cores = 1,
     coverage_field = "foreground", 
     color_field = NULL,
-    bin.width = NA_integer_
+    bin.width = 1e4
 ) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
