@@ -547,6 +547,7 @@ cohort_attributes = c(
   tbl = data.table::copy(obj$inputs)
   tblj = tbl
   if (is_j_given) {
+    if (any(grepl("\"|\'", vector_of_column_names))) vector_of_column_names = j
     selectj = unique(c("pair", vector_of_column_names))
     tblj = base::subset(tblj, select = selectj) 
   }
