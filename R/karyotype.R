@@ -1,3 +1,7 @@
+#' @importMethodsFrom S4Vectors split
+#' @importMethodsFrom IRanges split
+#' @importMethodsFrom GenomicRanges split
+
 #' SV in GRangesList to bedpe
 #' 
 #' Convert GRangesList representation of SVs to bedpe-like format
@@ -77,7 +81,7 @@ annotate_karyotype = function(
     breakpoints = gUtils::gr.end(breakpoints, ignore.strand = FALSE)
     breakpoints = breakpoints %*% cyto
 
-    grl = split(breakpoints, breakpoints$grl.ix)
+    grl = GenomicRanges::split(breakpoints, breakpoints$grl.ix)
 	bedpe = grl2bedpe(grl, add_breakend_mcol = TRUE, zerobased = FALSE)
 
     isTranslocation = !(bedpe$first.chrom_name == bedpe$second.chrom_name)
