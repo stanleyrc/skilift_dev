@@ -127,7 +127,7 @@ lift_variant_qc <- function(cohort, output_data_dir, cores = 1) {
             # Generate QC metrics
             qc_data <- create_variant_qc(
                 somatic_snvs = row$somatic_snvs,
-                reference_name = "hg19"  # Could make this configurable if needed
+                reference_name = cohort$reference_name
             )
             
             # Write to JSON

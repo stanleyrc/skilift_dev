@@ -23,7 +23,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     cohort <- Cohort$new(partial_dt),
     "No matching column found for"
   )
-  expect_equal(ncol(cohort$inputs), 2)
+  expect_equal(ncol(cohort$inputs), 10)
   expect_true(all(c("pair", "tumor_type") %in% names(cohort$inputs)))
   
   # Test data.table with all columns, including QC columns
@@ -34,12 +34,14 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M"),
     structural_variants = c("sv1", "sv2"),
+    structural_variants_unfiltered = c("svu1", "svu2"),
     tumor_coverage = c("cov1", "cov2"),
     somatic_snvs = c("snv1", "snv2"),
+    somatic_snvs_unfiltered = c("snvu1", "snvu2"),
     germline_snvs = c("germ1", "germ2"),
     het_pileups = c("het1", "het2"),
-    somatic_snv_cn = c("scn1", "scn2"),
-    germline_snv_cn = c("gcn1", "gcn2"),
+    multiplicity = c("scn1", "scn2"),
+    germline_multiplicity = c("gcn1", "gcn2"),
     somatic_variant_annotations = c("sva1", "sva2"),
     germline_variant_annotations = c("gva1", "gva2"),
     oncokb_snv = c("osnv1", "osnv2"),
@@ -62,7 +64,24 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     estimate_library_complexity = c("lib1", "lib2"),
     alignment_summary_metrics = c("align1", "align2"),
     insert_size_metrics = c("insert1", "insert2"),
-    wgs_metrics = c("wgs1", "wgs2")
+    wgs_metrics = c("wgs1", "wgs2"),
+    copy_number_graph_max_cn = c(100, 100),
+    copy_number_graph_annotations = list(
+      c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"),
+      c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas")
+    ),
+    multiplicity_node_metadata = list(
+      c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+      c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")
+    ),
+    multiplicity_field = c("total_copies", "total_copies"),
+    denoised_coverage_field = c("foreground", "foreground"),
+    denoised_coverage_color_field = c(NA_character_, NA_character_),
+    denoised_coverage_bin_width = c(1e4, 1e4),
+    hetsnps_field = c("count", "count"),
+    hetsnps_color_field = c("col", "col"),
+    hetsnps_bin_width = c(NA_integer_, NA_integer_),
+    segment_width_distribution_annotations = list(NULL, NULL)
   )
   expect_silent(cohort <- Cohort$new(complete_dt))
   expect_equal(ncol(cohort$inputs), ncol(complete_dt))
@@ -109,7 +128,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     cohort <- Cohort$new(mixed_dt),
     "No matching column found for"
   )
-  expect_equal(ncol(cohort$inputs), 2)
+  expect_equal(ncol(cohort$inputs), 10)
   
   # Test data.table with alternative column names
   alt_names_dt <- copy(complete_dt)
@@ -296,8 +315,11 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   sample_dirs <- c("SAMPLE1", "SAMPLE2")
   file_structure <- list(
     "gridss_somatic" = "high_confidence_somatic.vcf.bgz",
+    "gridss_somatic_unfiltered" = "gridss.filtered.vcf.gz",
     "dryclean_tumor" = "drycleaned.cov.rds",
     "hetpileups" = "sites.txt",
+    "sage/somatic/tumor_only_filter" = "sage.pass_filtered.tumoronly.vcf.gz",
+    "sage/somatic" = "sage.somatic.vcf.gz",
     "jabba" = c("jabba.simple.gg.rds", "karyograph.rds"),
     "events" = "complex.rds",
     "fusions" = "fusions.rds",
@@ -327,12 +349,12 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
       if (is.list(file_structure[[dir_name]])) {
         for (subdir in names(file_structure[[dir_name]])) {
           full_path <- file.path(complete_dir, dir_name, sample, subdir)
-          dir.create(full_path, recursive = TRUE)
+          suppressWarnings(dir.create(full_path, recursive = TRUE))
           writeLines("", file.path(full_path, file_structure[[dir_name]][[subdir]]))
         }
       } else {
         full_path <- file.path(complete_dir, dir_name, sample)
-        dir.create(full_path, recursive = TRUE)
+        suppressWarnings(dir.create(full_path, recursive = TRUE))
         if (length(file_structure[[dir_name]]) > 1) {
           for (file in file_structure[[dir_name]]) {
             writeLines("", file.path(full_path, file))

@@ -255,7 +255,7 @@ ggraph_path <- row[[cn_column]]
     
     # Check sequence names overlap with reference
     seq_lengths <- gGnome::parse.js.seqlengths(
-        internal_settings_path,
+        Skilift:::default_settings_path,
         js.type = "PGV",
         ref = cohort$reference_name
     )

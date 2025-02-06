@@ -72,7 +72,7 @@ create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copi
 multiplicity_to_intervals <- function(
     multiplicity,
     field = "total_copies",
-    settings = internal_settings_path,
+    settings = Skilift:::default_settings_path,
     node_metadata = NULL,
     reference_name = "hg19"
 ) {
@@ -155,9 +155,9 @@ multiplicity_to_intervals <- function(
 #' @export
 lift_multiplicity <- function(
     cohort,
+    output_data_dir,
     is_germline = FALSE,
     node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-    output_data_dir,
     field = "total_copies",
     cores = 1
 ) {
