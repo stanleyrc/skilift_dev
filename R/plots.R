@@ -1,14 +1,3 @@
-#' @importFrom gUtils dt2gr
-#' @importFrom magrittr `%>%`
-#' @importFrom VariantAnnotation readVcf geno
-#' @importMethodsFrom MatrixGenerics rowRanges
-#' @useDynLib Skilift, .registration=TRUE
-
-library(VariantAnnotation)
-library(skidb)
-library(Biostrings)
-library(skitools)
-
 internal_settings_path <- system.file("extdata", "test_data", "settings.json", package = "Skilift")
 
 #' @name cov2arrowPGV

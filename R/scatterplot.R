@@ -55,9 +55,6 @@ get_ref_metadata <- function(ref_seqinfo_json, ref = NULL) {
 #' @param gr_path input GRanges
 #' @param field name of GRanges column to use as arrow Y axis
 #' @param ref the name of the reference to use.
-#' 
-#' @importFrom arrow Table write_feather schema float32
-#' @importFrom gGnome cov2cov.js
 #' @param cov.color.field name of GRanges column containing color of each point
 #' @param overwrite (logical) by default, if the output path already exists, it will not be overwritten.
 #' @param ref_seqinfo_json path to JSON file with ref seqlengths
