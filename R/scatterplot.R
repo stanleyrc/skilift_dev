@@ -1,5 +1,3 @@
-internal_settings_path = system.file("extdata", "test_data", "settings.json", package = "Skilift")
-
 #' Converts a color from hexadecimal to numeric format
 #'
 #' @param color A character vector of colors in hexadecimal format (e.g., "#FF0000").
@@ -66,7 +64,7 @@ granges_to_arrow_scatterplot = function(
     field = "foreground",
     ref = 'hg19',
     cov.color.field = NULL,
-    ref_seqinfo_json = internal_settings_path,
+    ref_seqinfo_json = Skilift:::default_settings_path,
     bin.width = 1e4,
     ...){
 

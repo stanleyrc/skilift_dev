@@ -880,7 +880,6 @@ create_oncotable <- function(
 #' @param oncotable oncotable task output
 #' @param jabba_gg JaBbA output ggraph or complex
 #' @param out_file path to write json
-#' @param temp_fix TRUE/FALSE whether to apply temporary fix
 #' @param return_table TRUE/FALSE whether to return the data.table
 #' @return data.table or NULL
 #' @export
@@ -889,7 +888,6 @@ create_filtered_events <- function(
     oncotable,
     jabba_gg,
     out_file,
-    temp_fix = FALSE,
     return_table = FALSE,
     cohort_type = "paired") {
 
@@ -975,13 +973,13 @@ create_filtered_events <- function(
           res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
           res.cn.dt[, segment_cn := cn]
           res.cn.dt[, Variant := vartype]
-          ## res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
-          ## res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3)                                                                                     )]
-          if (temp_fix) {
-              res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
-              res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
-          }
-          res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
+
+          # remove spurious homdel and amp calls
+          res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
+          res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
+
+          # remove redundant columns since already added to Variant
+          res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] 
           res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
       } else {
           res.final <- res.mut
@@ -1023,7 +1021,6 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
-    cohort_type = cohort$cohort_type
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
@@ -1043,7 +1040,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
                 out_file = out_file,
                 temp_fix = FALSE,
                 return_table = FALSE,
-                cohort_type = cohort_type
+                cohort_type = cohort$type
             )
             
         }, error = function(e) {

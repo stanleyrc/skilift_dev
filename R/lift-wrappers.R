@@ -71,7 +71,6 @@
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
-#' @param settings Settings path for copy number graph
 #' @param is_allelic Boolean for copy number graph processing (default: FALSE)
 #' @param max_cn Maximum copy number for graph (default: 100)
 #' @param annotations List of annotations for copy number graph and segment width distribution
@@ -91,7 +90,6 @@ lift_all <- function(
   cohort,
   output_data_dir,
   cores = 1,
-  settings = Skilift:::internal_settings_path,
   max_cn = 100,
   annotations = NULL,
   coverage_field = "foreground",
@@ -124,15 +122,14 @@ lift_all <- function(
   }
   
 
-  message("Uploading in ", cohort$cohort_type, " mode")
+  message("Uploading in ", cohort$type, " mode")
 
-  if (cohort$cohort_type == "paired") {
+  if (cohort$type == "paired") {
     lift_paired(
       cohort = cohort, 
       output_data_dir = output_data_dir,  
       oncotable_dir = oncotable_dir,
       cores = cores,
-      settings = settings,
       max_cn = max_cn,
       annotations = annotations,
       coverage_field = coverage_field,
@@ -143,13 +140,12 @@ lift_all <- function(
       genome_length = genome_length,
       ... = ...
     )
-  } else if (cohort$cohort_type == "heme") {
+  } else if (cohort$type == "heme") {
     lift_heme(
       cohort = cohort, 
       output_data_dir = output_data_dir,  
       oncotable_dir = oncotable_dir,
       cores = cores,
-      settings = settings,
       max_cn = max_cn,
       annotations = annotations,
       coverage_field = coverage_field,
@@ -160,13 +156,12 @@ lift_all <- function(
       genome_length = genome_length,
       ... = ...
     )
-  } else if (cohort$cohort_type == "tumor_only") {
+  } else if (cohort$type == "tumor_only") {
     lift_tumor_only(
       cohort = cohort, 
       output_data_dir = output_data_dir,  
       oncotable_dir = oncotable_dir,
       cores = cores,
-      settings = settings,
       max_cn = max_cn,
       annotations = annotations,
       coverage_field = coverage_field,
@@ -194,7 +189,6 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores,
-      settings = settings,
       is_allelic = TRUE,
       max_cn = max_cn,
       annotations = annotations
@@ -206,7 +200,6 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores,
-      settings = settings,
       is_allelic = FALSE,
       max_cn = max_cn,
       annotations = annotations
@@ -328,7 +321,6 @@ lift_heme = function(cohort, output_data_dir, ...) {
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores,
-      settings = settings,
       is_allelic = TRUE,
       max_cn = max_cn,
       annotations = annotations
@@ -340,7 +332,6 @@ lift_heme = function(cohort, output_data_dir, ...) {
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores,
-      settings = settings,
       is_allelic = FALSE,
       max_cn = max_cn,
       annotations = annotations
@@ -466,7 +457,6 @@ lift_paired = function(cohort, output_data_dir, ...) {
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores,
-      settings = settings,
       is_allelic = TRUE,
       max_cn = max_cn,
       annotations = annotations
@@ -478,7 +468,6 @@ lift_paired = function(cohort, output_data_dir, ...) {
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores,
-      settings = settings,
       is_allelic = FALSE,
       max_cn = max_cn,
       annotations = annotations

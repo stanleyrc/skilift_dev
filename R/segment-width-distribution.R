@@ -21,7 +21,7 @@ get_segstats <- function(
   balanced_jabba_gg,
   tumor_coverage,
   coverage_field = "foreground",
-  settings = internal_settings_path,
+  settings = Skilift:::default_settings_path,
   ref = "hg19",
   max_na = 0.9,
   cores = 1) {
