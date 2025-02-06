@@ -197,7 +197,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       settings = settings,
       is_allelic = TRUE,
       max_cn = max_cn,
-      annotations = annotations,
+      annotations = annotations
     )
   }
   
