@@ -109,13 +109,12 @@ annotate_karyotype = function(
 	GenomeInfoDb::sortSeqlevels(segments), 
 	ignore.strand = TRUE
   )
-  genome_sl = seqlengths(
-	GenomeInfoDb::keepStandardChromosomes(
-		segments, 
-		pruning.mode = "coarse"
-	)
+  segments = GenomeInfoDb::keepStandardChromosomes(
+	segments, 
+	pruning.mode = "coarse"
   )
-  genome_sl = data.table(
+  genome_sl = GenomeInfoDb::seqlengths(segments)
+  genome_sl = data.table::data.table(
     seqnames = names(genome_sl),
     chr_length = genome_sl
   )
