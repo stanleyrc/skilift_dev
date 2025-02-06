@@ -1,6 +1,5 @@
 #' @importMethodsFrom S4Vectors split
 #' @importMethodsFrom IRanges split
-#' @importMethodsFrom GenomicRanges split
 
 #' SV in GRangesList to bedpe
 #' 
