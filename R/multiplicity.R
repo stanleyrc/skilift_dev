@@ -8,74 +8,84 @@
 #' @return data.table containing processed mutation data
 #' @export
 create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copies") {
-    if (is.character(snv_cn)) {
-        if (!grepl("\\.rds$", snv_cn)) {
-            message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
-        }
-        mutations.dt <- as.data.table(readRDS(snv_cn))
-    } else {
-        stop("Input must be a file path to an RDS file.")
+  
+  mutations.dt <- tryCatch({
+    if (!grepl("\\.rds$", snv_cn)) {
+      message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
     }
+    as.data.table(readRDS(snv_cn))
+  }, error = function(e){
+    message(paste0("Input was not .rds; failed with '", e$message, "'\nAssuming input is .maf"))
+    return(fread(snv_cn) %>% dt2gr %>% gr2dt)
+  }, finally = {
+    message("Finished attempting to load input.")
+  })
 
-    if (!any(class(mutations.dt) == "data.table")) {
-        stop("Input must be a data.table.")
+  if (is.null(mutations.dt)) {
+    stop("Failed to assign a valid value to mutations.dt.")
+  } else{
+    message("Successfully loaded input snv_cn.")
+  }
+
+  if (!any(class(mutations.dt) == "data.table")) {
+    stop("Input must be a data.table.")
+  }
+  
+  ## Process mutations
+  setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+  mutations.dt <- mutations.dt[!is.na(get(field)), ]
+  mutations.dt[start == end, end := end + 1]
+  mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
+  mutations.dt[, ONCOGENIC := fcase(
+                   is.na(ONCOGENIC), "",
+                   grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
+                   default = ONCOGENIC
+                 )]
+  mutations.dt[, MUTATION_EFFECT := fcase(
+                   is.na(MUTATION_EFFECT), "",
+                   grepl("Unknown", MUTATION_EFFECT), "", ## extraneous string
+                   default = MUTATION_EFFECT
+                 )]
+  mutations.dt[, HIGHEST_LEVEL := fcase(
+                   HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
+                   default = gsub("LEVEL_", "", HIGHEST_LEVEL) ## extraneous string
+                 )]
+  
+  mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
+  
+  if ("strand" %in% colnames(mutations.dt)) {
+    mutations.dt[, strand := NULL]
+  }
+
+  ## Create annotation string
+  mut_ann <- ""
+  annotation_fields <- list(
+    Variant_Classification = "Type",
+    Gene = "Gene",
+    HGVSc = "Variant",
+    HGVSp = "Protein_variant",
+    variant.g = "Genomic_variant",
+    vaf = "VAF",
+    alt = "Alt_count",
+    ref = "Ref_count",
+    normal.alt = "Normal_alt_count",
+    normal.ref = "Normal_ref_count",
+    FILTER = "Filter",
+    ONCOGENIC = "Oncogenicity",
+    MUTATION_EFFECT = "Effect",
+    HIGHEST_LEVEL = "Level"
+  )
+  
+  for (col in names(annotation_fields)) {
+    if (col %in% colnames(mutations.dt)) {
+      print(col)
+      mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
     }
-
-    # Process mutations
-    setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
-    mutations.dt <- mutations.dt[!is.na(get(field)), ]
-    mutations.dt[start == end, end := end + 1]
-    mutations.dt[, vaf := round(vaf, 3)] ##### ROUND for frontend legibility
-    mutations.dt[, ONCOGENIC := fcase(
-                     is.na(ONCOGENIC), "",
-                     grepl("Unknown", ONCOGENIC), "", ##necessitated by frontend implementation
-                     default = ONCOGENIC
-                   )]
-    mutations.dt[, MUTATION_EFFECT := fcase(
-                     is.na(MUTATION_EFFECT), "",
-                     grepl("Unknown", MUTATION_EFFECT), "", ##extraneous string
-                     default = MUTATION_EFFECT
-                   )]
-    mutations.dt[, HIGHEST_LEVEL := fcase(
-                     HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
-                     default = gsub("LEVEL_", "", HIGHEST_LEVEL) ##extraneous string
-                   )]
-
-    mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
-    
-    if ("strand" %in% colnames(mutations.dt)) {
-        mutations.dt[, strand := NULL]
-    }
-
-    # Create annotation string
-    mut_ann <- ""
-    annotation_fields <- list(
-      Variant_Classification = "Type",
-      Gene = "Gene",
-      HGVSc = "Variant",
-      HGVSp = "Protein_variant",
-      variant.g = "Genomic_variant",
-      vaf = "VAF",
-      alt = "Alt_count",
-      ref = "Ref_count",
-      normal.alt = "Normal_alt_count",
-      normal.ref = "Normal_ref_count",
-      FILTER = "Filter",
-      ONCOGENIC = "Oncogenicity",
-      MUTATION_EFFECT = "Effect",
-      HIGHEST_LEVEL = "Level"
-    )
-    
-    for (col in names(annotation_fields)) {
-      if (col %in% colnames(mutations.dt)) {
-        print(col)
-        mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
-      }
-    }
-    
-    mutations.dt[, annotation := mut_ann]
-    
-    return(mutations.dt)
+  }
+  
+  mutations.dt[, annotation := mut_ann]
+  
+  return(mutations.dt)
 }
 
 #' @title Convert Multiplicity Data to Intervals
@@ -222,15 +232,14 @@ lift_multiplicity <- function(
         ) %>% normalizePath
 
         tryCatch({
-            # Create multiplicity data.table
+           # Create multiplicity data.table
+                     
             mult_dt <- create_multiplicity(
                 snv_cn = row[[snv_cn_col]],
                 is_germline = is_germline,
                 field = field
             )
 
-            #browser()
-            
             # Convert to intervals
             intervals_list <- multiplicity_to_intervals(
                 multiplicity = mult_dt,
@@ -239,7 +248,6 @@ lift_multiplicity <- function(
                 field = field
             )
 
-            #browser()
             # Write to JSON
             jsonlite::write_json(
                 intervals_list,
