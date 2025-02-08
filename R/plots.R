@@ -2634,7 +2634,7 @@ cov2abs <- function(
         purity <- purity
         ploidy <- ploidy
     }
-    mcols(cov_gr)[new_col] <- rel2abs(
+    mcols(cov_gr)[new_col] <- skitools::rel2abs(
         gr = cov_gr,
         purity = purity,
         ploidy = ploidy,

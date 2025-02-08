@@ -1,5 +1,3 @@
-#' @import ggplot2 
-
 #' @name create_ppfit_json
 #' @title create_ppfit_json
 #' @description
@@ -16,7 +14,6 @@
 #' @return segstats table
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Shihab Dider
-
 get_segstats <- function(
   balanced_jabba_gg,
   tumor_coverage,

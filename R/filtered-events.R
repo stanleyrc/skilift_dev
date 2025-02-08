@@ -994,6 +994,7 @@ create_filtered_events <- function(
       if (return_table) {
           return(res.final)
       }
+      NULL
     }
 }
 
@@ -1007,7 +1008,7 @@ create_filtered_events <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
+lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_table = FALSE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1025,7 +1026,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
     
     cohort_type = cohort$cohort_type
     # Process each sample in parallel
-    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+    lst_outs = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
@@ -1034,24 +1035,27 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
         }
         
         out_file <- file.path(pair_dir, "filtered.events.json")
+
+        out = NULL
         
         tryCatch({
-            create_filtered_events(
+            out <- create_filtered_events(
                 pair = row$pair,
                 oncotable = row$oncotable,
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
                 temp_fix = FALSE,
-                return_table = FALSE,
+                return_table = return_table,
                 cohort_type = cohort_type
             )
             
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
+        return(out)
     }, mc.cores = cores, mc.preschedule = FALSE)
     
-    invisible(NULL)
+    invisible(lst_outs)
 }
 
 #' Select Heme events from Addy's hemedb

@@ -318,6 +318,9 @@ Cohort <- R6Class("Cohort",
   active = list()
 )
 
+# Cohort$private_fields = list()
+# Cohort$private_fields[[".inputs"]] = data.table::data.table()
+
 
 #' Expected nf-casereport patterns
 #' 

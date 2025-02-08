@@ -94,14 +94,13 @@ multiplicity_to_intervals <- function(
     multiplicity[, y_value := get(field)]
 
     # Convert to GRanges
-    gr <- if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
-        dt2gr(multiplicity[order(seqnames, start), ]) %>%
-            sortSeqlevels() %>%
+    gr = dt2gr(multiplicity[order(seqnames, start), ]) %>% sortSeqlevels()
+    if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
+        GenomeInfoDb::seqlevelsStyle(gr) = "UCSC"
+         %>%
             gr.chr()
     } else {
-        dt2gr(multiplicity[order(seqnames, start), ]) %>%
-            sortSeqlevels() %>%
-            gr.nochr()
+        GenomeInfoDb::seqlevelsStyle(gr) = "NCBI"
     }
 
     # Validate ranges
