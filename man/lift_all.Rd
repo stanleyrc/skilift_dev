@@ -13,10 +13,10 @@ lift_all(
   annotations = NULL,
   coverage_field = "foreground",
   color_field = NULL,
-  bin.width = NA_integer_,
+  bin.width = 10000,
   node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
     "variant.p", "vaf", "transcript_type", "impact", "rank"),
-  field = "total_copies",
+  multiplicity_field = "total_snv_copies",
   genome_length = c(1:22, "X", "Y"),
   path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
   ...
@@ -43,8 +43,6 @@ lift_all(
 
 \item{node_metadata}{Additional columns for multiplicity}
 
-\item{field}{Field for multiplicity (default: "total_copies")}
-
 \item{genome_length}{Chromosome names for metadata}
 
 \item{...}{Additional arguments}
@@ -54,6 +52,8 @@ lift_all(
 \item{cohort_column}{Field in cohort inputs table for coverage track (default: "tumor_coverage")}
 
 \item{is_germline}{Logical for multiplicity (default: FALSE)}
+
+\item{field}{Field for multiplicity (default: "total_copies")}
 }
 \value{
 None

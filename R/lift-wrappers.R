@@ -96,9 +96,9 @@ lift_all <- function(
   annotations = NULL,
   coverage_field = "foreground",
   color_field = NULL,
-  bin.width = NA_integer_,
+  bin.width = 1e4,
   node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-  field = "total_copies",
+  multiplicity_field = "total_snv_copies",
   genome_length = c(1:22, "X", "Y"),
   path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
   ...
@@ -120,7 +120,7 @@ lift_all <- function(
     oncotable_dir = file.path(cohort$nextflow_results_path, "oncotable")
   } else {
     oncotable_dir = file.path(output_data_dir, "oncotable")
-    warning("Oncotable outputs will be placed in: ", oncotable_dir)
+    message("Oncotable outputs will be placed in: ", oncotable_dir)
   }
   
 
@@ -139,7 +139,7 @@ lift_all <- function(
       color_field = color_field,
       bin.width = bin.width,
       node_metadata = node_metadata,
-      field = field,
+      multiplicity_field = multiplicity_field,
       genome_length = genome_length,
       ... = ...
     )
@@ -156,7 +156,7 @@ lift_all <- function(
       color_field = color_field,
       bin.width = bin.width,
       node_metadata = node_metadata,
-      field = field,
+      multiplicity_field = multiplicity_field,
       genome_length = genome_length,
       ... = ...
     )
@@ -173,7 +173,7 @@ lift_all <- function(
       color_field = color_field,
       bin.width = bin.width,
       node_metadata = node_metadata,
-      field = field,
+      multiplicity_field = multiplicity_field,
       genome_length = genome_length,
       ... = ...
     )
@@ -233,6 +233,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
   }
 
 
+
   if (has_required_columns(cohort, Skilift:::required_columns$filtered_events)) {
     lift_filtered_events(
       cohort = cohort,
@@ -261,7 +262,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       cores = cores,
       is_germline = FALSE,
       node_metadata = node_metadata,
-      field = field
+      field = multiplicity_field
     )
   }
 
@@ -272,7 +273,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       cores = cores,
       is_germline = TRUE,
       node_metadata = node_metadata,
-      field = field
+      field = multiplicity_field
     )
   }
 
@@ -366,25 +367,29 @@ lift_heme = function(cohort, output_data_dir, ...) {
     )
   }
 
-
-  if (has_required_columns(cohort, Skilift:::required_columns$filtered_events)) {
-    lift_filtered_events(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
   # oncotable doesn't need every single column, just any one of them
-  } else if (has_required_columns(cohort, Skilift:::required_columns$oncotable, any = TRUE)) {
+  if (has_required_columns(cohort, Skilift:::required_columns$oncotable, any = TRUE)) {
+
     cohort <- create_oncotable(
       cohort = cohort,
       outdir = oncotable_dir,
       cores = cores
     )
 
-    lift_filtered_events(
+    events_tbl = lift_filtered_events(
       cohort = cohort,
       output_data_dir = output_data_dir,
-      cores = cores
+      cores = cores,
+      return_table = TRUE
+    )
+    
+  
+  } else if (has_required_columns(cohort, Skilift:::required_columns$filtered_events)) {
+    events_tbl = lift_filtered_events(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores,
+      return_table = TRUE
     )
   }
 
@@ -395,7 +400,7 @@ lift_heme = function(cohort, output_data_dir, ...) {
       cores = cores,
       is_germline = FALSE,
       node_metadata = node_metadata,
-      field = field
+      field = multiplicity_field
     )
   }
 
@@ -406,7 +411,7 @@ lift_heme = function(cohort, output_data_dir, ...) {
       cores = cores,
       is_germline = TRUE,
       node_metadata = node_metadata,
-      field = field
+      field = multiplicity_field
     )
   }
 
@@ -533,7 +538,7 @@ lift_paired = function(cohort, output_data_dir, ...) {
       cores = cores,
       is_germline = FALSE,
       node_metadata = node_metadata,
-      field = field
+      field = multiplicity_field
     )
   }
 
@@ -544,7 +549,7 @@ lift_paired = function(cohort, output_data_dir, ...) {
       cores = cores,
       is_germline = TRUE,
       node_metadata = node_metadata,
-      field = field
+      field = multiplicity_field
     )
   }
 

@@ -9,31 +9,37 @@ Remotes:
   github::mskilab-org/skilift,
   github::mskilab-org/gUtils,
   github::mskilab-org/gGnome,
+  github::mskilab-org/JaBbA,
   github::mskilab-org/skidb,
   github::mskilab-org/skitools,
   bioc::VariantAnnotation,
   bioc::MatrixGenerics,
   bioc::Biostrings
 Depends:
-    R (>= 3.6.0),
-    data.table (>= 1.10), 
-    R6,
-    jsonlite,
-    gGnome
+    R (>= 3.6.0)
 Imports:
     data.table (>= 1.10), 
     R6,
     jsonlite,
     gGnome,
     gUtils,
+    ggplot2,
+    parallel,
+    httr,
+    S4Vectors,
+    BiocGenerics,
+    GenomicRanges,
+    IRanges,
+    GenomeInfoDb,
+    JaBbA,
+    reshape2,
     VariantAnnotation,
     MatrixGenerics,
     Biostrings,
     skidb,
     skitools,
     magrittr,
-    Rcpp,
-    ggplot2
+    Rcpp
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8

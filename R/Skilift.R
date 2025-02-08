@@ -1,24 +1,3 @@
-#' @import R6
-#' @import data.table
-#' @importFrom VariantAnnotation readVcf geno
-#' @importFrom arrow Table write_feather schema float32
-#' @importFrom gGnome cov2cov.js
-#' @importFrom gUtils gr2dt dt2gr
-#' @importFrom skitools rel2abs
-#' @importFrom magrittr `%>%`
-#' @importFrom data.table fread melt.data.table setnames copy
-#' @importFrom parallel mclapply
-#' @importFrom VariantAnnotation readVcf geno
-#' @importMethodsFrom MatrixGenerics rowRanges
-#' @importMethodsFrom S4Vectors split
-#' @useDynLib Skilift, .registration=TRUE
-NULL
-
-# library(VariantAnnotation)
-# library(skidb)
-# library(Biostrings)
-# library(skitools)
-
 source("src/higlass_and_ggraph.R")  # import auxiliary functions for import datatables and granges bigwigs
 
 #' Global Variables
@@ -65,12 +44,6 @@ for (j in jx) {
 #' \code{init_pgv()} Download and launch PGV instance
 #'
 #' @export
-#' @importFrom jsonlite fromJSON toJSON
-#' @importFrom gGnome parse.js.seqlengths refresh
-#' @import parallel
-#' @import R6
-#' @import httr
-#' @import data.table
 Skilift <- R6Class("Skilift",
   private = list(
     #' @field datafiles_json_path (`character(1)`)
