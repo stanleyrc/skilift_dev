@@ -97,8 +97,6 @@ multiplicity_to_intervals <- function(
     gr = dt2gr(multiplicity[order(seqnames, start), ]) %>% sortSeqlevels()
     if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
         GenomeInfoDb::seqlevelsStyle(gr) = "UCSC"
-         %>%
-            gr.chr()
     } else {
         GenomeInfoDb::seqlevelsStyle(gr) = "NCBI"
     }
