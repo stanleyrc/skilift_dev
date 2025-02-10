@@ -39,7 +39,8 @@ Imports:
     skidb,
     skitools,
     magrittr,
-    Rcpp
+    Rcpp,
+    dplyr
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8
