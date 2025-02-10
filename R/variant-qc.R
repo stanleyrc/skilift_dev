@@ -21,13 +21,13 @@ create_variant_qc <- function(
     # Extract necessary information from VCF object
     chrom <- as.character(seqnames(rowRanges(vcf)))
     pos <- start(rowRanges(vcf))
-    ref <- as.character(ref(vcf))
-    alt <- as.character(unlist(alt(vcf)))
+    ref <- as.character(VariantAnnotation::ref(vcf))
+    alt <- as.character(unlist(VariantAnnotation::alt(vcf)))
     filter <- as.character(rowRanges(vcf)$FILTER)
     qual <- as.numeric(rowRanges(vcf)$QUAL)
 
     # Extract depth and allele count information from the genotype (geno) slot
-    geno_data <- geno(vcf)
+    geno_data <- VariantAnnotation::geno(vcf)
 
     # check if tumor-only or paired analysis 
     is_tumor_only <- length(colnames(geno_data$DP)) == 1

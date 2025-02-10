@@ -75,7 +75,11 @@ get_segstats <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_segment_width_distribution <- function(cohort, output_data_dir, annotations = NULL, cores = 1) {
+lift_segment_width_distribution <- function(
+    cohort,
+    output_data_dir,
+    cores = 1
+) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -150,7 +154,7 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
             gGnome::refresh(ggraph.reduced)$json(
                 filename = out_file,
                 verbose = TRUE,
-                annotations = if (!is.null(annotations)) unlist(annotations) else NULL,
+                annotations = if (!is.null(row$segment_width_distribution_annotations)) unlist(row$segment_width_distribution_annotations) else NULL,
                 maxcn = 500,
                 nfields = fields.keep,
                 save = TRUE

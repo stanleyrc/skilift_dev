@@ -41,7 +41,7 @@ test_that("process_gencode handles .rds input", {
 })
 
 test_that("process_cytoband handles NULL input", {
-  expect_error(process_cytoband(NULL), "cytoband file must be provided")
+  expect_warning(process_cytoband(NULL), "Using default cytoband")
 })
 
 test_that("process_cytoband handles .rds input", {
