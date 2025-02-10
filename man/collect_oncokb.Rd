@@ -4,10 +4,12 @@
 \alias{collect_oncokb}
 \title{collect_oncokb}
 \usage{
-collect_oncokb(oncokb_maf, verbose = TRUE)
+collect_oncokb(oncokb_maf, multiplicity = NA_character_, verbose = TRUE)
 }
 \arguments{
 \item{oncokb_maf}{Path to the oncokb MAF file.}
+
+\item{multiplicity}{Path to the multiplicity file.}
 
 \item{verbose}{Logical flag to indicate if messages should be printed.}
 }
