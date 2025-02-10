@@ -521,9 +521,10 @@ parse_oncokb_tier = function(
 #' Collects OncoKB mutation data from a specified file and processes it.
 #'
 #' @param oncokb_maf Path to the oncokb MAF file.
+#' @param multiplicity Path to the multiplicity file.
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed OncoKB mutation information.
-collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
+collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = TRUE) {
   if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
     if (verbose) message('OncoKB MAF file is missing or does not exist.')
     return(data.table(type = NA, source = 'oncokb_maf'))
@@ -531,6 +532,15 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
 
   # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
+
+  if (
+    is.character(multiplicity) 
+    && NROW(multiplicity) == 1
+    && file.exists(multiplicity)
+  ) {
+    multiplicity = readRDS(multiplicity)
+    oncokb = merge_oncokb_multiplicity(oncokb, multiplicity, overwrite = TRUE)
+  }
   
   if (NROW(oncokb) > 0) {
     ## oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
@@ -1098,4 +1108,88 @@ select_heme_events <- function(
   return(
     filtered_events[is_small_mutation_heme | is_other_event]
   )
+}
+
+
+#' Merge oncokb and multiplicity
+#' 
+#' Finds overlaps between oncokb maf coordinates and multiplicity
+#' Oncokb is in MAF coordinates which is based on the altered bases,
+#' while multiplicity encodes VCF coordinates based on reference bases.
+#' 
+#' @export
+merge_oncokb_multiplicity = function(oncokb, multiplicity, overwrite = FALSE) {
+
+  if (is.character(oncokb))
+    oncokb = data.table::fread(oncokb)
+
+  if (is.character(multiplicity))
+    gr_multiplicity = readRDS(multiplicity)
+  
+  gr_oncokb = gUtils::dt2gr(oncokb)
+  gr_oncokb$ALT = gr_oncokb$Allele
+
+  mc = S4Vectors::mcols(gr_multiplicity)
+  checknormalcols = c("normal.ref", "normal.alt")
+  for (col in checknormalcols) {
+    if (!col %in% names(mc))
+      mc[[col]] = NA_integer_
+  }
+  S4Vectors::mcols(gr_multiplicity) = mc
+
+  ov = gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = "ALT", type = "equal")
+  ovQuery = data.table(query.id = integer(0), subject.id = integer(0))
+  if (NROW(ov) > 0)
+    ovQuery = gUtils::gr2dt(ov)[, .(query.id, subject.id)]
+  missingIds = setdiff(1:NROW(gr_oncokb), ov$query.id)
+
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+
+  if (length(missingIds) > 0) {
+    dt_oncokb = gUtils::gr2dt(gr_oncokb[missingIds])
+    invisible(dt_oncokb[, Reference_Allele_Fixed := ifelse(Reference_Allele == "-", "", Reference_Allele)])
+    invisible({
+      dt_oncokb[Variant_Type == "INS", end := start + nchar(Reference_Allele_Fixed)]
+      dt_oncokb[Variant_Type == "DEL", start := end - nchar(Reference_Allele_Fixed)]
+    })
+    dt_oncokb$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+      gUtils::dt2gr(dt_oncokb), gr_multiplicity
+     ,
+      by = "ALT", type = "equal", qcol = c("oid")
+    )
+    if (NROW(ovMissing) > 0) 
+      missingOvQuery = gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
+  }
+  cols.keep = c("ref", "alt", "ref_denoised", "alt_denoised", "normal.ref", "normal.alt",
+                "variant.g", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies",
+                "total_snv_copies", "VAF", "cn", "altered_copies")
+  if(all(c("ref_denoised", "alt_denoised") %in% names(mcols(gr_multiplicity)))){
+    cols.keep <- c("ref_denoised", "alt_denoised", cols.keep)
+  }
+  multiplicity_cols = c(
+    "ref", "alt", "normal.ref", "normal.alt",
+    "variant.g", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies",
+    "total_snv_copies", "VAF", "cn", "altered_copies"
+  )
+  subject = gUtils::gr2dt(gr_multiplicity)[, multiplicity_cols]
+  skey = data.table::setkey(rbind(ovQuery, missingOvQuery), query.id)
+  skey = skey[list(1:NROW(oncokb))]
+
+  if (!identical(overwrite, TRUE)) {
+    oncokb_multiplicity = cbind(oncokb, subject[skey$subject.id])
+  } else {
+    oncokb_multiplicity = oncokb
+    mc_oncokb_multiplicity = S4Vectors::mcols(oncokb_multiplicity)
+    subject_ord = subject[skey$subject.id]
+    for (multiplicity_col in multiplicity_cols) {
+      mc_oncokb_multiplicity[[multiplicity_col]] = NULL
+      mc_oncokb_multiplicity[[multiplicity_col]] = subject_ord[[multiplicity_col]]
+    }
+    S4Vectors::mcols(mc_oncokb_multiplicity) = mc_oncokb_multiplicity
+  }
+
+  oncokb_multiplicity$multiplicity_id_match = skey$subject.id
+  return(oncokb_multiplicity)
+
 }
