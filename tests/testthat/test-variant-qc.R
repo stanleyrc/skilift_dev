@@ -109,7 +109,7 @@ test_that("lift_variant_qc handles basic case correctly", {
         )
     )
     mock_cohort <- structure(
-        list(inputs = mock_inputs),
+        list(inputs = mock_inputs, reference_name = "hg19"),
         class = "Cohort"
     )
     
@@ -151,7 +151,7 @@ test_that("lift_variant_qc handles invalid inputs", {
         # Missing somatic_snvs column
     )
     mock_cohort <- structure(
-        list(inputs = mock_inputs),
+        list(inputs = mock_inputs, reference_name = "hg19"),
         class = "Cohort"
     )
     expect_error(
@@ -170,7 +170,7 @@ test_that("lift_variant_qc handles errors in individual samples", {
         )
     )
     mock_cohort <- structure(
-        list(inputs = mock_inputs),
+        list(inputs = mock_inputs, reference_name = "hg19"),
         class = "Cohort"
     )
     
@@ -199,7 +199,7 @@ test_that("lift_variant_qc works with parallel processing", {
         somatic_snvs = vcf_files
     )
     mock_cohort <- structure(
-        list(inputs = mock_inputs),
+        list(inputs = mock_inputs, reference_name = "hg19"),
         class = "Cohort"
     )
     

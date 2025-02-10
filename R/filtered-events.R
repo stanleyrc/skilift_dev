@@ -974,10 +974,6 @@ create_filtered_events <- function(
           res.cn.dt[, segment_cn := cn]
           res.cn.dt[, Variant := vartype]
 
-          # remove spurious homdel and amp calls
-          res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
-          res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
-
           # remove redundant columns since already added to Variant
           res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] 
           res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
@@ -1038,7 +1034,6 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
                 oncotable = row$oncotable,
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
-                temp_fix = FALSE,
                 return_table = FALSE,
                 cohort_type = cohort$type
             )

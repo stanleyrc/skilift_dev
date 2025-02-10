@@ -180,7 +180,6 @@ subsample_hetsnps <- function(
     het_pileups,
     mask = NULL,
     sample_size = 100000,
-    seed = 42,
     min_normal_freq = 0.2,
     max_normal_freq = 0.8
     ) {
@@ -217,7 +216,7 @@ subsample_hetsnps <- function(
     # subsample to reduce number of points drawn on front-end scatterplot
     if (!is.na(sample_size) && n_snps > sample_size) {
         message(paste("subsampling", sample_size, "points..."))
-        set.seed(seed) ## should set seed for reproducibility
+        set.seed(42) ## should set seed for reproducibility
         snps_to_include <- unique_snps[sample(n_snps, sample_size)] %>% dt2gr()
         subsampled_allelic_hetsnps <- allelic_hetsnps %&% snps_to_include
     } else {
@@ -241,10 +240,7 @@ subsample_hetsnps <- function(
 lift_denoised_coverage <- function(
     cohort,
     output_data_dir,
-    cores = 1,
-    coverage_field = "foreground", 
-    color_field = NULL,
-    bin.width = 1e4
+    cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
@@ -277,10 +273,10 @@ lift_denoised_coverage <- function(
                 # Create arrow table
                 arrow_table <- granges_to_arrow_scatterplot(
                     gr_path = row$tumor_coverage,
-                    field = coverage_field,
+                    field = row$denoised_coverage_field,
                     ref = cohort$reference_name,
-                    cov.color.field = color_field,
-                    bin.width = bin.width
+                    cov.color.field = row$denoised_coverage_color_field,
+                    bin.width = row$denoised_coverage_bin_width
                 )
                 
                 # Write arrow table
@@ -338,7 +334,11 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
             if (!is.null(row$het_pileups) && file.exists(row$het_pileups)) {
                 # Subsample hetsnps
                 hetsnps_gr <- subsample_hetsnps(
-                    het_pileups = row$het_pileups
+                    het_pileups = row$het_pileups,
+                    mask = row$hetsnps_mask,
+                    sample_size = row$hetsnps_subsample_size,
+                    min_normal_freq = row$hetsnps_min_normal_freq,
+                    max_normal_freq = row$hetsnps_max_normal_freq
                 )
 
                 # col2numeric() in granges_to_arrow_scatterplot
@@ -353,10 +353,10 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
                 # Create arrow table
                 arrow_table <- granges_to_arrow_scatterplot(
                     gr_path = hetsnps_gr,
-                    field = "count",
+                    field = row$hetsnps_field,
                     ref = cohort$reference_name,
-                    cov.color.field = "col",
-                    bin.width = NA_integer_
+                    cov.color.field = row$hetsnps_color_field,
+                    bin.width = row$hetsnps_bin_width
                 )
                 
                 # Write arrow table

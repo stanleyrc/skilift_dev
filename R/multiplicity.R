@@ -148,7 +148,6 @@ multiplicity_to_intervals <- function(
 #'
 #' @param cohort Cohort object containing sample information
 #' @param is_germline Logical indicating if mutations are germline (default: FALSE)
-#' @param node_metadata Additional columns to include in node data (default: c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"))
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
@@ -157,8 +156,6 @@ lift_multiplicity <- function(
     cohort,
     output_data_dir,
     is_germline = FALSE,
-    node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-    field = "total_copies",
     cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
@@ -203,15 +200,15 @@ lift_multiplicity <- function(
             mult_dt <- create_multiplicity(
                 snv_cn = row[[snv_cn_col]],
                 is_germline = is_germline,
-                field = field
+                field = row$multiplicity_field
             )
             
             # Convert to intervals
             intervals_list <- multiplicity_to_intervals(
                 multiplicity = mult_dt,
-                reference_name = reference_name,
-                node_metadata = node_metadata,
-                field = field
+                reference_name = cohort$reference_name,
+                node_metadata = unlist(row$multiplicity_node_metadata),
+                field = row$multiplicity_field
             )
             
             # Write to JSON

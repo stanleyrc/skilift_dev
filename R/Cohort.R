@@ -291,40 +291,50 @@ Cohort <- R6Class("Cohort",
       }
       
       result_dt <- data.table()
+      remaining_dt_cols <- names(dt)  # Track available columns
       
+      # First pass: exact matches only
       for (cohort_col in names(self$cohort_cols_to_x_cols)) {
         possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
         
         # Get default value if it exists
         default_value <- attr(possible_cols, "default")
         
-        found_col <- NULL
-        # First try exact matches
-        for (col in possible_cols) {
-          if (col %in% names(dt)) {
-            found_col <- col
-            break
-          }
-        }
+        # Try exact matches first
+        found_col <- intersect(possible_cols, remaining_dt_cols)[1]
         
-        # If no exact match found, try prefix matches
-        if (is.null(found_col)) {
-          for (col in possible_cols) {
-            for (name in names(dt)) {
-              if (startsWith(name, col)) {
-                found_col <- name
-                break
-              }
+        if (!is.null(found_col)) {
+          result_dt[, (cohort_col) := dt[[found_col]]]
+          # Remove matched column from candidates
+          remaining_dt_cols <- setdiff(remaining_dt_cols, found_col)
+        }
+      }
+      
+      # Second pass: prefix matches for columns that weren't exactly matched
+      for (cohort_col in names(self$cohort_cols_to_x_cols)) {
+        if (cohort_col %in% names(result_dt)) next  # Skip if already matched
+        
+        possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
+        default_value <- attr(possible_cols, "default")
+        
+        found_col <- NULL
+        # Try prefix matches
+        for (col in possible_cols) {
+          for (name in remaining_dt_cols) {
+            if (startsWith(name, col)) {
+              found_col <- name
+              break
             }
-            if (!is.null(found_col)) break
           }
+          if (!is.null(found_col)) break
         }
         
         if (!is.null(found_col)) {
           result_dt[, (cohort_col) := dt[[found_col]]]
+          # Remove matched column from candidates
+          remaining_dt_cols <- setdiff(remaining_dt_cols, found_col)
         } else if (!is.null(default_value) && nrow(dt) > 0) {
           # Only add default values if the input data.table is not empty
-          # Handle list and vector defaults by wrapping in list()
           if (is.list(default_value) || length(default_value) > 1) {
             result_dt[, (cohort_col) := list(list(default_value))]
           } else {
@@ -461,7 +471,11 @@ default_col_mapping <- list(
 
   hetsnps_field = structure( c("hetsnps_field"), default = "count"),
   hetsnps_color_field = structure( c("hetsnps_color_field"), default = "col"),
-  hetsnps_bin_width = structure( c("hetsnps_bin_width"), default = NULL),
+  hetsnps_bin_width = structure( c("hetsnps_bin_width"), default = NA),
+  hetsnps_mask = structure(c("hetsnps_mask"), default = system.file("extdata", "data", "maskA_re.rds", package = "Skilift")),
+  hetsnps_subsample_size = structure(c("hetsnps_subsample_size"), default = 100000),
+  hetsnps_min_normal_freq = structure(c("hetsnps_min_normal_freq"), default = 0.2),
+  hetsnps_max_normal_freq = structure(c("hetsnps_max_normal_freq"), default = 0.8),
 
   segment_width_distribution_annotations = structure( c("segment_width_distribution_annotations"), default = NULL)
 )
@@ -484,6 +498,10 @@ config_parameter_names <- c(
   "hetsnps_field",
   "hetsnps_color_field", 
   "hetsnps_bin_width",
+  "hetsnps_mask",
+  "hetsnps_subsample_size",
+  "hetsnps_min_normal_freq", 
+  "hetsnps_max_normal_freq",
   "segment_width_distribution_annotations"
 )
 

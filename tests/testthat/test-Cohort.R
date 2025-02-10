@@ -5,6 +5,10 @@ library(data.table)
 
 # test <- function() { testthat::test_file("tests/testthat/test-Cohort.R") }
 
+setup({
+  num_cols_default <<- 15
+})
+
 test_that("Cohort constructor handles various data.table inputs correctly", {
   # Test empty data.table
   empty_dt <- data.table()
@@ -23,7 +27,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     cohort <- Cohort$new(partial_dt),
     "No matching column found for"
   )
-  expect_equal(ncol(cohort$inputs), 10)
+  expect_equal(ncol(cohort$inputs), num_cols_default)
   expect_true(all(c("pair", "tumor_type") %in% names(cohort$inputs)))
   
   # Test data.table with all columns, including QC columns
@@ -81,6 +85,13 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     hetsnps_field = c("count", "count"),
     hetsnps_color_field = c("col", "col"),
     hetsnps_bin_width = c(NA_integer_, NA_integer_),
+    hetsnps_mask = c(
+        system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+        system.file("extdata", "data", "maskA_re.rds", package = "Skilift")
+    ),
+    hetsnps_subsample_size = c(100000, 100000),
+    hetsnps_min_normal_freq = c(0.2, 0.2), 
+    hetsnps_max_normal_freq = c(0.8, 0.8),
     segment_width_distribution_annotations = list(NULL, NULL)
   )
   expect_silent(cohort <- Cohort$new(complete_dt))
@@ -128,7 +139,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     cohort <- Cohort$new(mixed_dt),
     "No matching column found for"
   )
-  expect_equal(ncol(cohort$inputs), 10)
+  expect_equal(ncol(cohort$inputs), num_cols_default)
   
   # Test data.table with alternative column names
   alt_names_dt <- copy(complete_dt)
@@ -210,8 +221,8 @@ test_that("Cohort validate_inputs correctly identifies missing data", {
   missing_data <- cohort$validate_inputs()
   
   expect_true(!is.null(missing_data))
-  expect_equal(nrow(missing_data), 2)  # Should find both types of missing data
-  expect_true(sum(missing_data$reason == "NULL or NA value") == 1)
+  expect_equal(nrow(missing_data), 5)  # Should find both types of missing data
+  expect_true(sum(missing_data$reason == "NULL or NA value") == 4)
   expect_true(sum(missing_data$reason == "File does not exist") == 1)
   
   # Test QC files validation
@@ -241,7 +252,8 @@ test_that("Cohort validate_inputs correctly identifies missing data", {
   dt_complete <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("BRCA", "LUAD"),
-    structural_variants = c(test_file1, test_file2)
+    structural_variants = c(test_file1, test_file2),
+    hetsnps_bin_width = c(1e4, 1e4)
   )
   cohort <- suppressWarnings(Cohort$new(dt_complete))
   expect_message(
