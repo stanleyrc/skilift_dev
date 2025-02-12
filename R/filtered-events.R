@@ -908,27 +908,54 @@ create_filtered_events <- function(
 
   ot <- readRDS(oncotable)
 
-  # add a fusion_gene_coords column of NAs if no fusions
-  if (!"fusion_gene_coords" %in% colnames(ot)) {
-    ot[, fusion_genes := NA]
-    ot[, fusion_gene_coords := NA]
+  possible_drivers = empty_oncotable = structure(list(gene = character(0), gene_summary = character(0), 
+    role = character(0), value = integer(0), vartype = character(0), 
+    type = character(0), tier = integer(0), tier_description = character(0), 
+    variant_summary = character(0), therapeutics = character(0), 
+    resistances = logical(0), diagnoses = character(0), prognoses = character(0), 
+    effect = character(0), effect_description = character(0), 
+    fusion_genes = character(0), fusion_gene_coords = character(0), 
+    track = character(0), source = character(0), variant.g = character(0), 
+    variant.c = character(0), variant.p = character(0), annotation = character(0), 
+    distance = logical(0), major_count = numeric(0), minor_count = numeric(0), 
+    major_snv_copies = numeric(0), minor_snv_copies = numeric(0), 
+    total_copies = numeric(0), segment_cn = integer(0), ref = integer(0), 
+    alt = integer(0), VAF = numeric(0), gene_location = character(0), 
+    id = character(0)), row.names = c(NA, 0L), class = c("data.table", 
+"data.frame"))
+
+  if (NROW(ot) > 0) {
+      # add a fusion_gene_coords column of NAs if no fusions
+      if (!"fusion_gene_coords" %in% colnames(ot)) {
+        ot[, fusion_genes := NA]
+        ot[, fusion_gene_coords := NA]
+      }
+      # snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
+      snvs <- ot[ot$vartype == "SNV" & !is.na(ot$type)]
+      if ("tier" %in% colnames(ot)) {
+        snvs <- snvs[order(is.na(tier)), ]
+      }
+      if (NROW(snvs) > 0) {
+        snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
+        snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
+        remove_variant_c = FALSE
+        if (is.null(snvs$variant.c)) {
+          snvs$variant.c = 1:NROW(snvs)
+          remove_variant_c = TRUE
+        }
+        snvs[, is_unique_c := !duplicated(cbind(gene, variant.c))]
+        snvs <-  snvs[is_unique_p | (is_unique_g & is_unique_c)]
+        snvs$is_unique_p = NULL
+        snvs$is_unique_g = NULL
+        snvs$is_unique_c = NULL
+        if (remove_variant_c) snvs$variant.c = NULL
+      }
+
+      homdels <- ot[ot$type == "homdel",][, vartype := "HOMDEL"][, type := "SCNA"]
+      amps <- ot[ot$type == "amp",][, vartype := "AMP"][, type := "SCNA"]
+      fusions <- ot[ot$type == "fusion",]
+      possible_drivers <- rbind(snvs, homdels, amps, fusions)
   }
-  # snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
-  snvs <- ot[vartype == "SNV"][!is.na(type)]
-  if ("tier" %in% colnames(ot)) {
-    snvs <- snvs[order(is.na(tier)), ]
-  }
-  snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
-  snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
-  snvs[, is_unique_c := !duplicated(cbind(gene, variant.c))]
-  snvs <-  snvs[is_unique_p | (is_unique_g & is_unique_c)]
-  snvs$is_unique_p = NULL
-  snvs$is_unique_g = NULL
-  snvs$is_unique_c = NULL
-  homdels <- ot[type == "homdel"][, vartype := "HOMDEL"][, type := "SCNA"]
-  amps <- ot[type == "amp"][, vartype := "AMP"][, type := "SCNA"]
-  fusions <- ot[type == "fusion"]
-  possible_drivers <- rbind(snvs, homdels, amps, fusions)
 
   oncotable_col_to_filtered_events_col <- c(
     "id" = "id",
@@ -1064,8 +1091,8 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         highlights_out_file <- file.path(pair_dir, "highlights.json")
 
         out = NULL
-        
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             out <- create_filtered_events(
                 pair = row$pair,
                 oncotable = row$oncotable,
@@ -1075,23 +1102,26 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 return_table = return_table,
                 cohort_type = cohort_type
             )
+            if (identical(cohort_type, "heme")) {
+              create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
+            }
             
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
-
-        if (identical(cohort_type, "heme")) {
-          create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
         }
+        )
+
+        
         return(out)
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(lst_outs)
 }
 
 #' Select Heme events from Addy's hemedb
 #' 
-#' bla bla
+#' Coarse selection of Heme events for first pass filtering
 #'
 #' @export
 select_heme_events <- function(
@@ -1111,9 +1141,9 @@ select_heme_events <- function(
   )
   
   is_other_event = filtered_events$vartype != "SNV"
-  if (any(filtered_events$gene %in% c("FLT3", "DUX4", "KMT2A"))) {
-    .NotYetImplemented()
-  }
+  # if (any(filtered_events$gene %in% c("FLT3", "DUX4", "KMT2A"))) {
+  #   .NotYetImplemented()
+  # }
   return(
     filtered_events[is_small_mutation_heme | is_other_event]
   )

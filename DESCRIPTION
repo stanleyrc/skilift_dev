@@ -40,7 +40,9 @@ Imports:
     skitools,
     magrittr,
     Rcpp,
-    dplyr
+    dplyr,
+    tryCatchLog,
+    futile.logger
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8
