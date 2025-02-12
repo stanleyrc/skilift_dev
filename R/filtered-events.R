@@ -1061,6 +1061,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         }
         
         out_file <- file.path(pair_dir, "filtered.events.json")
+        highlights_out_file <- file.path(pair_dir, "highlights.json")
 
         out = NULL
         
@@ -1078,6 +1079,10 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
+
+        if (identical(cohort_type, "heme")) {
+          create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
+        }
         return(out)
     }, mc.cores = cores, mc.preschedule = FALSE)
     
@@ -1216,3 +1221,4 @@ merge_oncokb_multiplicity = function(oncokb, multiplicity, overwrite = FALSE) {
   return(oncokb_multiplicity)
 
 }
+
