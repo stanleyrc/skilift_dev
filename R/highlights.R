@@ -51,7 +51,7 @@ create_heme_highlights = function(
     is_guideline = small_muts$gene %in% hemedb_guideline$GENE,
     is_tier2_or_better = small_muts$Tier <= 2
   )
-  is_small_mutation_heme_relevant = base::Reduce(`&`, criterias)
+  is_small_mutation_heme_relevant = base::Reduce("&", criterias)
   if (
     NROW(small_muts) > 0
     && any(

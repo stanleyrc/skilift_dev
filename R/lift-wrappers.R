@@ -98,7 +98,7 @@ lift_all <- function(
   color_field = NULL,
   bin.width = 1e4,
   node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-  multiplicity_field = "total_snv_copies",
+  multiplicity_field = "altered_copies",
   genome_length = c(1:22, "X", "Y"),
   path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
   ...
@@ -303,7 +303,7 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
     )
   }
 
-  if (has_required_columns(cohort, Skilift:::required_columns$metadata)) {
+  if (has_required_columns(cohort, Skilift:::required_columns$metadata, any = TRUE)) {
     lift_metadata(
       cohort = cohort,
       output_data_dir = output_data_dir,
@@ -431,7 +431,7 @@ lift_heme = function(cohort, output_data_dir, ...) {
     )
   }
 
-  if (has_required_columns(cohort, Skilift:::required_columns$metadata)) {
+  if (has_required_columns(cohort, Skilift:::required_columns$metadata, any = TRUE)) {
     lift_metadata(
       cohort = cohort,
       output_data_dir = output_data_dir,
@@ -584,7 +584,7 @@ lift_paired = function(cohort, output_data_dir, ...) {
     )
   }
 
-  if (has_required_columns(cohort, Skilift:::required_columns$metadata)) {
+  if (has_required_columns(cohort, Skilift:::required_columns$metadata, any = TRUE)) {
     lift_metadata(
       cohort = cohort,
       output_data_dir = output_data_dir,
