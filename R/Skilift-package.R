@@ -7,6 +7,8 @@
 #' @import ggplot2 
 #' @import parallel
 #' @import httr
+#' @import futile.logger
+#' @importFrom tryCatchLog tryCatchLog
 #' @importFrom VariantAnnotation readVcf geno ref alt
 #' @importFrom arrow Table write_feather schema float32
 #' @importFrom gGnome cov2cov.js
