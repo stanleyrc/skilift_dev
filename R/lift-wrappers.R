@@ -382,7 +382,6 @@ lift_heme = function(cohort, output_data_dir, ...) {
       cores = cores,
       return_table = TRUE
     )
-    
   
   } else if (has_required_columns(cohort, Skilift:::required_columns$filtered_events)) {
     events_tbl = lift_filtered_events(

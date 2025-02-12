@@ -27,54 +27,71 @@ create_heme_highlights = function(
   ##     ] | null
   ##   }
   
-  karyotype_string = annotate_karyotype(readRDS(jabba_gg))
+  karyotype_string = ""
+  if (NROW(jabba_gg) == 1 && is.character(jabba_gg) && file.exists(jabba_gg))
+    karyotype_string = annotate_karyotype(readRDS(jabba_gg))
 
-  
+  emptyDfForJson = structure(list(gene_name = character(0), variant = character(0), 
+    vaf = numeric(0), tier = integer(0), altered_copies = numeric(0), 
+    total_copies = numeric(0), alteration_type = character(0), 
+    aggregate_label = character(0), indication = list()), class = c("data.table", 
+  "data.frame"), row.names = c(NA, 0L), sorted = "gene_name")
+
   hemedb = readRDS(hemedb_path)
   hemedb_guideline = hemedb[, .(GENE, GUIDELINE, DISEASE)][GUIDELINE==TRUE] %>% unique()
   hemedb_guideline = hemedb_guideline[, .(GUIDELINE = GUIDELINE[1], DISEASE = list(DISEASE)), by = GENE]
 
   ## events_tbl = events_tbl[[1]]
 
-  events_tbl$ix = seq_len(NROW(events_tbl))
-
-  small_muts = events_tbl[vartype == "SNV"]
-  other_muts = events_tbl[!vartype == "SNV"]
-
-  small_guidelines = data.table::merge.data.table(small_muts, hemedb_guideline, all.x = TRUE, by.x = "gene", by.y = "GENE")
-
-  is_frequent = small_guidelines$gene %in% hemedb[hemedb$FREQ >= 5]$GENE
-  is_guideline = small_guidelines$gene %in% hemedb_guideline$GENE
-
-  small_guidelines = small_guidelines[is_frequent & is_guideline & Tier <= 2]
-
-  small_guidelines$variant = ifelse(is.na(small_guidelines$Variant), small_guidelines$type %>% paste(., "Variant"), small_guidelines$Variant)  %>% tools::toTitleCase()
-  small_guidelines$alteration_type = "small"
-
-  small_guidelines$aggregate_label = NA_character_
-
-  small_guidelines$aggregate_label = glue::glue(
-    '{small_guidelines[, signif(estimated_altered_copies, 2)]} out of {small_guidelines$segment_cn} copies mutated (VAF: {signif(small_guidelines$VAF, 2)})' 
+  small_muts = events_tbl[events_tbl$vartype == "SNV",]
+  smallForJson = data.table::copy(emptyDfForJson)
+  criterias = list(
+    is_small_in_guidelines = small_muts$gene %in% hemedb_guideline$GENE, ## accounts for merge step
+    is_frequent = small_muts$gene %in% hemedb[hemedb$FREQ >= 5]$GENE,
+    is_guideline = small_muts$gene %in% hemedb_guideline$GENE,
+    is_tier2_or_better = small_muts$Tier <= 2
   )
+  is_small_mutation_heme_relevant = base::Reduce(`&`, criterias)
+  if (
+    NROW(small_muts) > 0
+    && any(
+      is_small_mutation_heme_relevant
+    )
+  ) {
+    small_guidelines = small_muts[is_small_mutation_heme_relevant]
+    ## Inner join
+    small_guidelines = data.table::merge.data.table(small_guidelines, hemedb_guideline, all.x = TRUE, by.x = "gene", by.y = "GENE")
+
+    small_guidelines$variant = ifelse(is.na(small_guidelines$Variant), small_guidelines$type %>% paste(., "Variant"), small_guidelines$Variant)  %>% tools::toTitleCase()
+    small_guidelines$alteration_type = "small"
+
+    small_guidelines$aggregate_label = NA_character_
+
+    small_guidelines$aggregate_label = glue::glue(
+      '{small_guidelines[, signif(estimated_altered_copies, 2)]} out of {small_guidelines$segment_cn} copies mutated (VAF: {signif(small_guidelines$VAF, 2)})' 
+    ) %>% as.character()
 
 
-  changemap = c(
-    "gene" = "gene_name",
-    "variant" = "variant",
-    "VAF" = "vaf",
-    "Tier" = "tier",
-    "estimated_altered_copies" = "altered_copies",
-    "segment_cn" = "total_copies",
-    "alteration_type" = "alteration_type",
-    "aggregate_label" = "aggregate_label",
-    "DISEASE" = "indication"
-  )
+    changemap = c(
+      "gene" = "gene_name",
+      "variant" = "variant",
+      "VAF" = "vaf",
+      "Tier" = "tier",
+      "estimated_altered_copies" = "altered_copies",
+      "segment_cn" = "total_copies",
+      "alteration_type" = "alteration_type",
+      "aggregate_label" = "aggregate_label",
+      "DISEASE" = "indication"
+    )
 
 
-  smallForJson = base::subset(
-    change_names(small_guidelines, changemap),
-    select = changemap
-  )
+    smallForJson = base::subset(
+      change_names(small_guidelines, changemap),
+      select = changemap
+    )
+  }
+
+
 
   dunc = readRDS(duncavage_path)
   ## base::dput(dunc[Gene == "BCR::ABL1"][1])
@@ -100,77 +117,84 @@ create_heme_highlights = function(
   hemedb_fusions_fr = rbind(hemedb_fusions, hemedb_fusions_rev)
 
 
-  svs = events_tbl[type == "fusion"]
-  fg = svs$fusion_genes
-  fg = gsub("@.*$", "", fg)
+  svs = events_tbl[events_tbl$type == "fusion",]
+  svsForJson = data.table::copy(emptyDfForJson)
+  fg_exon = svs$fusion_genes ## this still works if svs is empty
+  fg_exon = gsub("@.*$", "", fg_exon)
+  fg = gsub("\\([0-9]+\\)", "", fg_exon)
+  any_svs_in_guidelines = length(intersect(fg, hemedb_fusions_fr$Gene)) > 0 ## accounts for merge step later
+  if (NROW(svs) > 0 && any_svs_in_guidelines) {
+    lst_exons = lapply(strsplit(fg_exon, "::"), function(x) {
+      exons = gsub(".*(\\([0-9]+\\)).*", "\\1", x)
+      exons = gsub("\\(|\\)", "", exons)
+      exons
+    })
+
+    svs$lst_exons = lst_exons
+    svs$fg = fg
+
+
+    svs_guidelines = data.table::merge.data.table(svs, hemedb_fusions_fr, by.x = "fg", by.y = "Gene")
+    
+    exons = do.call(Map, c(f = c, svs_guidelines$lst_exons))
+
+    element_type = dplyr::case_when(
+      grepl("UTR", exons[[1]]) & grepl("UTR", exons[[2]]) ~ "UTRs",
+      !grepl("UTR", exons[[1]]) & !grepl("UTR", exons[[2]]) ~ "exons",
+      TRUE ~ "UTR/exon"
+    )
+
+    svs_guidelines$variant = glue::glue('Fusion involving {element_type} {exons[[1]]} <> {exons[[2]]}') %>% as.character()
+    svs_guidelines$vaf = NA_real_
+    svs_guidelines$alteration_type = "rearrangement"
+    svs_guidelines$aggregate_label = glue::glue('{svs_guidelines$estimated_altered_copies} fusion cop{ifelse(svs_guidelines$estimated_altered_copies == 1, "y", "ies")}') %>% as.character()
+
+
+    changemap = c(
+      "fg" = "gene_name",
+      "variant" = "variant",
+      "VAF" = "vaf",
+      "Tier" = "tier",
+      "estimated_altered_copies" = "altered_copies",
+      "segment_cn" = "total_copies",
+      "alteration_type" = "alteration_type",
+      "aggregate_label" = "aggregate_label",
+      "DISEASE" = "indication"
+    )
+
+    svsForJson = base::subset(
+      change_names(svs_guidelines, changemap),
+      select = changemap
+    )
+  }
   
-  lst_exons = lapply(strsplit(fg, "::"), function(x) {
-    exons = gsub(".*(\\([0-9]+\\)).*", "\\1", x)
-    exons = gsub("\\(|\\)", "", exons)
-    exons
-  })
 
-  svs$lst_exons = lst_exons
+  cna = events_tbl[events_tbl$type == "SCNA",]
+  cnaForJson = data.table::copy(emptyDfForJson)
+  any_cna_in_guidelines = length(intersect(cna$gene, hemedb_guideline$GENE)) > 0 ## accounts for merge stelater
+  if (NROW(cna) > 0 && any_cna_in_guidelines) {
+    cna$aggregate_label = glue::glue('{cna$estimated_altered_copies} out of {cna$estimated_altered_copies} copies altered') %>% as.character()
+    cna$alteration_type = "cna"
+    cna_guidelines = data.table::merge.data.table(cna, hemedb_guideline, by.x = "gene", by.y = "GENE")
+    cna_guidelines$vartype = tools::toTitleCase(tolower(cna_guidelines$vartype))
 
-  fg = gsub("\\([0-9]+\\)", "", fg)
-  svs$fg = fg
+    changemap = c(
+      "gene" = "gene_name",
+      "vartype" = "variant",
+      "VAF" = "vaf",
+      "Tier" = "tier",
+      "estimated_altered_copies" = "altered_copies",
+      "segment_cn" = "total_copies",
+      "alteration_type" = "alteration_type",
+      "aggregate_label" = "aggregate_label",
+      "DISEASE" = "indication"
+    )
 
-
-  svs_guidelines = data.table::merge.data.table(svs, hemedb_fusions_fr, by.x = "fg", by.y = "Gene")
-  exons = do.call(Map, c(f = c, svs_guidelines$lst_exons))
-
-  element_type = dplyr::case_when(
-    grepl("UTR", exons[[1]]) & grepl("UTR", exons[[2]]) ~ "UTRs",
-    !grepl("UTR", exons[[1]]) & !grepl("UTR", exons[[2]]) ~ "exons",
-    TRUE ~ "UTR/exon"
-  )
-
-  svs_guidelines$variant = glue::glue('Fusion involving {element_type} {exons[[1]]} <> {exons[[2]]}')
-  svs_guidelines$vaf = NA_real_
-  svs_guidelines$alteration_type = "rearrangement"
-  svs_guidelines$aggregate_label = glue::glue('{svs_guidelines$estimated_altered_copies} fusion cop{ifelse(svs_guidelines$estimated_altered_copies == 1, "y", "ies")}')
-
-
-  changemap = c(
-    "fg" = "gene_name",
-    "type" = "variant",
-    "VAF" = "vaf",
-    "Tier" = "tier",
-    "estimated_altered_copies" = "altered_copies",
-    "segment_cn" = "total_copies",
-    "alteration_type" = "alteration_type",
-    "aggregate_label" = "aggregate_label",
-    "DISEASE" = "indication"
-  )
-
-  svsForJson = base::subset(
-    change_names(svs_guidelines, changemap),
-    select = changemap
-  )
-
-  cna_guidelines = events_tbl[type == "SCNA"]
-
-  cna_guidelines$aggregate_label = glue::glue('{cna_guidelines$estimated_altered_copies} out of {cna_guidelines$estimated_altered_copies} copies altered')
-  cna_guidelines$alteration_type = "cna"
-  cna_guidelines = data.table::merge.data.table(cna_guidelines, hemedb_guideline, by.x = "gene", by.y = "GENE")
-
-  changemap = c(
-    "gene" = "gene_name",
-    "vartype" = "variant",
-    "VAF" = "vaf",
-    "Tier" = "tier",
-    "estimated_altered_copies" = "altered_copies",
-    "segment_cn" = "total_copies",
-    "alteration_type" = "alteration_type",
-    "aggregate_label" = "aggregate_label",
-    "DISEASE" = "indication"
-  )
-
-  cnaForJson = base::subset(
-    change_names(cna_guidelines, changemap),
-    select = changemap
-  )
-
+    cnaForJson = base::subset(
+      change_names(cna_guidelines, changemap),
+      select = changemap
+    )
+  }
 
   allOutputsForJson = rbind(
     smallForJson,
@@ -178,8 +202,14 @@ create_heme_highlights = function(
     svsForJson
   )
 
+
+  highlights_output = list(
+    karyotype = karyotype_string,
+    gene_mutations = allOutputsForJson
+  )
+
   jsonlite::write_json(
-    list(gene_mutations = allOutputsForJson), 
+    highlights_output, 
     path = out_file,
     na = "null", 
     null = "list",
@@ -209,6 +239,7 @@ change_names = function(obj, old, new) {
   if (length(old) != length(new)) stop("lengths of old and new vectors must match")
   for (i in 1:NROW(old)) {
     if (!nzchar(old[i])) next
+    if (old[i] == new[i]) next
     newnames[newnames %in% old[i]] = new[i]
   }
   names(obj) = newnames

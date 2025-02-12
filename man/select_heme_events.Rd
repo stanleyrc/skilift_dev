@@ -11,5 +11,5 @@ select_heme_events(
 )
 }
 \description{
-bla bla
+Coarse selection of Heme events for first pass filtering
 }
