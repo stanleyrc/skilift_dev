@@ -5,7 +5,7 @@
 \alias{nf_path_patterns}
 \title{Expected nf-casereport patterns}
 \format{
-An object of class \code{list} of length 23.
+An object of class \code{list} of length 30.
 }
 \usage{
 nf_path_patterns

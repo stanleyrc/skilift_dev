@@ -28,7 +28,7 @@ create_metadata(
   onenesstwoness = NULL,
   genome = "hg19",
   seqnames_loh = c(1:22),
-  seqnames_genome_width = c(1:22, "X", "Y")
+  seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 )
 }
 \arguments{
@@ -72,7 +72,7 @@ create_metadata(
 
 \item{seqnames_loh}{Sequence names for loss of heterozygosity.}
 
-\item{seqnames_genome_width}{Sequence names and genome width.}
+\item{seqnames_genome_width_or_genome_length}{Sequence names and genome width in list or genome length as a numeric}
 
 \item{signatures_pair_name}{The name of the signature pair.}
 

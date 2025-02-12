@@ -1,14 +1,3 @@
-#' @importFrom gUtils dt2gr
-#' @importFrom magrittr `%>%`
-#' @importFrom VariantAnnotation readVcf geno
-#' @importMethodsFrom MatrixGenerics rowRanges
-#' @useDynLib Skilift, .registration=TRUE
-
-library(VariantAnnotation)
-library(skidb)
-library(Biostrings)
-library(skitools)
-
 internal_settings_path <- system.file("extdata", "test_data", "settings.json", package = "Skilift")
 
 #' @name cov2arrowPGV
@@ -3255,7 +3244,7 @@ cov2abs <- function(
         purity <- purity
         ploidy <- ploidy
     }
-    mcols(cov_gr)[new_col] <- rel2abs(
+    mcols(cov_gr)[new_col] <- skitools::rel2abs(
         gr = cov_gr,
         purity = purity,
         ploidy = ploidy,

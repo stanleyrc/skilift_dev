@@ -12,6 +12,7 @@ oncotable(
   karyograph = NULL,
   events = NULL,
   signature_counts = NULL,
+  multiplicity = NULL,
   oncokb_snv = NULL,
   oncokb_cna = NULL,
   oncokb_fusions = NULL,

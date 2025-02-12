@@ -207,7 +207,6 @@ extract_metrics <- function(qc_data, metrics, pair) {
 #' @param wgs_metrics Path to the wgs_metrics file
 #' @param pair Sample pair identifier
 #' @return A list containing processed QC metrics
-#' @importFrom data.table fread
 process_qc_metrics <- function(
     estimate_library_complexity,
     alignment_summary_metrics,
@@ -596,8 +595,6 @@ add_coverage_parameters <- function(metadata, tumor_coverage) {
 #' @param metadata A data.table containing metadata
 #' @param het_pileups_wgs Path to heterozygous pileups WGS data
 #' @return Updated metadata with heterozygous pileups parameters
-#' @importFrom skitools rel2abs
-#' @importFrom gUtils gr2dt dt2gr
 add_het_pileups_parameters <- function(metadata, het_pileups) {
     if (!is.null(het_pileups)) {
         hets.read <- grab.hets(het_pileups) %>% gr2dt()
@@ -669,8 +666,6 @@ add_tmb <- function(
 #' @param is_indel Boolean indicating if processing indel signatures
 #' @param is_deconstruct_sigs Boolean indicating if using deconstructSigs format
 #' @return List of signature averages
-#' @importFrom data.table fread melt.data.table setnames copy
-#' @importFrom magrittr %>%
 compute_signature_averages <- function(
     sig_file,
     is_indel = FALSE,
@@ -943,7 +938,6 @@ create_metadata <- function(
 #' @param genome_length Genome length for the samples (for targeted panels or WES data)
 #' @return None
 #' @export
-#' @importFrom parallel mclapply
 lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NULL) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")

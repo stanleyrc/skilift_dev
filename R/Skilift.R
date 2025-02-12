@@ -44,12 +44,6 @@ for (j in jx) {
 #' \code{init_pgv()} Download and launch PGV instance
 #'
 #' @export
-#' @importFrom jsonlite fromJSON toJSON
-#' @importFrom gGnome parse.js.seqlengths refresh
-#' @import parallel
-#' @import R6
-#' @import httr
-#' @import data.table
 Skilift <- R6Class("Skilift",
   private = list(
     #' @field datafiles_json_path (`character(1)`)

@@ -9,7 +9,7 @@ add_tmb(
   somatic_snvs = NULL,
   jabba_gg = NULL,
   genome = "hg19",
-  seqnames_genome_width = c(1:22, "X", "Y")
+  seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 )
 }
 \arguments{
@@ -21,7 +21,7 @@ add_tmb(
 
 \item{genome}{The genome reference used}
 
-\item{seqnames_genome_width}{Sequence names for genome width calculation}
+\item{seqnames_genome_width_or_genome_length}{Sequence names for genome width calculation}
 }
 \value{
 Updated metadata with TMB value added
