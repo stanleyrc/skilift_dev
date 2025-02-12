@@ -482,6 +482,7 @@ parse_pipeline_paths = function(
   pairs_to_match <- unique(initial_dt[[id_name]])
   # Map of regex patterns to column names
   for (col_name in names(path_patterns)) {
+    
     patterns = path_patterns[[col_name]]
     for (pattern in patterns) {
       present_paths = grep(pattern, paths, value = TRUE, perl = TRUE)
@@ -491,7 +492,15 @@ parse_pipeline_paths = function(
       dt <- data.table()
       for (pair in pairs_to_match) {
         # Find paths that contain this pair name
-        pair_paths <- grep(paste0("/", pair, "/"), present_paths, value = TRUE, perl = TRUE)
+        # FIXME: hack for snpeff and other paths that have "snpeff/somatic/PAIR-lane_X/..." directory structure
+        # Seems not to be localized to just snpeff
+        pair_paths <- grep(paste0("/", pair, "(-lane_.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+        # if (col_name %in% c("somatic_variant_annotations", "jabba_gg")) {
+        #   pair_paths <- grep(paste0("/", pair, "(-lane.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+        # } else {
+        #   pair_paths <- grep(paste0("/", pair, "/"), present_paths, value = TRUE, perl = TRUE)
+        # }
+        
         if (length(pair_paths) > 0) {
           dt <- rbindlist(list(dt, data.table(
             pair = pair,
