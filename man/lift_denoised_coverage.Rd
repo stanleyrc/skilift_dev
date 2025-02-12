@@ -4,7 +4,14 @@
 \alias{lift_denoised_coverage}
 \title{lift_denoised_coverage}
 \usage{
-lift_denoised_coverage(cohort, output_data_dir, cores = 1)
+lift_denoised_coverage(
+  cohort,
+  output_data_dir,
+  cores = 1,
+  coverage_field = "foreground",
+  color_field = NULL,
+  bin.width = 10000
+)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}

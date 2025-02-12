@@ -29,7 +29,10 @@ process_gencode = function(gencode = NULL){
 #' @author Kevin Hadi
 process_cytoband = function(cyto = NULL, coarse=FALSE) {
   if (is.null(cyto)) {
-    stop('cytoband file must be provided')
+    cyto = system.file("extdata", "data", "cytoband.rds", package = "Skilift")
+    warning('Using default cytoband, hg19')
+    cyto = readRDS(cyto)
+    return(cyto)
   } else if (is.character(cyto)) {
     if (grepl(".rds$", cyto)) {
       cyto = readRDS(cyto)
@@ -518,9 +521,10 @@ parse_oncokb_tier = function(
 #' Collects OncoKB mutation data from a specified file and processes it.
 #'
 #' @param oncokb_maf Path to the oncokb MAF file.
+#' @param multiplicity Path to the multiplicity file.
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed OncoKB mutation information.
-collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
+collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = TRUE) {
   if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
     if (verbose) message('OncoKB MAF file is missing or does not exist.')
     return(data.table(type = NA, source = 'oncokb_maf'))
@@ -528,6 +532,15 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
 
   # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
+
+  if (
+    is.character(multiplicity) 
+    && NROW(multiplicity) == 1
+    && file.exists(multiplicity)
+  ) {
+    multiplicity = readRDS(multiplicity)
+    oncokb = merge_oncokb_multiplicity(oncokb, multiplicity, overwrite = TRUE)
+  }
   
   if (NROW(oncokb) > 0) {
     ## oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
@@ -550,13 +563,13 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
     )
 
     coerce_column_tuples = list(
-      c("total_snv_copies", "total_copies")
+      c("altered_copies", "total_copies")
     )
     current_nms = names(oncokb)
     for (col in coerce_column_tuples) {
-      if (col[1] %in% current_nms && !col[2] %in% current_nms) {
-        current_nms[current_nms == col[1]] = col[2]
-      }
+      # if (col[1] %in% current_nms && !col[2] %in% current_nms) {
+      current_nms[current_nms == col[1]] = col[2]
+      # }
     }
     names(oncokb) = current_nms
     return(oncokb[, .(
@@ -582,7 +595,7 @@ collect_oncokb <- function(oncokb_maf, verbose = TRUE) {
             minor_count = minor.count, 
             major_snv_copies, 
             minor_snv_copies,
-            total_copies, 
+            total_copies, ## total_copies gets converted to estimated_altered_copies downstream 
             segment_cn,
             ref,
             alt,
@@ -620,6 +633,7 @@ oncotable = function(
   karyograph = NULL,
   events = NULL,
   signature_counts = NULL,
+  multiplicity = NULL,
   oncokb_snv = NULL,
   oncokb_cna = NULL, 
   oncokb_fusions = NULL,
@@ -687,7 +701,7 @@ oncotable = function(
   if (!is.null(oncokb_snv) && file.exists(oncokb_snv)){
     out <- rbind(
       out,
-      collect_oncokb(oncokb_snv, verbose),
+      collect_oncokb(oncokb_snv, multiplicity, verbose),
       fill = TRUE,
       use.names = TRUE
     )
@@ -827,6 +841,7 @@ create_oncotable <- function(
                     karyograph = row$karyograph,
                     events = row$events,
                     signature_counts = row$signature_counts,
+                    multiplicity = row$multiplicity,
                     oncokb_snv = row$oncokb_snv,
                     oncokb_cna = row$oncokb_cna,
                     oncokb_fusions = row$oncokb_fusions,
@@ -882,108 +897,131 @@ create_oncotable <- function(
 #' @return data.table or NULL
 #' @export
 create_filtered_events <- function(
-    pair,
-    oncotable,
-    jabba_gg,
-    out_file,
-    temp_fix = FALSE,
-    return_table = FALSE) {
+  pair,
+  oncotable,
+  jabba_gg,
+  out_file,
+  temp_fix = FALSE,
+  return_table = FALSE,
+  cohort_type = "paired"
+) {
 
-    ot <- readRDS(oncotable)
+  ot <- readRDS(oncotable)
 
-    # add a fusion_gene_coords column of NAs if no fusions
-    if (!"fusion_gene_coords" %in% colnames(ot)) {
-        ot[, fusion_genes := NA]
-        ot[, fusion_gene_coords := NA]
-    }
-    # snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
-    snvs <- ot[vartype == "SNV"][!is.na(type)]
-    if ("tier" %in% colnames(ot)) {
-      snvs <- snvs[order(is.na(tier)), ]
-    }
-    snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
-    snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
-    snvs[, is_unique_c := !duplicated(cbind(gene, variant.c))]
-    snvs <-  snvs[is_unique_p | (is_unique_g & is_unique_c)]
-    snvs$is_unique_p = NULL
-    snvs$is_unique_g = NULL
-    snvs$is_unique_c = NULL
-    homdels <- ot[type == "homdel"][, vartype := "HOMDEL"][, type := "SCNA"]
-  	amps <- ot[type == "amp"][, vartype := "AMP"][, type := "SCNA"]
-    fusions <- ot[type == "fusion"]
-    possible_drivers <- rbind(snvs, homdels, amps, fusions)
+  # add a fusion_gene_coords column of NAs if no fusions
+  if (!"fusion_gene_coords" %in% colnames(ot)) {
+    ot[, fusion_genes := NA]
+    ot[, fusion_gene_coords := NA]
+  }
+  # snvs <- ot[grepl("frameshift|missense|stop|disruptive", annotation, perl = TRUE)]
+  snvs <- ot[vartype == "SNV"][!is.na(type)]
+  if ("tier" %in% colnames(ot)) {
+    snvs <- snvs[order(is.na(tier)), ]
+  }
+  snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
+  snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
+  snvs[, is_unique_c := !duplicated(cbind(gene, variant.c))]
+  snvs <-  snvs[is_unique_p | (is_unique_g & is_unique_c)]
+  snvs$is_unique_p = NULL
+  snvs$is_unique_g = NULL
+  snvs$is_unique_c = NULL
+  homdels <- ot[type == "homdel"][, vartype := "HOMDEL"][, type := "SCNA"]
+  amps <- ot[type == "amp"][, vartype := "AMP"][, type := "SCNA"]
+  fusions <- ot[type == "fusion"]
+  possible_drivers <- rbind(snvs, homdels, amps, fusions)
 
-    oncotable_col_to_filtered_events_col <- c(
-        "id" = "id",
-        "gene" = "gene",
-        "fusion_genes" = "fusion_genes",
-        "fusion_gene_coords" = "fusion_gene_coords",
-        "value" = "fusion_cn",
-        "vartype" = "vartype",
-        "type" = "type",
-        "variant.g" = "Variant_g",
-        "variant.p" = "Variant",
-        "total_copies" = "estimated_altered_copies",
-        "segment_cn" = "segment_cn",
-        "ref" = "ref",
-        "alt" = "alt",
-        "VAF" = "VAF",
-        "gene_location" = "Genome_Location",
-        "tier" = "Tier",
-        "role" = "role",
-        "gene_summary" = "gene_summary",
-        "variant_summary" = "variant_summary",
-        "effect" = "effect",
-        "effect_description" = "effect_description",
-        "therapeutics" = "therapeutics",
-        "resistances" = "resistances",
-        "diagnoses" = "diagnoses",
-        "prognoses" = "prognoses"
-    )
-    filtered_events_columns <- names(possible_drivers)[names(possible_drivers) %in% names(oncotable_col_to_filtered_events_col)]
-    
-    res <- possible_drivers[, ..filtered_events_columns]
-    intersected_columns <- intersect(filtered_events_columns, names(res))
-    setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
+  oncotable_col_to_filtered_events_col <- c(
+    "id" = "id",
+    "gene" = "gene",
+    "fusion_genes" = "fusion_genes",
+    "fusion_gene_coords" = "fusion_gene_coords",
+    "value" = "fusion_cn",
+    "vartype" = "vartype",
+    "type" = "type",
+    "variant.g" = "Variant_g",
+    "variant.p" = "Variant",
+    "total_copies" = "estimated_altered_copies",
+    "segment_cn" = "segment_cn",
+    "ref" = "ref",
+    "alt" = "alt",
+    "VAF" = "VAF",
+    "gene_location" = "Genome_Location",
+    "tier" = "Tier",
+    "role" = "role",
+    "gene_summary" = "gene_summary",
+    "variant_summary" = "variant_summary",
+    "effect" = "effect",
+    "effect_description" = "effect_description",
+    "therapeutics" = "therapeutics",
+    "resistances" = "resistances",
+    "diagnoses" = "diagnoses",
+    "prognoses" = "prognoses"
+  )
+  filtered_events_columns <- names(possible_drivers)[names(possible_drivers) %in% names(oncotable_col_to_filtered_events_col)]
+  
+  res <- possible_drivers[, ..filtered_events_columns]
+  intersected_columns <- intersect(filtered_events_columns, names(res))
+  setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
 
   res <- res %>% unique(., by = c("gene","vartype", "Variant"))
-    if (nrow(res) > 0) {
-        res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
-        res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
-        res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
-        res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
-        res.mut <- res[!is.na(Variant), ]
-        if (nrow(res.mut) > 0) {
-            #res.mut[, Variant := gsub("p.", "", Variant)]
-            res.mut[, vartype := "SNV"]
-            res.mut[type=="trunc", vartype := "DEL"]
-        }
-        res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
-        if (nrow(res.cn) > 0) {
-            jab <- readRDS(jabba_gg)
-            res.cn.gr <- GRanges(res.cn)
-            res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
-            res.cn.dt <- as.data.table(res.cn.gr)
-            res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
-            res.cn.dt[, segment_cn := cn]
-            res.cn.dt[, Variant := vartype]
-            ## res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
-            ## res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3)                                                                                     )]
-            if (temp_fix) {
-                res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
-                res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
-            }
-            res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
-            res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
-        } else {
-            res.final <- res.mut
-        }
-        write_json(res.final, out_file, pretty = TRUE)
-        res.final[, sample := pair]
-        if (return_table) {
-            return(res.final)
-        }
+  if (nrow(res) > 0) {
+    res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
+    res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
+    res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
+    res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
+    ## res.mut <- res[!is.na(Variant), ]a
+    res.mut <- res[vartype == "SNV"]
+    if (nrow(res.mut) > 0) {
+      #res.mut[, Variant := gsub("p.", "", Variant)]
+      res.mut[, vartype := "SNV"]
+      # TODO:
+      # truncating mutations are not always deletions
+      # initial logic may be misleading calling all small mutations "SNV"
+      # but we should encode this as something more robust
+      # res.mut[type=="trunc", vartype := "DEL"]
     }
+    ## res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
+    res.fus = res[type == "fusion"] ## need to deal each class explicitly
+    if (NROW(res.fus) > 0) {
+      res.fus$Variant = res.fus$vartype
+      res.fus$estimated_altered_copies = res.fus$fusion_cn
+    }
+    res.cn <- res[(
+      type == "SCNA" ## FIXME: redundant logic for now
+      | vartype %in% c("AMP", "HOMDEL")
+    )]
+    if (nrow(res.cn) > 0) {
+      jab <- readRDS(jabba_gg)
+      res.cn.gr <- GRanges(res.cn)
+      res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
+      res.cn.dt <- as.data.table(res.cn.gr)
+      res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
+      res.cn.dt[, segment_cn := cn]
+      res.cn.dt[, Variant := vartype]
+      ## res.cn.dt[!is.na(cn) & !is.na(cn.low) & !is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3), "; CN Minor:", round(cn.low, digits = 3), "; CN Major:", round(cn.high, digits = 3))]
+      ## res.cn.dt[!is.na(cn) & is.na(cn.low) & is.na(cn.high), Variant := paste0("Total CN:", round(cn, digits = 3)                                                                                     )]
+      if (temp_fix) {
+        res.cn.dt <- res.cn.dt[!(type == "homdel" & cn != 0), ]
+        res.cn.dt <- res.cn.dt[!(type == "amp" & cn <= 2), ]
+      }
+      res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
+      res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
+    } else {
+      res.final <- res.mut
+    }
+    if (cohort_type == "heme") {
+      res.final = select_heme_events(res.final)
+    }
+    ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
+    res.final = res.final[res.final$seqnames != "Y"]
+    ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
+    write_json(res.final, out_file, pretty = TRUE)
+    res.final[, sample := pair]
+    if (return_table) {
+      return(res.final)
+    }
+    NULL
+  }
 }
 
 #' @name lift_filtered_events
@@ -996,7 +1034,7 @@ create_filtered_events <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
+lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_table = FALSE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1012,8 +1050,9 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
+    cohort_type = cohort$cohort_type
     # Process each sample in parallel
-    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+    lst_outs = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
@@ -1022,20 +1061,158 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1) {
         }
         
         out_file <- file.path(pair_dir, "filtered.events.json")
+
+        out = NULL
         
         tryCatch({
-            create_filtered_events(
+            out <- create_filtered_events(
                 pair = row$pair,
                 oncotable = row$oncotable,
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
                 temp_fix = FALSE,
-                return_table = FALSE
+                return_table = return_table,
+                cohort_type = cohort_type
             )
+            
         }, error = function(e) {
             warning(sprintf("Error processing %s: %s", row$pair, e$message))
         })
+        return(out)
     }, mc.cores = cores, mc.preschedule = FALSE)
     
-    invisible(NULL)
+    invisible(lst_outs)
+}
+
+#' Select Heme events from Addy's hemedb
+#' 
+#' bla bla
+#'
+#' @export
+select_heme_events <- function(
+  filtered_events, 
+  hemedb_path = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+) {
+  hemedb = readRDS(hemedb_path) 
+
+  # wtf = merge(events_tbl, hemedb_genes, by.x = "gene", by.y = "GENE")[5]
+  is_small_mutation_heme = (
+    filtered_events$vartype == "SNV" &
+    (
+      filtered_events$gene %in% hemedb$GENE
+      |
+      filtered_events$Tier %in% c(1,2)
+    )
+  )
+  
+  is_other_event = filtered_events$vartype != "SNV"
+  if (any(filtered_events$gene %in% c("FLT3", "DUX4", "KMT2A"))) {
+    .NotYetImplemented()
+  }
+  return(
+    filtered_events[is_small_mutation_heme | is_other_event]
+  )
+}
+
+
+#' Merge oncokb and multiplicity
+#' 
+#' Finds overlaps between oncokb maf coordinates and multiplicity
+#' Oncokb is in MAF coordinates which is based on the altered bases,
+#' while multiplicity encodes VCF coordinates based on reference bases.
+#' 
+#' @export
+merge_oncokb_multiplicity = function(oncokb, multiplicity, overwrite = FALSE) {
+
+  if (is.character(oncokb))
+    oncokb = data.table::fread(oncokb)
+
+  if (is.character(multiplicity)) {
+    gr_multiplicity = readRDS(multiplicity)
+  } else if (inherits(multiplicity, "GRanges")) {
+    gr_multiplicity = multiplicity
+  } else if (inherits(multiplicity, "data.frame")) {
+    gr_multiplicity = gUtils::dt2gr(multiplicity)
+  }
+  
+  gr_oncokb = gUtils::dt2gr(oncokb)
+  gr_oncokb$ALT = gr_oncokb$Allele
+
+  mc = S4Vectors::mcols(gr_multiplicity)
+  checknormalcols = c("normal.ref", "normal.alt")
+  for (col in checknormalcols) {
+    if (!col %in% names(mc))
+      mc[[col]] = NA_integer_
+  }
+  S4Vectors::mcols(gr_multiplicity) = mc
+
+  ov = gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = "ALT", type = "equal")
+  ovQuery = data.table(query.id = integer(0), subject.id = integer(0))
+  if (NROW(ov) > 0)
+    ovQuery = gUtils::gr2dt(ov)[, .(query.id, subject.id)]
+  missingIds = setdiff(1:NROW(gr_oncokb), ov$query.id)
+
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+
+  if (length(missingIds) > 0) {
+    dt_oncokb = gUtils::gr2dt(gr_oncokb[missingIds])
+    invisible(dt_oncokb[, Reference_Allele_Fixed := ifelse(Reference_Allele == "-", "", Reference_Allele)])
+    invisible({
+      dt_oncokb[Variant_Type == "INS", end := start + nchar(Reference_Allele_Fixed)]
+      dt_oncokb[Variant_Type == "DEL", start := end - nchar(Reference_Allele_Fixed)]
+    })
+    dt_oncokb$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+      gUtils::dt2gr(dt_oncokb), gr_multiplicity
+     ,
+      by = "ALT", type = "equal", qcol = c("oid")
+    )
+    if (NROW(ovMissing) > 0) 
+      missingOvQuery = gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
+  }
+  ovQuery = rbind(ovQuery, missingOvQuery)
+  
+  # missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
+  # missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+  
+  # if (length(missingIds) > 0) {
+  #   gr_oncokb_missing = gr_oncokb[missingIds]
+  #   gr_oncokb_missing$oid = missingIds
+  #   ovMissing = gUtils::gr.findoverlaps(
+  #     gr_oncokb_missing, gr_multiplicity
+  #    ,
+  #     qcol = c("oid")
+  #   )
+  #   if (NROW(ovMissing) > 0) 
+  #     missingOvQuery = gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
+  # }
+  # ovQuery = rbind(ovQuery, missingOvQuery)
+  
+  cols.keep = c("ref", "alt", "ref_denoised", "alt_denoised", "normal.ref", "normal.alt",
+                "variant.g", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies",
+                "total_snv_copies", "total_copies", "VAF", "cn", "altered_copies")
+  # if(!any(cols.keep %in% names(mcols(gr_multiplicity)))) {
+  #   stop("")
+  # }
+  cols.keep = cols.keep[cols.keep %in% names(mcols(gr_multiplicity))]
+  subject = base::subset(gUtils::gr2dt(gr_multiplicity), select = cols.keep)
+  skey = data.table::setkey(ovQuery, query.id)
+  skey = skey[list(1:NROW(oncokb))]
+
+  if (!identical(overwrite, TRUE)) {
+    oncokb_multiplicity = cbind(oncokb, subject[skey$subject.id])
+  } else {
+    oncokb_multiplicity = oncokb
+    # mc_oncokb_multiplicity = S4Vectors::mcols(oncokb_multiplicity)
+    subject_ord = subject[skey$subject.id]
+    for (multiplicity_col in cols.keep) {
+      oncokb_multiplicity[[multiplicity_col]] = NULL
+      oncokb_multiplicity[[multiplicity_col]] = subject_ord[[multiplicity_col]]
+    }
+    # S4Vectors::mcols(mc_oncokb_multiplicity) = mc_oncokb_multiplicity
+  }
+
+  oncokb_multiplicity$multiplicity_id_match = skey$subject.id
+  return(oncokb_multiplicity)
+
 }

@@ -125,14 +125,11 @@ multiplicity_to_intervals <- function(
     multiplicity[, y_value := get(field)]
 
     # Convert to GRanges
-    gr <- if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
-        dt2gr(multiplicity[order(seqnames, start), ]) %>%
-            sortSeqlevels() %>%
-            gr.chr()
+    gr = dt2gr(multiplicity[order(seqnames, start), ]) %>% sortSeqlevels()
+    if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
+        GenomeInfoDb::seqlevelsStyle(gr) = "UCSC"
     } else {
-        dt2gr(multiplicity[order(seqnames, start), ]) %>%
-            sortSeqlevels() %>%
-            gr.nochr()
+        GenomeInfoDb::seqlevelsStyle(gr) = "NCBI"
     }
 
     # Validate ranges
@@ -201,7 +198,7 @@ lift_multiplicity <- function(
     }
     
     # Determine which column to use based on is_germline
-    snv_cn_col <- if(is_germline) "germline_snv_cn" else "somatic_snv_cn"
+    snv_cn_col <- if(is_germline) "germline_multiplicity" else "multiplicity"
     
     # Validate required column exists
     if (!snv_cn_col %in% names(cohort$inputs)) {

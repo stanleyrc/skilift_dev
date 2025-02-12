@@ -55,9 +55,6 @@ get_ref_metadata <- function(ref_seqinfo_json, ref = NULL) {
 #' @param gr_path input GRanges
 #' @param field name of GRanges column to use as arrow Y axis
 #' @param ref the name of the reference to use.
-#' 
-#' @importFrom arrow Table write_feather schema float32
-#' @importFrom gGnome cov2cov.js
 #' @param cov.color.field name of GRanges column containing color of each point
 #' @param overwrite (logical) by default, if the output path already exists, it will not be overwritten.
 #' @param ref_seqinfo_json path to JSON file with ref seqlengths
@@ -243,7 +240,14 @@ subsample_hetsnps <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
+lift_denoised_coverage <- function(
+    cohort,
+    output_data_dir,
+    cores = 1,
+    coverage_field = "foreground", 
+    color_field = NULL,
+    bin.width = 1e4
+) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -275,8 +279,10 @@ lift_denoised_coverage <- function(cohort, output_data_dir, cores = 1) {
                 # Create arrow table
                 arrow_table <- granges_to_arrow_scatterplot(
                     gr_path = row$tumor_coverage,
-                    field = "foreground",
+                    field = coverage_field,
                     ref = cohort$reference_name,
+                    cov.color.field = color_field,
+                    bin.width = bin.width
                 )
                 
                 # Write arrow table
@@ -369,93 +375,3 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
     invisible(NULL)
 }
 
-
-
-#' @name lift_coverage_track
-#' @title lift_coverage_track
-#' @description
-#' Create coverage arrow files for all samples in a cohort.
-#' Inputs can be any GRanges with a color field
-#'
-#' @param cohort Cohort object containing sample information
-#' @param output_data_dir Base directory for output files
-#' @param cores Number of cores for parallel processing (default: 1)
-#' @param cohort_column Field in cohort inputs table that specifies the source data
-#' @param coverage_field Field in the input GRanges object that specifies the values to write to arrow
-#' @param color_field Field in the input GRanges object that specifies the color values. Note this must be a hexadecimal value.
-#' @return None
-#' @export
-lift_coverage_track <- function(
-    cohort, 
-    output_data_dir, 
-    cores = 1, 
-    cohort_column = "tumor_coverage", 
-    coverage_field = "foreground", 
-    color_field = NULL,
-    bin.width = NA_integer_
-    ) {
-    if (!inherits(cohort, "Cohort")) {
-        stop("Input must be a Cohort object")
-    }
-    
-    if (!dir.exists(output_data_dir)) {
-        dir.create(output_data_dir, recursive = TRUE)
-    }
-
-    if (
-        missing(coverage_field) && 
-        identical(coverage_field, "foreground")
-    ) {
-        warning("default coverage_field 'foreground' will be used to create arrow plot")
-    }
-
-    if (
-        missing(cohort_column) && 
-        identical(cohort_column, "tumor_coverage")
-    ) {
-        warning("default cohort_column 'tumor_coverage' will be used to create arrow plot")
-    }
-    
-    # Validate required columns exist
-    required_cols <- c("pair", cohort_column)
-    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
-    if (length(missing_cols) > 0) {
-        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
-    }
-
-    
-    # Process each sample in parallel
-    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
-        pair_dir <- file.path(output_data_dir, row$pair)
-        
-        if (!dir.exists(pair_dir)) {
-            dir.create(pair_dir, recursive = TRUE)
-        }
-        
-        out_file <- file.path(pair_dir, "coverage.arrow")
-        
-        tryCatch({
-            if (!is.null(row[[cohort_column]]) && file.exists(row[[cohort_column]])) {
-                # Create arrow table
-                arrow_table <- granges_to_arrow_scatterplot(
-                    gr_path = row[[cohort_column]],
-                    field = coverage_field,
-                    ref = cohort$reference_name,
-                    cov.color.field = color_field,
-                    bin.width = bin.width
-                )
-                
-                # Write arrow table
-                message(sprintf("Writing coverage arrow file for %s", row$pair))
-                arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
-            } else {
-                warning(sprintf("%s file missing for %s", cohort_column, row$pair))
-            }
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
-    }, mc.cores = cores)
-    
-    invisible(NULL)
-}

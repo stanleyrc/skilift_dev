@@ -18,5 +18,6 @@ testthat::test_file("tests/testthat/test-segment-width-distribution.R")
 testthat::test_file("tests/testthat/test-variant-qc.R")
 testthat::test_file("tests/testthat/test-multiplicity.R")
 testthat::test_file("tests/testthat/test-signatures.R")
+testthat::test_file("tests/testthat/test-lift-wrappers.R")
 
 
