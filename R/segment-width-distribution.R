@@ -92,7 +92,7 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
         if (!dir.exists(pair_dir)) {
             dir.create(pair_dir, recursive = TRUE)
         }
-        
+
         out_file <- file.path(pair_dir, "ppfit.json")
         
         tryCatch({
@@ -161,9 +161,92 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
     invisible(NULL)
 }
 
+#' @name lift_somatic_fit
+#' @title lift_somatic_fit
+#' @description a method to lift the somatic mutations as a histogram to JSON for viewing in gOS
+#' 
+#' @param cohort Cohort object containing sample information
+#' @param output_data_dir Base directory for output files
+#' @param mask_path path to the mask file, contained in extdata of package itself; default is maskA as provided in the package
+#' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
+#' @param mask logical value to mask the data or not; default is TRUE
+#' @param cores Number of cores for parallel processing (default: 1)
+#' @return None
+#' @author Johnathan Rafailov
+#' @export 
+lift_somatic_fit <- function(cohort, 
+                             output_data_dir, 
+                             mask_path = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+                             mask = TRUE,
+                             bins = 100000,
+                             cores){
+    
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+    
+    # Validate required columns exist
+    required_cols <- c("pair", "multiplicity")
+    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
 
+    if(mask){
+        mask.gr = mask_path %>% readRDS()
+    }
+    
+    # Process each sample in parallel
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        row <- cohort$inputs[i,]
+        pair_dir <- file.path(output_data_dir, row$pair)
+        
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
 
+        out_file <- file.path(pair_dir, "mutations_histogram.json")
+        
+        tryCatch({
+            if (!file.exists(row$multiplicity)) {
+                warning(sprintf("Multiplicity file not found for  %s: %s", row$pair, row$multiplicity))
+                return(NULL)
+            }
+            
+            # Read the multiplicity
+            variants <- readRDS(row$multiplicity)
+            if (!any(class(variants) == "GRanges")) {
+                warning(sprintf("File is not a GRanges for %s: %s", row$pair, row$multiplicity))
+                return(NULL)
+            }
 
+            variants <- variants %Q% (!is.na(cn))
+            variants$cn <- round(variants$cn, 0)
+            variants$masked <- variants %^% mask.gr
+            variants.dt = variants %>% gr2dt()
+
+            if(mask){
+                variant.dt = variants.dt[masked == TRUE]
+            }
+
+            #create histogram data
+            hist_data <- variants.dt[, .(count = .N), by = .(mult_cn = altered_copies, jabba_cn = cn)]
+            hist_data[, bin := cut(mult_cn, breaks = seq(min(mult_cn), max(mult_cn), length.out = 100000), include.lowest = TRUE)]
+
+            #create binned histogram data
+            binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][,bin := NULL]
+
+            # write json to file 
+            write_json(binned_hist_data, out_file, pretty = TRUE)
+
+        }, error = function(e) {
+            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+        })
+    }, mc.cores = cores, mc.preschedule = FALSE)
+    
+    invisible(NULL)
+
+}
 
 #' Purity Ploidy Plot
 #' 
