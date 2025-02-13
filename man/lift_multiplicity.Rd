@@ -7,10 +7,11 @@
 lift_multiplicity(
   cohort,
   is_germline = FALSE,
-  node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
-    "variant.p", "vaf", "transcript_type", "impact", "rank"),
+  node_metadata = c("Variant_Classification", "Gene", "HGVSc", "HGVSp", "variant.g",
+    "vaf", "alt", "ref", "normal.alt", "normal.ref", "FILTER", "ONCOGENIC",
+    "MUTATION_EFFECT", "HIGHEST_LEVEL"),
   output_data_dir,
-  field = "total_copies",
+  field = "altered_copies",
   cores = 1
 )
 }
