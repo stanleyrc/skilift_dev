@@ -312,7 +312,7 @@ Cohort <- R6Class("Cohort",
       
       # Second pass: prefix matches for columns that weren't exactly matched
       for (cohort_col in names(self$cohort_cols_to_x_cols)) {
-        if (cohort_col %in% names(result_dt)) next  # Skip if already matched
+        if (!is.null(result_dt[[cohort_col]]) && !all(is.na(result_dt[[cohort_col]]))) next  # Skip if already matched
         
         possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
         default_value <- attr(possible_cols, "default")
@@ -336,11 +336,11 @@ Cohort <- R6Class("Cohort",
         } else if (!is.null(default_value) && nrow(dt) > 0) {
           # Only add default values if the input data.table is not empty
           if (is.list(default_value) || length(default_value) > 1) {
-            result_dt[, (cohort_col) := list(list(default_value))]
+            result_dt[, (cohort_col) := list(replicate(nrow(dt), list(default_value), simplify = FALSE))]
           } else {
             result_dt[, (cohort_col) := default_value]
           }
-        } else if (nrow(dt) > 0) {
+        } else if (nrow(dt) > 0 && !cohort_col %in% Skilift:::config_parameter_names) {
           warning(sprintf("No matching column found for '%s'. Expected one of: %s", 
                         cohort_col, paste(possible_cols, collapse = ", ")))
         }
@@ -725,10 +725,78 @@ Cohort$private_methods[["read_nf_log"]] = read_nf_log
 #' @export
 refresh_cohort = function(cohort) {
   obj_out = Skilift::Cohort$new(
-      x = data.table()
+      x = data.table::copy(cohort$inputs)  # Create a deep copy of the inputs
   )
-  for (attribute in Skilift:::cohort_attributes) {
+  for (attribute in setdiff(Skilift:::cohort_attributes, "inputs")) {
     obj_out[[attribute]] = cohort[[attribute]]
   }
   return(obj_out)
+}
+
+#' Merge Cohort objects
+#'
+#' Combines two or more Cohort objects into a single Cohort
+#'
+#' @param ... Two or more Cohort objects to merge
+#' @param warn_duplicates Logical indicating whether to warn about duplicate pairs (default TRUE)
+#' @param rename_duplicates Logical indicating whether to rename duplicate pairs instead of overwriting (default FALSE)
+#' @return A new Cohort object containing all data from input Cohorts
+#' @export
+merge = function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
+  cohorts = list(...)
+  
+  # Validate inputs are all Cohorts
+  if (length(cohorts) < 2) {
+    stop("At least two Cohort objects must be provided")
+  }
+  for (cohort in cohorts) {
+    if (!inherits(cohort, "Cohort")) {
+      stop("All arguments must be Cohort objects")
+    }
+  }
+  
+  # Get first cohort to initialize merged result
+  merged_dt = data.table::copy(cohorts[[1]]$inputs)
+  
+  # Merge remaining cohorts
+  for (i in 2:length(cohorts)) {
+    current_dt = data.table::copy(cohorts[[i]]$inputs)
+    
+    # Check for duplicate pairs
+    duplicate_pairs = intersect(merged_dt$pair, current_dt$pair)
+    if (length(duplicate_pairs) > 0) {
+      if (warn_duplicates) {
+        warning(sprintf("Found %d duplicate pair(s): %s", 
+                      length(duplicate_pairs),
+                      paste(duplicate_pairs, collapse = ", ")))
+      }
+      
+      if (rename_duplicates) {
+        # Add incrementing suffix to duplicate pairs
+        for (dup_pair in duplicate_pairs) {
+          suffix = 1
+          while (paste0(dup_pair, "_", suffix) %in% merged_dt$pair) {
+            suffix = suffix + 1
+          }
+          current_dt[pair == dup_pair, pair := paste0(pair, "_", suffix)]
+        }
+      } else {
+        # Remove duplicates from current_dt that would overwrite existing pairs
+        current_dt = current_dt[!pair %in% duplicate_pairs]
+      }
+    }
+    
+    # Merge inputs data.tables
+    merged_dt = rbindlist(
+      list(merged_dt, current_dt),
+      fill = TRUE,  # Union of columns
+      use.names = TRUE
+    )
+  }
+  
+  # Create new Cohort with merged data
+  result = refresh_cohort(cohorts[[1]])
+  result$inputs = merged_dt
+  
+  return(result)
 }
