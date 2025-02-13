@@ -64,6 +64,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     matrix_indel_signatures = c("mis1", "mis2"),
     decomposed_indel_signatures = c("dis1", "dis2"),
     hrdetect = c("hrd1", "hrd2"),
+    onenesstwoness = c("on1", "on2"),
     oncotable = c("ot1", "ot2"),
     estimate_library_complexity = c("lib1", "lib2"),
     alignment_summary_metrics = c("align1", "align2"),
