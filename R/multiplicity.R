@@ -74,7 +74,8 @@ multiplicity_to_intervals <- function(
     field = "total_copies",
     settings = internal_settings_path,
     node_metadata = NULL,
-    reference_name = "hg19"
+    reference_name = "hg19",
+    cohort_type
 ) {
     # Load chromosome lengths from settings
     settings_data <- jsonlite::fromJSON(settings)
@@ -100,6 +101,21 @@ multiplicity_to_intervals <- function(
     } else {
         GenomeInfoDb::seqlevelsStyle(gr) = "NCBI"
     }
+
+    if (is.null(cohort_type)) stop("cohort_type is missing")
+
+    if (cohort_type == "heme") {
+        hemedb = readRDS(Skilift:::HEMEDB)
+        # HEMEDB = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+        gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds"
+        gencode <- Skilift:::process_gencode(gencode)
+        genes = gencode[gencode$type == "gene"]
+        gr_heme_genes = genes[na.omit(match(hemedb$GENE, genes$gene_name))]
+        message("Filtering multiplicity to heme relevant genes")
+        gr = gr %&% gr_heme_genes
+    }
+    
+    
 
     # Validate ranges
     if (any(gr@seqinfo@seqlengths > 
@@ -195,7 +211,8 @@ lift_multiplicity <- function(
             if(is_germline) "germline_mutations.json" else "mutations.json"
         )
         
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             # Create multiplicity data.table
             mult_dt <- create_multiplicity(
                 snv_cn = row[[snv_cn_col]],
@@ -208,7 +225,8 @@ lift_multiplicity <- function(
                 multiplicity = mult_dt,
                 reference_name = reference_name,
                 node_metadata = node_metadata,
-                field = field
+                field = field,
+                cohort_type = cohort$cohort_type
             )
             
             # Write to JSON
@@ -221,9 +239,10 @@ lift_multiplicity <- function(
             )
             
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
         })
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(NULL)
 }
