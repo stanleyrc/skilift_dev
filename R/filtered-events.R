@@ -1119,6 +1119,10 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     invisible(lst_outs)
 }
 
+
+#' Global HemeDB path
+HEMEDB = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+
 #' Select Heme events from Addy's hemedb
 #' 
 #' Coarse selection of Heme events for first pass filtering
@@ -1126,7 +1130,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
 #' @export
 select_heme_events <- function(
   filtered_events, 
-  hemedb_path = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+  hemedb_path = Skilift:::HEMEDB
 ) {
   hemedb = readRDS(hemedb_path) 
 
