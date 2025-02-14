@@ -166,7 +166,10 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
 
 #' @name lift_multiplicity_fits
 #' @title lift_multiplicity_fits
-#' @description
+#' @description This function will create JSON files for somatic, germline, and hetsnps multiplicity fits
+#' -somatic: altered_copies and total_snv_copies
+#' -germline: altered_copies and total_snv_copies
+#' -hetsnps: major_snv_copies and minor_snv_copies
 #'
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
@@ -189,7 +192,6 @@ lift_multiplicity_fits <- function(cohort,
         message("Skipping... missing columns will not be processed")
     }
 
-    # browser()
 
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i, ]
@@ -199,21 +201,19 @@ lift_multiplicity_fits <- function(cohort,
             dir.create(pair_dir, recursive = TRUE)
         }
 
-        # browser()
-
         for (col in iter_cols) {
             message(sprintf("Processing %s for %s", col, row$pair))
 
-            out_file <- switch(col,
-                multiplicity = file.path(pair_dir, "somatic_altered_hist.json"),
-                germline_multiplicity = file.path(pair_dir, "germline_altered_hist.json"),
-                hetsnps_multiplicity = file.path(pair_dir, "hetsnps_total_hist.json")
+            out_files <- switch(col,
+                multiplicity = file.path(pair_dir, c("somatic_altered_hist.json", "somatic_total_hist.json")),
+                germline_multiplicity = file.path(pair_dir, c("germline_altered_hist.json", "germline_total_hist.json")),
+                hetsnps_multiplicity = file.path(pair_dir, c("hetsnps_major_hist.json", "hetsnps_minor_hist.json"))
             )
 
             field_to_use <- switch(col,
-                multiplicity = "altered_copies",
-                germline_multiplicity = "altered_copies",
-                hetsnps_multiplicity = "total_snv_copies"
+                multiplicity = c("altered_copies", "total_snv_copies"),
+                germline_multiplicity = c("altered_copies", "total_snv_copies"),
+                hetsnps_multiplicity = c("major_snv_copies", "minor_snv_copies")
             )
 
             tryCatch(
@@ -223,10 +223,12 @@ lift_multiplicity_fits <- function(cohort,
                         return(NULL)
                     }
 
-                    process_multiplicity_fit(row[[col]],
-                        field = field_to_use,
-                        out_file = out_file
-                    )
+                    mapply(function(out_file, field_to_use) {
+                        process_multiplicity_fit(row[[col]],
+                            field = field_to_use,
+                            out_file = out_file
+                        )
+                    }, out_files, field_to_use)
                 },
                 error = function(e) {
                     warning(sprintf("Error processing %s: %s", row$pair, e$message))
@@ -240,7 +242,7 @@ lift_multiplicity_fits <- function(cohort,
 #' @title process_multiplicity_fit
 #' @description a method to lift the mutations as a histogram to JSON for viewing in gOS
 #' @param variants GRanges object containing the variants
-#' @param field field to use from the input data; default is altered_copies. other often used paramaters are ["total_copies","altered_copies"]
+#' @param field field to use from the input data; default is altered_copies. other often used paramaters are ["total_snv_copies","altered_copies", "major_snv_copies", "minor_snv_copies"]
 #' @param mask logical value to mask the data or not; default is TRUE
 #' @param mask_gr GRanges object containing the mask; default is maskA as provided in the package
 #' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
@@ -268,19 +270,19 @@ process_multiplicity_fit <- function(variants,
         variants <- variants %Q% (masked == TRUE)
     }
 
-    # browser()
     # create histogram data
     hist_data <- gr2dt(variants)[, .(count = .N), by = .(mult_cn = get(field), jabba_cn = cn)]
-    hist_data[, bin := cut(mult_cn, breaks = seq(min(mult_cn, na.rm = T),
-        max(mult_cn, na.rm = T),
-        length.out = bins
-    ), include.lowest = TRUE)]
+    hist_data[, bin := cut(mult_cn,
+        breaks = seq(min(mult_cn, na.rm = T), max(mult_cn, na.rm = T), length.out = bins), include.lowest = TRUE
+    )]
 
     # create binned histogram data
     binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn, na.rm = T), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][, bin := NULL]
 
     # write json to file
     write_json(binned_hist_data, out_file, pretty = TRUE)
+
+    invisible(NULL)
 }
 
 #' Purity Ploidy Plot

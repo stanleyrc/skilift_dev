@@ -16,7 +16,7 @@ process_multiplicity_fit(
 \arguments{
 \item{variants}{GRanges object containing the variants}
 
-\item{field}{field to use from the input data; default is altered_copies. other often used paramaters are ["total_copies","altered_copies"]}
+\item{field}{field to use from the input data; default is altered_copies. other often used paramaters are ["total_snv_copies","altered_copies", "major_snv_copies", "minor_snv_copies"]}
 
 \item{mask}{logical value to mask the data or not; default is TRUE}
 
