@@ -1,4 +1,3 @@
-#' @name create_ppfit_json
 #' @title create_ppfit_json
 #' @description
 #'
@@ -15,50 +14,50 @@
 #' @export
 #' @author Stanley Clarke, Tanubrata Dey, Shihab Dider
 get_segstats <- function(
-  balanced_jabba_gg,
-  tumor_coverage,
-  coverage_field = "foreground",
-  settings = internal_settings_path,
-  ref = "hg19",
-  max_na = 0.9,
-  cores = 1) {
+    balanced_jabba_gg,
+    tumor_coverage,
+    coverage_field = "foreground",
+    settings = internal_settings_path,
+    ref = "hg19",
+    max_na = 0.9,
+    cores = 1) {
+    #' drcln_cov = readRDS(thisp$decomposed_cov[i])
+    ## make this work with complex where the cov file was not an input and with jabba_gg
+    ## x = path_obj %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
+    if (is.null(balanced_jabba_gg)) {
+        stop("Please provide a valid path to a non-integer balanced gGraph file.")
+    }
 
-  #' drcln_cov = readRDS(thisp$decomposed_cov[i])
-  ## make this work with complex where the cov file was not an input and with jabba_gg
-  ## x = path_obj %>% sniff %>% inputs %>% select(CovFile, maxna) #get coverage that was used for the jabba run
-  if (is.null(balanced_jabba_gg)) {
-      stop("Please provide a valid path to a non-integer balanced gGraph file.")
-  }
+    if (!is.null(tumor_coverage)) {
+        cov <- readRDS(tumor_coverage)
+    } else {
+        stop("Please provide a valid path to a coverage file.")
+    }
 
-  if (!is.null(tumor_coverage)) {
-      cov <- readRDS(tumor_coverage)
-  } else {
-      stop("Please provide a valid path to a coverage file.")
-  }
+    ## need to replace NaN with NA or JaBbA:::segstats breaks
+    mcols(cov)[[coverage_field]] <- ifelse(is.nan(mcols(cov)[[coverage_field]]),
+        NA,
+        mcols(cov)[[coverage_field]]
+    )
+    mcols(cov)[[coverage_field]] <- as.numeric(mcols(cov)[[coverage_field]])
 
-  ## need to replace NaN with NA or JaBbA:::segstats breaks
-  mcols(cov)[[coverage_field]] <- ifelse(is.nan(mcols(cov)[[coverage_field]]), 
-                                        NA, 
-                                        mcols(cov)[[coverage_field]])
-  mcols(cov)[[coverage_field]] <- as.numeric(mcols(cov)[[coverage_field]])
+    balanced_gg_gr <- readRDS(balanced_jabba_gg)$nodes$gr
 
-  balanced_gg_gr <- readRDS(balanced_jabba_gg)$nodes$gr
-
-  segstats <- JaBbA:::segstats(
-    balanced_gg_gr,
-    cov,
-    field = coverage_field,
-    prior_weight = 1,
-    max.chunk = 1e8,
-    ## subsample = subsample,
-    mc.cores = cores,
-    verbose = FALSE,
-    max.na = max_na,
-    lp = FALSE
-  )
-  segstats_dt <- gr2dt(segstats)
-  names(segstats_dt) <- gsub("\\.", "_", names(segstats_dt))
-  return(segstats_dt)
+    segstats <- JaBbA:::segstats(
+        balanced_gg_gr,
+        cov,
+        field = coverage_field,
+        prior_weight = 1,
+        max.chunk = 1e8,
+        ## subsample = subsample,
+        mc.cores = cores,
+        verbose = FALSE,
+        max.na = max_na,
+        lp = FALSE
+    )
+    segstats_dt <- gr2dt(segstats)
+    names(segstats_dt) <- gsub("\\.", "_", names(segstats_dt))
+    return(segstats_dt)
 }
 
 #' @name lift_segment_width_distribution
@@ -76,209 +75,252 @@ lift_segment_width_distribution <- function(cohort, output_data_dir, annotations
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-    
+
     # Validate required columns exist
     required_cols <- c("pair", "balanced_jabba_gg", "tumor_coverage")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-    
+
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
+        row <- cohort$inputs[i, ]
         pair_dir <- file.path(output_data_dir, row$pair)
-        
+
         if (!dir.exists(pair_dir)) {
             dir.create(pair_dir, recursive = TRUE)
         }
 
         out_file <- file.path(pair_dir, "ppfit.json")
-        
-        tryCatch({
-            if (!file.exists(row$balanced_jabba_gg)) {
-                warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$balanced_jabba_gg))
-                return(NULL)
-            }
-            
-            # Read the gGraph
-            ggraph <- readRDS(row$balanced_jabba_gg)
-            if (!any(class(ggraph) == "gGraph")) {
-                warning(sprintf("File is not a gGraph for %s: %s", row$pair, row$balanced_jabba_gg))
-                return(NULL)
-            }
-            
-            # Get sequence lengths from the gGraph
-            seq_lengths <- seqlengths(ggraph$nodes$gr)
-            
-            # Check for required fields
-            colnames_check <- c("start_ix", "end_ix", "eslack_in", "eslack_out", 
-                              "edges_in", "edges_out", "tile_id", "snode_id", 
-                              "loose_left", "loose_right", "loose_cn_left", 
-                              "loose_cn_right", "node_id", "raw_mean", "raw_var", 
-                              "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", 
-                              "wbins_ok", "mean", "bad", "max_na", "loess_var", 
-                              "tau_sq_post", "post_var", "var", "sd")
-            
-            if (all(colnames_check %in% names(ggraph$nodes$dt))) {
-                gg_w_segstats <- ggraph
-                fields.keep <- c(colnames_check, "seqnames", "start", "end", "strand", "width", "loose", "index")
-            } else {
-                # Get segstats information
-                segstats.dt <- get_segstats(
-                    balanced_jabba_gg = row$balanced_jabba_gg,
-                    tumor_coverage = row$tumor_coverage
+
+        tryCatch(
+            {
+                if (!file.exists(row$balanced_jabba_gg)) {
+                    warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$balanced_jabba_gg))
+                    return(NULL)
+                }
+
+                # Read the gGraph
+                ggraph <- readRDS(row$balanced_jabba_gg)
+                if (!any(class(ggraph) == "gGraph")) {
+                    warning(sprintf("File is not a gGraph for %s: %s", row$pair, row$balanced_jabba_gg))
+                    return(NULL)
+                }
+
+                # Get sequence lengths from the gGraph
+                seq_lengths <- seqlengths(ggraph$nodes$gr)
+
+                # Check for required fields
+                colnames_check <- c(
+                    "start_ix", "end_ix", "eslack_in", "eslack_out",
+                    "edges_in", "edges_out", "tile_id", "snode_id",
+                    "loose_left", "loose_right", "loose_cn_left",
+                    "loose_cn_right", "node_id", "raw_mean", "raw_var",
+                    "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac",
+                    "wbins_ok", "mean", "bad", "max_na", "loess_var",
+                    "tau_sq_post", "post_var", "var", "sd"
                 )
-                segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
-                gg_w_segstats <- gG(nodes = segstats.gr, edges = ggraph$edges$dt)
-                fields.keep <- names(segstats.dt) %>% grep("cn", ., invert = TRUE, value = TRUE)
+
+                if (all(colnames_check %in% names(ggraph$nodes$dt))) {
+                    gg_w_segstats <- ggraph
+                    fields.keep <- c(colnames_check, "seqnames", "start", "end", "strand", "width", "loose", "index")
+                } else {
+                    # Get segstats information
+                    segstats.dt <- get_segstats(
+                        balanced_jabba_gg = row$balanced_jabba_gg,
+                        tumor_coverage = row$tumor_coverage
+                    )
+                    segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
+                    gg_w_segstats <- gG(nodes = segstats.gr, edges = ggraph$edges$dt)
+                    fields.keep <- names(segstats.dt) %>% grep("cn", ., invert = TRUE, value = TRUE)
+                }
+
+                gg_w_segstats$set(y.field = "cn")
+
+                # Check for sequence name overlap
+                ggraph.reduced <- gg_w_segstats[seqnames %in% names(seq_lengths)]
+                if (length(ggraph.reduced) == 0) {
+                    warning(sprintf("No overlap in sequence names for %s", row$pair))
+                    return(NULL)
+                }
+
+                # Create JSON
+                gGnome::refresh(ggraph.reduced)$json(
+                    filename = out_file,
+                    verbose = TRUE,
+                    annotations = if (!is.null(annotations)) unlist(annotations) else NULL,
+                    maxcn = 500,
+                    nfields = fields.keep,
+                    save = TRUE
+                )
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
             }
-            
-            gg_w_segstats$set(y.field = "cn")
-            
-            # Check for sequence name overlap
-            ggraph.reduced <- gg_w_segstats[seqnames %in% names(seq_lengths)]
-            if (length(ggraph.reduced) == 0) {
-                warning(sprintf("No overlap in sequence names for %s", row$pair))
-                return(NULL)
-            }
-            
-            # Create JSON
-            gGnome::refresh(ggraph.reduced)$json(
-                filename = out_file,
-                verbose = TRUE,
-                annotations = if (!is.null(annotations)) unlist(annotations) else NULL,
-                maxcn = 500,
-                nfields = fields.keep,
-                save = TRUE
-            )
-            
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
+        )
     }, mc.cores = cores, mc.preschedule = FALSE)
-    
+
     invisible(NULL)
 }
 
-#' @name lift_somatic_fit
-#' @title lift_somatic_fit
-#' @description a method to lift the somatic mutations as a histogram to JSON for viewing in gOS
-#' 
+#' @name lift_multiplicity_fits
+#' @title lift_multiplicity_fits
+#' @description
+#'
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
-#' @param mask_path path to the mask file, contained in extdata of package itself; default is maskA as provided in the package
-#' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
-#' @param mask logical value to mask the data or not; default is TRUE
 #' @param cores Number of cores for parallel processing (default: 1)
-#' @return None
-#' @author Johnathan Rafailov
-#' @export 
-lift_somatic_fit <- function(cohort, 
-                             output_data_dir, 
-                             mask_path = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
-                             mask = TRUE,
-                             bins = 100000,
-                             cores){
-    
+#' @export
+lift_multiplicity_fits <- function(cohort,
+                                   output_data_dir,
+                                   cores = 1) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-    
+
     # Validate required columns exist
-    required_cols <- c("pair", "multiplicity")
+    required_cols <- c("pair", "multiplicity", "germline_multiplicity", "hetsnps_multiplicity")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    iter_cols <- required_cols[-1][required_cols[-1] %in% names(cohort$inputs)]
+
     if (length(missing_cols) > 0) {
-        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+        message("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+        message("Skipping... missing columns will not be processed")
     }
 
-    if(mask){
-        mask.gr = mask_path %>% readRDS()
-    }
-    
-    # Process each sample in parallel
+    # browser()
+
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
+        row <- cohort$inputs[i, ]
         pair_dir <- file.path(output_data_dir, row$pair)
-        
+
         if (!dir.exists(pair_dir)) {
             dir.create(pair_dir, recursive = TRUE)
         }
 
-        out_file <- file.path(pair_dir, "mutations_histogram.json")
-        
-        tryCatch({
-            if (!file.exists(row$multiplicity)) {
-                warning(sprintf("Multiplicity file not found for  %s: %s", row$pair, row$multiplicity))
-                return(NULL)
-            }
-            
-            # Read the multiplicity
-            variants <- readRDS(row$multiplicity)
-            if (!any(class(variants) == "GRanges")) {
-                warning(sprintf("File is not a GRanges for %s: %s", row$pair, row$multiplicity))
-                return(NULL)
-            }
+        # browser()
 
-            variants <- variants %Q% (!is.na(cn))
-            variants$cn <- round(variants$cn, 0)
-            variants$masked <- variants %^% mask.gr
-            variants.dt = variants %>% gr2dt()
+        for (col in iter_cols) {
+            message(sprintf("Processing %s for %s", col, row$pair))
 
-            if(mask){
-                variant.dt = variants.dt[masked == TRUE]
-            }
+            out_file <- switch(col,
+                multiplicity = file.path(pair_dir, "somatic_altered_hist.json"),
+                germline_multiplicity = file.path(pair_dir, "germline_altered_hist.json"),
+                hetsnps_multiplicity = file.path(pair_dir, "hetsnps_total_hist.json")
+            )
 
-            #create histogram data
-            hist_data <- variants.dt[, .(count = .N), by = .(mult_cn = altered_copies, jabba_cn = cn)]
-            hist_data[, bin := cut(mult_cn, breaks = seq(min(mult_cn), max(mult_cn), length.out = 100000), include.lowest = TRUE)]
+            field_to_use <- switch(col,
+                multiplicity = "altered_copies",
+                germline_multiplicity = "altered_copies",
+                hetsnps_multiplicity = "total_snv_copies"
+            )
 
-            #create binned histogram data
-            binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][,bin := NULL]
+            tryCatch(
+                {
+                    if (!file.exists(row[[col]])) {
+                        warning(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
+                        return(NULL)
+                    }
 
-            # write json to file 
-            write_json(binned_hist_data, out_file, pretty = TRUE)
-
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
+                    process_multiplicity_fit(row[[col]],
+                        field = field_to_use,
+                        out_file = out_file
+                    )
+                },
+                error = function(e) {
+                    warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                }
+            )
+        }
     }, mc.cores = cores, mc.preschedule = FALSE)
-    
-    invisible(NULL)
+}
 
+#' @name process_multiplicity_fit
+#' @title process_multiplicity_fit
+#' @description a method to lift the mutations as a histogram to JSON for viewing in gOS
+#' @param variants GRanges object containing the variants
+#' @param field field to use from the input data; default is altered_copies. other often used paramaters are ["total_copies","altered_copies"]
+#' @param mask logical value to mask the data or not; default is TRUE
+#' @param mask_gr GRanges object containing the mask; default is maskA as provided in the package
+#' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
+#' @param out_file output file path
+process_multiplicity_fit <- function(variants,
+                                     field = "altered_copies",
+                                     mask = TRUE,
+                                     mask_gr = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+                                     bins = 1e6,
+                                     out_file) {
+    if (is.character(variants)) {
+        variants <- readRDS(variants)
+    }
+
+    # Read the multiplicity
+    if (!any(class(variants) == "GRanges")) {
+        stop("input variants is not a GRanges object")
+    }
+
+    variants <- variants %Q% (!is.na(cn))
+    variants$cn <- round(variants$cn, 0)
+    if (mask) {
+        mask_gr <- readRDS(mask_gr)
+        variants$masked <- variants %^% mask_gr
+        variants <- variants %Q% (masked == TRUE)
+    }
+
+    # browser()
+    # create histogram data
+    hist_data <- gr2dt(variants)[, .(count = .N), by = .(mult_cn = get(field), jabba_cn = cn)]
+    hist_data[, bin := cut(mult_cn, breaks = seq(min(mult_cn, na.rm = T),
+        max(mult_cn, na.rm = T),
+        length.out = bins
+    ), include.lowest = TRUE)]
+
+    # create binned histogram data
+    binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn, na.rm = T), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][, bin := NULL]
+
+    # write json to file
+    write_json(binned_hist_data, out_file, pretty = TRUE)
 }
 
 #' Purity Ploidy Plot
-#' 
+#'
 #' Lorem Ipsem
-#' 
+#'
 #' @export
 #' @author Aditya Deshpande
 create_pp_plot <- function(jabba_gg = NA,
-                     het_pileups = NULL,
-                     seg.fname = NA,
-                     field = 'count',
-                     purity = NA,
-                     ploidy = NA,
-                     plot.min = -2,
-                     plot.max = 2,
-                     bins = 500,
-                     height = 800,
-                     width = 800,
-                     output.fname = './',
-                     is.wgs = FALSE) {
-    
+                           het_pileups = NULL,
+                           seg.fname = NA,
+                           field = "count",
+                           purity = NA,
+                           ploidy = NA,
+                           plot.min = -2,
+                           plot.max = 2,
+                           bins = 500,
+                           height = 800,
+                           width = 800,
+                           output.fname = "./",
+                           is.wgs = FALSE) {
     suppressWarnings({
         if (is.na(purity) || is.wgs) {
             if (is.na(jabba_gg) || !file.exists(jabba_gg)) {
                 stop("jabba_gg does not exist and no purity and ploidy provided")
             } else {
-                jab = readRDS(jabba_gg)
+                jab <- readRDS(jabba_gg)
                 if (is.null(jab$meta$purity) & is.null(jab$purity)) {
                     stop("jabba_gg does not have purity and ploidy values")
                 } else {
-                    purity = if (!is.null(jab$meta$purity)) { jab$meta$purity } else { jab$purity }
-                    ploidy = if (!is.null(jab$meta$ploidy)) { jab$meta$ploidy } else { jab$ploidy }
+                    purity <- if (!is.null(jab$meta$purity)) {
+                        jab$meta$purity
+                    } else {
+                        jab$purity
+                    }
+                    ploidy <- if (!is.null(jab$meta$ploidy)) {
+                        jab$meta$ploidy
+                    } else {
+                        jab$ploidy
+                    }
                 }
             }
         }
@@ -286,16 +328,16 @@ create_pp_plot <- function(jabba_gg = NA,
         if (is.null(het_pileups) || !file.exists(het_pileups)) {
             stop("het_pileups not supplied")
         }
-        hets = Skilift:::grab.hets(het_pileups)
-        field = "count"
+        hets <- Skilift:::grab.hets(het_pileups)
+        field <- "count"
         if (!field %in% names(values(hets))) {
             stop("hets missing required field")
         }
         if (!field %in% names(mcols(hets))) {
             stop("hets missing required field")
         }
-        hets$cn = skitools::rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE) # added allele == T since this are hets
-        eqn = skitools::rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE, return.params = TRUE) # Trying to keep it as close to Zi's
+        hets$cn <- skitools::rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE) # added allele == T since this are hets
+        eqn <- skitools::rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE, return.params = TRUE) # Trying to keep it as close to Zi's
 
         seqlevelsStyle(hets) <- "NCBI"
 
@@ -305,30 +347,34 @@ create_pp_plot <- function(jabba_gg = NA,
         #     segs = readRDS(seg.fname)
         # }
 
-        segs = jab$nodes$gr[, c()]
+        segs <- jab$nodes$gr[, c()]
 
-        major.segs = gr.val(segs, hets %Q% (allele == "major"), val = "cn", mean = TRUE, na.rm = TRUE)
-        minor.segs = gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
-
+        major.segs <- gr.val(segs, hets %Q% (allele == "major"), val = "cn", mean = TRUE, na.rm = TRUE)
         if (is.wgs) {
-            tiles = gr.tile(gr = segs, width = 1e4)
-            major.tiles = gr.val(tiles, major.segs, val = "cn", mean = TRUE, na.rm = TRUE)
-            minor.tiles = gr.val(tiles, minor.segs, val = "cn", mean = TRUE, na.rm = TRUE)
-            major.tiles.subs = as.data.table(major.tiles)[sample(.N,500)]
-            minor.tiles.subs = as.data.table(minor.tiles)[sample(.N,500)]
-            dt = cbind(major.tiles.subs[, .(seqnames, start, end, major.cn = cn)],
-                       minor.tiles.subs[, .(minor.cn = cn)])
+            minor.segs <- gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
+
+            tiles <- gr.tile(gr = segs, width = 1e4)
+            major.tiles <- gr.val(tiles, major.segs, val = "cn", mean = TRUE, na.rm = TRUE)
+            minor.tiles <- gr.val(tiles, minor.segs, val = "cn", mean = TRUE, na.rm = TRUE)
+            major.tiles.subs <- as.data.table(major.tiles)[sample(.N, 500)]
+            minor.tiles.subs <- as.data.table(minor.tiles)[sample(.N, 500)]
+            dt <- cbind(
+                major.tiles.subs[, .(seqnames, start, end, major.cn = cn)],
+                minor.tiles.subs[, .(minor.cn = cn)]
+            )
         } else {
-            dt = cbind(as.data.table(major.segs)[, .(seqnames, start, end, major.cn = cn)],
-                       as.data.table(minor.segs)[, .(minor.cn = cn)])
+            dt <- cbind(
+                as.data.table(major.segs)[, .(seqnames, start, end, major.cn = cn)],
+                as.data.table(minor.segs)[, .(minor.cn = cn)]
+            )
         }
 
-        maxval = plot.max * ploidy # max dosage
-        minval = plot.min ## min dosage
+        maxval <- plot.max * ploidy # max dosage
+        minval <- plot.min ## min dosage
 
-        dt = dt[major.cn < maxval & minor.cn < maxval &
-                major.cn > minval & minor.cn > minval &
-                grepl("[0-9]", seqnames)==TRUE,]
+        dt <- dt[major.cn < maxval & minor.cn < maxval &
+            major.cn > minval & minor.cn > minval &
+            grepl("[0-9]", seqnames) == TRUE, ]
 
         dt[, ratio := major.cn / minor.cn]
         return(
@@ -346,8 +392,8 @@ create_pp_plot <- function(jabba_gg = NA,
 
 
 #' Lift 2d purity ploidy plot
-#'
 #' Lift 2d purity ploidy plot
+#'
 #'
 #' @author Aditya Deshpande
 #' @export
@@ -355,7 +401,7 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-    
+
     # Validate required columns exist
     required_cols <- c("pair", "jabba_gg", "het_pileups")
 
@@ -363,68 +409,82 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-    
+
     # Process each sample in parallel
-    iterate_function = function(i) {
-        row <- cohort$inputs[i,]
+    iterate_function <- function(i) {
+        row <- cohort$inputs[i, ]
         pair_dir <- file.path(output_data_dir, row$pair)
-        
+
         if (!dir.exists(pair_dir)) {
             dir.create(pair_dir, recursive = TRUE)
         }
-        
-        # out_file <- file.path(pair_dir, "ppfit.json")
-        png_path = paste0(normalizePath(pair_dir), "/pp_plot.png")
-        
-        tryCatch({
-            pp_plot_list = create_pp_plot(
-                jabba_gg = row$jabba_gg,
-                het_pileups = row$het_pileups
-            )
-            pp_plot_data = pp_plot_list$pp_plot_data
-            maxval = pp_plot_list$maxval
-            minval = pp_plot_list$minval
-            purity = pp_plot_list$purity
-            ploidy = pp_plot_list$ploidy
-            eqn = pp_plot_list$eqn
 
-            pt = ggplot(pp_plot_data, aes(x = major.cn, y = minor.cn)) +
-            scale_x_continuous(breaks = 0:floor(maxval),
-                                labels = 0:floor(maxval) %>% as.character,
-                                sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"], # Trying to keep it as close to Zi's
-                                                    name = "Major count")) +
-            scale_y_continuous(breaks = 0:floor(maxval),
-                                labels = 0:floor(maxval) %>% as.character,
-                                sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"], # Trying to keep it as close to Zi's
-                                                    name = "Minor count")) +
-            labs(x = "Major CN", y = "Minor CN") +
-            theme_bw() +
-            theme(legend.position = "none",
-                    legend.title = element_text(size = 10, family = "sans"),
-                    legend.text = element_text(size = 10, family = "sans"),
-                    axis.title = element_text(size = 10, family = "sans"),
-                    axis.text.x = element_text(size = 10, family = "sans"),
-                    axis.text.y = element_text(size = 10, family = "sans")) +
-            stat_density_2d(geom = "polygon", contour = TRUE, aes(alpha = 0.5, fill = after_stat(level)),
-                            bins = 10) +
-            scale_fill_distiller(palette = "Blues", direction = 1) +
-            geom_point(size = 2, shape=4, alpha = 0.3) +
-            ggtitle(paste0("Purity: ", signif(purity, 2), " Ploidy: ", signif(ploidy, 2)))
-            grDevices::png(png_path, units = "in", height = 5, width = 5, res = 600)
-            print(pt)
-            grDevices::dev.off()
-            
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
+        # out_file <- file.path(pair_dir, "ppfit.json")
+        png_path <- paste0(normalizePath(pair_dir), "/pp_plot.png")
+
+        tryCatch(
+            {
+                pp_plot_list <- create_pp_plot(
+                    jabba_gg = row$jabba_gg,
+                    het_pileups = row$het_pileups
+                )
+                pp_plot_data <- pp_plot_list$pp_plot_data
+                maxval <- pp_plot_list$maxval
+                minval <- pp_plot_list$minval
+                purity <- pp_plot_list$purity
+                ploidy <- pp_plot_list$ploidy
+                eqn <- pp_plot_list$eqn
+
+                pt <- ggplot(pp_plot_data, aes(x = major.cn, y = minor.cn)) +
+                    scale_x_continuous(
+                        breaks = 0:floor(maxval),
+                        labels = 0:floor(maxval) %>% as.character(),
+                        sec.axis = sec_axis(
+                            trans = ~ (. - eqn["intercept"]) / eqn["slope"], # Trying to keep it as close to Zi's
+                            name = "Major count"
+                        )
+                    ) +
+                    scale_y_continuous(
+                        breaks = 0:floor(maxval),
+                        labels = 0:floor(maxval) %>% as.character(),
+                        sec.axis = sec_axis(
+                            trans = ~ (. - eqn["intercept"]) / eqn["slope"], # Trying to keep it as close to Zi's
+                            name = "Minor count"
+                        )
+                    ) +
+                    labs(x = "Major CN", y = "Minor CN") +
+                    theme_bw() +
+                    theme(
+                        legend.position = "none",
+                        legend.title = element_text(size = 10, family = "sans"),
+                        legend.text = element_text(size = 10, family = "sans"),
+                        axis.title = element_text(size = 10, family = "sans"),
+                        axis.text.x = element_text(size = 10, family = "sans"),
+                        axis.text.y = element_text(size = 10, family = "sans")
+                    ) +
+                    stat_density_2d(
+                        geom = "polygon", contour = TRUE, aes(alpha = 0.5, fill = after_stat(level)),
+                        bins = 10
+                    ) +
+                    scale_fill_distiller(palette = "Blues", direction = 1) +
+                    geom_point(size = 2, shape = 4, alpha = 0.3) +
+                    ggtitle(paste0("Purity: ", signif(purity, 2), " Ploidy: ", signif(ploidy, 2)))
+                grDevices::png(png_path, units = "in", height = 5, width = 5, res = 600)
+                print(pt)
+                grDevices::dev.off()
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            }
+        )
     }
 
     mclapply(
-        seq_len(nrow(cohort$inputs)), 
-        iterate_function, 
-        mc.cores = cores, 
+        seq_len(nrow(cohort$inputs)),
+        iterate_function,
+        mc.cores = cores,
         mc.preschedule = FALSE
     )
-    
+
     invisible(NULL)
 }

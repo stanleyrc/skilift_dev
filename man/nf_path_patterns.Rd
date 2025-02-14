@@ -5,7 +5,7 @@
 \alias{nf_path_patterns}
 \title{Expected nf-casereport patterns}
 \format{
-An object of class \code{list} of length 30.
+An object of class \code{list} of length 32.
 }
 \usage{
 nf_path_patterns
@@ -15,7 +15,7 @@ Encoding the expected path variables
 }
 \details{
 This variable contains the paths to be expected from
-the nf-casereport directory structure. 
+the nf-casereport directory structure.
 You can output the default template to modify it using
 base::dput(Skilift::nf_path_patterns)
 }
