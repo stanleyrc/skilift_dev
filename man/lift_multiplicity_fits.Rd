@@ -14,5 +14,8 @@ lift_multiplicity_fits(cohort, output_data_dir, cores = 1)
 \item{cores}{Number of cores for parallel processing (default: 1)}
 }
 \description{
-lift_multiplicity_fits
+This function will create JSON files for somatic, germline, and hetsnps multiplicity fits
+-somatic: altered_copies and total_snv_copies
+-germline: altered_copies and total_snv_copies
+-hetsnps: major_snv_copies and minor_snv_copies
 }
