@@ -171,12 +171,28 @@ create_heme_highlights = function(
 
   cna = events_tbl[events_tbl$type == "SCNA",]
   cnaForJson = data.table::copy(emptyDfForJson)
-  any_cna_in_guidelines = length(intersect(cna$gene, hemedb_guideline$GENE)) > 0 ## accounts for merge stelater
-  if (NROW(cna) > 0 && any_cna_in_guidelines) {
+  # any_cna_in_guidelines = length(intersect(cna$gene, hemedb_guideline$GENE)) > 0 ## accounts for merge stelater
+  criterias = list(
+    is_cna_in_guidelines = cna$gene %in% hemedb_guideline$GENE,
+    is_tier2_or_better = cna$Tier <= 2
+  )
+  is_cna_heme_relevant = Reduce("|", criterias)
+  if (NROW(cna) > 0 && any(is_cna_heme_relevant)) {
     cna$aggregate_label = glue::glue('{cna$estimated_altered_copies} out of {cna$estimated_altered_copies} copies altered') %>% as.character()
     cna$alteration_type = "cna"
-    cna_guidelines = data.table::merge.data.table(cna, hemedb_guideline, by.x = "gene", by.y = "GENE")
+    cna_guidelines = cna[is_cna_heme_relevant,]
+    cna_guidelines = data.table::merge.data.table(cna_guidelines, hemedb_guideline, by.x = "gene", by.y = "GENE", all.x = TRUE)
     cna_guidelines$vartype = tools::toTitleCase(tolower(cna_guidelines$vartype))
+    cna_guidelines$DISEASE = lapply(
+        cna_guidelines$DISEASE,
+        function(x) {
+            if (is.null(x)) {
+                "MULTIPLE"
+            } else {
+                x
+            }
+        }
+    )
 
     changemap = c(
       "gene" = "gene_name",
@@ -202,9 +218,8 @@ create_heme_highlights = function(
     svsForJson
   )
 
-
   highlights_output = list(
-    karyotype = karyotype_string,
+    karyotype = jsonlite::unbox(karyotype_string),
     gene_mutations = allOutputsForJson
   )
 
