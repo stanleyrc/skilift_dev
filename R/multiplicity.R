@@ -112,7 +112,20 @@ multiplicity_to_intervals <- function(
         genes = gencode[gencode$type == "gene"]
         gr_heme_genes = genes[na.omit(match(hemedb$GENE, genes$gene_name))]
         message("Filtering multiplicity to heme relevant genes")
-        gr = gr %&% gr_heme_genes
+        is_heme = (gr %^% gr_heme_genes) & (gr$gene %in% gr_heme_genes$gene_name)
+        gr_heme = gr[is_heme]
+        gr_other = gr[!is_heme]
+        remaining = 1e4 - NROW(gr_heme)
+        if (remaining > 0) {
+            otherix = 1:NROW(gr_other)
+            set.seed(42)
+            sampled_otherix = sample(otherix, size = remaining, replace = FALSE)
+            gr_subsampled_other = gr_other[sampled_otherix]
+            gr = c(gr_heme, gr_subsampled_other)
+        } else {
+            gr = gr_heme
+        }
+        
     }
     
     
