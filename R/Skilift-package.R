@@ -20,6 +20,7 @@
 #' @importFrom GenomicRanges GRanges GRangesList
 #' @importFrom GenomeInfoDb Seqinfo seqnames seqnames<- seqinfo seqinfo<- seqlengths seqlengths<- seqlevels seqlevels<- seqlevelsStyle seqlevelsStyle<-
 #' @importFrom BiocGenerics width
+#' @importFrom glue glue
 #' @importMethodsFrom BiocGenerics width sort
 #' @importMethodsFrom IRanges trim start end
 #' @importMethodsFrom GenomeInfoDb seqnames seqnames<- seqinfo seqinfo<- seqlengths seqlengths<- seqlevels seqlevels<- seqlevelsStyle seqlevelsStyle<- sortSeqlevels
