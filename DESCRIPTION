@@ -42,7 +42,8 @@ Imports:
     Rcpp,
     dplyr,
     tryCatchLog,
-    futile.logger
+    futile.logger,
+    glue
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8
