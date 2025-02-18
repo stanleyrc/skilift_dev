@@ -59,6 +59,11 @@
       "activities_indel_signatures",
       "hrdetect",
       "onenesstwoness"
+    ),
+    bam = c(
+      "tumor_bam",
+      "normal_bam",
+      "bam"
     )
   )
 
@@ -318,6 +323,14 @@ lift_tumor_only = function(cohort, output_data_dir, ...) {
       output_data_dir = output_data_dir
     )
   }
+
+  if (has_required_columns(cohort, Skilift:::required_columns$bam, any = TRUE)) {
+    lift_bam(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
   
 }
 
@@ -446,18 +459,17 @@ lift_heme = function(cohort, output_data_dir, ...) {
       output_data_dir = output_data_dir
     )
   }
-  
-
-  if (has_required_columns(cohort, Skilift:::required_columns$karyotype)) {
-    warning("not implemented yet")
-  }
 
   if (has_required_columns(cohort, Skilift:::required_columns$aggregated_events)) {
     warning("not implemented yet")
   }
 
-  if (has_required_columns(cohort, Skilift:::required_columns$highlighted_events)) {
-    warning("not implemented yet")
+  if (has_required_columns(cohort, Skilift:::required_columns$bam, any = TRUE)) {
+    lift_bam(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
   }
 
   
@@ -590,6 +602,21 @@ lift_paired = function(cohort, output_data_dir, ...) {
       output_data_dir = output_data_dir,
       cores = cores,
       genome_length = genome_length
+    )
+  }
+
+  if (has_required_columns(cohort, Skilift:::required_columns$pp_plot)) {
+    lift_pp_plot(
+      cohort = cohort, 
+      output_data_dir = output_data_dir
+    )
+  }
+
+  if (has_required_columns(cohort, Skilift:::required_columns$bam, any = TRUE)) {
+    lift_bam(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
     )
   }
 }
