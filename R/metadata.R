@@ -230,52 +230,115 @@ process_qc_metrics <- function(
     )
     
     insert_metrics_cols <- c(
-        median_insert_size = "MEDIAN_INSERT_SIZE"
+        # median_insert_size = "MEDIAN_INSERT_SIZE"
+        insert_size = "MEDIAN_INSERT_SIZE"
     )
     
     wgs_metrics_cols <- c(
-        median_coverage = "MEAN_COVERAGE",
-        pct_30x = "PCT_30X",
-        pct_50x = "PCT_50X"
+        # median_coverage = "MEAN_COVERAGE"
+        tumor_median_coverage = "MEDIAN_COVERAGE",
+        # pct_30x = "PCT_30X",
+        greater_than_or_equal_to_30x = "PCT_30X",
+        # pct_50x = "PCT_50X"
+        greater_than_or_equal_to_50x = "PCT_50X"
     )
     
+    test_file_is_present = function(x) {
+        (
+            !is.null(x)
+            && is.character(x)
+            && NROW(x) == 1
+            && file.exists(x)
+        )
+    }
+
     # Read and extract metrics from each file
-    complexity_data <- extract_metrics(
-        fread(estimate_library_complexity),
-        complexity_metrics_cols,
-        pair
-    )
+    complexity_data = data.table(pair = character(0))
+    if (test_file_is_present(estimate_library_complexity)) {
+        complexity_data <- extract_metrics(
+            fread(estimate_library_complexity),
+            complexity_metrics_cols,
+            pair
+        )
+    }
     
-    alignment_data <- extract_metrics(
-        fread(alignment_summary_metrics)[CATEGORY=="PAIR"],
-        alignment_metrics_cols,
-        pair
-    )
+    alignment_data = data.table(pair = character(0))
+    if (test_file_is_present(alignment_summary_metrics)) {
+        alignment_data <- extract_metrics(
+            fread(alignment_summary_metrics)[CATEGORY=="PAIR"],
+            alignment_metrics_cols,
+            pair
+        )
+    }
     
-    insert_data <- extract_metrics(
-        fread(insert_size_metrics),
-        insert_metrics_cols,
-        pair
-    )
+    insert_data = data.table(pair = character(0))
+    if (test_file_is_present(insert_size_metrics)) {
+        insert_data <- extract_metrics(
+            fread(insert_size_metrics),
+            insert_metrics_cols,
+            pair
+        )
+    }
     
-    wgs_data <- extract_metrics(
-        fread(wgs_metrics),
-        wgs_metrics_cols,
-        pair
-    )
+    wgs_data = data.table(pair = character(0))
+    if (test_file_is_present(wgs_metrics)) {
+        wgs_data <- extract_metrics(
+            fread(wgs_metrics),
+            wgs_metrics_cols,
+            pair
+        )
+    }
     
+    # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
+    # "mean_read_length", "median_insert_size", "median_coverage", 
+    # "pct_30x", "pct_50x", "percent_optical_duplication", 
+    # "percent_aligned", "percent_optical_dups_of_dups")
     # Merge all metrics on pair
-    qc_metrics <- Reduce(function(x, y) merge(x, y, by = "pair"), 
-                        list(complexity_data, alignment_data, insert_data, wgs_data))
+    lst_to_merge = list(complexity_data, alignment_data, insert_data, wgs_data)
+    qc_metrics <- Reduce(function(x, y) {
+        data.table::merge.data.table(
+            x, y, by = "pair", 
+            all.x = TRUE, 
+            all.y = TRUE
+        )
+    }   , lst_to_merge)
     
-    # Calculate additional metrics
-    qc_metrics[, `:=`(
-        m_reads = total_reads / 1e6,
-        m_reads_mapped = pf_reads_aligned / 1e6,
-        percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
-        percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
-        percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
-    )]
+    # Calculate derivative metrics
+    # Separating out and writing long way for robustness to
+    # missing data.
+    qc_metrics$m_reads = qc_metrics$total_reads / 1e6
+    qc_metrics$m_reads_mapped = qc_metrics$pf_reads_aligned / 1e6
+    qc_metrics$percent_optical_duplication = (
+        qc_metrics$read_pair_optical_duplicates /
+        qc_metrics$read_pairs_examined
+    )
+    qc_metrics$percent_aligned = (
+        qc_metrics$pf_aligned_bases / 
+        ( qc_metrics$total_reads * qc_metrics$mean_read_length )
+    )
+    qc_metrics$percent_optical_dups_of_dups = (
+        qc_metrics$read_pair_optical_duplicates / 
+        qc_metrics$read_pair_duplicates
+    )
+    # FIXME, need to account for tumor and normal
+    qc_metrics$normal_median_coverage = NA_integer_
+
+    # Remove any metrics that are NA
+    # This can happen if any derivative metrics
+    # are calculated from qc inputs not provided
+    # in above lines.
+    for (colnm in names(qc_metrics)) {
+        is_all_na = all(is.na(qc_metrics[[colnm]]))
+        if (is_all_na) qc_metrics[[colnm]] = NULL
+    }
+
+    # qc_metrics[, `:=`(
+    #     m_reads = total_reads / 1e6,
+    #     m_reads_mapped = pf_reads_aligned / 1e6,
+    #     percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
+    #     percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
+    #     percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
+    # )]
     
     return(as.list(qc_metrics))
 }
@@ -311,9 +374,9 @@ add_coverage_metrics <- function(
     }
     
     processed_metrics <- NULL
-    if (!is.null(estimate_library_complexity) && 
-        !is.null(alignment_summary_metrics) && 
-        !is.null(insert_size_metrics) && 
+    if (!is.null(estimate_library_complexity) ||
+        !is.null(alignment_summary_metrics) ||
+        !is.null(insert_size_metrics) ||
         !is.null(wgs_metrics)) {
         
         processed_metrics <- process_qc_metrics(
@@ -325,6 +388,10 @@ add_coverage_metrics <- function(
         )
         
         metadata$coverage_qc <- list(as.list(c(processed_metrics, coverage_variance)))
+        ## FIXME: hardcoding this for now.
+        ## median and normal coverages are at top level..
+        metadata$tumor_median_coverage = processed_metrics$tumor_median_coverage
+        metadata$normal_median_coverage = processed_metrics$normal_median_coverage
     }
 
     return(metadata)
@@ -979,7 +1046,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         
         out_file <- file.path(pair_dir, "metadata.json")
         
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             # Create metadata object
             metadata <- create_metadata(
                 pair = row$pair,
@@ -1005,7 +1073,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
             )
 
             if (is.null(metadata)) {
-                warning(sprintf("No metadata generated for %s", row$pair))
+                print(sprintf("No metadata generated for %s", row$pair))
                 return()
             }
             
@@ -1019,9 +1087,10 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
             )
             
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s\nCallstack: %s", row$pair, e$message, deparse(e$call)))
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
         })
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(NULL)
 }
