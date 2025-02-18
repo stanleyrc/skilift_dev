@@ -673,7 +673,7 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
 	return_inputs = inputs = data.table::copy(cohort$inputs)
 	if (is_unpaired) {
 		inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
-		return_inputs = dcast_skilift(
+		return_inputs = Skilift::dcast(
 			inputs,
 			id_columns = "pair",
 			type_columns = "tumor_type",
@@ -690,7 +690,7 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
 #' Using base R for robustness
 #' 
 #' @export
-dcast_skilift = function(
+dcast = function(
 	tbl, 
 	id_columns, 
 	type_columns, 
