@@ -16,7 +16,7 @@ lift_all(
   bin.width = 10000,
   node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
     "variant.p", "vaf", "transcript_type", "impact", "rank"),
-  multiplicity_field = "total_snv_copies",
+  multiplicity_field = "altered_copies",
   genome_length = c(1:22, "X", "Y"),
   path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
   ...

@@ -9,7 +9,8 @@ multiplicity_to_intervals(
   field = "total_copies",
   settings = internal_settings_path,
   node_metadata = NULL,
-  reference_name = "hg19"
+  reference_name = "hg19",
+  cohort_type
 )
 }
 \arguments{
