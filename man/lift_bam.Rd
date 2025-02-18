@@ -4,7 +4,7 @@
 \alias{lift_bam}
 \title{lift_bam}
 \usage{
-lift_bam(cohort, output_data_dir, cores = 1)
+lift_bam(cohort, output_data_dir, cores = 1, overwrite = FALSE)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
@@ -17,5 +17,6 @@ lift_bam(cohort, output_data_dir, cores = 1)
 None
 }
 \description{
-Lift bam file to output data directory
+Lift bam file to output data directory.
+Currently hardlinking.
 }
