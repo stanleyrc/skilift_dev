@@ -22,7 +22,7 @@ grl2bedpe = function (
     colnames(df2) = c("chrom2", "start2", "end2", "strand2")
     mc1 = data.frame()[seq_len(NROW(df1)), , drop = F]
     mc2 = data.frame()[seq_len(NROW(df2)), , drop = F]
-    if (isTRUE(add_breakend_mcol)) {
+    if (identical(add_breakend_mcol, TRUE)) {
         mc1 = as.data.frame(grpiv[[1]])[, -c(1:5), drop = F]
         mc2 = as.data.frame(grpiv[[2]])[, -c(1:5), drop = F]
         colnames(mc1) = paste0("first.", colnames(mc1))
