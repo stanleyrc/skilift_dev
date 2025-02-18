@@ -654,23 +654,31 @@ refresh_cohort = function(cohort) {
 }
 
 
-#' pairify_cohort
+#' pairify_cohort_inputs
 #' 
 #' Create paired cohort inputs if tumor and normal provided
 #' for paired outputs
 #' 
 #' @return paired table from cohort inputs
 #' @export
-pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, tumor_normal_columns, sep_cast = "___") {
-	is_status_in_cohort = !is.null(cohort$inputs$status)
-	is_nextflow_results_path_present = !is.null(cohort$nextflow_results_path)
-	is_tumor_bam_in_cohort = !is.null(cohort$inputs$tumor_bam)
-	is_normal_bam_in_cohort = !is.null(cohort$inputs$normal_bam)
+pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, tumor_normal_columns, sep_cast = "___", keep_remaining = FALSE, ...) {
+  nextflow_results_path = NULL
+  if (R6::is.R6(cohort) && !is.null(cohort$inputs)) {
+    return_inputs = inputs = data.table::copy(cohort$inputs)
+    nextflow_results_path = cohort$nextflow_results_path
+  } else if (inherits(cohort, "data.table")) {
+    return_inputs = inputs = data.table::copy(cohort)
+  } else {
+    stop("Cohort object or inputs data.table must be provided")
+  }
+	is_status_in_cohort = !is.null(inputs$status)
+	is_nextflow_results_path_present = !is.null(nextflow_results_path)
+	is_tumor_bam_in_cohort = !is.null(inputs$tumor_bam)
+	is_normal_bam_in_cohort = !is.null(inputs$normal_bam)
 
 	is_unpaired = is_status_in_cohort && is_nextflow_results_path_present
 	is_paired = is_tumor_bam_in_cohort && is_normal_bam_in_cohort
 
-	return_inputs = inputs = data.table::copy(cohort$inputs)
 	if (is_unpaired) {
 		inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
 		return_inputs = Skilift::dcast(
@@ -679,7 +687,8 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
 			type_columns = "tumor_type",
 			cast_columns = tumor_normal_columns,
 			sep_cast = sep_cast,
-			keep_remaining = FALSE
+			keep_remaining = keep_remaining,
+      ...
 		)
 	}
 	return(return_inputs)
