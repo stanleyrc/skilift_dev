@@ -4,11 +4,7 @@
 \alias{select_heme_events}
 \title{Select Heme events from Addy's hemedb}
 \usage{
-select_heme_events(
-  filtered_events,
-  hemedb_path =
-    "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
-)
+select_heme_events(filtered_events, hemedb_path = Skilift:::HEMEDB)
 }
 \description{
 Coarse selection of Heme events for first pass filtering
