@@ -652,3 +652,95 @@ refresh_cohort = function(cohort) {
   }
   return(obj_out)
 }
+
+
+#' pairify_cohort
+#' 
+#' Create paired cohort inputs if tumor and normal provided
+#' for paired outputs
+#' 
+#' @return paired table from cohort inputs
+#' @export
+pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, tumor_normal_columns, sep_cast = "___") {
+	is_status_in_cohort = !is.null(cohort$inputs$status)
+	is_nextflow_results_path_present = !is.null(cohort$nextflow_results_path)
+	is_tumor_bam_in_cohort = !is.null(cohort$inputs$tumor_bam)
+	is_normal_bam_in_cohort = !is.null(cohort$inputs$normal_bam)
+
+	is_unpaired = is_status_in_cohort && is_nextflow_results_path_present
+	is_paired = is_tumor_bam_in_cohort && is_normal_bam_in_cohort
+
+	return_inputs = inputs = data.table::copy(cohort$inputs)
+	if (is_unpaired) {
+		inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
+		return_inputs = dcast_skilift(
+			inputs,
+			id_columns = "pair",
+			type_columns = "tumor_type",
+			cast_columns = tumor_normal_columns,
+			sep_cast = sep_cast,
+			keep_remaining = FALSE
+		)
+	}
+	return(return_inputs)
+}
+
+#' Cast table
+#' 
+#' Using base R for robustness
+#' 
+#' @export
+dcast_skilift = function(
+	tbl, 
+	id_columns, 
+	type_columns, 
+	cast_columns, 
+	keep_remaining = FALSE, 
+	sep_cast = "___", 
+	prefix_type = TRUE,
+	drop = FALSE,
+	use_regex = FALSE
+) {
+  if (identical(use_regex, TRUE)) {
+	.NotYetImplemented()
+  }
+  if (base::anyDuplicated(names(tbl)) > 0) {
+    stop("Duplicated names present in table! Dedup first: names(tbl) = base::make.unique(names(tbl))")
+  }
+  remaining_cols = character(0)
+  columns_to_process = unique(c(id_columns, type_columns))
+  if (identical(keep_remaining, TRUE)) {
+    remaining_cols = names(tbl)[!names(tbl) %in% c(columns_to_process, cast_columns)]
+    columns_to_process = c(columns_to_process, remaining_cols)
+  }
+  columns_to_process = c(columns_to_process, cast_columns)
+  skeleton = unique(base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols)))
+  reduced_tbl = base::subset(tbl, select = columns_to_process)
+  reduced_tbl$types = reduced_tbl[[type_columns[1]]]
+  types = unique(reduced_tbl$types)
+  if (is.factor(reduced_tbl$types) && !identical(drop, TRUE)) {
+    types = base::levels(reduced_tbl$types)
+  }
+  if (length(type_columns) > 1) {
+    .NotYetImplemented()
+    lst = as.list(base::subset(reduced_tbl, select = type_columns))
+    types = do.call(interaction, lst)
+    skeleton$types = types
+  }
+  for (type in types) {
+    merge_type = reduced_tbl[reduced_tbl$types == type,]
+    merge_type = base::subset(merge_type, select = c(id_columns, cast_columns))
+    colnms = names(merge_type)
+    names_to_change = colnms[colnms %in% cast_columns]
+	if (prefix_type) {
+		names_to_change = paste(type, names_to_change, sep = sep_cast)
+	} else {
+		names_to_change = paste(names_to_change, type, sep = sep_cast)
+	}
+    
+    colnms[colnms %in% cast_columns] = names_to_change
+    names(merge_type) = colnms
+    skeleton = merge(skeleton, merge_type, by = id_columns, all.x = TRUE)
+  }
+  return(skeleton)
+}
