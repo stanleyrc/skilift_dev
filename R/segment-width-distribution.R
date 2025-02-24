@@ -17,7 +17,7 @@ get_segstats <- function(
     balanced_jabba_gg,
     tumor_coverage,
     coverage_field = "foreground",
-    settings = internal_settings_path,
+    settings = Skilift:::default_settings_path,
     ref = "hg19",
     max_na = 0.9,
     cores = 1) {
@@ -71,7 +71,10 @@ get_segstats <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_segment_width_distribution <- function(cohort, output_data_dir, annotations = NULL, cores = 1) {
+lift_segment_width_distribution <- function(
+    cohort,
+    output_data_dir,
+    cores = 1) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }

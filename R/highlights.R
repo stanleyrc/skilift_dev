@@ -18,7 +18,7 @@
 #     out_file,
 #     temp_fix = FALSE,
 #     return_table = FALSE,
-#     cohort_type = "paired") {
+#     type = "paired") {
 
 #     ot <- readRDS(oncotable)
 
@@ -113,7 +113,7 @@
 #       } else {
 #           res.final <- res.mut
 #       }
-#       if (cohort_type == "heme") {
+#       if (type == "heme") {
 #         res.final = select_heme_events(res.final)
 #       }
 #       write_json(res.final, out_file, pretty = TRUE)
@@ -150,7 +150,7 @@
 #         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
 #     }
     
-#     cohort_type = cohort$cohort_type
+#     cohort_type = cohort$type
 #     # Process each sample in parallel
 #     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
 #         row <- cohort$inputs[i,]

@@ -1,3 +1,5 @@
+default_settings_path <- system.file("extdata", "test_data", "settings.json", package = "Skilift")
+
 #' @export
 Cohort <- R6Class("Cohort",
   public = list(
@@ -16,9 +18,8 @@ Cohort <- R6Class("Cohort",
     #' @field unified list of cohort column names and nf-casereport map
     path_patterns = NULL,
 
-    #' @field enum
-    #' one of c("paired", "heme", "tumor_only")
-    cohort_type = NULL,
+    #' @field enum("paired", "heme", "tumor_only")
+    type = NULL,
 
     #' @field character
     nextflow_results_path = NULL,
@@ -28,14 +29,19 @@ Cohort <- R6Class("Cohort",
     #' @param x Either a data.table or path to pipeline output directory
     #' @param reference_name character string specifying genome reference
     #' @param col_mapping Optional list mapping cohort columns to possible input columns
-    initialize = function(x, reference_name = "hg19", col_mapping = NULL, path_patterns = Skilift::nf_path_patterns, cohort_type = "paired") {
+    initialize = function(x,
+                          reference_name = "hg19",
+                          settings = Skilift:::default_settings_path,
+                          col_mapping = NULL,
+                          path_patterns = Skilift::nf_path_patterns,
+                          cohort_type = "paired") {
       self$reference_name <- reference_name
 
       default_cohort_types <- c("paired", "heme", "tumor_only")
       if (!cohort_type %in% default_cohort_types) {
         stop("cohort_type must be one of: ", paste(default_cohort_types, collapse = ", "))
       }
-      self$cohort_type <- cohort_type
+      self$type <- cohort_type
 
       # Merge user-provided mapping with default mapping
       default_col_mapping <- Skilift::default_col_mapping
@@ -93,8 +99,12 @@ Cohort <- R6Class("Cohort",
         reason = character()
       )
 
-      # Define metadata fields that should only check for NA/NULL
+      # Define metadata fields and configuration parameter fields that should only check for NA/NULL
       metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex")
+      config_fields <- Skilift:::config_parameter_names # Use the existing config parameter names
+
+      # Combine metadata and config fields
+      na_check_only_fields <- c(metadata_fields, config_fields)
 
       # Check each column for missing values
       for (col in names(self$inputs)) {
@@ -114,8 +124,8 @@ Cohort <- R6Class("Cohort",
           ))
         }
 
-        # For non-metadata columns that should contain file paths, check if files exist
-        if (col %in% names(self$cohort_cols_to_x_cols) && !(col %in% metadata_fields)) {
+        # For non-metadata/non-config columns that should contain file paths, check if files exist
+        if (col %in% names(self$cohort_cols_to_x_cols) && !(col %in% na_check_only_fields)) {
           file_paths <- self$inputs[!is.na(get(col)), get(col)]
           for (path in file_paths) {
             if (!file.exists(path)) {
@@ -156,9 +166,19 @@ Cohort <- R6Class("Cohort",
         stop("Could not get sample metadata - this is required for patient IDs")
       }
 
-      # Initialize data.table with all pairs from metadata
-      ## outputs <- data.table(pair = sample_metadata$pair)
+      # Add default configuration parameters to sample_metadata
+      for (cohort_col in names(self$cohort_cols_to_x_cols)) {
+        possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
+        default_value <- attr(possible_cols, "default")
 
+        if (!is.null(default_value)) {
+          if (is.list(default_value) || length(default_value) > 1) {
+            sample_metadata[, (cohort_col) := list(list(default_value))]
+          } else {
+            sample_metadata[, (cohort_col) := default_value]
+          }
+        }
+      }
 
       # Get all file paths recursively
       pipeline_output_paths <- list.files(pipeline_outdir, recursive = TRUE, full.names = TRUE)
@@ -182,34 +202,38 @@ Cohort <- R6Class("Cohort",
         warning("Pipeline report not found: ", report_path)
         return(NULL)
       }
-      nflogs <- list.files(pipeline_outdir, pattern = "\\.nextflow\\.log.*", all.files = TRUE, full.names = TRUE)
-      parsed_meta <- lapply(nflogs, private$read_nf_log)
-      ## transpose the list
-      parsed_meta <- do.call(Map, c(f = c, parsed_meta))
-      samplesheets <- unique(parsed_meta$samplesheet)
-      samplesheets <- samplesheets[nzchar(samplesheets)]
-      launchdir <- unique(parsed_meta$launchdir)
-      launchdir <- launchdir[nzchar(launchdir)]
-
-      # unique_patients = Reduce(union, lapply(samplesheets, function(x) fread(x)$patient))
-
-      samplesheets <- samplesheets[file.exists(samplesheets)]
-      samplesheet <- data.table::rbindlist(lapply(samplesheets, fread), fill = TRUE)
-
-      metadata <- data.table(
-        pair = samplesheet$patient,
-        sample = samplesheet$sample,
-        status = samplesheet$status,
-        sex = samplesheet$sex,
-        tumor_type = samplesheet$tumor_type,
-        disease = samplesheet$disease,
-        primary_site = samplesheet$primary_site
-      )
-
-      # remove duplicates
-      metadata <- unique(metadata)
-
-      return(metadata)
+      #### Edge case: multiple runs (with different samplesheets) point to the same results
+      #### this needs to be handled a bit more carefully as the nflogs have a cap
+      #### solution: coerce unique results directory per run (with common results directory)
+      ####  merge the samplesheets with the same parent
+      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow\\.log.*", all.files = TRUE, full.names = TRUE)
+      # parsed_meta = lapply(nflogs, private$read_nf_log)
+      # ## transpose the list
+      # parsed_meta = do.call(Map, c(f = c, parsed_meta))
+      # samplesheets = unique(parsed_meta$samplesheet)
+      # samplesheets = samplesheets[nzchar(samplesheets)]
+      # launchdir = unique(parsed_meta$launchdir)
+      # launchdir = launchdir[nzchar(launchdir)]
+      #
+      # # unique_patients = Reduce(union, lapply(samplesheets, function(x) fread(x)$patient))
+      #
+      # samplesheets = samplesheets[file.exists(samplesheets)]
+      # samplesheet = data.table::rbindlist(lapply(samplesheets, fread), fill = TRUE)
+      #
+      # metadata <- data.table(
+      #   pair = samplesheet$patient,
+      #   sample = samplesheet$sample,
+      #   status = samplesheet$status,
+      #   sex = samplesheet$sex,
+      #   tumor_type = samplesheet$tumor_type,
+      #   disease = samplesheet$disease,
+      #   primary_site = samplesheet$primary_site
+      # )
+      #
+      # # remove duplicates
+      # metadata <- unique(metadata)
+      #
+      # return(metadata)
 
       # Read pipeline report
       report_lines <- readLines(report_path)
@@ -261,35 +285,56 @@ Cohort <- R6Class("Cohort",
       }
 
       result_dt <- data.table()
+      remaining_dt_cols <- names(dt) # Track available columns
 
+      # First pass: exact matches only
       for (cohort_col in names(self$cohort_cols_to_x_cols)) {
         possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
 
-        found_col <- NULL
-        # First try exact matches
-        for (col in possible_cols) {
-          if (col %in% names(dt)) {
-            found_col <- col
-            break
-          }
-        }
+        # Get default value if it exists
+        default_value <- attr(possible_cols, "default")
 
-        # If no exact match found, try prefix matches
-        if (is.null(found_col)) {
-          for (col in possible_cols) {
-            for (name in names(dt)) {
-              if (startsWith(name, col)) {
-                found_col <- name
-                break
-              }
+        # Try exact matches first
+        found_col <- intersect(possible_cols, remaining_dt_cols)[1]
+
+        if (!is.null(found_col)) {
+          result_dt[, (cohort_col) := dt[[found_col]]]
+          # Remove matched column from candidates
+          remaining_dt_cols <- setdiff(remaining_dt_cols, found_col)
+        }
+      }
+
+      # Second pass: prefix matches for columns that weren't exactly matched
+      for (cohort_col in names(self$cohort_cols_to_x_cols)) {
+        if (!is.null(result_dt[[cohort_col]]) && !all(is.na(result_dt[[cohort_col]]))) next # Skip if already matched
+
+        possible_cols <- self$cohort_cols_to_x_cols[[cohort_col]]
+        default_value <- attr(possible_cols, "default")
+
+        found_col <- NULL
+        # Try prefix matches
+        for (col in possible_cols) {
+          for (name in remaining_dt_cols) {
+            if (startsWith(name, col)) {
+              found_col <- name
+              break
             }
-            if (!is.null(found_col)) break
           }
+          if (!is.null(found_col)) break
         }
 
         if (!is.null(found_col)) {
           result_dt[, (cohort_col) := dt[[found_col]]]
-        } else {
+          # Remove matched column from candidates
+          remaining_dt_cols <- setdiff(remaining_dt_cols, found_col)
+        } else if (!is.null(default_value) && nrow(dt) > 0) {
+          # Only add default values if the input data.table is not empty
+          if (is.list(default_value) || length(default_value) > 1) {
+            result_dt[, (cohort_col) := list(replicate(nrow(dt), list(default_value), simplify = FALSE))]
+          } else {
+            result_dt[, (cohort_col) := default_value]
+          }
+        } else if (nrow(dt) > 0 && !cohort_col %in% Skilift:::config_parameter_names) {
           warning(sprintf(
             "No matching column found for '%s'. Expected one of: %s",
             cohort_col, paste(possible_cols, collapse = ", ")
@@ -407,11 +452,54 @@ default_col_mapping <- list(
   matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
   decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
   hrdetect = c("hrdetect", "hrd"),
+  onenesstwoness = c("onenesstwoness"),
   oncotable = c("oncotable"),
   estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
   alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
   insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
-  wgs_metrics = c("wgs_metrics", "wgs_stats")
+  wgs_metrics = c("wgs_metrics", "wgs_stats"),
+
+  # Configuration parameters with default values
+  copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
+  copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))),
+  multiplicity_node_metadata = structure(c("multiplicity_node_metadata"), default = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")),
+  multiplicity_field = structure(c("multiplicity_field"), default = "total_copies"),
+  denoised_coverage_field = structure(c("denoised_coverage_field"), default = "foreground"),
+  denoised_coverage_color_field = structure(c("denoised_coverage_color_field"), default = NULL),
+  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = 1e4),
+  hetsnps_field = structure(c("hetsnps_field"), default = "count"),
+  hetsnps_color_field = structure(c("hetsnps_color_field"), default = "col"),
+  hetsnps_bin_width = structure(c("hetsnps_bin_width"), default = NA),
+  hetsnps_mask = structure(c("hetsnps_mask"), default = system.file("extdata", "data", "maskA_re.rds", package = "Skilift")),
+  hetsnps_subsample_size = structure(c("hetsnps_subsample_size"), default = 100000),
+  hetsnps_min_normal_freq = structure(c("hetsnps_min_normal_freq"), default = 0.2),
+  hetsnps_max_normal_freq = structure(c("hetsnps_max_normal_freq"), default = 0.8),
+  segment_width_distribution_annotations = structure(c("segment_width_distribution_annotations"), default = NULL)
+)
+
+#' Configuration parameter names
+#'
+#' List of configuration parameter column names
+#'
+#' This variable contains the names of columns that are used
+#' for configuration parameters in the Cohort inputs data.table
+#' @export
+config_parameter_names <- c(
+  "copy_number_graph_max_cn",
+  "copy_number_graph_annotations",
+  "multiplicity_node_metadata",
+  "multiplicity_field",
+  "denoised_coverage_field",
+  "denoised_coverage_color_field",
+  "denoised_coverage_bin_width",
+  "hetsnps_field",
+  "hetsnps_color_field",
+  "hetsnps_bin_width",
+  "hetsnps_mask",
+  "hetsnps_subsample_size",
+  "hetsnps_min_normal_freq",
+  "hetsnps_max_normal_freq",
+  "segment_width_distribution_annotations"
 )
 
 #' Create unified column and nf casereports map
@@ -528,7 +616,7 @@ deparse1 <- function(expr, collapse = " ", width.cutoff = 500L, ...) {
 cohort_attributes <- c(
   "inputs",
   "reference_name",
-  "cohort_type",
+  "type",
   "nextflow_results_path"
 )
 
@@ -635,10 +723,80 @@ Cohort$private_methods[["read_nf_log"]] <- read_nf_log
 #' @export
 refresh_cohort <- function(cohort) {
   obj_out <- Skilift::Cohort$new(
-    x = data.table()
+    x = data.table::copy(cohort$inputs) # Create a deep copy of the inputs
   )
-  for (attribute in Skilift:::cohort_attributes) {
+  for (attribute in setdiff(Skilift:::cohort_attributes, "inputs")) {
     obj_out[[attribute]] <- cohort[[attribute]]
   }
   return(obj_out)
+}
+
+#' Merge Cohort objects
+#'
+#' Combines two or more Cohort objects into a single Cohort
+#'
+#' @param ... Two or more Cohort objects to merge
+#' @param warn_duplicates Logical indicating whether to warn about duplicate pairs (default TRUE)
+#' @param rename_duplicates Logical indicating whether to rename duplicate pairs instead of overwriting (default FALSE)
+#' @return A new Cohort object containing all data from input Cohorts
+#' @export
+merge <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
+  cohorts <- list(...)
+
+  # Validate inputs are all Cohorts
+  if (length(cohorts) < 2) {
+    stop("At least two Cohort objects must be provided")
+  }
+  for (cohort in cohorts) {
+    if (!inherits(cohort, "Cohort")) {
+      stop("All arguments must be Cohort objects")
+    }
+  }
+
+  # Get first cohort to initialize merged result
+  merged_dt <- data.table::copy(cohorts[[1]]$inputs)
+
+  # Merge remaining cohorts
+  for (i in 2:length(cohorts)) {
+    current_dt <- data.table::copy(cohorts[[i]]$inputs)
+
+    # Check for duplicate pairs
+    duplicate_pairs <- intersect(merged_dt$pair, current_dt$pair)
+    if (length(duplicate_pairs) > 0) {
+      if (warn_duplicates) {
+        warning(sprintf(
+          "Found %d duplicate pair(s): %s",
+          length(duplicate_pairs),
+          paste(duplicate_pairs, collapse = ", ")
+        ))
+      }
+
+      if (rename_duplicates) {
+        # Add incrementing suffix to duplicate pairs
+        for (dup_pair in duplicate_pairs) {
+          suffix <- 1
+          while (paste0(dup_pair, "_", suffix) %in% merged_dt$pair) {
+            suffix <- suffix + 1
+          }
+          current_dt[pair == dup_pair, pair := paste0(pair, "_", suffix)]
+        }
+      } else {
+        # Remove duplicates from current_dt that would overwrite existing pairs
+        current_dt <- current_dt[!pair %in% duplicate_pairs]
+      }
+    }
+
+    # Merge inputs data.tables
+    merged_dt <- rbindlist(
+      list(merged_dt, current_dt),
+      fill = TRUE, # Union of columns
+      use.names = TRUE
+    )
+  }
+
+  # Create new Cohort with merged data
+  result <- refresh_cohort(cohorts[[1]])
+  result$inputs <- merged_dt
+
+  return(result)
 }

@@ -55,7 +55,7 @@ test_that("lift_copy_number_graph processes total copy number correctly", {
     mock_events_path <- create_mock_ggraph()
     mock_inputs <- data.table(
         pair = "TEST001",
-        events = mock_events_path
+        jabba_gg = mock_events_path
     )
     mock_cohort <- list(
         inputs = mock_inputs,
@@ -125,7 +125,7 @@ test_that("lift_copy_number_graph handles missing required columns", {
     # Should error due to missing column
     expect_error(
         lift_copy_number_graph(mock_cohort, output_data_dir = tempdir(), is_allelic = FALSE),
-        "Missing required columns in cohort: events"
+        "Missing required columns in cohort: jabba_gg"
     )
 })
 
@@ -143,7 +143,7 @@ test_that("lift_copy_number_graph handles missing files", {
     # Create mock cohort with non-existent file
     mock_inputs <- data.table(
         pair = "TEST001",
-        events = "nonexistent.rds"
+        jabba_gg = "nonexistent.rds"
     )
     mock_cohort <- list(inputs = mock_inputs)
     class(mock_cohort) <- "Cohort"
@@ -161,7 +161,7 @@ test_that("lift_copy_number_graph processes multiple samples correctly", {
     mock_events_path2 <- create_mock_ggraph()
     mock_inputs <- data.table(
         pair = c("TEST001", "TEST002"),
-        events = c(mock_events_path1, mock_events_path2)
+        jabba_gg = c(mock_events_path1, mock_events_path2)
     )
     mock_cohort <- list(
         inputs = mock_inputs,
@@ -201,13 +201,14 @@ test_that("lift_hetsnps works on real cohort", {
   clinical_pairs = readRDS(clinical_pairs_path)
   cohort <- suppressWarnings(Cohort$new(clinical_pairs[14:15]))
   
-  ggraph = readRDS(cohort$inputs$events[1])
+  ggraph = readRDS(cohort$inputs$jabba_gg[1])
 
   # Create temp directory for output
   temp_dir <- tempdir()
 
   # lift_copy_number_graph
-  suppressWarnings(lift_copy_number_graph(cohort, output_data_dir = temp_dir, cores = 2))
+  lift_copy_number_graph(cohort, output_data_dir = temp_dir, is_allelic=FALSE, cores = 2)
+  lift_copy_number_graph(cohort, output_data_dir = temp_dir, is_allelic=TRUE, cores = 2)
   
   expect_true(file.exists(file.path(temp_dir, cohort$inputs$pair[1], "complex.json")))
   expect_true(file.exists(file.path(temp_dir, cohort$inputs$pair[2], "complex.json")))
@@ -233,7 +234,7 @@ ggraph = readRDS(cohort$inputs$events[1])
 
 output_data_dir = tempdir()
 out_filename = "complex.json"
-cn_column = "events"
+cn_column = "jabba_gg"
 row <- cohort$inputs[1]
 pair_dir <- file.path(output_data_dir, row$pair)
 
@@ -255,7 +256,7 @@ ggraph_path <- row[[cn_column]]
     
     # Check sequence names overlap with reference
     seq_lengths <- gGnome::parse.js.seqlengths(
-        internal_settings_path,
+        Skilift:::default_settings_path,
         js.type = "PGV",
         ref = cohort$reference_name
     )
