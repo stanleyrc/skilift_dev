@@ -11,11 +11,9 @@
 #' @export
 lift_copy_number_graph <- function(
     cohort,
-    settings = internal_settings_path,
     output_data_dir,
+    settings = Skilift:::default_settings_path,
     is_allelic = FALSE,
-    max_cn = 100,
-    annotations = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas")),
     cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
@@ -33,7 +31,6 @@ lift_copy_number_graph <- function(
         out_filename <- "allelic.json"
     } else {
         message("Processing total copy number")
-        # cn_column <- "events"
         cn_column <- "jabba_gg"
         out_filename <- "complex.json"
     }
@@ -89,9 +86,9 @@ lift_copy_number_graph <- function(
                 params <- list(
                     filename = out_file,
                     verbose = TRUE,
-                    maxcn = max_cn,
+                    maxcn = row$copy_number_graph_max_cn,
                     nfields = if("col" %in% names(mcols(ggraph$nodes$gr))) "col" else NULL,
-                    annotations = unlist(annotations)
+                    annotations = unlist(row$copy_number_graph_annotations)
                 )
                 
                 # Generate and write JSON

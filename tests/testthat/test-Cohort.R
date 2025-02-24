@@ -5,6 +5,10 @@ library(data.table)
 
 # test <- function() { testthat::test_file("tests/testthat/test-Cohort.R") }
 
+setup({
+  num_cols_default <<- 15
+})
+
 test_that("Cohort constructor handles various data.table inputs correctly", {
   # Test empty data.table
   empty_dt <- data.table()
@@ -23,7 +27,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     cohort <- Cohort$new(partial_dt),
     "No matching column found for"
   )
-  expect_equal(ncol(cohort$inputs), 2)
+  expect_equal(ncol(cohort$inputs), num_cols_default)
   expect_true(all(c("pair", "tumor_type") %in% names(cohort$inputs)))
   
   # Test data.table with all columns, including QC columns
@@ -34,12 +38,14 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M"),
     structural_variants = c("sv1", "sv2"),
+    structural_variants_unfiltered = c("svu1", "svu2"),
     tumor_coverage = c("cov1", "cov2"),
     somatic_snvs = c("snv1", "snv2"),
+    somatic_snvs_unfiltered = c("snvu1", "snvu2"),
     germline_snvs = c("germ1", "germ2"),
     het_pileups = c("het1", "het2"),
-    somatic_snv_cn = c("scn1", "scn2"),
-    germline_snv_cn = c("gcn1", "gcn2"),
+    multiplicity = c("scn1", "scn2"),
+    germline_multiplicity = c("gcn1", "gcn2"),
     somatic_variant_annotations = c("sva1", "sva2"),
     germline_variant_annotations = c("gva1", "gva2"),
     oncokb_snv = c("osnv1", "osnv2"),
@@ -58,11 +64,36 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     matrix_indel_signatures = c("mis1", "mis2"),
     decomposed_indel_signatures = c("dis1", "dis2"),
     hrdetect = c("hrd1", "hrd2"),
+    onenesstwoness = c("on1", "on2"),
     oncotable = c("ot1", "ot2"),
     estimate_library_complexity = c("lib1", "lib2"),
     alignment_summary_metrics = c("align1", "align2"),
     insert_size_metrics = c("insert1", "insert2"),
-    wgs_metrics = c("wgs1", "wgs2")
+    wgs_metrics = c("wgs1", "wgs2"),
+    copy_number_graph_max_cn = c(100, 100),
+    copy_number_graph_annotations = list(
+      c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"),
+      c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas")
+    ),
+    multiplicity_node_metadata = list(
+      c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+      c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")
+    ),
+    multiplicity_field = c("total_copies", "total_copies"),
+    denoised_coverage_field = c("foreground", "foreground"),
+    denoised_coverage_color_field = c(NA_character_, NA_character_),
+    denoised_coverage_bin_width = c(1e4, 1e4),
+    hetsnps_field = c("count", "count"),
+    hetsnps_color_field = c("col", "col"),
+    hetsnps_bin_width = c(NA_integer_, NA_integer_),
+    hetsnps_mask = c(
+        system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+        system.file("extdata", "data", "maskA_re.rds", package = "Skilift")
+    ),
+    hetsnps_subsample_size = c(100000, 100000),
+    hetsnps_min_normal_freq = c(0.2, 0.2), 
+    hetsnps_max_normal_freq = c(0.8, 0.8),
+    segment_width_distribution_annotations = list(NULL, NULL)
   )
   expect_silent(cohort <- Cohort$new(complete_dt))
   expect_equal(ncol(cohort$inputs), ncol(complete_dt))
@@ -109,7 +140,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     cohort <- Cohort$new(mixed_dt),
     "No matching column found for"
   )
-  expect_equal(ncol(cohort$inputs), 2)
+  expect_equal(ncol(cohort$inputs), num_cols_default)
   
   # Test data.table with alternative column names
   alt_names_dt <- copy(complete_dt)
@@ -191,8 +222,8 @@ test_that("Cohort validate_inputs correctly identifies missing data", {
   missing_data <- cohort$validate_inputs()
   
   expect_true(!is.null(missing_data))
-  expect_equal(nrow(missing_data), 2)  # Should find both types of missing data
-  expect_true(sum(missing_data$reason == "NULL or NA value") == 1)
+  expect_equal(nrow(missing_data), 5)  # Should find both types of missing data
+  expect_true(sum(missing_data$reason == "NULL or NA value") == 4)
   expect_true(sum(missing_data$reason == "File does not exist") == 1)
   
   # Test QC files validation
@@ -222,7 +253,8 @@ test_that("Cohort validate_inputs correctly identifies missing data", {
   dt_complete <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("BRCA", "LUAD"),
-    structural_variants = c(test_file1, test_file2)
+    structural_variants = c(test_file1, test_file2),
+    hetsnps_bin_width = c(1e4, 1e4)
   )
   cohort <- suppressWarnings(Cohort$new(dt_complete))
   expect_message(
@@ -296,8 +328,11 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   sample_dirs <- c("SAMPLE1", "SAMPLE2")
   file_structure <- list(
     "gridss_somatic" = "high_confidence_somatic.vcf.bgz",
+    "gridss_somatic_unfiltered" = "gridss.filtered.vcf.gz",
     "dryclean_tumor" = "drycleaned.cov.rds",
     "hetpileups" = "sites.txt",
+    "sage/somatic/tumor_only_filter" = "sage.pass_filtered.tumoronly.vcf.gz",
+    "sage/somatic" = "sage.somatic.vcf.gz",
     "jabba" = c("jabba.simple.gg.rds", "karyograph.rds"),
     "events" = "complex.rds",
     "fusions" = "fusions.rds",
@@ -327,12 +362,12 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
       if (is.list(file_structure[[dir_name]])) {
         for (subdir in names(file_structure[[dir_name]])) {
           full_path <- file.path(complete_dir, dir_name, sample, subdir)
-          dir.create(full_path, recursive = TRUE)
+          suppressWarnings(dir.create(full_path, recursive = TRUE))
           writeLines("", file.path(full_path, file_structure[[dir_name]][[subdir]]))
         }
       } else {
         full_path <- file.path(complete_dir, dir_name, sample)
-        dir.create(full_path, recursive = TRUE)
+        suppressWarnings(dir.create(full_path, recursive = TRUE))
         if (length(file_structure[[dir_name]]) > 1) {
           for (file in file_structure[[dir_name]]) {
             writeLines("", file.path(full_path, file))
@@ -383,6 +418,72 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
   unlink(base_dir, recursive = TRUE)
 })
 
+test_that("merge combines Cohort objects correctly", {
+  # Create test data.tables
+  dt1 <- data.table(
+    pair = c("sample1", "sample2"),
+    tumor_type = c("BRCA", "LUAD"),
+    structural_variants = c("sv1", "sv2")
+  )
+  
+  dt2 <- data.table(
+    pair = c("sample3", "sample4"),
+    tumor_type = c("PRAD", "COAD"),
+    somatic_snvs = c("snv1", "snv2")
+  )
+  
+  dt3 <- data.table(
+    pair = c("sample2", "sample5"),  # Note: sample2 is duplicate
+    tumor_type = c("LUAD", "PAAD"),
+    het_pileups = c("het1", "het2")
+  )
+  
+  # Create Cohort objects
+  cohort1 <- suppressWarnings(Cohort$new(dt1))
+  cohort2 <- suppressWarnings(Cohort$new(dt2))
+  cohort3 <- suppressWarnings(Cohort$new(dt3))
+  
+  # Test basic merge without duplicates
+  merged <- suppressWarnings(merge(cohort1, cohort2))
+  expect_equal(nrow(merged$inputs), 4)
+  expect_true(all(c("structural_variants", "somatic_snvs") %in% names(merged$inputs)))
+  expect_equal(merged$inputs$pair, c("sample1", "sample2", "sample3", "sample4"))
+  
+  # Test merge with duplicates and warning
+  expect_warning(
+    merged <- merge(cohort1, cohort3),
+    "Found 1 duplicate pair\\(s\\): sample2"
+  )
+  expect_equal(nrow(merged$inputs), 3)  # Duplicate removed
+  expect_equal(merged$inputs$pair, c("sample1", "sample2", "sample5"))
+  
+  # Test merge with duplicates and renaming
+  merged <- suppressWarnings(merge(cohort1, cohort3, rename_duplicates = TRUE))
+  expect_equal(nrow(merged$inputs), 4)  # All rows kept
+  expect_true("sample2_1" %in% merged$inputs$pair)
+  
+  # Test merge with warning disabled
+  merged <- suppressWarnings(merge(cohort1, cohort3, warn_duplicates = FALSE))
+  expect_equal(nrow(merged$inputs), 3)
+  
+  # Test merge with more than two cohorts
+  merged <- suppressWarnings(merge(cohort1, cohort2, cohort3, rename_duplicates = TRUE))
+  expect_equal(nrow(merged$inputs), 6)
+  expect_true(all(c("structural_variants", "somatic_snvs", "het_pileups") %in% names(merged$inputs)))
+  
+  # Test error when trying to merge single cohort
+  expect_error(
+    merge(cohort1),
+    "At least two Cohort objects must be provided"
+  )
+  
+  # Test error when trying to merge non-Cohort objects
+  expect_error(
+    merge(cohort1, dt1),
+    "All arguments must be Cohort objects"
+  )
+})
+
 # integration tests (only works on NYU hpc)
 test_that("Cohort constructor handles real pairs table correctly", {
   clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
@@ -396,3 +497,4 @@ test_that("Cohort construct handles real pipeline directory correctly", {
   cohort <- Cohort$new(pipeline_dir)
   expect_silent(cohort <- Cohort$new(pipeline_dir))
 })
+
