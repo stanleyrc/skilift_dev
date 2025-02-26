@@ -380,7 +380,8 @@ nf_path_patterns <- list(
   cbs_cov = "cbs/.*cov.rds$",
   het_pileups = "(hetpileups|amber)/.*/sites.txt$",
   amber_baf = "amber/.*amber.baf.tsv.gz",
-  purple_solution = "purple/.*purple.purity.range.tsv",
+  purple_pp_range = "purple/.*purple.purity.range.tsv",
+  purple_pp_bestFit = "purple/.*purple.purity.tsv",
   jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
   events = "events/.*/complex.rds$",
   fusions = "fusions/.*/fusions.rds$",
@@ -458,7 +459,8 @@ default_col_mapping <- list(
   alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
   insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
   wgs_metrics = c("wgs_metrics", "wgs_stats"),
-
+  purple_pp_range = c("purple_pp_range", "purple_range"),
+  purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
   # Configuration parameters with default values
   copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
   copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))),
