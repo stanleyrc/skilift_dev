@@ -288,9 +288,107 @@ process_multiplicity_fit <- function(variants,
     invisible(NULL)
 }
 
+
+#' @name lift_coverage_jabba_cn
+#' @title lift_coverage_jabba_cn
+#' @description This function will create a boxplot and calculate the linear correlation between the foreground from coverage GRanges and JaBbA graph CN.
+#' @param cohort Cohort object containing sample information
+#' @param output_data_dir Base directory for output files
+#' @param cores Number of cores for parallel processing (default: 1)
+#' @param width tile width of the coverage GRanges  (default: 10kbp)
+#' @param mask logical value to mask the data or not; default is TRUE
+#' @return None
+#' @author Johnathan Rafailov
+#' @export
+lift_coverage_jabba_cn <- function(
+    cohort,
+    output_data_dir,
+    cores = 1,
+    width = 10000,
+    mask_path = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+    mask = TRUE) {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+
+    # Validate required columns exist
+    required_cols <- c("pair", "jabba_gg", "tumor_coverage")
+    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+
+    # Process each sample in parallel
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        row <- cohort$inputs[i, ]
+        pair_dir <- file.path(output_data_dir, row$pair)
+
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
+
+        out_file <- file.path(pair_dir, "coverage_cn_boxplot.json")
+
+        tryCatch(
+            {
+                if (!file.exists(row$jabba_gg)) {
+                    warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$jabba_gg))
+                    return(NULL)
+                }
+
+                if (!file.exists(row$tumor_coverage)) {
+                    warning(sprintf("Tumor coverage file not found for %s: %s", row$pair, row$tumor_coverage))
+                    return(NULL)
+                }
+
+                # Read the gGraph and coverage
+                ggraph <- readRDS(row$jabba_gg)
+                cov <- readRDS(row$tumor_coverage)
+
+                if (!any(class(ggraph) == "gGraph")) {
+                    warning(sprintf("File is not a gGraph for %s: %s", row$pair, row$jabba_gg))
+                    return(NULL)
+                }
+
+                # Get sequence lengths from the gGraph
+                seq_lengths <- seqlengths(ggraph$nodes$gr)
+
+                # Prepare data for plotting
+                tiles.gr <- gUtils::gr.tile(gUtils::si2gr(si = seq_lengths), width = width)
+                tiles.gr <- tiles.gr %$% cov[, c("foreground", "input.read.counts")] %$% ggraph$nodes$gr[, c("cn")]
+
+                if (mask) {
+                    suppressWarnings({
+                        mask_gr <- readRDS(mask_path)
+                        tiles.gr$masked <- tiles.gr %^% mask_gr
+                    })
+                } else {
+                    tiles.gr$masked <- FALSE
+                }
+
+                tiles.gr <- tiles.gr %Q% (!is.na(cn)) %Q% (!is.na(foreground))
+                tiles.dt <- gr2dt(tiles.gr)
+                tiles.dt$cn <- round(tiles.gr$cn)
+                tiles.dt$foreground <- round(tiles.gr$foreground, 1)
+                tiles.dt$input.read.counts <- round(tiles.gr$input.read.counts, 1)
+
+                # Select only necessary columns for JSON
+                tiles.dt <- tiles.dt[, .(cn, cov = foreground, og = input.read.counts, masked)]
+                # write to json
+                write_json(tiles.dt, out_file, pretty = TRUE)
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            }
+        )
+    }, mc.cores = cores, mc.preschedule = FALSE)
+
+    invisible(NULL)
+}
+
 #' @name lift_purple_sunrise_plot
 #' @title lift_purple_sunrise_plot
-#' @description This function will create JSON files for purple sunrise plots
+#' @description This function will create JSON files for purple purity/ploidy sunrise plots
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
