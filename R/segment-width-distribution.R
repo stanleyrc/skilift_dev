@@ -288,6 +288,104 @@ process_multiplicity_fit <- function(variants,
     invisible(NULL)
 }
 
+#' @name lift_purple_sunrise_plot
+#' @title lift_purple_sunrise_plot
+#' @description This function will create JSON files for purple sunrise plots
+#' @param cohort Cohort object containing sample information
+#' @param output_data_dir Base directory for output files
+#' @param cores Number of cores for parallel processing (default: 1)
+#' @export
+#' @author Johnathan Rafailov
+#' @references Code adapted from:
+#' - https://github.com/hartwigmedical/hmftools/tree/642436265858083a0bfc81b793a51ccde42edd02/purple/src/main/resources/r/copyNumberPlots.R
+lift_purple_sunrise_plot <- function(cohort,
+                                     output_data_dir,
+                                     cores = 1) {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+
+    # Validate required columns exist
+    # range file and bestfit file
+    required_cols <- c("pair", "purple_pp_range", "purple_pp_bestFit")
+    if (!all(required_cols %in% names(cohort$inputs))) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+
+    # Process each sample in parallel
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        row <- cohort$inputs[i, ]
+        pair_dir <- file.path(output_data_dir, row$pair)
+
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
+
+        out_file <- file.path(pair_dir, "purple_sunrise.json")
+
+        tryCatch(
+            {
+                if (!file.exists(row$purple_pp_range)) {
+                    warning(sprintf("Purple purity range file not found for %s: %s", row$pair, row$purple_pp_range))
+                    return(NULL)
+                }
+
+                if (!file.exists(row$purple_pp_bestFit)) {
+                    warning(sprintf("Purple best fit file not found for %s: %s", row$pair, row$purple_pp_bestFit))
+                    return(NULL)
+                }
+
+                purple_purity_range <- fread(row$purple_pp_range)
+                purple_best_fit <- fread(row$purple_pp_bestFit)
+
+                bestPurity <- purple_best_fit[, purity]
+                bestPloidy <- purple_best_fit[, ploidy]
+                bestScore <- purple_best_fit[, score]
+
+                # Process the data to match the format required by purity_ploidy_range_plot
+                setDT(purple_purity_range)
+                purple_purity_range <- purple_purity_range[order(purity, ploidy)]
+                purple_purity_range[, `:=`(
+                    absScore = pmin(4, score),
+                    score = pmin(1, abs(score - bestScore) / score),
+                    leftPloidy = data.table::shift(ploidy, type = "lag", fill = ploidy[1]),
+                    rightPloidy = data.table::shift(ploidy, type = "lead", fill = ploidy[.N]),
+                    ymin = purity - 0.005,
+                    ymax = purity + 0.005
+                )]
+
+                purple_purity_range[, `:=`(
+                    xmin = ploidy - (ploidy - leftPloidy) / 2,
+                    xmax = ploidy + (rightPloidy - ploidy) / 2
+                )]
+
+                purple_purity_range[is.na(xmin), xmin := ploidy]
+                purple_purity_range[is.na(xmax), xmax := ploidy]
+
+                maxPloidy <- purple_purity_range[, .SD[which.max(ploidy)], by = purity][, min(xmax)]
+                minPloidy <- purple_purity_range[, .SD[which.min(ploidy)], by = purity][, max(xmin)]
+
+                maxPloidy <- max(maxPloidy, bestPloidy)
+                minPloidy <- min(minPloidy, bestPloidy)
+                purple_purity_range <- purple_purity_range[xmin <= maxPloidy & xmax >= minPloidy]
+                purple_purity_range[, `:=`(
+                    xmax = pmin(xmax, maxPloidy),
+                    xmin = pmax(xmin, minPloidy)
+                    # Reduce the table to only include necessary columns for plotting
+                )]
+
+                purple_purity_range <- purple_purity_range[, .(purity, ploidy, score, xmin, xmax, ymin, ymax)]
+
+                # Write the processed data to JSON
+                write_json(purple_purity_range, out_file, pretty = TRUE)
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            }
+        )
+    }, mc.cores = cores, mc.preschedule = FALSE)
+}
+
 #' Purity Ploidy Plot
 #'
 #' Lorem Ipsem
