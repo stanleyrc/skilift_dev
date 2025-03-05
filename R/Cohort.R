@@ -453,7 +453,7 @@ default_col_mapping <- list(
   matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
   decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
   hrdetect = c("hrdetect", "hrd"),
-  onenesstwoness = c("onenesstwoness"),
+  onenesstwoness = c("onenesstwoness","oneness_twoness"),
   oncotable = c("oncotable"),
   estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
   alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
