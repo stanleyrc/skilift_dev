@@ -812,9 +812,10 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
 
     if (!is.null(onenesstwoness)) {
         onetwo <- readRDS(onenesstwoness)
-        metadata$b1_2 <- onetwo$ot_scores[, "SUM12"]
-        metadata$b1 <- onetwo$ot_scores[, "BRCA1"]
-        metadata$b2 <- onetwo$ot_scores[, "BRCA2"]
+        metadata$b1_2_score <- onetwo$ot_scores[, "BRCA1"] + onetwo$ot_scores[, "BRCA2"]
+        metadata$b1_score <- onetwo$ot_scores[, "BRCA1"]
+        metadata$b2_score <- onetwo$ot_scores[, "BRCA2"]
+        metadata$wt_score <- onetwo$ot_scores[, "OTHER"]
     } else {
         warning("Oneness and twoness scores not found, skipping...")
     }
@@ -887,6 +888,7 @@ create_metadata <- function(
             assign(x, NULL)
         }
     }    
+
     # Add each component sequentially
     metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
@@ -967,6 +969,11 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
+
+    if(is.null(genome_length)) {
+        warning("No genome length provided, assuming WGS data")
+        genome_length <- c(1:22, "X", "Y")
+    }
     
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
@@ -981,6 +988,9 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         
         tryCatch({
             # Create metadata object
+
+            #browser() 
+
             metadata <- create_metadata(
                 pair = row$pair,
                 tumor_type = row$tumor_type,
