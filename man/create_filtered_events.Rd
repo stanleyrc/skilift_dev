@@ -9,7 +9,6 @@ create_filtered_events(
   oncotable,
   jabba_gg,
   out_file,
-  temp_fix = FALSE,
   return_table = FALSE,
   cohort_type = "paired"
 )
@@ -22,8 +21,6 @@ create_filtered_events(
 \item{jabba_gg}{JaBbA output ggraph or complex}
 
 \item{out_file}{path to write json}
-
-\item{temp_fix}{TRUE/FALSE whether to apply temporary fix}
 
 \item{return_table}{TRUE/FALSE whether to return the data.table}
 }

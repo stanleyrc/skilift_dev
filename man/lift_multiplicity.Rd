@@ -4,25 +4,14 @@
 \alias{lift_multiplicity}
 \title{lift_multiplicity}
 \usage{
-lift_multiplicity(
-  cohort,
-  is_germline = FALSE,
-  node_metadata = c("Variant_Classification", "Gene", "HGVSc", "HGVSp", "variant.g",
-    "vaf", "alt", "ref", "normal.alt", "normal.ref", "FILTER", "ONCOGENIC",
-    "MUTATION_EFFECT", "HIGHEST_LEVEL"),
-  output_data_dir,
-  field = "altered_copies",
-  cores = 1
-)
+lift_multiplicity(cohort, output_data_dir, is_germline = FALSE, cores = 1)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
 
-\item{is_germline}{Logical indicating if mutations are germline (default: FALSE)}
-
-\item{node_metadata}{Additional columns to include in node data (default: c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"))}
-
 \item{output_data_dir}{Base directory for output files}
+
+\item{is_germline}{Logical indicating if mutations are germline (default: FALSE)}
 
 \item{cores}{Number of cores for parallel processing (default: 1)}
 }

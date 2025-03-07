@@ -6,12 +6,9 @@
 \usage{
 lift_copy_number_graph(
   cohort,
-  settings = internal_settings_path,
   output_data_dir,
+  settings = Skilift:::default_settings_path,
   is_allelic = FALSE,
-  max_cn = 100,
-  annotations = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm",
-    "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas")),
   cores = 1
 )
 }

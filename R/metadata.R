@@ -788,34 +788,69 @@ add_signatures <- function(
 #' @param onenesstwoness Oneness and twoness scores.
 #' @return Updated metadata with HRD scores added.
 add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
-    if (!is.null(hrdetect)) {
-        hrd <- readRDS(hrdetect)
-        hrd_values <- data.table(
-            dels_mh = hrd$indels_classification_table$del.mh.count,
-            rs3 = hrd$exposures_rearr["RefSigR3", ],
-            rs5 = hrd$exposures_rearr["RefSigR5", ],
-            sbs3 = hrd$exposures_subs["SBS3", ],
-            sbs8 = hrd$exposures_subs["SBS8", ],
-            del_rep = hrd$indels_classification_table$del.rep.count
-        )
-        hrd_score <- hrd$hrdetect_output[1, "Probability"]
-        metadata$hrd_score <- hrd_score
 
-        if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
-            metadata$hrd <- list(as.list(hrd_values))
-        } else {
-            metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-        }
-    } else {
-        warning("HRDetect scores not found, skipping HRD scores...")
-    }
+    #browser()
+
+    # if (!is.null(hrdetect)) {
+    #     hrd <- readRDS(hrdetect)
+    #     # hrd_values <- data.table(
+    #     #     dels_mh = hrd$indels_classification_table$del.mh.count,
+    #     #     rs3 = hrd$exposures_rearr["RefSigR3", ],
+    #     #     rs5 = hrd$exposures_rearr["RefSigR5", ],
+    #     #     sbs3 = hrd$exposures_subs["SBS3", ],
+    #     #     sbs8 = hrd$exposures_subs["SBS8", ],
+    #     #     del_rep = hrd$indels_classification_table$del.rep.count
+    #     # )
+    #     #hrd_score <- hrd$hrdetect_output[1, "Probability"]
+    #     #metadata$hrd_score <- hrd_score
+
+    #     # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+    #     #     metadata$hrd <- list(as.list(hrd_values))
+    #     # } else {
+    #     #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
+    #     # }
+    # } else {
+    #     warning("HRDetect scores not found, skipping HRD scores...")
+    # }
 
     if (!is.null(onenesstwoness)) {
         onetwo <- readRDS(onenesstwoness)
-        metadata$b1_2_score <- onetwo$ot_scores[, "BRCA1"] + onetwo$ot_scores[, "BRCA2"]
-        metadata$b1_score <- onetwo$ot_scores[, "BRCA1"]
-        metadata$b2_score <- onetwo$ot_scores[, "BRCA2"]
-        metadata$wt_score <- onetwo$ot_scores[, "OTHER"]
+        hrd_values <- data.table(
+            b1_2_score = onetwo$ot_scores[, "BRCA1"] + onetwo$ot_scores[, "BRCA2"],
+            b1_score = onetwo$ot_scores[, "BRCA1"],
+            b2_score = onetwo$ot_scores[, "BRCA2"],
+            wt_score = onetwo$ot_scores[, "OTHER"],
+            DUP_1kb_100kb = onetwo$expl_variables[, "DUP_1kb_100kb"],
+            SNV3 = onetwo$expl_variables[, "SNV3"],
+            SNV8 = onetwo$expl_variables[, "SNV8"],
+            RS3 = onetwo$expl_variables[, "RS3"],
+            RS5 = onetwo$expl_variables[, "RS5"],
+            del_mh_prop = onetwo$expl_variables[, "del.mh.prop"],
+            ihdel = onetwo$expl_variables[, "ihdel"],
+            loh_score = onetwo$expl_variables[, "hrd"],
+            qrppos = onetwo$expl_variables[, "qrppos"],
+            qrpmin = onetwo$expl_variables[, "qrpmin"],
+            qrpmix = onetwo$expl_variables[, "qrpmix"],
+            qrdup = onetwo$expl_variables[, "qrdup"],
+            qrdel = onetwo$expl_variables[, "qrdel"],
+            tib = onetwo$expl_variables[, "tib"]
+        )
+
+        if (!is.null(hrdetect)) {
+            hrd <- readRDS(hrdetect)
+            hrd_values <- hrd_values[, hrd_score := hrd$hrdetect_output[1, "Probability"]]
+        } else {
+            warning("HRDetect scores not found, skipping HRD scores...")
+        }
+
+        metadata$hrd <- list(as.list(hrd_values))
+
+        # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+        #     metadata$hrd <- list(as.list(hrd_values))
+        # } else {
+        #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
+        # }
+
     } else {
         warning("Oneness and twoness scores not found, skipping...")
     }
