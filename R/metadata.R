@@ -211,7 +211,8 @@ process_qc_metrics <- function(
     estimate_library_complexity,
     alignment_summary_metrics,
     insert_size_metrics,
-    wgs_metrics,
+    tumor_wgs_metrics,
+    normal_wgs_metrics,
     pair
 ) {
     # Define metric mappings for each file type
@@ -234,13 +235,17 @@ process_qc_metrics <- function(
         insert_size = "MEDIAN_INSERT_SIZE"
     )
     
-    wgs_metrics_cols <- c(
+    tumor_wgs_metrics_cols <- c(
         # median_coverage = "MEAN_COVERAGE"
         tumor_median_coverage = "MEDIAN_COVERAGE",
         # pct_30x = "PCT_30X",
         greater_than_or_equal_to_30x = "PCT_30X",
         # pct_50x = "PCT_50X"
         greater_than_or_equal_to_50x = "PCT_50X"
+    )
+
+    normal_wgs_metrics_cols <- c(
+        normal_median_coverage = "MEDIAN_COVERAGE"
     )
     
     test_file_is_present = function(x) {
@@ -280,11 +285,20 @@ process_qc_metrics <- function(
         )
     }
     
-    wgs_data = data.table(pair = character(0))
-    if (test_file_is_present(wgs_metrics)) {
-        wgs_data <- extract_metrics(
-            fread(wgs_metrics),
-            wgs_metrics_cols,
+    tumor_wgs_data = data.table(pair = character(0))
+    if (test_file_is_present(tumor_wgs_metrics)) {
+        tumor_wgs_data <- extract_metrics(
+            fread(tumor_wgs_metrics),
+            tumor_wgs_metrics_cols,
+            pair
+        )
+    }
+
+    normal_wgs_data = data.table(pair = character(0))
+    if (test_file_is_present(normal_wgs_metrics)) {
+        normal_wgs_data <- extract_metrics(
+            fread(normal_wgs_metrics),
+            normal_wgs_metrics_cols,
             pair
         )
     }
@@ -294,7 +308,13 @@ process_qc_metrics <- function(
     # "pct_30x", "pct_50x", "percent_optical_duplication", 
     # "percent_aligned", "percent_optical_dups_of_dups")
     # Merge all metrics on pair
-    lst_to_merge = list(complexity_data, alignment_data, insert_data, wgs_data)
+    lst_to_merge = list(
+        complexity_data, 
+        alignment_data, 
+        insert_data, 
+        tumor_wgs_data,
+        normal_wgs_data
+    )
     qc_metrics <- Reduce(function(x, y) {
         data.table::merge.data.table(
             x, y, by = "pair", 
@@ -320,8 +340,8 @@ process_qc_metrics <- function(
         qc_metrics$read_pair_optical_duplicates / 
         qc_metrics$read_pair_duplicates
     )
-    # FIXME, need to account for tumor and normal
-    qc_metrics$normal_median_coverage = NA_integer_
+    # # FIXME, need to account for tumor and normal
+    # qc_metrics$normal_median_coverage = NA_integer_
 
     # Remove any metrics that are NA
     # This can happen if any derivative metrics
@@ -363,7 +383,8 @@ add_coverage_metrics <- function(
     estimate_library_complexity = NULL,
     alignment_summary_metrics = NULL,
     insert_size_metrics = NULL,
-    wgs_metrics = NULL
+    tumor_wgs_metrics = NULL,
+    normal_wgs_metrics = NULL
 ) {
     coverage_variance <- NULL
     if (!is.null(tumor_coverage)) {
@@ -383,7 +404,8 @@ add_coverage_metrics <- function(
             estimate_library_complexity,
             alignment_summary_metrics,
             insert_size_metrics,
-            wgs_metrics,
+            tumor_wgs_metrics,
+            normal_wgs_metrics,
             metadata$pair
         )
         
@@ -934,7 +956,8 @@ create_metadata <- function(
     estimate_library_complexity = NULL,
     alignment_summary_metrics = NULL,
     insert_size_metrics = NULL,
-    wgs_metrics = NULL,
+    tumor_wgs_metrics = NULL,
+    normal_wgs_metrics = NULL,
     het_pileups = NULL,
     activities_indel_signatures = NULL,
     deconstructsigs_sbs_signatures = NULL,
@@ -948,7 +971,14 @@ create_metadata <- function(
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics"
+    , 
+    # was wgs_metrics
+    "tumor_wgs_metrics"
+    ,
+    "normal_wgs_metrics"
+    , 
+    "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
@@ -959,13 +989,14 @@ create_metadata <- function(
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
     # Add coverage metrics
     metadata <- add_coverage_metrics(
-        metadata,
-        tumor_coverage,
-        foreground_col_name,
-        estimate_library_complexity,
-        alignment_summary_metrics,
-        insert_size_metrics,
-        wgs_metrics
+        metadata = metadata,
+        tumor_coverage = tumor_coverage,
+        foreground_col_name = foreground_col_name,
+        estimate_library_complexity = estimate_library_complexity,
+        alignment_summary_metrics = alignment_summary_metrics,
+        insert_size_metrics = insert_size_metrics,
+        tumor_wgs_metrics = tumor_wgs_metrics,
+        normal_wgs_metrics = normal_wgs_metrics
     )
     metadata <- add_variant_counts(metadata, somatic_snvs, genome)
     
@@ -1013,31 +1044,41 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
     if (!dir.exists(output_data_dir)) {
         dir.create(output_data_dir, recursive = TRUE)
     }
+
+    lift_inputs = pairify_cohort_inputs(cohort, tumor_normal_columns = c("wgs_metrics"), keep_remaining = TRUE, sep_cast = "_")
+
     
     # Define all possible columns
     all_cols <- c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
         "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
-        "insert_size_metrics", "wgs_metrics", "het_pileups",
+        "insert_size_metrics"
+        , 
+        # was "wgs_metrics"
+        "tumor_wgs_metrics"
+        ,
+        "normal_wgs_metrics"
+        , 
+        "het_pileups",
         "activities_sbs_signatures", "activities_indel_signatures",
         "hrdetect", "onenesstwoness"
     )
     
     # Check for required column
-    if (!"pair" %in% names(cohort$inputs)) {
+    if (!"pair" %in% names(lift_inputs)) {
         stop("Missing required column 'pair' in cohort")
     }
     
     # Warn about missing optional columns
-    missing_cols <- all_cols[!all_cols %in% names(cohort$inputs)]
+    missing_cols <- all_cols[!all_cols %in% names(lift_inputs)]
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
     # Process each sample in parallel
-    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
+    mclapply(seq_len(nrow(lift_inputs)), function(i) {
+        row <- lift_inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
         if (!dir.exists(pair_dir)) {
@@ -1063,7 +1104,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
                 estimate_library_complexity = row$estimate_library_complexity,
                 alignment_summary_metrics = row$alignment_summary_metrics,
                 insert_size_metrics = row$insert_size_metrics,
-                wgs_metrics = row$wgs_metrics,
+                tumor_wgs_metrics = row$tumor_wgs_metrics,
+                normal_wgs_metrics = row$normal_wgs_metrics,
                 het_pileups = row$het_pileups,
                 activities_sbs_signatures = row$activities_sbs_signatures,
                 activities_indel_signatures = row$activities_indel_signatures,
