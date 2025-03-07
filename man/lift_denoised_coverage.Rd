@@ -4,14 +4,7 @@
 \alias{lift_denoised_coverage}
 \title{lift_denoised_coverage}
 \usage{
-lift_denoised_coverage(
-  cohort,
-  output_data_dir,
-  cores = 1,
-  coverage_field = "foreground",
-  color_field = NULL,
-  bin.width = 10000
-)
+lift_denoised_coverage(cohort, output_data_dir, cores = 1, mask = TRUE)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
@@ -19,6 +12,8 @@ lift_denoised_coverage(
 \item{output_data_dir}{Base directory for output files}
 
 \item{cores}{Number of cores for parallel processing (default: 1)}
+
+\item{mask}{Logical indicating whether to mask the coverage data (default: TRUE)}
 }
 \value{
 None
