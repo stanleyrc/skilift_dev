@@ -858,6 +858,38 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
     return(metadata)
 }
 
+#' @name add_msisensor_score
+#' @title Add MSIsensor Score
+#' @description
+#' Adds MSIsensor score to the metadata.    
+#' 
+#' @param metadata A data.table containing metadata.
+#' @param msisensor_pro Path to MSIsensor profile file.
+#' @return Updated metadata with MSIsensor score added.
+add_msisensor_score <- function(metadata, msisensorpro) {
+    if (!is.null(msisensorpro)) {
+        msisensorpro <- fread(msisensorpro)
+
+        score <- msisensorpro[,3][[1]]
+        label.msi <- ifelse(score < 10, "MSS",
+            ifelse(score < 20, "MSI-Low", "MSI-High"))
+
+        #add attributes as a list
+        dt <- data.table(
+            score = msisensorpro[,3][[1]],
+            n_unstable = msisensorpro[,2][[1]],
+            n_evaluated = msisensorpro[,1][[1]],
+            label = label.msi
+        )
+
+        metadata$msisensor <- list(as.list(dt))
+
+    } else {
+        warning("MSIsensor profile not found, skipping MSIsensor score...")
+    }
+    return(metadata)
+}
+
 #' @title Create Metadata for a Sample
 #' @description
 #' Creates a comprehensive metadata object for a single sample pair by aggregating various data inputs.
@@ -910,6 +942,7 @@ create_metadata <- function(
     activities_sbs_signatures = NULL,
     hrdetect = NULL,
     onenesstwoness = NULL,
+    msisensorpro = NULL,
     genome = "hg19",
     seqnames_loh = c(1:22),
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
@@ -917,7 +950,7 @@ create_metadata <- function(
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
@@ -960,6 +993,9 @@ create_metadata <- function(
     
     # Add HRD scores
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
+
+    # Add MSIsensor score
+    metadata <- add_msisensor_score(metadata, msisensorpro)    
     
     return(metadata)
 }
@@ -991,7 +1027,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         "estimate_library_complexity", "alignment_summary_metrics",
         "insert_size_metrics", "wgs_metrics", "het_pileups",
         "activities_sbs_signatures", "activities_indel_signatures",
-        "hrdetect", "onenesstwoness"
+        "hrdetect", "onenesstwoness", "msisensorpro"
     )
     
     # Check for required column
@@ -1024,8 +1060,6 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         tryCatch({
             # Create metadata object
 
-            #browser() 
-
             metadata <- create_metadata(
                 pair = row$pair,
                 tumor_type = row$tumor_type,
@@ -1046,6 +1080,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
                 activities_indel_signatures = row$activities_indel_signatures,
                 hrdetect = row$hrdetect,
                 onenesstwoness = row$onenesstwoness,
+                msisensorpro = row$msisensorpro,
                 seqnames_genome_width_or_genome_length = genome_length # if genome length is provided
             )
 
