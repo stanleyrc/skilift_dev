@@ -407,7 +407,8 @@ nf_path_patterns <- list(
   estimate_library_complexity = "qc_reports/gatk/.*/.*metrics",
   alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
   insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
-  wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics"
+  wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics",
+  msisensor_pro = "msisensor_pro/.*/.*msisensor_pro_results.tsv" ## TODO FILL ME
 )
 
 #' Default column mappings
@@ -461,6 +462,7 @@ default_col_mapping <- list(
   wgs_metrics = c("wgs_metrics", "wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
+  msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
   # Configuration parameters with default values
   copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
   copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))),
