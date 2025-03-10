@@ -876,7 +876,7 @@ add_msisensor_score <- function(metadata, msisensorpro) {
 
         #add attributes as a list
         dt <- data.table(
-            score = msisensorpro[,3][[1]],
+            score = msisensorpro[,3][[1]] / 100,
             n_unstable = msisensorpro[,2][[1]],
             n_evaluated = msisensorpro[,1][[1]],
             label = label.msi

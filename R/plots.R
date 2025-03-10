@@ -2352,7 +2352,7 @@ create_distributions <- function(
 
     files <- list.files(
         case_reports_data_folder,
-        pattern = "metadata.json",
+        pattern = "metadata.json$",
         recursive = TRUE,
         full.names = TRUE
     )
@@ -2412,6 +2412,22 @@ create_distributions <- function(
         tmb.dt = list(
             cols = c("pair", "tmb", "tumor_type"),
             new_names = c("pair", "value", "tumor_type")
+        ),
+        msisensor.dt = list(
+            cols = c("pair", "msisensor.score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        b1_2.dt = list(
+            cols = c("pair", "hrd.b1_2_score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        b1.dt = list(
+            cols = c("pair", "hrd.b1_score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        b2.dt = list(
+            cols = c("pair", "hrd.b2_score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
         )
     )
 
@@ -2450,6 +2466,10 @@ create_distributions <- function(
             "purity",
             "coverageVariance",
             "tmb",
+            "msisensor",
+            "b1_2",
+            "b1",
+            "b2",
             "sbs",
             "sigprofiler_indel_fraction",
             "sigprofiler_indel_count",
@@ -2465,13 +2485,19 @@ create_distributions <- function(
             "ploidy",
             "purity",
             "coverageVariance",
-            "tmb"
+            "tmb",
+            "msisensor",
+            "b1_2",
+            "b1",
+            "b2"
         )
     }
 
     if (write_to_json) {
         if (is.null(common_dir)) {
-            stop("common_dir must be provided if write_to_json is TRUE")
+            # follow directory structure
+            common_dir <- paste0(case_reports_datadir, "../common") %>% normalizePath()
+            dir.exists(common_dir) || stop("common_dir must be provided if write_to_json is TRUE")
         }
         write_distributions_to_json(json.lst, common_dir, cores, overwrite, haveSignatures)
         return(NULL)
@@ -2609,6 +2635,10 @@ write_distributions_to_json <- function(
     write_json_file(distributions$purity, paste0(common_folder, "/purity.json"))
     write_json_file(distributions$coverageVariance, paste0(common_folder, "/coverageVariance.json"))
     write_json_file(distributions$tmb, paste0(common_folder, "/tmb.json"))
+    write_json_file(distributions$msisensor, paste0(common_folder, "/msisensor.json"))
+    write_json_file(distributions$b1_2, paste0(common_folder, "/b1_2.json"))
+    write_json_file(distributions$b1, paste0(common_folder, "/b1.json"))
+    write_json_file(distributions$b2, paste0(common_folder, "/b2.json"))
 
     if (haveSignatures) {
         write_signature_jsons(
@@ -2643,7 +2673,11 @@ load_distributions <- function(
             "purity.json",
             "snvCount.json",
             "svCount.json",
-            "tmb.json"
+            "tmb.json",
+            "msisensor.json",
+            "b1_2.json",
+            "b1.json",
+            "b2.json"
         )
     )
     files.dt <- data.table(
@@ -2654,7 +2688,11 @@ load_distributions <- function(
             "purity",
             "snvCount",
             "svCount",
-            "tmb"
+            "tmb",
+            "msisensor",
+            "b1_2",
+            "b1",
+            "b2"
         ),
         file = files.lst
     )
@@ -2717,6 +2755,10 @@ add_patient_to_distributions <- function(
     distributions$purity <- update_distribution(distributions$purity, new_patient_data, "purity")
     distributions$coverageVariance <- update_distribution(distributions$coverageVariance, new_patient_data, "dlrs")
     distributions$tmb <- update_distribution(distributions$tmb, new_patient_data, "tmb")
+    distributions$msisensor <- update_distribution(distributions$msisensor, new_patient_data, "msisensor.score")
+    distributions$b1_2 <- update_distribution(distributions$b1_2, new_patient_data, "hrd.b1_2_score")
+    distributions$b1 <- update_distribution(distributions$b1, new_patient_data, "hrd.b1_score")
+    distributions$b2 <- update_distribution(distributions$b2, new_patient_data, "hrd.b2_score")
 
     # Update signature distributions
     update_signature_distribution <- function(distribution, new_data, key_prefix) {
