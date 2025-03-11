@@ -743,7 +743,7 @@ refresh_cohort = function(cohort) {
 #' @param rename_duplicates Logical indicating whether to rename duplicate pairs instead of overwriting (default FALSE)
 #' @return A new Cohort object containing all data from input Cohorts
 #' @export
-merge = function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
+merge.Cohort = function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
   cohorts = list(...)
   
   # Validate inputs are all Cohorts
