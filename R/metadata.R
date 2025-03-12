@@ -395,10 +395,13 @@ add_coverage_metrics <- function(
     }
     
     processed_metrics <- NULL
-    if (!is.null(estimate_library_complexity) ||
+    if (
+        !is.null(estimate_library_complexity) ||
         !is.null(alignment_summary_metrics) ||
         !is.null(insert_size_metrics) ||
-        !is.null(wgs_metrics)) {
+        !is.null(tumor_wgs_metrics) ||
+        !is.null(normal_wgs_metrics)
+        ) {
         
         processed_metrics <- process_qc_metrics(
             estimate_library_complexity,

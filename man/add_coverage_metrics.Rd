@@ -11,7 +11,8 @@ add_coverage_metrics(
   estimate_library_complexity = NULL,
   alignment_summary_metrics = NULL,
   insert_size_metrics = NULL,
-  wgs_metrics = NULL
+  tumor_wgs_metrics = NULL,
+  normal_wgs_metrics = NULL
 )
 }
 \arguments{

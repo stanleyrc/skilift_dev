@@ -2,14 +2,16 @@
 % Please edit documentation in R/Cohort.R
 \name{pairify_cohort_inputs}
 \alias{pairify_cohort_inputs}
-\title{pairify_cohort}
+\title{pairify_cohort_inputs}
 \usage{
 pairify_cohort_inputs(
   cohort,
   tumor_status = 1L,
   normal_status = 0L,
   tumor_normal_columns,
-  sep_cast = "___"
+  sep_cast = "___",
+  keep_remaining = FALSE,
+  ...
 )
 }
 \value{
