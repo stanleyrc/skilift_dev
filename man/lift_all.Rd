@@ -4,23 +4,7 @@
 \alias{lift_all}
 \title{Run all lift methods on a cohort}
 \usage{
-lift_all(
-  cohort,
-  output_data_dir,
-  cores = 1,
-  settings = Skilift:::internal_settings_path,
-  max_cn = 100,
-  annotations = NULL,
-  coverage_field = "foreground",
-  color_field = NULL,
-  bin.width = NA_integer_,
-  node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
-    "variant.p", "vaf", "transcript_type", "impact", "rank"),
-  field = "total_copies",
-  genome_length = c(1:22, "X", "Y"),
-  path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
-  ...
-)
+lift_all(cohort, output_data_dir, cores = 1, ...)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
@@ -29,31 +13,7 @@ lift_all(
 
 \item{cores}{Number of cores for parallel processing (default: 1)}
 
-\item{settings}{Settings path for copy number graph}
-
-\item{max_cn}{Maximum copy number for graph (default: 100)}
-
-\item{annotations}{List of annotations for copy number graph and segment width distribution}
-
-\item{coverage_field}{Field specifying values to write to arrow (default: "foreground")}
-
-\item{color_field}{Field specifying color values}
-
-\item{bin.width}{Bin width for coverage track}
-
-\item{node_metadata}{Additional columns for multiplicity}
-
-\item{field}{Field for multiplicity (default: "total_copies")}
-
-\item{genome_length}{Chromosome names for metadata}
-
 \item{...}{Additional arguments}
-
-\item{is_allelic}{Boolean for copy number graph processing (default: FALSE)}
-
-\item{cohort_column}{Field in cohort inputs table for coverage track (default: "tumor_coverage")}
-
-\item{is_germline}{Logical for multiplicity (default: FALSE)}
 }
 \value{
 None

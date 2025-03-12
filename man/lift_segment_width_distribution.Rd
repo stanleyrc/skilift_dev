@@ -4,21 +4,16 @@
 \alias{lift_segment_width_distribution}
 \title{lift_segment_width_distribution}
 \usage{
-lift_segment_width_distribution(
-  cohort,
-  output_data_dir,
-  annotations = NULL,
-  cores = 1
-)
+lift_segment_width_distribution(cohort, output_data_dir, cores = 1)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
 
 \item{output_data_dir}{Base directory for output files}
 
-\item{annotations}{(list) Optional annotations to include in JSON output (default: NULL)}
-
 \item{cores}{Number of cores for parallel processing (default: 1)}
+
+\item{annotations}{(list) Optional annotations to include in JSON output (default: NULL)}
 }
 \value{
 None
