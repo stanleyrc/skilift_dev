@@ -8,7 +8,8 @@ process_qc_metrics(
   estimate_library_complexity,
   alignment_summary_metrics,
   insert_size_metrics,
-  wgs_metrics,
+  tumor_wgs_metrics,
+  normal_wgs_metrics,
   pair
 )
 }
@@ -19,9 +20,9 @@ process_qc_metrics(
 
 \item{insert_size_metrics}{Path to the insert_size_metrics file}
 
-\item{wgs_metrics}{Path to the wgs_metrics file}
-
 \item{pair}{Sample pair identifier}
+
+\item{wgs_metrics}{Path to the wgs_metrics file}
 }
 \value{
 A list containing processed QC metrics

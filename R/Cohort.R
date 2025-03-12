@@ -679,9 +679,11 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
 	is_unpaired = is_status_in_cohort && is_nextflow_results_path_present
 	is_paired = is_tumor_bam_in_cohort && is_normal_bam_in_cohort
 
-	if (is_unpaired) {
+  tumor_normal_columns = tumor_normal_columns[tumor_normal_columns %in% names(inputs)]
+
+	if (is_unpaired && NROW(tumor_normal_columns) > 0) {
 		inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
-		return_inputs = Skilift::dcast(
+		return_inputs = Skilift::dcastski(
 			inputs,
 			id_columns = "pair",
 			type_columns = "tumor_type",
@@ -699,7 +701,7 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
 #' Using base R for robustness
 #' 
 #' @export
-dcast = function(
+dcastski = function(
 	tbl, 
 	id_columns, 
 	type_columns, 
