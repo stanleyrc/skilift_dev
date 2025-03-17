@@ -461,7 +461,7 @@ default_col_mapping <- list(
   insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
   wgs_metrics = c("wgs_metrics", "wgs_stats"),
   tumor_wgs_metrics = c("tumor_wgs_metrics", "tumor_wgs_stats"),
-  normal_wgs_metrics = c("normal_wgs_metrics", "normal_wgs_stats")
+  normal_wgs_metrics = c("normal_wgs_metrics", "normal_wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
   msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
