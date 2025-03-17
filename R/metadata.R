@@ -512,7 +512,8 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
     }
     
     # Calculate total SV count
-    metadata[, sv_count := (junction_count + (loose_count / 2))]
+    # metadata[, sv_count := (junction_count + (loose_count / 2))]
+    metadata[, sv_count := (junction_count)]
     
     return(metadata)
 }
@@ -523,16 +524,67 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
 #' @param metadata A data.table containing metadata
 #' @param jabba_gg Path to JaBbA graph RDS file
 #' @return Updated metadata with purity and ploidy information
-add_purity_ploidy <- function(metadata, jabba_gg = NULL) {
+add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) {
     if (is.null(jabba_gg)) {
         return(metadata)
     }
     
-    gg <- readRDS(jabba_gg)
-    metadata$purity <- gg$meta$purity
-    metadata$ploidy <- gg$meta$ploidy
-    metadata$beta <- gg$meta$ploidy
-    metadata$gamma <- 1 - gg$meta$purity
+    ggraph <- gg <- readRDS(jabba_gg)
+    
+    ploidy = tau = gg$meta$ploidy
+    purity = alpha = gg$meta$purity
+    metadata$purity <- purity
+    metadata$ploidy <- ploidy
+    metadata$beta = alpha / (alpha * ploidy + 2*(1 - alpha)) # from Multiplicity
+    metadata$gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) # from Multiplicity
+    
+    # # Get sequence lengths from the gGraph
+    # seq_lengths <- seqlengths(ggraph$nodes$gr)
+    
+    # # Check for required fields
+    # colnames_check <- c("start_ix", "end_ix", "eslack_in", "eslack_out", 
+    #                     "edges_in", "edges_out", "tile_id", "snode_id", 
+    #                     "loose_left", "loose_right", "loose_cn_left", 
+    #                     "loose_cn_right", "node_id", "raw_mean", "raw_var", 
+    #                     "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", 
+    #                     "wbins_ok", "mean", "bad", "max_na", "loess_var", 
+    #                     "tau_sq_post", "post_var", "var", "sd")
+    
+    # if (all(colnames_check %in% names(ggraph$nodes$dt))) {
+    #     gg_w_segstats <- ggraph
+    #     fields.keep <- c(colnames_check, "seqnames", "start", "end", "strand", "width", "loose", "index")
+    # } else {
+    #     # Get segstats information
+    #     segstats.dt <- get_segstats(
+    #         balanced_jabba_gg = row$balanced_jabba_gg,
+    #         tumor_coverage = row$tumor_coverage,
+    #         coverage_field = "foreground"
+    #     )
+    #     segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
+    #     gg_w_segstats <- gGnome::gG(nodes = segstats.gr, edges = ggraph$edges$dt)
+    #     fields.keep <- names(segstats.dt) %>% grep("cn", ., invert = TRUE, value = TRUE)
+    # }
+    
+    # # Check for sequence name overlap
+    # ggraph.reduced <- gg_w_segstats[seqnames %in% names(seq_lengths)]
+
+    # alpha = purity = pp$purity
+    # tau = ploidy = pp$ploidy
+    # ncn = 2
+    # segstats = ggraph.reduced$nodes$gr
+    # mu = segstats$mean
+    # ## mu = mcols(cov)[["foreground"]]
+    # mu[is.infinite(mu)] = NA_real_    
+    # w = as.numeric(width(segstats))
+    # w[is.na(mu)] = NA
+    # sw = sum(w, na.rm = T)
+    # ploidy_normal = sum(w * ncn, na.rm = T) / sw
+    # mutl = sum(mu * w, na.rm = T)
+    # m0 = sum(as.numeric(mutl))/sw
+    # beta = ((1-purity)*ploidy_normal + purity*ploidy) * sw / (purity * mutl) # from JaBbA segstats
+    # gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) ## Johnathan's multiplicity
+    # metadata$beta <- beta
+    # metadata$gamma <- gamma
     
     return(metadata)
 }
@@ -594,7 +646,7 @@ add_genome_length <- function(
         return(metadata)
     }
 
-    if (is.null(jabba_gg) || is.null(seqnames_genome_width_or_genome_length)) {
+    if (is.null(jabba_gg) && is.null(seqnames_genome_width_or_genome_length)) {
         return(metadata)
     }
     
@@ -607,7 +659,10 @@ add_genome_length <- function(
         )
     )
     seqlengths.dt[, seqnames := gsub("chr", "", seqnames)]
-    seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
+    if (!is.null(seqnames_genome_width_or_genome_length)) {
+        seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
+    }
+    
     metadata$total_genome_length <- sum(seqlengths.dt$seqlengths)
     
     return(metadata)
@@ -734,6 +789,7 @@ add_tmb <- function(
     if (is.null(meta_dt$total_genome_length) || is.na(meta_dt$total_genome_length)) {
         meta_dt <- add_genome_length(meta_dt, jabba_gg, seqnames_genome_width_or_genome_length)
     }
+    
     
     # Calculate TMB if we have both required values
     is_tmb_computable <- !is.na(meta_dt$snv_count) && !is.na(meta_dt$total_genome_length) && !is.null(meta_dt$snv_count) && !is.null(meta_dt$total_genome_length)
@@ -893,7 +949,13 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
         hrd_score <- hrd$hrdetect_output[1, "Probability"]
         metadata$hrd_score <- hrd_score
 
-        if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+        if (
+            is.null(metadata$hrd[[1]])
+            || (
+                NROW(metadata$hrd[[1]]) == 1
+                && is.na(metadata$hrd[[1]])
+            )
+        ) {
             metadata$hrd <- list(as.list(hrd_values))
         } else {
             metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
@@ -1005,7 +1067,7 @@ create_metadata <- function(
     
     # New SV-related function calls
     metadata <- add_sv_counts(metadata, jabba_gg)
-    metadata <- add_purity_ploidy(metadata, jabba_gg)
+    metadata <- add_purity_ploidy(metadata, jabba_gg, tumor_coverage = tumor_coverage)
     metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
     metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
     metadata <- add_sv_types(metadata, jabba_gg, events)
