@@ -215,7 +215,6 @@ lift_multiplicity <- function(
     output_data_dir,
     is_germline = FALSE,
     node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-    output_data_dir,
     field = "total_copies",
     cores = 1
 ) {
