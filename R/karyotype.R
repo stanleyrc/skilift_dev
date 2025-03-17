@@ -22,7 +22,7 @@ grl2bedpe = function (
     colnames(df2) = c("chrom2", "start2", "end2", "strand2")
     mc1 = data.frame()[seq_len(NROW(df1)), , drop = F]
     mc2 = data.frame()[seq_len(NROW(df2)), , drop = F]
-    if (isTRUE(add_breakend_mcol)) {
+    if (identical(add_breakend_mcol, TRUE)) {
         mc1 = as.data.frame(grpiv[[1]])[, -c(1:5), drop = F]
         mc2 = as.data.frame(grpiv[[2]])[, -c(1:5), drop = F]
         colnames(mc1) = paste0("first.", colnames(mc1))
@@ -58,9 +58,9 @@ annotate_karyotype = function(
   cyto$arm = gsub("^(p|q).*", "\\1", cyto$band)
   cyto$band_width = as.integer(width(cyto))
 
-  cyto_by_arm = gGnome::gr_construct_by(cyto, "arm")
+  cyto_by_arm = gUtils::gr_construct_by(cyto, "arm")
   rcyto_by_arm = GenomicRanges::reduce(cyto_by_arm)
-  rcyto_arm = gGnome::gr_deconstruct_by(rcyto_by_arm, by = "arm", meta = TRUE)
+  rcyto_arm = gUtils::gr_deconstruct_by(rcyto_by_arm, by = "arm", meta = TRUE)
   rcyto_arm_dt = gUtils::gr2dt(rcyto_arm)
 
   annotated_tra_inv = ""
@@ -130,9 +130,9 @@ annotate_karyotype = function(
   if (length(events) > 0) {
     events$label = ifelse(events$cn > 2, "dup", "del")
 
-    events_by_label = gGnome::gr_construct_by(events, "label")
+    events_by_label = gUtils::gr_construct_by(events, "label")
     revents_by_label = GenomicRanges::reduce(events_by_label, ignore.strand = TRUE)
-    revents = gGnome::gr_deconstruct_by(revents_by_label, by = "label", meta = TRUE)
+    revents = gUtils::gr_deconstruct_by(revents_by_label, by = "label", meta = TRUE)
     revents = revents %*% cyto
 
     revents_dt = gUtils::gr2dt(revents)

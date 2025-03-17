@@ -460,6 +460,8 @@ default_col_mapping <- list(
   alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
   insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
   wgs_metrics = c("wgs_metrics", "wgs_stats"),
+  tumor_wgs_metrics = c("tumor_wgs_metrics", "tumor_wgs_stats"),
+  normal_wgs_metrics = c("normal_wgs_metrics", "normal_wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
   msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
@@ -572,7 +574,8 @@ parse_pipeline_paths <- function(
   pairs_to_match <- unique(initial_dt[[id_name]])
   # Map of regex patterns to column names
   for (col_name in names(path_patterns)) {
-    patterns <- path_patterns[[col_name]]
+    
+    patterns = path_patterns[[col_name]]
     for (pattern in patterns) {
       present_paths <- grep(pattern, paths, value = TRUE, perl = TRUE)
       if (!length(present_paths) > 0) next
@@ -581,7 +584,16 @@ parse_pipeline_paths <- function(
       dt <- data.table()
       for (pair in pairs_to_match) {
         # Find paths that contain this pair name
-        pair_paths <- grep(paste0("/", pair, "/"), present_paths, value = TRUE, perl = TRUE)
+        # FIXME: hack for snpeff and other paths that have "snpeff/somatic/PAIR-lane_X/..." directory structure
+        # Seems not to be localized to just snpeff
+        # balanced_jabba_gg, cbs, jabba_gg, somatic_variant_annotations, events, allelic_jabba_gg
+        pair_paths <- grep(paste0("/", pair, "(-lane_.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+        # if (col_name %in% c("somatic_variant_annotations", "jabba_gg")) {
+        #   pair_paths <- grep(paste0("/", pair, "(-lane.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+        # } else {
+        #   pair_paths <- grep(paste0("/", pair, "/"), present_paths, value = TRUE, perl = TRUE)
+        # }
+        
         if (length(pair_paths) > 0) {
           dt <- rbindlist(list(dt, data.table(
             pair = pair,
@@ -735,6 +747,110 @@ refresh_cohort <- function(cohort) {
   return(obj_out)
 }
 
+
+#' pairify_cohort_inputs
+#' 
+#' Create paired cohort inputs if tumor and normal provided
+#' for paired outputs
+#' 
+#' @return paired table from cohort inputs
+#' @export
+pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, tumor_normal_columns, sep_cast = "___", keep_remaining = FALSE, ...) {
+  nextflow_results_path = NULL
+  if (R6::is.R6(cohort) && !is.null(cohort$inputs)) {
+    return_inputs = inputs = data.table::copy(cohort$inputs)
+    nextflow_results_path = cohort$nextflow_results_path
+  } else if (inherits(cohort, "data.table")) {
+    return_inputs = inputs = data.table::copy(cohort)
+  } else {
+    stop("Cohort object or inputs data.table must be provided")
+  }
+	is_status_in_cohort = !is.null(inputs$status)
+	is_nextflow_results_path_present = !is.null(nextflow_results_path)
+	is_tumor_bam_in_cohort = !is.null(inputs$tumor_bam)
+	is_normal_bam_in_cohort = !is.null(inputs$normal_bam)
+
+	is_unpaired = is_status_in_cohort && is_nextflow_results_path_present
+	is_paired = is_tumor_bam_in_cohort && is_normal_bam_in_cohort
+
+  tumor_normal_columns = tumor_normal_columns[tumor_normal_columns %in% names(inputs)]
+
+	if (is_unpaired && NROW(tumor_normal_columns) > 0) {
+		inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
+		return_inputs = Skilift::dcastski(
+			inputs,
+			id_columns = "pair",
+			type_columns = "tumor_type",
+			cast_columns = tumor_normal_columns,
+			sep_cast = sep_cast,
+			keep_remaining = keep_remaining,
+      ...
+		)
+	}
+	return(return_inputs)
+}
+
+#' Cast table
+#' 
+#' Using base R for robustness
+#' 
+#' @export
+dcastski = function(
+	tbl, 
+	id_columns, 
+	type_columns, 
+	cast_columns, 
+	keep_remaining = FALSE, 
+	sep_cast = "___", 
+	prefix_type = TRUE,
+	drop = FALSE,
+	use_regex = FALSE
+) {
+  if (identical(use_regex, TRUE)) {
+	.NotYetImplemented()
+  }
+  if (base::anyDuplicated(names(tbl)) > 0) {
+    stop("Duplicated names present in table! Dedup first: names(tbl) = base::make.unique(names(tbl))")
+  }
+  remaining_cols = character(0)
+  columns_to_process = unique(c(id_columns, type_columns))
+  if (identical(keep_remaining, TRUE)) {
+    remaining_cols = names(tbl)[!names(tbl) %in% c(columns_to_process, cast_columns)]
+    columns_to_process = c(columns_to_process, remaining_cols)
+  }
+  columns_to_process = c(columns_to_process, cast_columns)
+  skeleton = unique(base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols)))
+  reduced_tbl = base::subset(tbl, select = columns_to_process)
+  reduced_tbl$types = reduced_tbl[[type_columns[1]]]
+  types = unique(reduced_tbl$types)
+  if (is.factor(reduced_tbl$types) && !identical(drop, TRUE)) {
+    types = base::levels(reduced_tbl$types)
+  }
+  if (length(type_columns) > 1) {
+    .NotYetImplemented()
+    lst = as.list(base::subset(reduced_tbl, select = type_columns))
+    types = do.call(interaction, lst)
+    skeleton$types = types
+  }
+  for (type in types) {
+    merge_type = reduced_tbl[reduced_tbl$types == type,]
+    merge_type = base::subset(merge_type, select = c(id_columns, cast_columns))
+    colnms = names(merge_type)
+    names_to_change = colnms[colnms %in% cast_columns]
+	if (prefix_type) {
+		names_to_change = paste(type, names_to_change, sep = sep_cast)
+	} else {
+		names_to_change = paste(names_to_change, type, sep = sep_cast)
+	}
+    
+    colnms[colnms %in% cast_columns] = names_to_change
+    names(merge_type) = colnms
+    skeleton = merge(skeleton, merge_type, by = id_columns, all.x = TRUE)
+  }
+  return(skeleton)
+}
+
+
 #' Merge Cohort objects
 #'
 #' Combines two or more Cohort objects into a single Cohort
@@ -744,7 +860,7 @@ refresh_cohort <- function(cohort) {
 #' @param rename_duplicates Logical indicating whether to rename duplicate pairs instead of overwriting (default FALSE)
 #' @return A new Cohort object containing all data from input Cohorts
 #' @export
-merge <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
+merge.Cohort <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
   cohorts <- list(...)
 
   # Validate inputs are all Cohorts

@@ -4,6 +4,23 @@
 \alias{lift_all}
 \title{Run all lift methods on a cohort}
 \usage{
+lift_all(
+  cohort,
+  output_data_dir,
+  cores = 1,
+  settings = Skilift:::internal_settings_path,
+  max_cn = 100,
+  annotations = NULL,
+  coverage_field = "foreground",
+  color_field = NULL,
+  bin.width = 10000,
+  node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
+    "variant.p", "vaf", "transcript_type", "impact", "rank"),
+  multiplicity_field = "altered_copies",
+  genome_length = c(1:22, "X", "Y"),
+  path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
+  ...
+)
 lift_all(cohort, output_data_dir, cores = 1, ...)
 }
 \arguments{
