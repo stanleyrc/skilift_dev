@@ -7,7 +7,7 @@
 multiplicity_to_intervals(
   multiplicity,
   field = "total_copies",
-  settings = internal_settings_path,
+  settings = Skilift:::default_settings_path,
   node_metadata = NULL,
   reference_name = "hg19",
   cohort_type

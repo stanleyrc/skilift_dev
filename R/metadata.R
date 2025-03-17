@@ -936,43 +936,105 @@ add_signatures <- function(
 #' @param onenesstwoness Oneness and twoness scores.
 #' @return Updated metadata with HRD scores added.
 add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
-    if (!is.null(hrdetect)) {
-        hrd <- readRDS(hrdetect)
-        hrd_values <- data.table(
-            dels_mh = hrd$indels_classification_table$del.mh.count,
-            rs3 = hrd$exposures_rearr["RefSigR3", ],
-            rs5 = hrd$exposures_rearr["RefSigR5", ],
-            sbs3 = hrd$exposures_subs["SBS3", ],
-            sbs8 = hrd$exposures_subs["SBS8", ],
-            del_rep = hrd$indels_classification_table$del.rep.count
-        )
-        hrd_score <- hrd$hrdetect_output[1, "Probability"]
-        metadata$hrd_score <- hrd_score
 
-        if (
-            is.null(metadata$hrd[[1]])
-            || (
-                NROW(metadata$hrd[[1]]) == 1
-                && is.na(metadata$hrd[[1]])
-            )
-        ) {
-            metadata$hrd <- list(as.list(hrd_values))
-        } else {
-            metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-        }
-    } else {
-        warning("HRDetect scores not found, skipping HRD scores...")
-    }
+    #browser()
+
+    # if (!is.null(hrdetect)) {
+    #     hrd <- readRDS(hrdetect)
+    #     # hrd_values <- data.table(
+    #     #     dels_mh = hrd$indels_classification_table$del.mh.count,
+    #     #     rs3 = hrd$exposures_rearr["RefSigR3", ],
+    #     #     rs5 = hrd$exposures_rearr["RefSigR5", ],
+    #     #     sbs3 = hrd$exposures_subs["SBS3", ],
+    #     #     sbs8 = hrd$exposures_subs["SBS8", ],
+    #     #     del_rep = hrd$indels_classification_table$del.rep.count
+    #     # )
+    #     #hrd_score <- hrd$hrdetect_output[1, "Probability"]
+    #     #metadata$hrd_score <- hrd_score
+
+    #     # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+    #     #     metadata$hrd <- list(as.list(hrd_values))
+    #     # } else {
+    #     #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
+    #     # }
+    # } else {
+    #     warning("HRDetect scores not found, skipping HRD scores...")
+    # }
 
     if (!is.null(onenesstwoness)) {
         onetwo <- readRDS(onenesstwoness)
-        metadata$b1_2 <- onetwo$ot_scores[, "SUM12"]
-        metadata$b1 <- onetwo$ot_scores[, "BRCA1"]
-        metadata$b2 <- onetwo$ot_scores[, "BRCA2"]
+        hrd_values <- data.table(
+            b1_2_score = onetwo$ot_scores[, "BRCA1"] + onetwo$ot_scores[, "BRCA2"],
+            b1_score = onetwo$ot_scores[, "BRCA1"],
+            b2_score = onetwo$ot_scores[, "BRCA2"],
+            wt_score = onetwo$ot_scores[, "OTHER"],
+            DUP_1kb_100kb = onetwo$expl_variables[, "DUP_1kb_100kb"],
+            SNV3 = onetwo$expl_variables[, "SNV3"],
+            SNV8 = onetwo$expl_variables[, "SNV8"],
+            RS3 = onetwo$expl_variables[, "RS3"],
+            RS5 = onetwo$expl_variables[, "RS5"],
+            del_mh_prop = onetwo$expl_variables[, "del.mh.prop"],
+            ihdel = onetwo$expl_variables[, "ihdel"],
+            loh_score = onetwo$expl_variables[, "hrd"],
+            qrppos = onetwo$expl_variables[, "qrppos"],
+            qrpmin = onetwo$expl_variables[, "qrpmin"],
+            qrpmix = onetwo$expl_variables[, "qrpmix"],
+            qrdup = onetwo$expl_variables[, "qrdup"],
+            qrdel = onetwo$expl_variables[, "qrdel"],
+            tib = onetwo$expl_variables[, "tib"]
+        )
+
+        if (!is.null(hrdetect)) {
+            hrd <- readRDS(hrdetect)
+            hrd_values <- hrd_values[, hrd_score := hrd$hrdetect_output[1, "Probability"]]
+        } else {
+            warning("HRDetect scores not found, skipping HRD scores...")
+        }
+
+        metadata$hrd <- list(as.list(hrd_values))
+
+        # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+        #     metadata$hrd <- list(as.list(hrd_values))
+        # } else {
+        #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
+        # }
+
     } else {
         warning("Oneness and twoness scores not found, skipping...")
     }
     
+    return(metadata)
+}
+
+#' @name add_msisensor_score
+#' @title Add MSIsensor Score
+#' @description
+#' Adds MSIsensor score to the metadata.    
+#' 
+#' @param metadata A data.table containing metadata.
+#' @param msisensor_pro Path to MSIsensor profile file.
+#' @return Updated metadata with MSIsensor score added.
+add_msisensor_score <- function(metadata, msisensorpro) {
+    if (!is.null(msisensorpro)) {
+        msisensorpro <- fread(msisensorpro)
+
+        score <- msisensorpro[,3][[1]]
+        label.msi <- ifelse(score < 10, "MSS",
+            ifelse(score < 20, "MSI-Low", "MSI-High"))
+
+        #add attributes as a list
+        dt <- data.table(
+            score = msisensorpro[,3][[1]] / 100,
+            n_unstable = msisensorpro[,2][[1]],
+            n_evaluated = msisensorpro[,1][[1]],
+            label = label.msi
+        )
+
+        metadata$msisensor <- list(as.list(dt))
+
+    } else {
+        warning("MSIsensor profile not found, skipping MSIsensor score...")
+    }
     return(metadata)
 }
 
@@ -1029,6 +1091,7 @@ create_metadata <- function(
     activities_sbs_signatures = NULL,
     hrdetect = NULL,
     onenesstwoness = NULL,
+    msisensorpro = NULL,
     genome = "hg19",
     seqnames_loh = c(1:22),
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
@@ -1043,12 +1106,13 @@ create_metadata <- function(
     ,
     "normal_wgs_metrics"
     , 
-    "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
+    "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
         }
     }    
+
     # Add each component sequentially
     metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
@@ -1086,6 +1150,9 @@ create_metadata <- function(
     
     # Add HRD scores
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
+
+    # Add MSIsensor score
+    metadata <- add_msisensor_score(metadata, msisensorpro)    
     
     return(metadata)
 }
@@ -1127,7 +1194,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         , 
         "het_pileups",
         "activities_sbs_signatures", "activities_indel_signatures",
-        "hrdetect", "onenesstwoness"
+        "hrdetect", "onenesstwoness", "msisensorpro"
     )
     
     # Check for required column
@@ -1139,6 +1206,11 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
     missing_cols <- all_cols[!all_cols %in% names(lift_inputs)]
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+
+    if(is.null(genome_length)) {
+        warning("No genome length provided, assuming WGS data")
+        genome_length <- c(1:22, "X", "Y")
     }
     
     # Process each sample in parallel
@@ -1155,6 +1227,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
             # Create metadata object
+
             metadata <- create_metadata(
                 pair = row$pair,
                 tumor_type = row$tumor_type,
@@ -1176,6 +1249,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
                 activities_indel_signatures = row$activities_indel_signatures,
                 hrdetect = row$hrdetect,
                 onenesstwoness = row$onenesstwoness,
+                msisensorpro = row$msisensorpro,
                 seqnames_genome_width_or_genome_length = genome_length # if genome length is provided
             )
 

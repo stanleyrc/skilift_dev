@@ -39,8 +39,8 @@ setup({
   alt_mock_arrow_table <<- data.table(x = 1, y = 0.5, color = 16711680)
   mock_hetsnps_data <<- data.table(
     seqnames = c("1", "1", "2"), 
-    start = c(100, 200, 300),
-    end = c(101, 201, 301),
+    start = c(100, 200, 30000),
+    end = c(101, 201, 30001),
     ref.count.t = c(10, 15, 20),
     alt.count.t = c(20, 5, 10),
     alt.frac.n = c(0.4, 0.3, 0.6)
@@ -382,8 +382,8 @@ test_that("lift_hetsnps handles various input scenarios", {
   # Create a valid mock hetsnps file
   mock_hetsnps_data <- data.table(
     seqnames = c("1", "1", "2"),
-    start = c(100, 200, 300),
-    end = c(101, 201, 301),
+    start = c(100, 770000, 300),
+    end = c(101, 770001, 301),
     ref.count.t = c(10, 15, 20),
     alt.count.t = c(20, 5, 10),
     alt.frac.n = c(0.4, 0.3, 0.6)
@@ -421,11 +421,7 @@ test_that("lift_hetsnps handles various input scenarios", {
   unlink(non_existent_dir, recursive = TRUE) # Ensure directory doesn't exist
   expect_false(dir.exists(non_existent_dir))
   
-  # Set environment variable for mask file
-  withr::with_envvar(
-    new = c("SKILIFT_MASK" = mock_mask_file),
-    suppressWarnings(lift_hetsnps(complete_cohort, non_existent_dir))
-  )
+  suppressWarnings(lift_hetsnps(complete_cohort, non_existent_dir))
   
   expect_true(dir.exists(non_existent_dir))
   expect_true(dir.exists(file.path(non_existent_dir, "test_patient")))
@@ -458,10 +454,7 @@ test_that("lift_hetsnps handles various input scenarios", {
   existing_dir <- file.path(temp_dir, "existing")
   dir.create(existing_dir)
   
-  withr::with_envvar(
-    new = c("SKILIFT_MASK" = mock_mask_file),
-    suppressWarnings(lift_hetsnps(complete_cohort, existing_dir))
-  )
+  suppressWarnings(lift_hetsnps(complete_cohort, existing_dir))
   
   output_file <- file.path(existing_dir, "test_patient", "hetsnps.arrow")
   expect_true(file.exists(output_file))

@@ -1142,6 +1142,439 @@ sigprofiler_decomposed_probs_json = function(probs,
   }, mc.cores = cores)
 }
 
+#' @title process_gencode
+#' @description
+#'
+#' Helper script to process gencode parameter
+#'
+#' @param gencode path to gencode file. Gencode file must be either rds or some format accepted by rtracklayer::import (e.g. GTF)
+#' @return gencode_gr GRanges
+#' @author Marcin Imielinski
+process_gencode = function(gencode = NULL){
+    if (is.null(gencode)) {
+        gencode = skidb::read_gencode()
+        print(gencode)
+    } else if (is.character(gencode)) {
+    if (grepl('.rds$', gencode))
+      gencode = readRDS(gencode)
+    else
+      gencode = rtracklayer::import(gencode)
+  }
+  return(gencode)
+}
+
+#' @name grok_bcf
+#' @rdname
+#' @title Reads and parses bcf via bcftools call
+#' @param bcf path to bcf file
+#' @param gr optional granges to query
+#' @param bpath path to bcftools binary executable
+#' @export
+grok_bcf = function(bcf, gr = NULL, bpath = "/nfs/sw/bcftools/bcftools-1.9/bin/bcftools", label = NA, filter = 'PASS', snv = FALSE, indel = FALSE, het = FALSE, hom = FALSE, keep.modifier = TRUE, long = FALSE, oneliner = FALSE, verbose = FALSE)
+{
+  cmd = sprintf('%s view %s', bpath, bcf)
+
+  if (is.na(label))
+    label = bcf
+
+  if (!is.null(gr))
+  {
+    wins = paste(gr.string(gr.stripstrand(gr)), collapse = ',')
+    cmd = paste(cmd, '-r', wins)
+  }
+
+  if (!is.null(filter) && !is.na(filter))
+  {
+    cmd = paste(cmd, sprintf('-i \'FILTER="%s"\'', filter))
+  }
+
+  if (het)
+  {
+    cmd = paste(cmd, '-g het')
+  }
+
+  if (indel)
+  {
+    cmd = paste(cmd, '-v indels')
+  }
+
+  if (snv)
+  {
+    cmd = paste(cmd, '-v snps')
+  }
+
+  if (het)
+  {
+    cmd = paste(cmd, '-g het')
+  }
+
+  if (hom)
+  {
+    cmd = paste(cmd, '-g hom')
+  }
+  
+  ## quick dunlist
+  .dunlist = function(x)
+  {
+    ## simplified dunlist to output integer listid and also listiid 
+    out = data.table(listid = rep(1:length(x), elementNROWS(x)), V1 = unlist(x))[, listiid := 1:.N, by = listid]
+    return(out)
+  }
+  
+  if (verbose)
+    message(cmd)
+    
+  p = pipe(cmd)
+  lines = readLines(p)
+  close(p)
+
+  is.header = grepl('^\\#', lines)
+  header = lines[is.header]
+  contigs = strsplit(gsub('^\\#\\#', '', grep('contig', header, value = TRUE)), ',')
+  sl = suppressWarnings(structure(names = gsub('.*ID=\\<', '', sapply(contigs, '[', 1)),
+                 as.numeric(gsub('>$', '', gsub('.*length=\\<', '', sapply(contigs, '[', 2))))))
+  
+  other = lines[!is.header]
+  if (length(other))
+    {
+      out = fread(paste(c(other, ''), collapse = '\n'), sep = "\t", header = FALSE)
+      sn = unlist(strsplit(gsub('^\\#', '', header[length(header)]), '\\t'))
+      sfields = sn[-c(1:9)]
+      setnames(out, sn)
+      out[, seqnames := as.character(CHROM)]
+      out[, start := POS]
+      out[, end := POS]
+      out[, listid := 1:.N] ## set listid to keep track of lists
+      ## unpack bcf "format" + sample fields
+
+
+      if (!is.null(out$FORMAT))
+        {
+          fdat = .dunlist(strsplit(out$FORMAT, ':'))
+          setnames(fdat,2,'field')
+                                        #  out$FORMAT = NULL ### keep in for now for sanity checks 
+          for (sfield in sfields) ## can be more than one sample field
+          {
+            fdatm = fdat %>% merge(.dunlist(strsplit(out[[sfield]], ':')), by = c('listid', 'listiid')) ## merge on both listid and listiid 
+            fdatc = dcast.data.table(copy(fdatm)[, field := paste(sfield, field, sep = '_')], listid ~ field, value.var = 'V1')
+            out = merge(out, fdatc, by = 'listid', all.x = TRUE) ## order of out should be maintained here since keyed by listid which (now) is an integer
+          }
+        }
+
+      if (!is.null(out$INFO))
+        {
+          ## unpack "info" field
+          idat = .dunlist(strsplit(out$INFO, ';'))
+          idat = cbind(idat, colsplit(idat$V1, pattern = "=", names = c("field","value")))
+          idatc = dcast.data.table(idat, listid ~ field, value.var = 'value')
+          out$INFO = NULL
+          mcols = setdiff(names(idatc), c('REF', 'ALT'))
+          out = merge(out, idatc[, mcols, with = FALSE], by = 'listid', all.x = TRUE) ##
+        }
+      
+      out = dt2gr(out, seqlengths = sl)
+      out = grok_vcf(out, keep.modifier = keep.modifier, long = long, oneliner = oneliner, verbose = verbose, label = label)
+    }
+  else
+    out = GRanges(seqlengths = sl)
+  return(out)
+}
+
+#' @name oncotable
+#' @title oncotable
+#' @description
+#'
+#' THIS ONCOTABLE IS ADAPTED FOR SKILIFT
+#' in that it will report only the putatively impacted transcript based on SnpEff outputs to remove duplicated SNV entries
+#'
+#' Takes as input (keyed) "tumors" (aka pairs) table which a metadata table with specific
+#' columns pointing to paths corresponding to one or more of the following pipeline outputs:
+#'
+#' $annotated_bcf  Path to annotated.bcf file that is the primary output of SnpEff module from which TMB and basic mutation
+#' descriptions are extracted along with their basic categories (these will comprising the core of the oncoplot are computed)
+#' 
+#' $fusions  Path to fusion.rds file that is the primary output of the Fusions modjle, from which protein coding fusions will
+#' be computed for
+#' 
+#' $jabba_rds  Path to jabba.simple.rds output representing primary output of JaBbA module from which SCNA and overall
+#' junction burden are computed
+#' 
+#' $complex    Path to complex.rds gGnome cached object that is the primary output of Events module, from which simple
+#' and complex event burdens are computed
+#' 
+#' $signature_counts Path to signature_counts.txt that is the primary output of Signatures module from which SNV signature
+#' counts are computed
+#' 
+#' The function then outputs a melted data.table of "interesting" features that can be saved and/or immediately output
+#' into oncoprint.  This data.table will at the very least have fields $id $type (event type), $track, and  $source
+#' populated in addition to a few other data type specific columns.
+#'
+#' The $source column is the name of the column of tumors from which that data was extracted, and track is a grouping
+#' variable that allows separation of the various data types. 
+#'
+#' All the paths above can be NA or non existent, in which case a dummy row is inserted into the table so that downstream
+#' applications know that data is missing for that sample. 
+#'
+#' @param tumors keyed data.table i.e. keyed by unique tumor id with specific columns corresponding to  paths to pipeline outputs(see description)
+#' @param gencode path to gencode with just a single entry for each gene (so gencode entries for each gene are collapse to a single range). The input could be .gtf or .rds with GRanges object, or a GRanges object i.e. resulting from importing the (appropriate) GENCODE .gtf via rtracklayer, note: this input is only used in CNA to gene mapping. If nothing is provided then 'http://mskilab.com/fishHook/hg19/gencode.v19.genes.gtf' is used by default.
+#' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
+#' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
+#' @param mc.cores number of cores for multithreading
+#' @param verbose logical flag 
+#' @author Marcin Imielinski
+#' @export
+oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode.v19.genes.gtf', verbose = TRUE, amp.thresh = 4, filter = 'PASS', del.thresh = 0.5, mc.cores = 1)
+{
+  gencode = process_gencode(gencode)
+
+  if ('type' %in% names(mcols(gencode))){
+      # This is a bit hacky. The hg38 object does not contain the "type" column so we check if it is there and only use it when it is present
+      pge = gencode %Q% (type  == 'gene' & gene_type == 'protein_coding')
+  } else {
+      pge = gencode %Q% (gene_type == 'protein_coding')
+  }
+
+  .oncotable = function(dat, x = dat[[key(dat)]][1], pge, verbose = TRUE, amp.thresh = 2, del.thresh = 0.5, filter = 'PASS')
+  {
+    out = data.table()
+
+    ## collect gene fusions
+    if (!is.null(dat$fusions) && file.exists(dat[x, fusions]))
+    {
+      if (verbose)
+        message('pulling $fusions for ', x)
+      fus = readRDS(dat[x, fusions])$meta
+      if (nrow(fus))
+      {
+        fus = fus[silent == FALSE, ][!duplicated(genes), ]
+        fus[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')] # annotate out of frame fusions
+        fus = fus[, .(
+            gene = strsplit(genes, ',') %>% unlist,
+            vartype = rep(vartype, sapply(strsplit(genes, ','), length)),
+            fusion_genes = rep(genes, sapply(strsplit(genes, ','), length))
+        )][, id := x][, track := 'variants'][, type := vartype][, source := 'fusions']
+        # get coordinates for fusion genes
+        fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), function(genes) {
+          coords <- lapply(genes, function(gene) {
+            gene_ranges <- pge[mcols(pge)$gene_name == gene]
+            paste0(seqnames(gene_ranges), ":", start(gene_ranges), "-", end(gene_ranges))
+          })
+          paste(unlist(coords), collapse = ",")
+        }))]
+        out = rbind(out, fus, fill = TRUE, use.names = TRUE)
+      }
+    } 
+    else ## signal missing result
+      out = rbind(out, data.table(id = x, type = NA, source = 'fusions'), fill = TRUE, use.names = TRUE)
+
+    ## collect complex events
+    if (!is.null(dat$complex) && file.exists(dat[x, complex]))
+    {
+      if (verbose)
+        message('pulling $complex events for ', x)
+      sv = readRDS(dat[x, complex])$meta$events
+      if (nrow(sv))
+      {
+        sv = sv[, .(value = .N), by = type][, id := x][, track := ifelse(type %in% c('del', 'dup', 'invdup', 'tra', 'inv'), 'simple sv', 'complex sv')][, source := 'complex']
+        out = rbind(out, sv, fill = TRUE, use.names = TRUE)
+      }
+    }
+    else
+      out = rbind(out, data.table(id = x, type = NA, source = 'complex'), fill = TRUE, use.names = TRUE)
+
+    ## collect copy number / jabba
+    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds]))
+    {
+      if (verbose)
+        message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
+      jab = readRDS(dat[x, jabba_rds])
+      out = rbind(out,
+                  data.table(id = x, value = c(jab$purity, jab$ploidy), type = c('purity', 'ploidy'), track = 'pp'),
+                  fill = TRUE, use.names = TRUE)
+
+      # get the ncn data from jabba
+      if (is.null(dat$karyograph) || !file.exists(dat[x, karyograph])) {
+        stop("karyograph file not found")
+      }
+
+      kag = readRDS(dat$karyograph)
+      nseg = NULL
+      if ('ncn' %in% names(mcols(kag$segstats))){
+          nseg = kag$segstats[,c('ncn')]
+      }
+      scna = get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh,
+                                     del.thresh = del.thresh, pge = pge, nseg = nseg)
+
+        if (nrow(scna))
+        {
+          scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
+          out = rbind(out,
+                      scna[, .(id = x, value = min_cn, type, track, gene = gene_name)],
+                      fill = TRUE, use.names = TRUE)
+        }
+    } else {
+      out = rbind(out, data.table(id = x, type = NA, source = 'jabba_rds'), fill = TRUE, use.names = TRUE)
+    }
+
+    ## collect signatures
+    if (!is.null(dat$signature_counts) && file.exists(dat[x, signature_counts]))
+    {
+      if (verbose)
+        message('pulling $signature_counts for ', x)
+      sig = fread(dat[x, signature_counts])
+      sig = sig[, .(id = x, value = num_events, type = Signature, etiology = Etiology, frac = frac.events, track = 'signature', source = 'signature_counts')]
+      out = rbind(out, sig, fill = TRUE, use.names = TRUE)
+    }
+    else
+      out = rbind(out, data.table(id = x, type = NA, source = 'signature_counts'), fill = TRUE, use.names = TRUE)
+
+    ## collect gene mutations
+    if (!is.null(dat$annotated_bcf) && file.exists(dat[x, annotated_bcf]))
+    {
+      if (verbose)
+        message('pulling $annotated_bcf for ', x, ' using FILTER=', filter)
+      local_bcftools_path <- Sys.which("bcftools")
+      local_bcftools_path <- ifelse(local_bcftools_path == "", stop("bcftools not found in the system PATH. Please install or moudule load bcftools."), local_bcftools_path)
+      message("bcftools found at: ", local_bcftools_path)
+      bcf = grok_bcf(dat[x, annotated_bcf], label = x, long = TRUE, filter = filter, bpath=local_bcftools_path)
+      if (verbose)
+        message(length(bcf), ' variants pass filter')
+      genome.size = sum(seqlengths(bcf), na.rm = TRUE)/1e6
+      if (is.na(genome.size)) ## something went wrong with vcf
+        genome.size = sum(seqlengths(gG(jabba = dat[x, jabba_rds])), na.rm = TRUE)/1e6
+      nmut = data.table(as.character(seqnames(bcf)), start(bcf), end(bcf), bcf$REF, bcf$ALT) %>% unique %>% nrow
+      mut.density = data.table(id = x, value = c(nmut, nmut/genome.size), type = c('count', 'density'),  track = 'tmb', source = 'annotated_bcf')
+      out = rbind(out, mut.density, fill = TRUE, use.names = TRUE)
+      keepeff = c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory','mir')
+      bcf = bcf[bcf$short %in% keepeff]
+      if (verbose)
+        message(length(bcf), ' variants pass keepeff')
+      vars = NULL
+      if (length(bcf))
+      {
+        bcf$variant.g = paste0(seqnames(bcf), ':', start(bcf), '-', end(bcf), ' ', bcf$REF, '>', bcf$ALT)
+        vars = gr2dt(bcf)[, .(id = x, gene, vartype, variant.g, variant.p, distance, annotation, type = short, track = 'variants', source = 'annotated_bcf')]
+        setkey(vars, variant.g)
+        vars = vars[, .SD[1], by = variant.g]
+      }
+      out = rbind(out, vars, fill = TRUE, use.names = TRUE)
+    }
+    else
+      out = rbind(out, data.table(id = x, type = NA, source = 'annotated_bcf'), fill = TRUE, use.names = TRUE)
+
+    if (verbose)
+      message('done ', x)
+
+    return(out)
+  }
+
+  if (is.null(key(tumors)))
+  {
+    if (is.null(tumors$id))
+      stop('Input tumors table must be keyed or have column $id')
+    else
+      setkey(tumors, id)
+  }
+
+  out = mclapply(tumors[[key(tumors)]], .oncotable,
+                 dat = tumors, pge = pge, amp.thresh = amp.thresh, filter = filter, del.thresh = del.thresh, verbose = verbose, mc.cores = mc.cores)
+  out = rbindlist(out, fill = TRUE, use.names = TRUE)
+
+  setnames(out, 'id', key(tumors))
+  return(out)
+}
+
+
+#' @name create_oncotable
+#' @title create_oncotable
+#' @description
+#'
+#' function to create oncotable for use with filtered_events_json
+#' 
+#' @param pair patient id 
+#' @param annotated_bcf bcf with variant annotations (snpeff)
+#' @param signature_counts output of Signatures task (optional)
+#' @param jabba_simple jabba.simple.rds from JaBbA
+#' @param fusions output of fusions task
+#' @param events output of events task 
+#' @param gencode file to gencode annotations (uses v29lift37 by default)
+#' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
+#' @param outdir path to directory in which to write oncotable outputs
+#' @return data.table or NULL
+#' @export
+#' @author Shihab Dider, Joel Rosiene
+create_oncotable = function(
+    pair,
+    annotated_bcf,
+    signature_counts = NULL,
+    fusions,
+    jabba_simple,
+    karyograph,
+    events,
+    gencode = NULL,
+    amp_thresh_multiplier = NULL,
+    outdir
+) {
+    tumors = data.table(
+      id = pair,
+      annotated_bcf = annotated_bcf,
+      signature_counts = signature_counts,
+      fusions = fusions,
+      jabba_rds = jabba_simple,
+      karyograph = karyograph,
+      complex = events
+    )
+    setkey(tumors, id)
+
+    if (system("which bcftools", intern = TRUE) == "") {
+      stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
+    } else {
+      message("bcftools is available.")
+    }
+
+    if (is.null(gencode)) {
+        warning("path to gencode was not passed, setting to default ~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds")
+        gencode = "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds"
+    }
+
+    if (is.null(amp_thresh_multiplier)) {
+        warning("amp_thres_multiplier was not passed, setting to default 1.5")
+        amp_thresh_multiplier = 1.5
+    }
+
+    ploidy = ifelse(is.null(readRDS(jabba_simple)$ploidy), readRDS(jabba_simple)$meta$ploidy, readRDS(jabba_simple)$ploidy)
+    amp_thresh = amp_thresh_multiplier*ploidy
+    message(paste("using amp.thresh of", amp_thresh))
+
+    oncotable = oncotable(
+      tumors,
+      gencode = gencode,
+      filter = "PASS",
+      verbose = TRUE,
+      amp.thresh=amp_thresh
+    )
+    samples <- unique(decomposed.probs.per.sample$samples)
+    mclapply(samples, function(pair) {
+        pair_data <- decomposed.probs.per.sample[samples == pair]
+        if (is_indel) {
+            samp_data <- data.frame(
+                signature = pair_data[, signature],
+                insdel = pair_data[[2]],
+                p = pair_data[, p]
+            )
+            catalog_file_name <- "id_decomposed_prob.json"
+        } else {
+            samp_data <- data.frame(
+                signature = pair_data[, signature],
+                tnc = pair_data[[2]],
+                p = pair_data[, p]
+            )
+            catalog_file_name <- "sbs_decomposed_prob.json"
+        }
+        write_json(samp_data, paste0(data_dir, "/", pair, "/", catalog_file_name))
+    }, mc.cores = cores)
+}
+
 #' @name strelka2counts
 #' @title strelka2counts
 #' @description
@@ -1790,34 +2223,28 @@ meta_data_json <- function(
     }
 
     ## Load beta/gamma for karyograph
-    if(!is.null(coverage)) {
-      rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
-                                       field = "foreground",
-                                       purity = meta.dt$purity,
-                                       ploidy = meta.dt$ploidy,
-                                       return.params = T)
-      meta.dt$cov_slope = rel2abs.cov[1] %>% unname
-      meta.dt$cov_intercept = if(rel2abs.cov[2] >= 0){
-                                rel2abs.cov[2] %>% unname %>% abs
-                              } else {
-                                rel2abs.cov[2] %>% unname
-                              }
+   if (!is.null(coverage)) {
+        rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
+            field = "foreground.X",
+            purity = meta.dt$purity,
+            ploidy = meta.dt$ploidy,
+            return.params = T
+        )
+        meta.dt$cov_slope <- rel2abs.cov[1] %>% unname()
+        meta.dt$cov_intercept <- rel2abs.cov[2] %>% unname()
     }
-    
-    if(!is.null(het_pileups_wgs)){
-      hets.read <- grab.hets(het_pileups_wgs) %>% gr2dt
-      hets.read <- dt2gr(hets.read[, .(count = sum(count)), by = c("seqnames", "start", "end")])
-      rel2abs.hets <- skitools::rel2abs(hets.read,
-                                        field = "count",
-                                        purity = meta.dt$purity,
-                                        ploidy = meta.dt$ploidy,
-                                        return.params = T)
-      meta.dt$hets_slope = rel2abs.hets[1] %>% unname
-      meta.dt$hets_intercept = if(rel2abs.hets[2] >= 0){
-                                 rel2abs.hets[2] %>% unname %>% abs
-                               } else {
-                                 rel2abs.hets[2] %>% unname
-                               }
+
+    if (!is.null(het_pileups_wgs)) {
+        hets.read <- grab.hets(het_pileups_wgs) %>% gr2dt()
+        hets.read <- dt2gr(hets.read[, .(count = sum(count)), by = c("seqnames", "start", "end")])
+        rel2abs.hets <- skitools::rel2abs(hets.read,
+            field = "count",
+            purity = meta.dt$purity,
+            ploidy = meta.dt$ploidy,
+            return.params = T
+        )
+        meta.dt$hets_slope <- rel2abs.hets[1] %>% unname()
+        meta.dt$hets_intercept <- rel2abs.hets[2] %>% unname()
     }
 
     ## add tmb
@@ -1925,7 +2352,7 @@ create_distributions <- function(
 
     files <- list.files(
         case_reports_data_folder,
-        pattern = "metadata.json",
+        pattern = "metadata.json$",
         recursive = TRUE,
         full.names = TRUE
     )
@@ -1985,6 +2412,22 @@ create_distributions <- function(
         tmb.dt = list(
             cols = c("pair", "tmb", "tumor_type"),
             new_names = c("pair", "value", "tumor_type")
+        ),
+        msisensor.dt = list(
+            cols = c("pair", "msisensor.score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        b1_2.dt = list(
+            cols = c("pair", "hrd.b1_2_score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        b1.dt = list(
+            cols = c("pair", "hrd.b1_score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
+        ),
+        b2.dt = list(
+            cols = c("pair", "hrd.b2_score", "tumor_type"),
+            new_names = c("pair", "value", "tumor_type")
         )
     )
 
@@ -2023,6 +2466,10 @@ create_distributions <- function(
             "purity",
             "coverageVariance",
             "tmb",
+            "msisensor",
+            "b1_2",
+            "b1",
+            "b2",
             "sbs",
             "sigprofiler_indel_fraction",
             "sigprofiler_indel_count",
@@ -2038,13 +2485,19 @@ create_distributions <- function(
             "ploidy",
             "purity",
             "coverageVariance",
-            "tmb"
+            "tmb",
+            "msisensor",
+            "b1_2",
+            "b1",
+            "b2"
         )
     }
 
     if (write_to_json) {
         if (is.null(common_dir)) {
-            stop("common_dir must be provided if write_to_json is TRUE")
+            # follow directory structure
+            common_dir <- paste0(case_reports_datadir, "../common") %>% normalizePath()
+            dir.exists(common_dir) || stop("common_dir must be provided if write_to_json is TRUE")
         }
         write_distributions_to_json(json.lst, common_dir, cores, overwrite, haveSignatures)
         return(NULL)
@@ -2182,6 +2635,10 @@ write_distributions_to_json <- function(
     write_json_file(distributions$purity, paste0(common_folder, "/purity.json"))
     write_json_file(distributions$coverageVariance, paste0(common_folder, "/coverageVariance.json"))
     write_json_file(distributions$tmb, paste0(common_folder, "/tmb.json"))
+    write_json_file(distributions$msisensor, paste0(common_folder, "/msisensor.json"))
+    write_json_file(distributions$b1_2, paste0(common_folder, "/b1_2.json"))
+    write_json_file(distributions$b1, paste0(common_folder, "/b1.json"))
+    write_json_file(distributions$b2, paste0(common_folder, "/b2.json"))
 
     if (haveSignatures) {
         write_signature_jsons(
@@ -2216,7 +2673,11 @@ load_distributions <- function(
             "purity.json",
             "snvCount.json",
             "svCount.json",
-            "tmb.json"
+            "tmb.json",
+            "msisensor.json",
+            "b1_2.json",
+            "b1.json",
+            "b2.json"
         )
     )
     files.dt <- data.table(
@@ -2227,7 +2688,11 @@ load_distributions <- function(
             "purity",
             "snvCount",
             "svCount",
-            "tmb"
+            "tmb",
+            "msisensor",
+            "b1_2",
+            "b1",
+            "b2"
         ),
         file = files.lst
     )
@@ -2290,6 +2755,10 @@ add_patient_to_distributions <- function(
     distributions$purity <- update_distribution(distributions$purity, new_patient_data, "purity")
     distributions$coverageVariance <- update_distribution(distributions$coverageVariance, new_patient_data, "dlrs")
     distributions$tmb <- update_distribution(distributions$tmb, new_patient_data, "tmb")
+    distributions$msisensor <- update_distribution(distributions$msisensor, new_patient_data, "msisensor.score")
+    distributions$b1_2 <- update_distribution(distributions$b1_2, new_patient_data, "hrd.b1_2_score")
+    distributions$b1 <- update_distribution(distributions$b1, new_patient_data, "hrd.b1_score")
+    distributions$b2 <- update_distribution(distributions$b2, new_patient_data, "hrd.b2_score")
 
     # Update signature distributions
     update_signature_distribution <- function(distribution, new_data, key_prefix) {

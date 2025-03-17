@@ -21,6 +21,7 @@ lift_all(
   path_to_nodejs = "/gpfs/share/apps/nodejs/22.9.0/bin/node",
   ...
 )
+lift_all(cohort, output_data_dir, cores = 1, ...)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
@@ -29,31 +30,7 @@ lift_all(
 
 \item{cores}{Number of cores for parallel processing (default: 1)}
 
-\item{settings}{Settings path for copy number graph}
-
-\item{max_cn}{Maximum copy number for graph (default: 100)}
-
-\item{annotations}{List of annotations for copy number graph and segment width distribution}
-
-\item{coverage_field}{Field specifying values to write to arrow (default: "foreground")}
-
-\item{color_field}{Field specifying color values}
-
-\item{bin.width}{Bin width for coverage track}
-
-\item{node_metadata}{Additional columns for multiplicity}
-
-\item{genome_length}{Chromosome names for metadata}
-
 \item{...}{Additional arguments}
-
-\item{is_allelic}{Boolean for copy number graph processing (default: FALSE)}
-
-\item{cohort_column}{Field in cohort inputs table for coverage track (default: "tumor_coverage")}
-
-\item{is_germline}{Logical for multiplicity (default: FALSE)}
-
-\item{field}{Field for multiplicity (default: "total_copies")}
 }
 \value{
 None

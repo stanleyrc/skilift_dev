@@ -8,53 +8,83 @@
 #' @return data.table containing processed mutation data
 #' @export
 create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copies") {
-    if (is.character(snv_cn)) {
-        if (!grepl("\\.rds$", snv_cn)) {
-            message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
-        }
-        mutations.dt <- as.data.table(readRDS(snv_cn))
-    } else {
-        stop("Input must be a file path to an RDS file.")
+  mutations.dt <- tryCatch({
+    if (!grepl("\\.rds$", snv_cn)) {
+      message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
     }
+    as.data.table(readRDS(snv_cn))
+  }, error = function(e) {
+    message(paste0("Input was not .rds; failed with '", e$message, "'\nAssuming input is .maf"))
+    return(fread(snv_cn) %>% dt2gr() %>% gr2dt())
+  }, finally = {
+    message("Finished attempting to load input.")
+  })
 
-    if (!any(class(mutations.dt) == "data.table")) {
-        stop("Input must be a data.table.")
+  if (is.null(mutations.dt)) {
+    stop("Failed to assign a valid value to mutations.dt.")
+  } else {
+    message("Successfully loaded input snv_cn.")
+  }
+
+  if (!any(class(mutations.dt) == "data.table")) {
+    stop("Input must be a data.table.")
+  }
+
+  ## Process mutations
+  setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+  mutations.dt <- mutations.dt[!is.na(get(field)), ]
+  mutations.dt[start == end, end := end + 1]
+  mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
+  mutations.dt[, ONCOGENIC := fcase(
+    is.na(ONCOGENIC), "",
+    grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
+    default = ONCOGENIC
+  )]
+  mutations.dt[, MUTATION_EFFECT := fcase(
+    is.na(MUTATION_EFFECT), "",
+    grepl("Unknown", MUTATION_EFFECT), "", ## extraneous string
+    default = MUTATION_EFFECT
+  )]
+  mutations.dt[, HIGHEST_LEVEL := fcase(
+    HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
+    default = gsub("LEVEL_", "", HIGHEST_LEVEL) ## extraneous string
+  )]
+
+  mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
+
+  if ("strand" %in% colnames(mutations.dt)) {
+    mutations.dt[, strand := NULL]
+  }
+
+  ## Create annotation string
+  mut_ann <- ""
+  annotation_fields <- list(
+    Variant_Classification = "Type",
+    Gene = "Gene",
+    HGVSc = "Variant",
+    HGVSp = "Protein_variant",
+    variant.g = "Genomic_variant",
+    vaf = "VAF",
+    alt = "Alt_count",
+    ref = "Ref_count",
+    normal.alt = "Normal_alt_count",
+    normal.ref = "Normal_ref_count",
+    FILTER = "Filter",
+    ONCOGENIC = "Oncogenicity",
+    MUTATION_EFFECT = "Effect",
+    HIGHEST_LEVEL = "Level"
+  )
+
+  for (col in names(annotation_fields)) {
+    if (col %in% colnames(mutations.dt)) {
+      print(col)
+      mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
     }
+  }
 
-    # Process mutations
-    setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
-    mutations.dt <- mutations.dt[!is.na(get(field)), ]
-    mutations.dt[start == end, end := end + 1]
-    
-    if ("strand" %in% colnames(mutations.dt)) {
-        mutations.dt[, strand := NULL]
-    }
+  mutations.dt[, annotation := mut_ann]
 
-    # Create annotation string
-    mut_ann <- ""
-    annotation_fields <- list(
-        annotation = "Type",
-        gene = "Gene",
-        variant.c = "Variant",
-        variant.p = "Protein_variant",
-        variant.g = "Genomic_variant",
-        vaf = "VAF",
-        alt = "Alt_count",
-        ref = "Ref_count",
-        normal.alt = "Normal_alt_count",
-        normal.ref = "Normal_ref_count",
-        FILTER = "Filter"
-    )
-
-    for (col in names(annotation_fields)) {
-        if (col %in% colnames(mutations.dt)) {
-            mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
-        }
-    }
-    
-    mutations.dt[, annotation := mut_ann]
-    
-    return(mutations.dt)
+  return(mutations.dt)
 }
 
 #' @title Convert Multiplicity Data to Intervals
@@ -72,7 +102,7 @@ create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copi
 multiplicity_to_intervals <- function(
     multiplicity,
     field = "total_copies",
-    settings = internal_settings_path,
+    settings = Skilift:::default_settings_path,
     node_metadata = NULL,
     reference_name = "hg19",
     cohort_type
@@ -85,14 +115,16 @@ multiplicity_to_intervals <- function(
     ]
     setnames(chrom_lengths, c("seqnames", "start", "end"))
 
-    # Ensure chromosome naming consistency
-    if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
-        chrom_lengths[!grepl("chr", seqnames), 
-                     seqnames := paste0("chr", seqnames)]
-    }
+  # Ensure chromosome naming consistency
+  if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
+    chrom_lengths[
+      !grepl("chr", seqnames),
+      seqnames := paste0("chr", seqnames)
+    ]
+  }
 
-    # Set y-values from specified field
-    multiplicity[, y_value := get(field)]
+  # Set y-values from specified field
+  multiplicity[, y_value := get(field)]
 
     # Convert to GRanges
     gr = dt2gr(multiplicity[order(seqnames, start), ]) %>% sortSeqlevels()
@@ -130,40 +162,40 @@ multiplicity_to_intervals <- function(
     
     
 
-    # Validate ranges
-    if (any(gr@seqinfo@seqlengths > 
-            chrom_lengths[seqnames %in% names(seqlengths(gr))]$end)) {
-        stop(paste("Ranges exceed chromosome lengths in", reference_name))
-    }
+  # Validate ranges
+  if (any(gr@seqinfo@seqlengths >
+    chrom_lengths[seqnames %in% names(seqlengths(gr))]$end)) {
+    stop(paste("Ranges exceed chromosome lengths in", reference_name))
+  }
 
-    # Create graph object and convert to data.table
-    jab <- gG(nodes = gr)
-    node_cols <- c("snode.id", "y_value", node_metadata)
-    node_dt <- gr2dt(jab$nodes$gr[, node_cols])
+  # Create graph object and convert to data.table
+  jab <- gG(nodes = gr)
+  node_cols <- c("snode.id", "y_value", "annotation") ### node_metadata)
+  node_dt <- gr2dt(jab$nodes$gr[, node_cols])
 
-    # Create final node data
-    intervals <- node_dt[, .(
-        chromosome = seqnames,
-        startPoint = start,
-        endPoint = end,
-        iid = snode.id,
-        title = snode.id,
-        type = "interval",
-        y = y_value,
-        annotation = node_dt$annotation
-    )]
+  # Create final node data
+  intervals <- node_dt[, .(
+    chromosome = seqnames,
+    startPoint = start,
+    endPoint = end,
+    iid = snode.id,
+    title = snode.id,
+    type = "interval",
+    y = y_value,
+    annotation = node_dt$annotation
+  )]
 
-    # Construct return list
-    list(
-        settings = list(
-            y_axis = list(
-                title = "copy number",
-                visible = TRUE
-            )
-        ),
-        intervals = intervals,
-        connections = data.table()
-    )
+  # Construct return list
+  list(
+    settings = list(
+      y_axis = list(
+        title = "copy number",
+        visible = TRUE
+      )
+    ),
+    intervals = intervals,
+    connections = data.table()
+  )
 }
 
 
@@ -174,13 +206,13 @@ multiplicity_to_intervals <- function(
 #'
 #' @param cohort Cohort object containing sample information
 #' @param is_germline Logical indicating if mutations are germline (default: FALSE)
-#' @param node_metadata Additional columns to include in node data (default: c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"))
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
 lift_multiplicity <- function(
     cohort,
+    output_data_dir,
     is_germline = FALSE,
     node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
     output_data_dir,
