@@ -76,7 +76,20 @@ granges_to_arrow_scatterplot <- function(
         stop('You must have the package "arrow" installed in order for this function to work. Please install it.')
     }
 
-    gr <- readRDS(gr_path)
+    #' gr_path must be a path or an actual gRanges object    
+    if (is.character(gr_path)) {
+        if (!file.exists(gr_path)) {
+            stop("Please provide a valid path to a GRanges object.")
+        }
+    } else if (!inherits(gr_path, "GRanges")) {
+        stop("Please provide a valid GRanges object.")
+    }
+
+    gr <- gr_path
+    if (is.character(gr_path)){
+        gr <- readRDS(gr_path)
+    } 
+
     if (mask) {
         mask <- readRDS(mask.path)
         gr <- gr.val(gr, mask, "mask")
@@ -282,9 +295,13 @@ lift_denoised_coverage <- function(
         tryCatch(
             {
                 if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
+
+                    cov <- row$tumor_coverage %>% readRDS()
+                    mcols(cov)[[row$denoised_coverage_field]] <- mcols(cov)[, row$denoised_coverage_field] * 2 * 151 / width(cov)
+                                        
                     # Create arrow table
                     arrow_table <- granges_to_arrow_scatterplot(
-                        gr_path = row$tumor_coverage,
+                        gr_path = cov,
                         field = row$denoised_coverage_field,
                         ref = cohort$reference_name,
                         cov.color.field = row$denoised_coverage_color_field,

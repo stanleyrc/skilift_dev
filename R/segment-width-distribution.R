@@ -254,6 +254,9 @@ process_multiplicity_fit <- function(variants,
                                      field = "altered_copies",
                                      mask = TRUE,
                                      mask_gr = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+                                     save_data = TRUE,
+                                     save_png = TRUE,
+                                     save_html = FALSE,
                                      bins = 1e6,
                                      out_file) {
     if (is.character(variants)) {
@@ -283,7 +286,70 @@ process_multiplicity_fit <- function(variants,
     binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn, na.rm = T), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][, bin := NULL]
 
     # write json to file
-    write_json(binned_hist_data, out_file, pretty = TRUE)
+    if(save_data) {
+        write_json(binned_hist_data, out_file, pretty = TRUE)
+    }
+
+    # create png
+    if(save_png) {
+
+        if(histogram){
+
+            integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
+                     ceiling(max(binned_hist_data$jabba_cn)), by = 1)
+            colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
+                pals::glasbey(length(which(integer_lines %/% 32 == i)))
+            }))
+
+            hist_top <- ggplot(hets.short[cn <= 10], aes(x = major_snv_copies, fill = as.factor(cn))) +
+                geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
+                scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
+                theme_minimal() +
+                labs(x = NULL, y = NULL) +
+                theme(legend.position = "none") +
+                xlim(0, 10)
+            
+            hist_right <- ggplot(hets.short[cn <= 10], aes(x = minor_snv_copies, fill = as.factor(cn))) +
+                geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
+                scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
+                theme_minimal() +
+                labs(x = NULL, y = NULL) +
+                coord_flip() +
+                theme(legend.position = "none") +
+                xlim(0, 10)
+
+            ggplot(binned_hist_data, aes(x = mult_cn, fill = factor(jabba_cn))) +
+            geom_vline(xintercept = seq(0, 10, by = 1), color = "gray", linetype = "dashed") +
+            geom_histogram(binwidth = 0.2, color = "black", linewidth = 0.01) +
+            scale_fill_manual(values = colors.for.plot) +
+            labs(
+                x = "Multiplicity",
+                y = "Count",
+                fill = "JaBbA CN"
+            ) +
+            theme_bw() +
+            xlim(0, 10)
+
+            ggsave(file = gsub(".json", ".png", out_file), width = 6, height = 6, dpi = 300)
+
+        }
+        
+
+        ggplot(binned_hist_data, aes(x = mult_cn, fill = factor(jabba_cn))) +
+            geom_vline(xintercept = seq(0, 10, by = 1), color = "gray", linetype = "dashed") +
+            geom_histogram(binwidth = 0.2, color = "black", linewidth = 0.01) +
+            scale_fill_manual(values = colors.for.plot) +
+            labs(
+                x = "Multiplicity",
+                y = "Count",
+                fill = "JaBbA CN"
+            ) +
+            theme_bw() +
+            xlim(0, 10)
+
+        ggsave(file = gsub(".json", ".png", out_file), width = 6, height = 6, dpi = 300)
+    }
+    
 
     invisible(NULL)
 }
