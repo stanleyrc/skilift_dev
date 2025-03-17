@@ -4,7 +4,7 @@
 \alias{add_purity_ploidy}
 \title{Add Purity and Ploidy Metrics}
 \usage{
-add_purity_ploidy(metadata, jabba_gg = NULL)
+add_purity_ploidy(metadata, jabba_gg = NULL, tumor_coverage = NULL)
 }
 \arguments{
 \item{metadata}{A data.table containing metadata}
