@@ -31,7 +31,11 @@ get_segstats <- function(
   }
 
   if (!is.null(tumor_coverage)) {
-      cov <- readRDS(tumor_coverage)
+    if (is.character(tumor_coverage)) {
+        cov <- readRDS(tumor_coverage)
+    } else {
+        cov <- tumor_coverage
+    }
   } else {
       stop("Please provide a valid path to a coverage file.")
   }
@@ -42,7 +46,10 @@ get_segstats <- function(
                                         mcols(cov)[[coverage_field]])
   mcols(cov)[[coverage_field]] <- as.numeric(mcols(cov)[[coverage_field]])
 
-  balanced_gg_gr <- readRDS(balanced_jabba_gg)$nodes$gr
+  if (is.character(balanced_jabba_gg)) {
+    balanced_jabba_gg = readRDS(balanced_jabba_gg)
+  }
+  balanced_gg_gr <- balanced_jabba_gg$nodes$gr
 
   segstats <- JaBbA:::segstats(
     balanced_gg_gr,
