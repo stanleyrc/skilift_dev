@@ -412,7 +412,9 @@ default_col_mapping <- list(
   estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
   alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
   insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
-  wgs_metrics = c("wgs_metrics", "wgs_stats")
+  wgs_metrics = c("wgs_metrics", "wgs_stats"),
+  tumor_wgs_metrics = c("tumor_wgs_metrics", "tumor_wgs_stats"),
+  normal_wgs_metrics = c("normal_wgs_metrics", "normal_wgs_stats")
 )
 
 #' Create unified column and nf casereports map
