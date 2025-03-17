@@ -997,20 +997,20 @@ create_ppfit_genome_json <- function(plot_metadata, datadir, settings = internal
     )
 }
 
-#' @name create_somatic_json
-#' @title create_somatic_json
-#' @description
-#'
-#' @param somatic_snv_cn somatic copy number data table
-#' @param out_file where the json should be written
-#' @param pair patient.id to be used for pgvdb or case reports
-#' @param pgv_settings the settings file used for pgvdb or case reports
-#' @param return_table_pgv TRUE/FALSE whether to return the data.table to add to pgvdb
-#' @param meta_keep meta data to write in the json
-#' @param y_col column to be used for y axis values
-#' @return data.table to add to pgv or NULL, depends on return_table_pgv
-#' @export
-#' @author Stanley Clarke
+## # ' @name create_somatic_json
+## # ' @title create_somatic_json
+## # ' @description
+## # '
+## # ' @param somatic_snv_cn somatic copy number data table
+## # ' @param out_file where the json should be written
+## # ' @param pair patient.id to be used for pgvdb or case reports
+## # ' @param pgv_settings the settings file used for pgvdb or case reports
+## # ' @param return_table_pgv TRUE/FALSE whether to return the data.table to add to pgvdb
+## # ' @param meta_keep meta data to write in the json
+## # ' @param y_col column to be used for y axis values
+## # ' @return data.table to add to pgv or NULL, depends on return_table_pgv
+## # ' @export
+## # ' @author Stanley Clarke
 ## create_somatic_json = function(somatic_snv_cn, out_file, pair, pgv_settings, return_table_pgv = FALSE, meta_keep = NULL, y_col = "est_cn_llrm", ref = "hg19") {
 ##     som.dt = readRDS(somatic_snv_cn)
 ##     som.dt = som.dt[!is.na(get(y_col)),]

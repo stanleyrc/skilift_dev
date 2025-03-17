@@ -28,11 +28,15 @@ get_segstats <- function(
         stop("Please provide a valid path to a non-integer balanced gGraph file.")
     }
 
-    if (!is.null(tumor_coverage)) {
+  if (!is.null(tumor_coverage)) {
+    if (is.character(tumor_coverage)) {
         cov <- readRDS(tumor_coverage)
     } else {
-        stop("Please provide a valid path to a coverage file.")
+        cov <- tumor_coverage
     }
+  } else {
+      stop("Please provide a valid path to a coverage file.")
+  }
 
     ## need to replace NaN with NA or JaBbA:::segstats breaks
     mcols(cov)[[coverage_field]] <- ifelse(is.nan(mcols(cov)[[coverage_field]]),
@@ -41,7 +45,10 @@ get_segstats <- function(
     )
     mcols(cov)[[coverage_field]] <- as.numeric(mcols(cov)[[coverage_field]])
 
-    balanced_gg_gr <- readRDS(balanced_jabba_gg)$nodes$gr
+  if (is.character(balanced_jabba_gg)) {
+    balanced_jabba_gg = readRDS(balanced_jabba_gg)
+  }
+  balanced_gg_gr <- balanced_jabba_gg$nodes$gr
 
     segstats <- JaBbA:::segstats(
         balanced_gg_gr,

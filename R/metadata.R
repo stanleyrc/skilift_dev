@@ -211,7 +211,8 @@ process_qc_metrics <- function(
     estimate_library_complexity,
     alignment_summary_metrics,
     insert_size_metrics,
-    wgs_metrics,
+    tumor_wgs_metrics,
+    normal_wgs_metrics,
     pair
 ) {
     # Define metric mappings for each file type
@@ -230,52 +231,134 @@ process_qc_metrics <- function(
     )
     
     insert_metrics_cols <- c(
-        median_insert_size = "MEDIAN_INSERT_SIZE"
+        # median_insert_size = "MEDIAN_INSERT_SIZE"
+        insert_size = "MEDIAN_INSERT_SIZE"
     )
     
-    wgs_metrics_cols <- c(
-        median_coverage = "MEAN_COVERAGE",
-        pct_30x = "PCT_30X",
-        pct_50x = "PCT_50X"
+    tumor_wgs_metrics_cols <- c(
+        # median_coverage = "MEAN_COVERAGE"
+        tumor_median_coverage = "MEDIAN_COVERAGE",
+        # pct_30x = "PCT_30X",
+        greater_than_or_equal_to_30x = "PCT_30X",
+        # pct_50x = "PCT_50X"
+        greater_than_or_equal_to_50x = "PCT_50X"
+    )
+
+    normal_wgs_metrics_cols <- c(
+        normal_median_coverage = "MEDIAN_COVERAGE"
     )
     
+    test_file_is_present = function(x) {
+        (
+            !is.null(x)
+            && is.character(x)
+            && NROW(x) == 1
+            && file.exists(x)
+        )
+    }
+
     # Read and extract metrics from each file
-    complexity_data <- extract_metrics(
-        fread(estimate_library_complexity),
-        complexity_metrics_cols,
-        pair
-    )
+    complexity_data = data.table(pair = character(0))
+    if (test_file_is_present(estimate_library_complexity)) {
+        complexity_data <- extract_metrics(
+            fread(estimate_library_complexity),
+            complexity_metrics_cols,
+            pair
+        )
+    }
     
-    alignment_data <- extract_metrics(
-        fread(alignment_summary_metrics)[CATEGORY=="PAIR"],
-        alignment_metrics_cols,
-        pair
-    )
+    alignment_data = data.table(pair = character(0))
+    if (test_file_is_present(alignment_summary_metrics)) {
+        alignment_data <- extract_metrics(
+            fread(alignment_summary_metrics)[CATEGORY=="PAIR"],
+            alignment_metrics_cols,
+            pair
+        )
+    }
     
-    insert_data <- extract_metrics(
-        fread(insert_size_metrics),
-        insert_metrics_cols,
-        pair
-    )
+    insert_data = data.table(pair = character(0))
+    if (test_file_is_present(insert_size_metrics)) {
+        insert_data <- extract_metrics(
+            fread(insert_size_metrics),
+            insert_metrics_cols,
+            pair
+        )
+    }
     
-    wgs_data <- extract_metrics(
-        fread(wgs_metrics),
-        wgs_metrics_cols,
-        pair
-    )
+    tumor_wgs_data = data.table(pair = character(0))
+    if (test_file_is_present(tumor_wgs_metrics)) {
+        tumor_wgs_data <- extract_metrics(
+            fread(tumor_wgs_metrics),
+            tumor_wgs_metrics_cols,
+            pair
+        )
+    }
+
+    normal_wgs_data = data.table(pair = character(0))
+    if (test_file_is_present(normal_wgs_metrics)) {
+        normal_wgs_data <- extract_metrics(
+            fread(normal_wgs_metrics),
+            normal_wgs_metrics_cols,
+            pair
+        )
+    }
     
+    # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
+    # "mean_read_length", "median_insert_size", "median_coverage", 
+    # "pct_30x", "pct_50x", "percent_optical_duplication", 
+    # "percent_aligned", "percent_optical_dups_of_dups")
     # Merge all metrics on pair
-    qc_metrics <- Reduce(function(x, y) merge(x, y, by = "pair"), 
-                        list(complexity_data, alignment_data, insert_data, wgs_data))
+    lst_to_merge = list(
+        complexity_data, 
+        alignment_data, 
+        insert_data, 
+        tumor_wgs_data,
+        normal_wgs_data
+    )
+    qc_metrics <- Reduce(function(x, y) {
+        data.table::merge.data.table(
+            x, y, by = "pair", 
+            all.x = TRUE, 
+            all.y = TRUE
+        )
+    }   , lst_to_merge)
     
-    # Calculate additional metrics
-    qc_metrics[, `:=`(
-        m_reads = total_reads / 1e6,
-        m_reads_mapped = pf_reads_aligned / 1e6,
-        percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
-        percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
-        percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
-    )]
+    # Calculate derivative metrics
+    # Separating out and writing long way for robustness to
+    # missing data.
+    qc_metrics$m_reads = qc_metrics$total_reads / 1e6
+    qc_metrics$m_reads_mapped = qc_metrics$pf_reads_aligned / 1e6
+    qc_metrics$percent_optical_duplication = (
+        qc_metrics$read_pair_optical_duplicates /
+        qc_metrics$read_pairs_examined
+    )
+    qc_metrics$percent_aligned = (
+        qc_metrics$pf_aligned_bases / 
+        ( qc_metrics$total_reads * qc_metrics$mean_read_length )
+    )
+    qc_metrics$percent_optical_dups_of_dups = (
+        qc_metrics$read_pair_optical_duplicates / 
+        qc_metrics$read_pair_duplicates
+    )
+    # # FIXME, need to account for tumor and normal
+    # qc_metrics$normal_median_coverage = NA_integer_
+
+    # Remove any metrics that are NA
+    # This can happen if any derivative metrics
+    # are calculated from qc inputs not provided
+    # in above lines.
+    for (colnm in names(qc_metrics)) {
+        is_all_na = all(is.na(qc_metrics[[colnm]]))
+        if (is_all_na) qc_metrics[[colnm]] = NULL
+    }
+
+    # qc_metrics[, `:=`(
+    #     m_reads = total_reads / 1e6,
+    #     m_reads_mapped = pf_reads_aligned / 1e6,
+    #     percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
+    #     percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
+    #     percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
+    # )]
     
     return(as.list(qc_metrics))
 }
@@ -300,7 +383,8 @@ add_coverage_metrics <- function(
     estimate_library_complexity = NULL,
     alignment_summary_metrics = NULL,
     insert_size_metrics = NULL,
-    wgs_metrics = NULL
+    tumor_wgs_metrics = NULL,
+    normal_wgs_metrics = NULL
 ) {
     coverage_variance <- NULL
     if (!is.null(tumor_coverage)) {
@@ -311,20 +395,28 @@ add_coverage_metrics <- function(
     }
     
     processed_metrics <- NULL
-    if (!is.null(estimate_library_complexity) && 
-        !is.null(alignment_summary_metrics) && 
-        !is.null(insert_size_metrics) && 
-        !is.null(wgs_metrics)) {
+    if (
+        !is.null(estimate_library_complexity) ||
+        !is.null(alignment_summary_metrics) ||
+        !is.null(insert_size_metrics) ||
+        !is.null(tumor_wgs_metrics) ||
+        !is.null(normal_wgs_metrics)
+        ) {
         
         processed_metrics <- process_qc_metrics(
             estimate_library_complexity,
             alignment_summary_metrics,
             insert_size_metrics,
-            wgs_metrics,
+            tumor_wgs_metrics,
+            normal_wgs_metrics,
             metadata$pair
         )
         
         metadata$coverage_qc <- list(as.list(c(processed_metrics, coverage_variance)))
+        ## FIXME: hardcoding this for now.
+        ## median and normal coverages are at top level..
+        metadata$tumor_median_coverage = processed_metrics$tumor_median_coverage
+        metadata$normal_median_coverage = processed_metrics$normal_median_coverage
     }
 
     return(metadata)
@@ -420,7 +512,8 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
     }
     
     # Calculate total SV count
-    metadata[, sv_count := (junction_count + (loose_count / 2))]
+    # metadata[, sv_count := (junction_count + (loose_count / 2))]
+    metadata[, sv_count := (junction_count)]
     
     return(metadata)
 }
@@ -431,16 +524,67 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
 #' @param metadata A data.table containing metadata
 #' @param jabba_gg Path to JaBbA graph RDS file
 #' @return Updated metadata with purity and ploidy information
-add_purity_ploidy <- function(metadata, jabba_gg = NULL) {
+add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) {
     if (is.null(jabba_gg)) {
         return(metadata)
     }
     
-    gg <- readRDS(jabba_gg)
-    metadata$purity <- gg$meta$purity
-    metadata$ploidy <- gg$meta$ploidy
-    metadata$beta <- gg$meta$ploidy
-    metadata$gamma <- 1 - gg$meta$purity
+    ggraph <- gg <- readRDS(jabba_gg)
+    
+    ploidy = tau = gg$meta$ploidy
+    purity = alpha = gg$meta$purity
+    metadata$purity <- purity
+    metadata$ploidy <- ploidy
+    metadata$beta = alpha / (alpha * ploidy + 2*(1 - alpha)) # from Multiplicity
+    metadata$gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) # from Multiplicity
+    
+    # # Get sequence lengths from the gGraph
+    # seq_lengths <- seqlengths(ggraph$nodes$gr)
+    
+    # # Check for required fields
+    # colnames_check <- c("start_ix", "end_ix", "eslack_in", "eslack_out", 
+    #                     "edges_in", "edges_out", "tile_id", "snode_id", 
+    #                     "loose_left", "loose_right", "loose_cn_left", 
+    #                     "loose_cn_right", "node_id", "raw_mean", "raw_var", 
+    #                     "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", 
+    #                     "wbins_ok", "mean", "bad", "max_na", "loess_var", 
+    #                     "tau_sq_post", "post_var", "var", "sd")
+    
+    # if (all(colnames_check %in% names(ggraph$nodes$dt))) {
+    #     gg_w_segstats <- ggraph
+    #     fields.keep <- c(colnames_check, "seqnames", "start", "end", "strand", "width", "loose", "index")
+    # } else {
+    #     # Get segstats information
+    #     segstats.dt <- get_segstats(
+    #         balanced_jabba_gg = row$balanced_jabba_gg,
+    #         tumor_coverage = row$tumor_coverage,
+    #         coverage_field = "foreground"
+    #     )
+    #     segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
+    #     gg_w_segstats <- gGnome::gG(nodes = segstats.gr, edges = ggraph$edges$dt)
+    #     fields.keep <- names(segstats.dt) %>% grep("cn", ., invert = TRUE, value = TRUE)
+    # }
+    
+    # # Check for sequence name overlap
+    # ggraph.reduced <- gg_w_segstats[seqnames %in% names(seq_lengths)]
+
+    # alpha = purity = pp$purity
+    # tau = ploidy = pp$ploidy
+    # ncn = 2
+    # segstats = ggraph.reduced$nodes$gr
+    # mu = segstats$mean
+    # ## mu = mcols(cov)[["foreground"]]
+    # mu[is.infinite(mu)] = NA_real_    
+    # w = as.numeric(width(segstats))
+    # w[is.na(mu)] = NA
+    # sw = sum(w, na.rm = T)
+    # ploidy_normal = sum(w * ncn, na.rm = T) / sw
+    # mutl = sum(mu * w, na.rm = T)
+    # m0 = sum(as.numeric(mutl))/sw
+    # beta = ((1-purity)*ploidy_normal + purity*ploidy) * sw / (purity * mutl) # from JaBbA segstats
+    # gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) ## Johnathan's multiplicity
+    # metadata$beta <- beta
+    # metadata$gamma <- gamma
     
     return(metadata)
 }
@@ -502,7 +646,7 @@ add_genome_length <- function(
         return(metadata)
     }
 
-    if (is.null(jabba_gg) || is.null(seqnames_genome_width_or_genome_length)) {
+    if (is.null(jabba_gg) && is.null(seqnames_genome_width_or_genome_length)) {
         return(metadata)
     }
     
@@ -515,7 +659,10 @@ add_genome_length <- function(
         )
     )
     seqlengths.dt[, seqnames := gsub("chr", "", seqnames)]
-    seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
+    if (!is.null(seqnames_genome_width_or_genome_length)) {
+        seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
+    }
+    
     metadata$total_genome_length <- sum(seqlengths.dt$seqlengths)
     
     return(metadata)
@@ -645,6 +792,7 @@ add_tmb <- function(
     if (is.null(meta_dt$total_genome_length) || is.na(meta_dt$total_genome_length)) {
         meta_dt <- add_genome_length(meta_dt, jabba_gg, seqnames_genome_width_or_genome_length)
     }
+    
     
     # Calculate TMB if we have both required values
     is_tmb_computable <- !is.na(meta_dt$snv_count) && !is.na(meta_dt$total_genome_length) && !is.null(meta_dt$snv_count) && !is.null(meta_dt$total_genome_length)
@@ -938,7 +1086,8 @@ create_metadata <- function(
     estimate_library_complexity = NULL,
     alignment_summary_metrics = NULL,
     insert_size_metrics = NULL,
-    wgs_metrics = NULL,
+    tumor_wgs_metrics = NULL,
+    normal_wgs_metrics = NULL,
     het_pileups = NULL,
     activities_indel_signatures = NULL,
     deconstructsigs_sbs_signatures = NULL,
@@ -966,19 +1115,20 @@ create_metadata <- function(
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
     # Add coverage metrics
     metadata <- add_coverage_metrics(
-        metadata,
-        tumor_coverage,
-        foreground_col_name,
-        estimate_library_complexity,
-        alignment_summary_metrics,
-        insert_size_metrics,
-        wgs_metrics
+        metadata = metadata,
+        tumor_coverage = tumor_coverage,
+        foreground_col_name = foreground_col_name,
+        estimate_library_complexity = estimate_library_complexity,
+        alignment_summary_metrics = alignment_summary_metrics,
+        insert_size_metrics = insert_size_metrics,
+        tumor_wgs_metrics = tumor_wgs_metrics,
+        normal_wgs_metrics = normal_wgs_metrics
     )
     metadata <- add_variant_counts(metadata, somatic_snvs, genome)
     
     # New SV-related function calls
     metadata <- add_sv_counts(metadata, jabba_gg)
-    metadata <- add_purity_ploidy(metadata, jabba_gg)
+    metadata <- add_purity_ploidy(metadata, jabba_gg, tumor_coverage = tumor_coverage)
     metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
     metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
     metadata <- add_sv_types(metadata, jabba_gg, events)
@@ -1023,24 +1173,34 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
     if (!dir.exists(output_data_dir)) {
         dir.create(output_data_dir, recursive = TRUE)
     }
+
+    lift_inputs = pairify_cohort_inputs(cohort, tumor_normal_columns = c("wgs_metrics"), keep_remaining = TRUE, sep_cast = "_")
+
     
     # Define all possible columns
     all_cols <- c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
         "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
-        "insert_size_metrics", "wgs_metrics", "het_pileups",
+        "insert_size_metrics"
+        , 
+        # was "wgs_metrics"
+        "tumor_wgs_metrics"
+        ,
+        "normal_wgs_metrics"
+        , 
+        "het_pileups",
         "activities_sbs_signatures", "activities_indel_signatures",
         "hrdetect", "onenesstwoness", "msisensorpro"
     )
     
     # Check for required column
-    if (!"pair" %in% names(cohort$inputs)) {
+    if (!"pair" %in% names(lift_inputs)) {
         stop("Missing required column 'pair' in cohort")
     }
     
     # Warn about missing optional columns
-    missing_cols <- all_cols[!all_cols %in% names(cohort$inputs)]
+    missing_cols <- all_cols[!all_cols %in% names(lift_inputs)]
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
@@ -1051,8 +1211,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
     }
     
     # Process each sample in parallel
-    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
+    mclapply(seq_len(nrow(lift_inputs)), function(i) {
+        row <- lift_inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
         if (!dir.exists(pair_dir)) {
@@ -1061,7 +1221,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         
         out_file <- file.path(pair_dir, "metadata.json")
         
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             # Create metadata object
 
             metadata <- create_metadata(
@@ -1078,7 +1239,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
                 estimate_library_complexity = row$estimate_library_complexity,
                 alignment_summary_metrics = row$alignment_summary_metrics,
                 insert_size_metrics = row$insert_size_metrics,
-                wgs_metrics = row$wgs_metrics,
+                tumor_wgs_metrics = row$tumor_wgs_metrics,
+                normal_wgs_metrics = row$normal_wgs_metrics,
                 het_pileups = row$het_pileups,
                 activities_sbs_signatures = row$activities_sbs_signatures,
                 activities_indel_signatures = row$activities_indel_signatures,
@@ -1090,7 +1252,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
             )
 
             if (is.null(metadata)) {
-                warning(sprintf("No metadata generated for %s", row$pair))
+                print(sprintf("No metadata generated for %s", row$pair))
                 return()
             }
             
@@ -1104,9 +1266,10 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
             )
             
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s\nCallstack: %s", row$pair, e$message, deparse(e$call)))
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
         })
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(NULL)
 }

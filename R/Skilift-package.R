@@ -7,6 +7,8 @@
 #' @import ggplot2 
 #' @import parallel
 #' @import httr
+#' @import futile.logger
+#' @importFrom tryCatchLog tryCatchLog
 #' @importFrom VariantAnnotation readVcf geno ref alt
 #' @importFrom arrow Table write_feather schema float32
 #' @importFrom gGnome cov2cov.js
@@ -18,6 +20,7 @@
 #' @importFrom GenomicRanges GRanges GRangesList
 #' @importFrom GenomeInfoDb Seqinfo seqnames seqnames<- seqinfo seqinfo<- seqlengths seqlengths<- seqlevels seqlevels<- seqlevelsStyle seqlevelsStyle<-
 #' @importFrom BiocGenerics width
+#' @importFrom glue glue
 #' @importMethodsFrom BiocGenerics width sort
 #' @importMethodsFrom IRanges trim start end
 #' @importMethodsFrom GenomeInfoDb seqnames seqnames<- seqinfo seqinfo<- seqlengths seqlengths<- seqlevels seqlevels<- seqlevelsStyle seqlevelsStyle<- sortSeqlevels

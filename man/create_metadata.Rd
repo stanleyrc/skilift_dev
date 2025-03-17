@@ -19,7 +19,8 @@ create_metadata(
   estimate_library_complexity = NULL,
   alignment_summary_metrics = NULL,
   insert_size_metrics = NULL,
-  wgs_metrics = NULL,
+  tumor_wgs_metrics = NULL,
+  normal_wgs_metrics = NULL,
   het_pileups = NULL,
   activities_indel_signatures = NULL,
   deconstructsigs_sbs_signatures = NULL,
@@ -58,8 +59,6 @@ create_metadata(
 
 \item{insert_size_metrics}{Path to the insert_size_metrics file.}
 
-\item{wgs_metrics}{Path to the wgs_metrics file.}
-
 \item{het_pileups}{Heterozygous pileups data.}
 
 \item{activities_sbs_signatures}{Activities of SBS signatures.}
@@ -73,6 +72,8 @@ create_metadata(
 \item{seqnames_loh}{Sequence names for loss of heterozygosity.}
 
 \item{seqnames_genome_width_or_genome_length}{Sequence names and genome width in list or genome length as a numeric}
+
+\item{wgs_metrics}{Path to the wgs_metrics file.}
 
 \item{signatures_pair_name}{The name of the signature pair.}
 

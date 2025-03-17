@@ -104,15 +104,16 @@ multiplicity_to_intervals <- function(
     field = "total_copies",
     settings = Skilift:::default_settings_path,
     node_metadata = NULL,
-    reference_name = "hg19") {
-  # Load chromosome lengths from settings
-  settings_data <- jsonlite::fromJSON(settings)
-  chrom_lengths <- as.data.table(
-    settings_data$coordinates$sets[[reference_name]]
-  )[
-    , .(chromosome, startPoint, endPoint)
-  ]
-  setnames(chrom_lengths, c("seqnames", "start", "end"))
+    reference_name = "hg19",
+    cohort_type
+) {
+    # Load chromosome lengths from settings
+    settings_data <- jsonlite::fromJSON(settings)
+    chrom_lengths <- as.data.table(
+        settings_data$coordinates$sets[[reference_name]])[
+        , .(chromosome, startPoint, endPoint)
+    ]
+    setnames(chrom_lengths, c("seqnames", "start", "end"))
 
   # Ensure chromosome naming consistency
   if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
@@ -125,13 +126,41 @@ multiplicity_to_intervals <- function(
   # Set y-values from specified field
   multiplicity[, y_value := get(field)]
 
-  # Convert to GRanges
-  gr <- dt2gr(multiplicity[order(seqnames, start), ]) %>% sortSeqlevels()
-  if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
-    GenomeInfoDb::seqlevelsStyle(gr) <- "UCSC"
-  } else {
-    GenomeInfoDb::seqlevelsStyle(gr) <- "NCBI"
-  }
+    # Convert to GRanges
+    gr = dt2gr(multiplicity[order(seqnames, start), ]) %>% sortSeqlevels()
+    if (nrow(chrom_lengths[grepl("chr", seqnames), ]) > 0) {
+        GenomeInfoDb::seqlevelsStyle(gr) = "UCSC"
+    } else {
+        GenomeInfoDb::seqlevelsStyle(gr) = "NCBI"
+    }
+
+    if (is.null(cohort_type)) stop("cohort_type is missing")
+
+    if (cohort_type == "heme") {
+        hemedb = readRDS(Skilift:::HEMEDB)
+        # HEMEDB = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+        gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds"
+        gencode <- Skilift:::process_gencode(gencode)
+        genes = gencode[gencode$type == "gene"]
+        gr_heme_genes = genes[na.omit(match(hemedb$GENE, genes$gene_name))]
+        message("Filtering multiplicity to heme relevant genes")
+        is_heme = (gr %^% gr_heme_genes) & (gr$gene %in% gr_heme_genes$gene_name)
+        gr_heme = gr[is_heme]
+        gr_other = gr[!is_heme]
+        remaining = 1e4 - NROW(gr_heme)
+        if (remaining > 0) {
+            otherix = 1:NROW(gr_other)
+            set.seed(42)
+            sampled_otherix = sample(otherix, size = remaining, replace = FALSE)
+            gr_subsampled_other = gr_other[sampled_otherix]
+            gr = c(gr_heme, gr_subsampled_other)
+        } else {
+            gr = gr_heme
+        }
+        
+    }
+    
+    
 
   # Validate ranges
   if (any(gr@seqinfo@seqlengths >
@@ -185,80 +214,79 @@ lift_multiplicity <- function(
     cohort,
     output_data_dir,
     is_germline = FALSE,
-    cores = 1) {
-  if (!inherits(cohort, "Cohort")) {
-    stop("Input must be a Cohort object")
-  }
-
-  if (!dir.exists(output_data_dir)) {
-    dir.create(output_data_dir, recursive = TRUE)
-  }
-
-  # Determine which column to use based on is_germline
-  snv_cn_col <- if (is_germline) "germline_multiplicity" else "multiplicity"
-
-  # Validate required column exists
-  if (!snv_cn_col %in% names(cohort$inputs)) {
-    stop(sprintf("Missing required column in cohort: %s", snv_cn_col))
-  }
-
-  # Get reference name from cohort
-  reference_name <- cohort$reference_name
-  if (is.null(reference_name)) {
-    stop("Reference name not found in cohort object")
-  }
-
-  # browser()
-
-  # Process each sample in parallel
-  mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-    row <- cohort$inputs[i, ]
-    pair_dir <- file.path(output_data_dir, row$pair)
-
-    if (!dir.exists(pair_dir)) {
-      dir.create(pair_dir, recursive = TRUE)
+    node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
+    field = "total_copies",
+    cores = 1
+) {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
     }
-
-    # Determine output filename based on is_germline
-    out_file <- file.path(
-      pair_dir,
-      if (is_germline) "germline_mutations.json" else "mutations.json"
-    ) %>% normalizePath()
-
-    tryCatch(
-      {
-        # Create multiplicity data.table
-
-        mult_dt <- create_multiplicity(
-          snv_cn = row[[snv_cn_col]],
-          is_germline = is_germline,
-          field = row$multiplicity_field
+    
+    if (!dir.exists(output_data_dir)) {
+        dir.create(output_data_dir, recursive = TRUE)
+    }
+    
+    # Determine which column to use based on is_germline
+    snv_cn_col <- if(is_germline) "germline_multiplicity" else "multiplicity"
+    
+    # Validate required column exists
+    if (!snv_cn_col %in% names(cohort$inputs)) {
+        stop(sprintf("Missing required column in cohort: %s", snv_cn_col))
+    }
+    
+    # Get reference name from cohort
+    reference_name <- cohort$reference_name
+    if (is.null(reference_name)) {
+        stop("Reference name not found in cohort object")
+    }
+    
+    # Process each sample in parallel
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        row <- cohort$inputs[i,]
+        pair_dir <- file.path(output_data_dir, row$pair)
+        
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
+        
+        # Determine output filename based on is_germline
+        out_file <- file.path(
+            pair_dir,
+            if(is_germline) "germline_mutations.json" else "mutations.json"
         )
-
-        # Convert to intervals
-        intervals_list <- multiplicity_to_intervals(
-          multiplicity = mult_dt,
-          reference_name = cohort$reference_name,
-          node_metadata = unlist(row$multiplicity_node_metadata),
-          field = row$multiplicity_field
-        )
-
-        # Write to JSON
-        jsonlite::write_json(
-          intervals_list,
-          out_file,
-          pretty = TRUE,
-          auto_unbox = TRUE,
-          digits = 4
-        )
-
-        message(sprintf("Successfully processed %s, saved at %s", row$pair, out_file))
-      },
-      error = function(e) {
-        warning(sprintf("Error processing %s: %s", row$pair, e$message))
-      }
-    )
-  }, mc.cores = cores, mc.preschedule = FALSE)
-
-  invisible(NULL)
+        
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
+            # Create multiplicity data.table
+            mult_dt <- create_multiplicity(
+                snv_cn = row[[snv_cn_col]],
+                is_germline = is_germline,
+                field = field
+            )
+            
+            # Convert to intervals
+            intervals_list <- multiplicity_to_intervals(
+                multiplicity = mult_dt,
+                reference_name = reference_name,
+                node_metadata = node_metadata,
+                field = field,
+                cohort_type = cohort$cohort_type
+            )
+            
+            # Write to JSON
+            jsonlite::write_json(
+                intervals_list,
+                out_file,
+                pretty = TRUE,
+                auto_unbox = TRUE,
+                digits = 4
+            )
+            
+        }, error = function(e) {
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
+        })
+    }, mc.cores = cores, mc.preschedule = TRUE)
+    
+    invisible(NULL)
 }
