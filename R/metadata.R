@@ -571,14 +571,17 @@ add_sv_types <- function(metadata, jabba_gg = NULL, complex = NULL) {
 #' @description Adds coverage parameters to the metadata based on tumor coverage
 #' @param metadata A data.table containing metadata
 #' @param tumor_coverage Coverage data for the tumor
+#' @param field The field to use for coverage calculation
 #' @return Updated metadata with coverage parameters added
-add_coverage_parameters <- function(metadata, tumor_coverage) {
+add_coverage_parameters <- function(metadata, tumor_coverage, field = "foreground") {
     if (!is.null(tumor_coverage)) {
         if (is.null(metadata$purity) || is.null(metadata$ploidy)) {
             warning("Purity and ploidy not found in metadata, cov_slope and cov_intercept will not be calculated")
         }
-        rel2abs.cov <- skitools::rel2abs(readRDS(tumor_coverage),
-            field = "foreground",
+        cov <- tumor_coverage %>% readRDS()
+        mcols(cov)[[field]] <- mcols(cov)[, field] * 2 * 151 / width(cov)
+        rel2abs.cov <- skitools::rel2abs(cov,
+            field = field,
             purity = metadata$purity,
             ploidy = metadata$ploidy,
             return.params = TRUE
@@ -945,12 +948,13 @@ create_metadata <- function(
     msisensorpro = NULL,
     genome = "hg19",
     seqnames_loh = c(1:22),
-    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
+    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
+    denoised_coverage_field = "foreground"
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro")
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
@@ -978,7 +982,7 @@ create_metadata <- function(
     metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
     metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
     metadata <- add_sv_types(metadata, jabba_gg, events)
-    metadata <- add_coverage_parameters(metadata, tumor_coverage)
+    metadata <- add_coverage_parameters(metadata, tumor_coverage, denoised_coverage_field)
     metadata <- add_het_pileups_parameters(metadata, het_pileups)
     
     # Add TMB calculation
@@ -1081,7 +1085,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
                 hrdetect = row$hrdetect,
                 onenesstwoness = row$onenesstwoness,
                 msisensorpro = row$msisensorpro,
-                seqnames_genome_width_or_genome_length = genome_length # if genome length is provided
+                seqnames_genome_width_or_genome_length = genome_length,
+                denoised_coverage_field = row$denoised_coverage_field
             )
 
             if (is.null(metadata)) {
