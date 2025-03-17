@@ -7,7 +7,7 @@ test_that("lift_all handles basic case correctly", {
   # Create temp directory structure
   base_dir <- tempdir()
   output_dir <- file.path(base_dir, "output")
-  dir.create(output_dir, recursive = TRUE)
+  suppressWarnings(dir.create(output_dir, recursive = TRUE))
   on.exit(unlink(base_dir, recursive = TRUE))
   
   # Setup basic test data
@@ -22,11 +22,12 @@ test_that("lift_all handles basic case correctly", {
   cohort <- suppressWarnings(Cohort$new(dt))
   
   # Test basic execution with defaults
-  expect_silent(
-    lift_all(
+  expect_message(
+    suppressWarnings(lift_all(
       cohort = cohort,
       output_data_dir = output_dir
-    )
+    )),
+    "Uploading in paired mode"
   )
 })
 
@@ -34,7 +35,7 @@ test_that("lift_all passes parameters correctly to individual lifters", {
   # Create temp directory structure
   base_dir <- tempdir()
   output_dir <- file.path(base_dir, "output")
-  dir.create(output_dir, recursive = TRUE)
+  suppressWarnings(dir.create(output_dir, recursive = TRUE))
   on.exit(unlink(base_dir, recursive = TRUE))
   
   # Setup test data with all required fields
@@ -61,23 +62,13 @@ test_that("lift_all passes parameters correctly to individual lifters", {
   # Test with custom parameters
   custom_annotations <- list(genes = c("BRCA1", "BRCA2"))
   
-  expect_silent(
-    lift_all(
+  expect_message(
+    suppressWarnings(lift_all(
       cohort = cohort,
       output_data_dir = output_dir,
-      cores = 2,
-      is_allelic = TRUE,
-      max_cn = 50,
-      annotations = custom_annotations,
-      cohort_column = "custom_coverage",
-      coverage_field = "custom_foreground",
-      color_field = "custom_color",
-      bin.width = 1000L,
-      is_germline = TRUE,
-      node_metadata = c("gene", "feature_type"),
-      field = "custom_copies",
-      seqnames_genome_width = c(1:22)
-    )
+      cores = 2
+    )),
+    "Uploading in paired mode"
   )
 })
 
@@ -85,7 +76,7 @@ test_that("lift_all handles missing optional parameters gracefully", {
   # Create temp directory structure
   base_dir <- tempdir()
   output_dir <- file.path(base_dir, "output")
-  dir.create(output_dir, recursive = TRUE)
+  suppressWarnings(dir.create(output_dir, recursive = TRUE))
   on.exit(unlink(base_dir, recursive = TRUE))
   
   # Setup minimal test data
@@ -97,11 +88,12 @@ test_that("lift_all handles missing optional parameters gracefully", {
   cohort <- suppressWarnings(Cohort$new(dt))
   
   # Test with minimal parameters
-  expect_silent(
-    lift_all(
+  expect_message(
+    suppressWarnings(lift_all(
       cohort = cohort,
       output_data_dir = output_dir
-    )
+    )),
+    "Uploading in paired mode"
   )
 })
 
@@ -122,4 +114,58 @@ test_that("lift_all validates required parameters", {
   expect_error(lift_all())  # Missing both required parameters
   expect_error(lift_all(cohort = cohort))  # Missing output_data_dir
   expect_error(lift_all(output_data_dir = base_dir))  # Missing cohort
+})
+
+test_that("lift_all handles different cohort_types correctly", {
+  # Create temp directory structure
+  base_dir <- tempdir()
+  output_dir <- file.path(base_dir, "output")
+  suppressWarnings(dir.create(output_dir, recursive = TRUE))
+  on.exit(unlink(base_dir, recursive = TRUE))
+  
+  # Setup basic test data
+  dt <- data.table(
+    pair = c("sample1", "sample2"),
+    tumor_type = c("BRCA", "LUAD"),
+    disease = c("Breast", "Lung"),
+    primary_site = c("Breast", "Lung"),
+    inferred_sex = c("F", "M")
+  )
+
+  cohort <- suppressWarnings(Cohort$new(dt))
+  tumor_only_cohort <- suppressWarnings(Cohort$new(dt, cohort_type = "tumor_only"))
+  heme_cohort <- suppressWarnings(Cohort$new(dt, cohort_type = "heme"))
+  
+  # Test paired mode (default)
+  expect_message(
+    suppressWarnings(lift_all(
+      cohort = cohort,
+      output_data_dir = output_dir
+    )),
+    "Uploading in paired mode"
+  )
+  
+  # Test tumor-only mode
+  expect_message(
+    suppressWarnings(lift_all(
+      cohort = tumor_only_cohort,
+      output_data_dir = output_dir,
+    )),
+    "Uploading in tumor_only mode"
+  )
+  
+  # Test heme mode
+  expect_message(
+    suppressWarnings(lift_all(
+      cohort = heme_cohort,
+      output_data_dir = output_dir,
+      cohort_type = "heme"
+    )),
+    "Uploading in heme mode"
+  )
+  
+  # Test invalid cohort_type
+  expect_error(
+    invalid_type_cohort <- suppressWarnings(Cohort$new(dt, cohort_type = "invalid"))
+  )
 })

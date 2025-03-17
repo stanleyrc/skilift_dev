@@ -5,7 +5,7 @@
 \alias{default_col_mapping}
 \title{Default column mappings}
 \format{
-An object of class \code{list} of length 37.
+An object of class \code{list} of length 56.
 }
 \usage{
 default_col_mapping
@@ -14,7 +14,7 @@ default_col_mapping
 Defines naming convention cohort inputs table
 }
 \details{
-This variable contains the possible regex patterns 
+This variable contains the possible regex patterns
 from an input data.table with columns corresponding to processed data.
 You can output the default template to modify it using
 base::dput(Skilift::default_col_mapping)

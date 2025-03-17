@@ -1,5 +1,3 @@
-internal_settings_path = system.file("extdata", "test_data", "settings.json", package = "Skilift")
-
 #' Converts a color from hexadecimal to numeric format
 #'
 #' @param color A character vector of colors in hexadecimal format (e.g., "#FF0000").
@@ -18,13 +16,13 @@ color2numeric <- function(color) {
 #' @return A data.table containing the sequence information for the specified reference.
 get_ref_metadata <- function(ref_seqinfo_json, ref = NULL) {
     meta <- jsonlite::read_json(ref_seqinfo_json)
-    
+
     if (!("coordinates" %in% names(meta))) {
         stop("Input meta file is not a proper settings.json format.")
     }
-    
+
     coord <- meta$coordinates
-    
+
     if (is.null(ref)) {
         if (!("default" %in% names(coord))) {
             stop(ref_seqinfo_json, " is missing a default coordinates attribute")
@@ -32,17 +30,17 @@ get_ref_metadata <- function(ref_seqinfo_json, ref = NULL) {
         ref <- coord$default
         message('No reference name provided so using default: "', ref, '".')
     }
-    
+
     if (!("sets" %in% names(coord))) {
         stop("Could not find reference sets in ", ref_seqinfo_json, "in attribute 'sets'.")
     }
-    
+
     sets <- coord$sets
-    
+
     if (!(ref %in% names(sets))) {
         stop(ref, " does not appear in set of references in ", ref_seqinfo_json)
     }
-    
+
     seq.info <- data.table::rbindlist(sets[[ref]])
     return(seq.info)
 }
@@ -59,26 +57,38 @@ get_ref_metadata <- function(ref_seqinfo_json, ref = NULL) {
 #' @param overwrite (logical) by default, if the output path already exists, it will not be overwritten.
 #' @param ref_seqinfo_json path to JSON file with ref seqlengths
 #' @param bin.width (integer) bin width for rebinning the coverage (default: 1e4)
+#' @param mask (logical) whether to mask the coverage data (default: TRUE)
+#' @param mask.path path to mask file (default: system.file("extdata", "data", "maskA_re.rds", package = "Skilift"))
+#' @param ... additional arguments to pass to cov2cov.js
 #' @return arrow table
 #' @author Alon Shaiber, Shihab Dider
-granges_to_arrow_scatterplot = function(
+granges_to_arrow_scatterplot <- function(
     gr_path,
     field = "foreground",
-    ref = 'hg19',
+    ref = "hg19",
     cov.color.field = NULL,
-    ref_seqinfo_json = internal_settings_path,
+    ref_seqinfo_json = Skilift:::default_settings_path,
     bin.width = 1e4,
-    ...){
-
+    mask = TRUE,
+    mask.path = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+    ...) {
     if (!requireNamespace("arrow", quietly = TRUE)) {
         stop('You must have the package "arrow" installed in order for this function to work. Please install it.')
     }
 
-    message('Preparing GRanges for conversion to arrow format')
-    dat = gGnome::cov2cov.js(
-        gr_path,
+    gr <- readRDS(gr_path)
+    if (mask) {
+        mask <- readRDS(mask.path)
+        gr <- gr.val(gr, mask, "mask")
+        gr <- gr %Q% (is.na(mask))
+        gr$mask <- NULL
+    }
+
+    message("Preparing GRanges for conversion to arrow format")
+    dat <- gGnome::cov2cov.js(
+        gr,
         meta.js = ref_seqinfo_json,
-        js.type = 'PGV',
+        js.type = "PGV",
         field = field,
         ref = ref,
         cov.color.field = cov.color.field,
@@ -86,30 +96,30 @@ granges_to_arrow_scatterplot = function(
         ...
     )
 
-    if (!is.null(cov.color.field)){
+    if (!is.null(cov.color.field)) {
         dat[, color := color2numeric(get(cov.color.field))]
     } else {
-        if (!is.null(ref_seqinfo_json)){
-            ref_meta = get_ref_metadata(ref_seqinfo_json, ref)
-            data.table::setkey(ref_meta, 'chromosome')
-            dat$color = color2numeric(ref_meta[dat$seqnames]$color)
+        if (!is.null(ref_seqinfo_json)) {
+            ref_meta <- get_ref_metadata(ref_seqinfo_json, ref)
+            data.table::setkey(ref_meta, "chromosome")
+            dat$color <- color2numeric(ref_meta[dat$seqnames]$color)
         } else {
-            dat$color = 0
+            dat$color <- 0
         }
     }
 
-    outdt = dat[, .(x = new.start, y = get(field), color)]
+    outdt <- dat[, .(x = new.start, y = get(field), color)]
 
     # if there are any NAs for colors then set those to black
     outdt[is.na(color), color := 0]
 
     # remove NAs
-    outdt = outdt[!is.na(y)]
+    outdt <- outdt[!is.na(y)]
 
     # sort according to x values (that is what front-end expects)
-    outdt = outdt[order(x)]
+    outdt <- outdt[order(x)]
 
-    arrow_table = arrow::Table$create(
+    arrow_table <- arrow::Table$create(
         outdt,
         schema = arrow::schema(
             x = arrow::float32(),
@@ -136,18 +146,17 @@ granges_to_arrow_scatterplot = function(
 make_allelic_hetsnps <- function(
     het_pileups = NULL,
     min_normal_freq = 0.2,
-    max_normal_freq = 0.8
-) {
+    max_normal_freq = 0.8) {
     if (is.null(het_pileups) || !file.exists(het_pileups)) {
         stop("Please provide a valid path to a hetsnps file.")
     }
 
     ## prepare and filter
     hetsnps_dt <- fread(het_pileups)
-    
+
     if (all(c("alt.frac.n", "alt.frac.t") %in% colnames(hetsnps_dt))) {
-         hetsnps_dt <- hetsnps_dt[
-            alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq, 
+        hetsnps_dt <- hetsnps_dt[
+            alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq,
         ]
     }
     # hetsnps_dt <- fread(hetsnps_dt)[alt.frac.n > min_normal_freq & alt.frac.n < max_normal_freq, ]
@@ -182,10 +191,8 @@ subsample_hetsnps <- function(
     het_pileups,
     mask = NULL,
     sample_size = 100000,
-    seed = 42,
     min_normal_freq = 0.2,
-    max_normal_freq = 0.8
-    ) {
+    max_normal_freq = 0.8) {
     if (is.null(het_pileups)) {
         stop("Please provide a valid path to a hetsnps file.")
     }
@@ -198,9 +205,9 @@ subsample_hetsnps <- function(
         maska <- readRDS(mask)
     }
 
-    # apply mask 
+    # apply mask
     allelic_hetsnps <- make_allelic_hetsnps(
-        het_pileups, 
+        het_pileups,
         min_normal_freq = 0.2,
         max_normal_freq = 0.8
     )
@@ -219,7 +226,7 @@ subsample_hetsnps <- function(
     # subsample to reduce number of points drawn on front-end scatterplot
     if (!is.na(sample_size) && n_snps > sample_size) {
         message(paste("subsampling", sample_size, "points..."))
-        set.seed(seed) ## should set seed for reproducibility
+        set.seed(42) ## should set seed for reproducibility
         snps_to_include <- unique_snps[sample(n_snps, sample_size)] %>% dt2gr()
         subsampled_allelic_hetsnps <- allelic_hetsnps %&% snps_to_include
     } else {
@@ -238,64 +245,66 @@ subsample_hetsnps <- function(
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
 #' @param cores Number of cores for parallel processing (default: 1)
+#' @param mask Logical indicating whether to mask the coverage data (default: TRUE)
 #' @return None
 #' @export
 lift_denoised_coverage <- function(
     cohort,
     output_data_dir,
     cores = 1,
-    coverage_field = "foreground", 
-    color_field = NULL,
-    bin.width = 1e4
-) {
+    mask = TRUE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-    
+
     if (!dir.exists(output_data_dir)) {
         dir.create(output_data_dir, recursive = TRUE)
     }
-    
+
     # Validate required columns exist
     required_cols <- c("pair", "tumor_coverage")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-    
+
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
+        row <- cohort$inputs[i, ]
         pair_dir <- file.path(output_data_dir, row$pair)
-        
+
         if (!dir.exists(pair_dir)) {
             dir.create(pair_dir, recursive = TRUE)
         }
-        
+
         out_file <- file.path(pair_dir, "coverage.arrow")
-        
-        tryCatch({
-            if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
-                # Create arrow table
-                arrow_table <- granges_to_arrow_scatterplot(
-                    gr_path = row$tumor_coverage,
-                    field = coverage_field,
-                    ref = cohort$reference_name,
-                    cov.color.field = color_field,
-                    bin.width = bin.width
-                )
-                
-                # Write arrow table
-                message(sprintf("Writing coverage arrow file for %s", row$pair))
-                arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
-            } else {
-                warning(sprintf("Tumor coverage file missing for %s", row$pair))
+
+        tryCatch(
+            {
+                if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
+                    # Create arrow table
+                    arrow_table <- granges_to_arrow_scatterplot(
+                        gr_path = row$tumor_coverage,
+                        field = row$denoised_coverage_field,
+                        ref = cohort$reference_name,
+                        cov.color.field = row$denoised_coverage_color_field,
+                        bin.width = row$denoised_coverage_bin_width,
+                        mask = mask
+                    )
+
+                    # Write arrow table
+                    message(sprintf("Writing coverage arrow file for %s", row$pair))
+                    arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
+                } else {
+                    warning(sprintf("Tumor coverage file missing for %s", row$pair))
+                }
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
             }
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
+        )
     }, mc.cores = cores, mc.preschedule = FALSE)
-    
+
     invisible(NULL)
 }
 
@@ -313,65 +322,71 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-    
+
     if (!dir.exists(output_data_dir)) {
         dir.create(output_data_dir, recursive = TRUE)
     }
-    
+
     # Validate required columns exist
     required_cols <- c("pair", "het_pileups")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-    
+
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-        row <- cohort$inputs[i,]
+        row <- cohort$inputs[i, ]
         pair_dir <- file.path(output_data_dir, row$pair)
-        
+
         if (!dir.exists(pair_dir)) {
             dir.create(pair_dir, recursive = TRUE)
         }
-        
-        out_file <- file.path(pair_dir, "hetsnps.arrow")
-        
-        tryCatch({
-            if (!is.null(row$het_pileups) && file.exists(row$het_pileups)) {
-                # Subsample hetsnps
-                hetsnps_gr <- subsample_hetsnps(
-                    het_pileups = row$het_pileups
-                )
 
-                # col2numeric() in granges_to_arrow_scatterplot
-                # expects a hexadecimal color value, not a name
-                hetsnps_gr$col = grDevices::rgb(
-                    t(
-                        grDevices::col2rgb(hetsnps_gr$col)
-                    ), 
-                    maxColorValue = 255
-                )
-                
-                # Create arrow table
-                arrow_table <- granges_to_arrow_scatterplot(
-                    gr_path = hetsnps_gr,
-                    field = "count",
-                    ref = cohort$reference_name,
-                    cov.color.field = "col",
-                    bin.width = NA_integer_
-                )
-                
-                # Write arrow table
-                message(sprintf("Writing hetsnps arrow file for %s", row$pair))
-                arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
-            } else {
-                warning(sprintf("Het pileups file missing for %s", row$pair))
+        out_file <- file.path(pair_dir, "hetsnps.arrow")
+
+        tryCatch(
+            {
+                if (!is.null(row$het_pileups) && file.exists(row$het_pileups)) {
+                    # Subsample hetsnps
+                    hetsnps_gr <- subsample_hetsnps(
+                        het_pileups = row$het_pileups,
+                        mask = row$hetsnps_mask,
+                        sample_size = row$hetsnps_subsample_size,
+                        min_normal_freq = row$hetsnps_min_normal_freq,
+                        max_normal_freq = row$hetsnps_max_normal_freq
+                    )
+
+                    # col2numeric() in granges_to_arrow_scatterplot
+                    # expects a hexadecimal color value, not a name
+                    hetsnps_gr$col <- grDevices::rgb(
+                        t(
+                            grDevices::col2rgb(hetsnps_gr$col)
+                        ),
+                        maxColorValue = 255
+                    )
+
+                    # Create arrow table
+                    arrow_table <- granges_to_arrow_scatterplot(
+                        gr_path = hetsnps_gr,
+                        field = row$hetsnps_field,
+                        ref = cohort$reference_name,
+                        cov.color.field = row$hetsnps_color_field,
+                        bin.width = row$hetsnps_bin_width
+                    )
+
+                    # Write arrow table
+                    message(sprintf("Writing hetsnps arrow file for %s", row$pair))
+                    arrow::write_feather(arrow_table, out_file, compression = "uncompressed")
+                } else {
+                    warning(sprintf("Het pileups file missing for %s", row$pair))
+                }
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
             }
-        }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
-        })
+        )
     }, mc.cores = cores, mc.preschedule = FALSE)
-    
+
     invisible(NULL)
 }
-

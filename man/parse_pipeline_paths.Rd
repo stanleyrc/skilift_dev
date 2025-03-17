@@ -15,7 +15,7 @@ parse_pipeline_paths(
 Parses outputs of the nf-casereport directory structure
 }
 \details{
-This is a function that extracts paths from a 
+This is a function that extracts paths from a
 pipeline. The default structure is that the
 path patterns expected follow that of nf-casereport run.
 The columns it extracts are defined by

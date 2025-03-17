@@ -11,12 +11,17 @@ setup({
         start = c(100, 200, 300),
         end = c(100, 200, 300),
         total_copies = c(2, 3, 4),
-        VAF = c(0.5, 0.3, 0.4),
         gene = c("GENE1", "GENE2", "GENE3"),
+        feature_type = c("missense", "missense", "missense"),
+        annotation = c("exonic", "exonic", "exonic"),
+        REF = c("A", "G", "T"),
+        ALT = c("T", "C", "A"),
         variant.c = c("c.100A>T", "c.200G>C", "c.300T>A"),
         variant.p = c("p.K100M", "p.R200T", "p.L300P"),
-        alt = c(10, 15, 20),
-        ref = c(10, 35, 30),
+        vaf = c(0.5, 0.3, 0.4),
+        transcript_type = c("protein_coding", "protein_coding", "protein_coding"),
+        impact = c("MODERATE", "MODERATE", "MODERATE"),
+        rank = c(1, 2, 3),
         FILTER = c("PASS", "PASS", "LowQual")
     )
     
@@ -44,8 +49,10 @@ setup({
             initialize = function() {
                 self$inputs <- data.table(
                     pair = c("sample1", "sample2"),
-                    somatic_snv_cn = c(mock_rds_path, mock_rds_path),
-                    germline_snv_cn = c(mock_rds_path, mock_rds_path)
+                    multiplicity = c(mock_rds_path, mock_rds_path),
+                    germline_multiplicity = c(mock_rds_path, mock_rds_path),
+                    multiplicity_field = "total_copies",
+                    multiplicity_node_metadata = list(c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"))
                 )
             }
         )
@@ -54,7 +61,7 @@ setup({
     temp_dir <<- tempdir()
     # Create temp output directory for lift_multiplicity tests
     test_output_dir <<- file.path(temp_dir, "test_output")
-    dir.create(test_output_dir, recursive = TRUE)
+    suppressWarnings(dir.create(test_output_dir, recursive = TRUE))
 
     # Create temp RDS file with mock data
     mock_rds_path <<- file.path(temp_dir, "mock_snv.rds")
@@ -135,6 +142,7 @@ test_that("multiplicity_to_intervals handles invalid inputs appropriately", {
         )
     )
 })
+
 test_that("lift_multiplicity handles somatic mutations correctly", {
     cohort <- MockCohort$new()
     
@@ -142,8 +150,7 @@ test_that("lift_multiplicity handles somatic mutations correctly", {
     lift_multiplicity(
         cohort, 
         is_germline = FALSE, 
-        output_data_dir = test_output_dir,
-        node_metadata = c("gene", "variant.c", "variant.p", "vaf")  # Only use columns that exist in mock data
+        output_data_dir = test_output_dir
     )
     
     # Check output files exist
@@ -165,8 +172,7 @@ test_that("lift_multiplicity handles germline mutations correctly", {
     lift_multiplicity(
         cohort, 
         is_germline = TRUE, 
-        output_data_dir = test_output_dir,
-        node_metadata = c("gene", "variant.c", "variant.p", "vaf")  # Only use columns that exist in mock data
+        output_data_dir = test_output_dir
     )
     
     # Check output files exist
@@ -186,9 +192,9 @@ test_that("lift_multiplicity validates input correctly", {
     
     # Test missing required column
     bad_cohort <- MockCohort$new()
-    bad_cohort$inputs$somatic_snv_cn <- NULL
+    bad_cohort$inputs$multiplicity <- NULL
     expect_error(lift_multiplicity(bad_cohort, output_data_dir = test_output_dir),
-                "Missing required column in cohort: somatic_snv_cn")
+                "Missing required column in cohort: multiplicity")
     
     # Test missing reference name
     bad_cohort <- MockCohort$new()
@@ -204,7 +210,7 @@ test_that("lift_multiplicity works on real cohort", {
     clinical_pairs = readRDS(clinical_pairs_path)
     vip_sample = clinical_pairs[patient_id == "397089", ]
     cohort = Cohort$new(vip_sample, col_mapping = list(pair = "patient_id"))
-    cohort$inputs$somatic_snv_cn
+    cohort$inputs$multiplicity
 
     temp_dir = tempdir()
     lift_multiplicity(cohort, output_data_dir = temp_dir, cores = 4)
