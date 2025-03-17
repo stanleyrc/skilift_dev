@@ -261,49 +261,6 @@ lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
     )
   }
 
-  if (has_required_columns(cohort, Skilift:::required_columns$denoised_coverage)) {
-    lift_denoised_coverage(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      coverage_field = coverage_field,
-      color_field = color_field,
-      bin.width = bin.width
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$hetsnps)) {
-    lift_hetsnps(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
-
-  # oncotable doesn't need every single column, just any one of them
-  if (has_required_columns(cohort, Skilift:::required_columns$oncotable, any = TRUE)) {
-
-    cohort <- create_oncotable(
-      cohort = cohort,
-      outdir = oncotable_dir,
-      cores = cores
-    )
-
-    events_tbl = lift_filtered_events(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      return_table = TRUE
-    )
-  
-  } else if (has_required_columns(cohort, Skilift:::required_columns$filtered_events)) {
-    events_tbl = lift_filtered_events(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      return_table = TRUE
-    )
-  }
 
   if (has_required_columns(cohort, Skilift:::required_columns$multiplicity)) {
     lift_multiplicity(
@@ -311,39 +268,6 @@ lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
       output_data_dir = output_data_dir,
       cores = cores,
       is_germline = TRUE
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$segment_width)) {
-    lift_segment_width_distribution(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      annotations = annotations
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$variant_qc)) {
-    lift_variant_qc(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$metadata, any = TRUE)) {
-    lift_metadata(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      genome_length = genome_length
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$pp_plot)) {
-    lift_pp_plot(
-      cohort = cohort, 
-      output_data_dir = output_data_dir
     )
   }
 
@@ -385,36 +309,5 @@ lift_paired <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
     )
   }
 
-  if (has_required_columns(cohort, Skilift:::required_columns$variant_qc)) {
-    lift_variant_qc(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$metadata, any = TRUE)) {
-    lift_metadata(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      genome_length = genome_length
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$pp_plot)) {
-    lift_pp_plot(
-      cohort = cohort, 
-      output_data_dir = output_data_dir
-    )
-  }
-
-  if (has_required_columns(cohort, Skilift:::required_columns$bam, any = TRUE)) {
-    lift_bam(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
 }
 
