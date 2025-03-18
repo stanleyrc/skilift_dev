@@ -230,13 +230,14 @@ lift_multiplicity_fits <- function(cohort,
                 {
                     if (!file.exists(row[[col]])) {
                         warning(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
-                        return(NULL)
                     }
 
                     mapply(function(out_file, field_to_use) {
                         process_multiplicity_fit(row[[col]],
                             field = field_to_use,
-                            out_file = out_file
+                            out_file = out_file,
+                            save_png = F,
+                            save_html = F
                         )
                     }, out_files, field_to_use)
                 },
@@ -616,72 +617,47 @@ lift_purple_sunrise_plot <- function(cohort,
                     warning(sprintf("Purple best fit file not found for %s: %s", row$pair, row$purple_pp_bestFit))
                     return(NULL)
                 }
+                range <- fread(row$purple_pp_range)
+                fit <- fread(row$purple_pp_bestFit)
 
-                purple_purity_range <- fread(row$purple_pp_range)
-                purple_best_fit <- fread(row$purple_pp_bestFit)
+                bestPurity <- fit[, purity]
+                bestPloidy <- fit[, ploidy]
+                bestScore <- fit[, score]
 
-                bestPurity <- purple_best_fit[, purity]
-                bestPloidy <- purple_best_fit[, ploidy]
-                bestScore <- purple_best_fit[, score]
+                setorder(range, purity, ploidy)
+                range[, absScore := pmin(4, score)]
+                range[, score := pmin(1, abs(score - bestScore) / score)]
+                range[, leftPloidy := shift(ploidy, type = "lag"), by = purity]
+                range[, rightPloidy := shift(ploidy, type = "lead"), by = purity]
+                range[, xmin := ploidy - (ploidy - leftPloidy) / 2]
+                range[, xmax := ploidy + (rightPloidy - ploidy) / 2]
+                range[, ymin := purity - 0.005]
+                range[, ymax := purity + 0.005]
+                range[, xmin := ifelse(is.na(xmin), ploidy, xmin)]
+                range[, xmax := ifelse(is.na(xmax), ploidy, xmax)]
+                maxPloidy <- range[, .SD[.N], by = purity][, max(xmax)]
+                minPloidy <- range[, .SD[1], by = purity][, min(xmin)]
+                minPurity <- min(range$purity)
+                maxPurity <- max(range$purity)
+                range <- range[xmin <= maxPloidy & xmax >= minPloidy]
+                range[, xmax := pmin(xmax, maxPloidy)]
+                range[, xmin := pmax(xmin, minPloidy)]
 
-                # Process the data to match the format required by purity_ploidy_range_plot
-                setDT(purple_purity_range)
-                purple_purity_range <- purple_purity_range[order(purity, ploidy)]
-                purple_purity_range[, `:=`(
-                    absScore = pmin(4, score),
-                    score = pmin(1, abs(score - bestScore) / score),
-                    leftPloidy = shift(ploidy, type = "lag"),
-                    rightPloidy = shift(ploidy, type = "lead"))
-                ]
-                purple_purity_range[, `:=`(
-                    xmin = ploidy - (ploidy - leftPloidy) / 2,
-                    xmax = ploidy + (rightPloidy - ploidy) / 2)
-                ]
-                
-                purple_purity_range[, `:=`(
-                    ymin = purity - 0.005,
-                    ymax = purity + 0.005,
-                    xmin = ifelse(is.na(xmin), ploidy, xmin),
-                    xmax = ifelse(is.na(xmax), ploidy, xmax)
-                )]
-                
-                maxPloidy <- max(purple_purity_range$ploidy)
-                minPloidy <- min(purple_purity_range$ploidy)
-
-                minScore <- min(purple_purity_range$score)
-                maxScore <- max(purple_purity_range$score)
-
-                minPurity <- min(purple_purity_range$purity)
-                maxPurity <- max(purple_purity_range$purity)
-
-                purple_purity_range <- purple_purity_range[, .(purity, ploidy, score, xmin, xmax, ymin, ymax)]
-
-                purple_purity_range[, `:=`(
-                    beta = ploidy / (purity * ploidy + 2 * (1 - purity)),
-                    gamma = 2 * (1 - purity) / (purity * ploidy + 2 * (1 - purity))
-                )]
-
-                # Find new min and max for beta and gamma
-                purple_purity_range$beta <- round(purple_purity_range$beta, 3)
-                purple_purity_range$gamma <- round(purple_purity_range$gamma, 3)
-                minBeta <- min(purple_purity_range$beta)
-                maxBeta <- max(purple_purity_range$beta)
-                minGamma <- min(purple_purity_range$gamma)
-                maxGamma <- max(purple_purity_range$gamma)
-
+                range[, beta := ploidy / (purity * ploidy + 2 * (1 - purity))]
+                range[, gamma := 2 * (1 - purity) / (purity * ploidy + 2 * (1 - purity))]
                 bestGamma <- 2 * (1 - bestPurity) / (bestPurity * bestPloidy + 2 * (1 - bestPurity))
                 bestBeta <- bestPloidy / (bestPurity * bestPloidy + 2 * (1 - bestPurity))
 
                 # Write the processed data to JSON if save_data is TRUE
                 if (save_data) {
-                    write_json(purple_purity_range, out_file, pretty = TRUE)
+                    write_json(range[, .(purity, ploidy, score, xmin, xmax, ymin, ymax)], out_file, pretty = TRUE)
                 }
 
-                p <- create_purity_ploidy_plot(purple_purity_range, bestPloidy, bestPurity, minPurity, maxPurity, minPloidy, maxPloidy, use_geom_rect = TRUE)
-                q <- create_beta_gamma_plot(purple_purity_range, bestBeta, bestGamma, minBeta, maxBeta, minGamma, maxGamma)
+                p <- create_purity_ploidy_plot(range, bestPloidy, bestPurity, minPurity, maxPurity, minPloidy, maxPloidy, use_geom_rect = TRUE)
+                q <- create_beta_gamma_plot(range, bestBeta, bestGamma)
 
                 if (save_html) {
-                    p_html <- create_purity_ploidy_plot(purple_purity_range, bestPloidy, bestPurity, minPurity, maxPurity, minPloidy, maxPloidy, use_geom_rect = FALSE)
+                    p_html <- create_purity_ploidy_plot(range, bestPloidy, bestPurity, minPurity, maxPurity, minPloidy, maxPloidy, use_geom_rect = FALSE)
                     save_purple_sunrise_html(p_html, q, out_file_html)
                 }
 
@@ -700,43 +676,49 @@ lift_purple_sunrise_plot <- function(cohort,
 create_purity_ploidy_plot <- function(purple_purity_range, bestPloidy, bestPurity, minPurity, maxPurity, minPloidy, maxPloidy, use_geom_rect = TRUE) {
     if (use_geom_rect) {
         p <- ggplot(purple_purity_range) +
-            geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = 1 - score)) +
-            scale_fill_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = -1, name = "Relative\nScore") +
+            geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = 1- score)) +
+            scale_fill_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = 1, name = "Relative\nScore", guide = "none") +
             geom_point(aes(x = bestPloidy, y = bestPurity), color = "red", size = 5, shape = 4, stroke = 0.5) +
-            geom_segment(aes(x = bestPloidy, xend = bestPloidy, y = minPurity - 0.005, yend = 1.005), color = "red", linetype = "dotted") +
-            geom_segment(aes(x = floor(minPloidy * 2) / 2, xend = ceiling(maxPloidy * 2) / 2, y = bestPurity, yend = bestPurity), color = "red", linetype = "dotted") +
+            geom_segment(aes(x = bestPloidy, xend = bestPloidy, y = minPurity - 0.005, yend = maxPurity + 0.005), color = "red", linetype = "dotted") +
+            geom_segment(aes(x = minPloidy, xend = maxPloidy, y = bestPurity, yend = bestPurity), color = "red", linetype = "dotted") +
             theme_bw() +
-            scale_y_continuous(limits = c(minPurity - 0.005, 1.005), labels = c(paste0(minPurity * 100, "%"), "25%", "50%", "75%", "100%"), breaks = c(minPurity, 0.25, 0.5, 0.75, 1), expand = c(0, 0)) +
-            scale_x_continuous(limits = c(floor(minPloidy * 2) / 2, ceiling(maxPloidy * 2) / 2), breaks = seq(floor(minPloidy * 2) / 2, ceiling(maxPloidy * 2) / 2, 0.5), labels = seq(floor(minPloidy * 2) / 2, ceiling(maxPloidy * 2) / 2, 0.5) %>% as.character(), expand = c(0, 0)) +
+            theme(panel.background = element_rect(fill = "#f0f2f5", color = NA)) +
+            scale_y_continuous(limits = c(minPurity - 0.005, maxPurity + 0.005), labels = c(paste0(minPurity * 100, "%"), "25%", "50%", "75%", "100%"), breaks = c(minPurity, 0.25, 0.5, 0.75, 1), expand = c(0, 0)) +
+            scale_x_continuous(limits = c(minPloidy, maxPloidy), breaks = seq(minPloidy, maxPloidy, 0.5), labels = seq(minPloidy, maxPloidy, 0.5) %>% as.character(), expand = c(0, 0)) +
             xlab("Ploidy") +
             ylab("Purity")
-    } else {
+        } else {
         p <- ggplot(purple_purity_range) +
-            geom_raster(aes(x = ploidy, y = purity, fill = 1 - score)) +
-            scale_fill_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = -1, name = "Relative\nScore") +
+            geom_raster(aes(x = ploidy, y = purity, fill = 1- score)) +
+            scale_fill_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = 1, name = "Relative\nScore", guide = "none") +
             geom_point(aes(x = bestPloidy, y = bestPurity), color = "red", size = 5, shape = 4, stroke = 0.5) +
-            geom_segment(aes(x = bestPloidy, xend = bestPloidy, y = minPurity - 0.005, yend = 1.005), color = "red", linetype = "dotted") +
-            geom_segment(aes(x = floor(minPloidy * 2) / 2, xend = ceiling(maxPloidy * 2) / 2, y = bestPurity, yend = bestPurity), color = "red", linetype = "dotted") +
+            geom_segment(aes(x = bestPloidy, xend = bestPloidy, y = minPurity - 0.005, yend = maxPurity + 0.005), color = "red", linetype = "dotted") +
+            geom_segment(aes(x = minPloidy, xend = maxPloidy, y = bestPurity, yend = bestPurity), color = "red", linetype = "dotted") +
             theme_bw() +
-            scale_y_continuous(limits = c(minPurity - 0.005, 1.005), labels = c(paste0(minPurity * 100, "%"), "25%", "50%", "75%", "100%"), breaks = c(minPurity, 0.25, 0.5, 0.75, 1), expand = c(0, 0)) +
-            scale_x_continuous(limits = c(floor(minPloidy * 2) / 2, ceiling(maxPloidy * 2) / 2), breaks = seq(floor(minPloidy * 2) / 2, ceiling(maxPloidy * 2) / 2, 0.5), labels = seq(floor(minPloidy * 2) / 2, ceiling(maxPloidy * 2) / 2, 0.5) %>% as.character(), expand = c(0, 0)) +
+            theme(panel.background = element_rect(fill = "#f0f2f5", color = NA)) +
+            scale_y_continuous(limits = c(minPurity - 0.005, maxPurity + 0.005), labels = c(paste0(minPurity * 100, "%"), "25%", "50%", "75%", "100%"), breaks = c(minPurity, 0.25, 0.5, 0.75, 1), expand = c(0, 0)) +
+            scale_x_continuous(limits = c(minPloidy, maxPloidy), breaks = seq(minPloidy, maxPloidy, 0.5), labels = seq(minPloidy, maxPloidy, 0.5) %>% as.character(), expand = c(0, 0)) +
             xlab("Ploidy") +
             ylab("Purity")
-    }
+        }
     return(p)
 }
 
-create_beta_gamma_plot <- function(purple_purity_range, bestBeta, bestGamma, minBeta, maxBeta, minGamma, maxGamma) {
+create_beta_gamma_plot <- function(purple_purity_range, bestBeta, bestGamma) {
+    minBeta <- min(purple_purity_range$beta)
+    maxBeta <- max(purple_purity_range$beta)
+    minGamma <- min(purple_purity_range$gamma)
+    maxGamma <- max(purple_purity_range$gamma)
+
     p <- ggplot(purple_purity_range) +
-        geom_point(aes(x = beta, y = gamma, fill = 1 - score, color = 1 - score)) +
-        scale_fill_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = -1, name = "Relative\nScore") +
-        scale_color_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = -1, name = "Relative\nScore") +
+        geom_point(aes(x = beta, y = gamma, fill = score, color = 1 - score), size = 0.5) +
+        scale_fill_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = 1, name = "Relative\nScore") +
+        scale_color_scico(palette = "batlow", limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1), direction = 1, name = "Relative\nScore") +
         theme_bw() +
-        scale_x_continuous(limits = c(minBeta, maxBeta), breaks = seq(minBeta, maxBeta, length.out = 5)) +
-        scale_y_continuous(limits = c(minGamma, maxGamma), breaks = seq(minGamma, maxGamma, length.out = 5)) +
-        geom_point(aes(x = bestBeta, y = bestGamma), color = "red", size = 5, shape = 4, stroke = 0.5) +
-        #geom_segment(aes(x = bestBeta, xend = bestBeta, y = minGamma, yend = maxGamma), color = "red", linetype = "dotted") +
-        #geom_segment(aes(x = minBeta, xend = maxBeta, y = bestGamma, yend = bestGamma), color = "red", linetype = "dotted") +
+        theme(panel.background = element_rect(fill = "#f0f2f5", color = NA)) +
+        scale_x_continuous(limits = c(minBeta, maxBeta), breaks = seq(minBeta, maxBeta, length.out = 5) %>% round(3)) +
+        scale_y_continuous(limits = c(minGamma, maxGamma), breaks = seq(minGamma, maxGamma, length.out = 5) %>% round(3)) +
+        geom_point(aes(x = bestBeta, y = bestGamma), color = "red", size = 4, shape = 4, stroke = 0.5) +
         xlab("Beta") +
         ylab("Gamma")
     return(p)

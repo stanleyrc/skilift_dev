@@ -215,6 +215,7 @@ process_qc_metrics <- function(
     normal_wgs_metrics,
     pair
 ) {
+
     # Define metric mappings for each file type
     complexity_metrics_cols <- c(
         read_pairs_examined = "READ_PAIRS_EXAMINED",
@@ -1223,6 +1224,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
+
             # Create metadata object
 
             metadata <- create_metadata(
