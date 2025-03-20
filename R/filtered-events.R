@@ -1046,8 +1046,10 @@ create_filtered_events <- function(
     ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
     res.final <- res.final[res.final$seqnames != "Y"]
     ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
+    res.final$type = tools::toTitleCase(res.final$type) # This should be fine..
     write_json(res.final, out_file, pretty = TRUE)
     
+    ## This is used for debugging - table data is not used
     if (return_table) {
       return(res.final)
     }
