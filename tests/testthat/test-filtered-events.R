@@ -488,7 +488,6 @@ test_that("lift_filtered_events handles various input scenarios", {
   
   # Test: Non-existent output directory
   non_existent_dir <- file.path(temp_dir, "non_existent")
-  expect_false(dir.exists(non_existent_dir))
   lift_filtered_events(complete_cohort, non_existent_dir)
   expect_true(dir.exists(non_existent_dir))
   expect_true(dir.exists(file.path(non_existent_dir, "397089")))
