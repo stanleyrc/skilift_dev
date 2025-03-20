@@ -480,172 +480,6 @@ create_gwalk_json <- function(plot_metadata, datadir, settings = internal_settin
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_somatic_json_oncokb = function(patient_id,
-                                snvplicity_gr,
-                                oncokb_maf,
-                                settings,
-                                datadir,
-                                yfield,
-                                ref = "hg19") {
-  somatic_json_path <- file.path(
-    datadir,
-    patient_id,
-    "mutations.json"
-  )
-
-  snvplicity_outputs = readRDS(snvplicity_gr)
-  oncokb_maf = fread(oncokb_maf)
-
-  gr_oncokb = gUtils::dt2gr(oncokb_maf)
-  gr_oncokb$ALT = gr_oncokb$Allele
-  gr_snvcn = snvplicity_outputs
-
-  ov = gUtils::gr.findoverlaps(gr_oncokb,
-                               gr_snvcn,
-                               by = "ALT",
-                               type = "equal")
-
-  ovQuery = data.table(query.id = integer(0), subject.id = integer(0))
-  if (NROW(ov) > 0)
-    ovQuery = gUtils::gr2dt(ov)[, .(query.id, subject.id)]
-  missingIds = setdiff(1:NROW(gr_oncokb), ov$query.id)
-
-  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
-
-  if (length(missingIds) > 0) {
-    dt_oncokb = gUtils::gr2dt(gr_oncokb[missingIds])
-    invisible(dt_oncokb[, Reference_Allele_Fixed := ifelse(Reference_Allele == "-", "", Reference_Allele)])
-    invisible({
-      dt_oncokb[Variant_Type == "INS", end := start + nchar(Reference_Allele_Fixed)]
-      dt_oncokb[Variant_Type == "DEL", start := end - nchar(Reference_Allele_Fixed)]
-    })
-    dt_oncokb$oid = missingIds
-    ovMissing = gUtils::gr.findoverlaps(
-                          gUtils::dt2gr(dt_oncokb),
-                          gr_snvcn,
-                          by = "ALT", type = "equal", qcol = c("oid")
-                        )
-    missingOvQuery = gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
-  }
-
-  subject = gUtils::gr2dt(gr_snvcn)
-  subject[, subject.id := .I]
-  queries = rbind(ovQuery, missingOvQuery)
-
-  oncokb_to_merge = oncokb_maf[, c("GENE_IN_ONCOKB", "VARIANT_IN_ONCOKB", "MUTATION_EFFECT","MUTATION_EFFECT_CITATIONS" ,"ONCOGENIC","LEVEL_1", "LEVEL_2" , "LEVEL_3A" , "LEVEL_3B", "LEVEL_4","LEVEL_R1", "LEVEL_R2" ,"HIGHEST_LEVEL", "HIGHEST_SENSITIVE_LEVEL" , "HIGHEST_RESISTANCE_LEVEL", "TX_CITATIONS", "LEVEL_Dx1", "LEVEL_Dx2", "LEVEL_Dx3", "HIGHEST_DX_LEVEL", "DX_CITATIONS",  "LEVEL_Px1","LEVEL_Px2", "LEVEL_Px3", "HIGHEST_PX_LEVEL","PX_CITATIONS")][queries$query.id]
-  oncokb_to_merge[, query.id := queries$query.id]
-
-  mutations.dt = oncokb_to_merge %>%
-    merge(queries, by = "query.id", all = T) %>%
-    merge(subject, by = "subject.id", all = T) %>%
-    as.data.table()
-
-  
-  mutations.dt[, ONCOGENIC := case_when(
-                   is.na(ONCOGENIC) ~ "",
-                   grepl("Unknown", ONCOGENIC) ~ "",
-                   T ~ ONCOGENIC)]
-  mutations.dt[, MUTATION_EFFECT := case_when(
-                   is.na(MUTATION_EFFECT) ~ "",
-                   grepl("Unknown", MUTATION_EFFECT) ~ "",
-                   T ~ MUTATION_EFFECT)]
-  mutations.dt[, HIGHEST_LEVEL := case_when(
-                   HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL) ~ "",
-                   T ~ gsub("LEVEL_", "", HIGHEST_LEVEL))]
-  mutations.dt <- mutations.dt[FILTER == "PASS"]
-
-  if (any(class(mutations.dt) == "data.table")) {
-            seq_lengths <- gGnome::parse.js.seqlengths(
-                settings,
-                js.type = "PGV",
-                ref = ref
-            )
-            # check for overlap in sequence names
-            mutations.reduced <- mutations.dt[seqnames %in% names(seq_lengths),]
-            if (length(mutations.reduced) == 0) {
-                stop(sprintf(
-                    'There is no overlap between the sequence names in the reference
-                    used by PGV and the sequences in your mutations. Here is an
-                    example sequence from your mutations: "%s". And here is an
-                    example sequence from the reference used by gGnome.js: "%s"',
-                    mutations.dt$seqnames[1], names(seq_lengths)[1]
-                ))
-            }
-            # coerce vaf col name to lower case to avoid col name mismatch for vaf/VAF column
-            setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
-            mutations.dt = mutations.dt[!is.na(get(yfield)),]
-            mutations.dt[start == end, end := end +1]
-            mutations.dt[, strand := NULL]
-            # create an empty mutation annotation string, then add attributes to it if they exist
-            mut_ann <- ""
-            ## if ("annotation" %in% colnames(mutations.dt)) {
-            ##     mut_ann <- paste0("Type: ", mutations.dt$annotation, "; ")
-            ## }
-            if ("gene" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Gene: ", mutations.dt$gene, "; ")
-            }
-            if ("variant.c" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Variant: ", mutations.dt$variant.c, "; ")
-            }
-            if ("variant.p" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Protein_variant: ", mutations.dt$variant.p, "; ")
-            }
-            if ("variant.g" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Genomic_variant: ", mutations.dt$variant.g, "; ")
-            }
-            if ("vaf" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "VAF: ", round(mutations.dt$vaf, 3), "; ")
-            }
-            if ("alt" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Alt_count: ", mutations.dt$alt, "; ")
-            }
-            if ("ref" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Ref_count: ", mutations.dt$ref, "; ")
-            }
-            if ("normal.alt" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Normal_alt_count: ", mutations.dt$normal.alt, "; ")
-            }
-            if ("normal.ref" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Normal_ref_count: ", mutations.dt$normal.ref, "; ")
-            }
-            if ("FILTER" %in% colnames(mutations.dt)) {
-                mut_ann <- paste0(mut_ann, "Filter: ", mutations.dt$FILTER, "; ")
-            }
-            if ("ONCOGENIC" %in% colnames(mutations.dt)) {
-              mut_ann <- paste0(mut_ann, "Oncogenicity: ", mutations.dt$ONCOGENIC, "; ")
-            }
-            if ("MUTATION_EFFECT" %in% colnames(mutations.dt)) {
-              mut_ann <- paste0(mut_ann, "Effect: ", mutations.dt$MUTATION_EFFECT, "; ")
-            }
-            if ("HIGHEST_LEVEL" %in% colnames(mutations.dt)) {
-              mut_ann <- paste0(mut_ann, "Level: ", mutations.dt$HIGHEST_LEVEL, "; ")
-            }
-            mutations.dt[, annotation := mut_ann]
-            dt2json_mut(
-                dt = mutations.dt,
-                ref = ref,
-                settings = settings,
-                meta_data = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-                y_col = yfield,
-                file_name = somatic_json_path
-            )
-        } else {
-            warning(plot_metadata$x, " rds read was not mutations")
-        }
-
-
- }
-
-
-
-#' @description
-#' Create mutations gGraph JSON file for SOMATIC MUTATIONS.
-#'
-#' @param plot_metadata data.table with Plot metadata, columns = (patient.id, source, x (contains path to data file or reference to data file object itself), ref, overwrite).
-#' @param datadir Path to data directory with patient directories.
-#' @param settings Path to settings.json file.
-#'
-#' @return NULL.
 create_somatic_json <- function(plot_metadata, datadir, settings = internal_settings_path) {
     message("using function create_somatic_json")
     somatic_json_path <- file.path(
@@ -997,20 +831,20 @@ create_ppfit_genome_json <- function(plot_metadata, datadir, settings = internal
     )
 }
 
-## # ' @name create_somatic_json
-## # ' @title create_somatic_json
-## # ' @description
-## # '
-## # ' @param somatic_snv_cn somatic copy number data table
-## # ' @param out_file where the json should be written
-## # ' @param pair patient.id to be used for pgvdb or case reports
-## # ' @param pgv_settings the settings file used for pgvdb or case reports
-## # ' @param return_table_pgv TRUE/FALSE whether to return the data.table to add to pgvdb
-## # ' @param meta_keep meta data to write in the json
-## # ' @param y_col column to be used for y axis values
-## # ' @return data.table to add to pgv or NULL, depends on return_table_pgv
-## # ' @export
-## # ' @author Stanley Clarke
+#' @name create_somatic_json
+#' @title create_somatic_json
+#' @description
+#'
+#' @param somatic_snv_cn somatic copy number data table
+#' @param out_file where the json should be written
+#' @param pair patient.id to be used for pgvdb or case reports
+#' @param pgv_settings the settings file used for pgvdb or case reports
+#' @param return_table_pgv TRUE/FALSE whether to return the data.table to add to pgvdb
+#' @param meta_keep meta data to write in the json
+#' @param y_col column to be used for y axis values
+#' @return data.table to add to pgv or NULL, depends on return_table_pgv
+#' @export
+#' @author Stanley Clarke
 ## create_somatic_json = function(somatic_snv_cn, out_file, pair, pgv_settings, return_table_pgv = FALSE, meta_keep = NULL, y_col = "est_cn_llrm", ref = "hg19") {
 ##     som.dt = readRDS(somatic_snv_cn)
 ##     som.dt = som.dt[!is.na(get(y_col)),]
@@ -1092,466 +926,24 @@ dt2json_mut <- function(dt, patient.id, ref, settings, file_name = paste(getwd()
 #' @param probs path to sigprofiler decomposed probabilities
 #' @param is_indel Boolean to indicate if the input matrix is for indels
 #' @param data_dir path to data directory of which each subdirectory contains jsons per patient
-#' @param suffix expected suffix of sample name in decomposed_probs_json matrix, default = "_somatic" but have also seen "_0000"
 #' @param pairs vector of samples for which to create jsons, by default = NULL, indicating process all patients
-#' @param pair_name expected pair name; only supply if you know the pair name and the input table is only for one sample!
 #' @param cores number of cores to parallelize with
 #' @return data.table or NULL
 #' @export
 #' @author Johnathan Rafailov
-sigprofiler_decomposed_probs_json = function(probs,
-                                             is_indel = FALSE,
-                                             data_dir,
-                                             suffix = "_somatic",
-                                             pairs = NULL,
-                                             pair_name = NULL,
-                                             cores = 1 ){
-  fread(probs) -> decomposed.probs
-###lets change first column to something more predictable
-  colnames(decomposed.probs)[1] <- "samples"
-### seems like _somatic is systematically ended to the end of all sample names in the beginning
-  decomposed.probs[, samples := gsub(suffix, "", samples)]
-  if(!is.null(pairs)){decomposed.probs <- decomposed.probs[samples %in% pairs,]}
-  decomposed.probs.per.sample <- melt(decomposed.probs,
-                                      measure.vars = c(3:ncol(decomposed.probs)),
-                                      variable.name = "signature",
-                                      value.name = "p")
-  samples <- unique(decomposed.probs.per.sample$samples)
-  mclapply(samples, function(pair){
-    pair_data = decomposed.probs.per.sample[samples == pair]
-    if (is_indel) {
-      samp_data = data.frame(
-        signature = pair_data[,signature],
-        insdel = pair_data[[2]],
-        p = pair_data[,p]
-      )
-      catalog_file_name = "id_decomposed_prob.json"
-    } else {
-      samp_data = data.frame(
-        signature = pair_data[, signature],
-        tnc = pair_data[[2]],
-        p = pair_data[,p]
-      )
-      catalog_file_name = "sbs_decomposed_prob.json"
+sigprofiler_decomposed_probs_json <- function(probs, is_indel, data_dir, pairs, cores = 1) {
+    fread(probs) -> decomposed.probs
+    ### lets change first column to something more predictable
+    colnames(decomposed.probs)[1] <- "samples"
+    ### seems like _somatic is systematically ended to the end of all sample names in the beginning
+    decomposed.probs[, samples := gsub("_somatic", "", samples)]
+    if (!is.null(pairs)) {
+        decomposed.probs <- decomposed.probs[samples %in% pairs, ]
     }
-    if(!is.null(pair_name)){
-      write_json(samp_data, paste0(data_dir, "/", pair_name, "/", catalog_file_name))
-    } else {
-      write_json(samp_data, paste0(data_dir, "/", pair, "/", catalog_file_name))
-    }    
-  }, mc.cores = cores)
-}
-
-#' @title process_gencode
-#' @description
-#'
-#' Helper script to process gencode parameter
-#'
-#' @param gencode path to gencode file. Gencode file must be either rds or some format accepted by rtracklayer::import (e.g. GTF)
-#' @return gencode_gr GRanges
-#' @author Marcin Imielinski
-process_gencode = function(gencode = NULL){
-    if (is.null(gencode)) {
-        gencode = skidb::read_gencode()
-        print(gencode)
-    } else if (is.character(gencode)) {
-    if (grepl('.rds$', gencode))
-      gencode = readRDS(gencode)
-    else
-      gencode = rtracklayer::import(gencode)
-  }
-  return(gencode)
-}
-
-#' @name grok_bcf
-#' @rdname
-#' @title Reads and parses bcf via bcftools call
-#' @param bcf path to bcf file
-#' @param gr optional granges to query
-#' @param bpath path to bcftools binary executable
-#' @export
-grok_bcf = function(bcf, gr = NULL, bpath = "/nfs/sw/bcftools/bcftools-1.9/bin/bcftools", label = NA, filter = 'PASS', snv = FALSE, indel = FALSE, het = FALSE, hom = FALSE, keep.modifier = TRUE, long = FALSE, oneliner = FALSE, verbose = FALSE)
-{
-  cmd = sprintf('%s view %s', bpath, bcf)
-
-  if (is.na(label))
-    label = bcf
-
-  if (!is.null(gr))
-  {
-    wins = paste(gr.string(gr.stripstrand(gr)), collapse = ',')
-    cmd = paste(cmd, '-r', wins)
-  }
-
-  if (!is.null(filter) && !is.na(filter))
-  {
-    cmd = paste(cmd, sprintf('-i \'FILTER="%s"\'', filter))
-  }
-
-  if (het)
-  {
-    cmd = paste(cmd, '-g het')
-  }
-
-  if (indel)
-  {
-    cmd = paste(cmd, '-v indels')
-  }
-
-  if (snv)
-  {
-    cmd = paste(cmd, '-v snps')
-  }
-
-  if (het)
-  {
-    cmd = paste(cmd, '-g het')
-  }
-
-  if (hom)
-  {
-    cmd = paste(cmd, '-g hom')
-  }
-  
-  ## quick dunlist
-  .dunlist = function(x)
-  {
-    ## simplified dunlist to output integer listid and also listiid 
-    out = data.table(listid = rep(1:length(x), elementNROWS(x)), V1 = unlist(x))[, listiid := 1:.N, by = listid]
-    return(out)
-  }
-  
-  if (verbose)
-    message(cmd)
-    
-  p = pipe(cmd)
-  lines = readLines(p)
-  close(p)
-
-  is.header = grepl('^\\#', lines)
-  header = lines[is.header]
-  contigs = strsplit(gsub('^\\#\\#', '', grep('contig', header, value = TRUE)), ',')
-  sl = suppressWarnings(structure(names = gsub('.*ID=\\<', '', sapply(contigs, '[', 1)),
-                 as.numeric(gsub('>$', '', gsub('.*length=\\<', '', sapply(contigs, '[', 2))))))
-  
-  other = lines[!is.header]
-  if (length(other))
-    {
-      out = fread(paste(c(other, ''), collapse = '\n'), sep = "\t", header = FALSE)
-      sn = unlist(strsplit(gsub('^\\#', '', header[length(header)]), '\\t'))
-      sfields = sn[-c(1:9)]
-      setnames(out, sn)
-      out[, seqnames := as.character(CHROM)]
-      out[, start := POS]
-      out[, end := POS]
-      out[, listid := 1:.N] ## set listid to keep track of lists
-      ## unpack bcf "format" + sample fields
-
-
-      if (!is.null(out$FORMAT))
-        {
-          fdat = .dunlist(strsplit(out$FORMAT, ':'))
-          setnames(fdat,2,'field')
-                                        #  out$FORMAT = NULL ### keep in for now for sanity checks 
-          for (sfield in sfields) ## can be more than one sample field
-          {
-            fdatm = fdat %>% merge(.dunlist(strsplit(out[[sfield]], ':')), by = c('listid', 'listiid')) ## merge on both listid and listiid 
-            fdatc = dcast.data.table(copy(fdatm)[, field := paste(sfield, field, sep = '_')], listid ~ field, value.var = 'V1')
-            out = merge(out, fdatc, by = 'listid', all.x = TRUE) ## order of out should be maintained here since keyed by listid which (now) is an integer
-          }
-        }
-
-      if (!is.null(out$INFO))
-        {
-          ## unpack "info" field
-          idat = .dunlist(strsplit(out$INFO, ';'))
-          idat = cbind(idat, colsplit(idat$V1, pattern = "=", names = c("field","value")))
-          idatc = dcast.data.table(idat, listid ~ field, value.var = 'value')
-          out$INFO = NULL
-          mcols = setdiff(names(idatc), c('REF', 'ALT'))
-          out = merge(out, idatc[, mcols, with = FALSE], by = 'listid', all.x = TRUE) ##
-        }
-      
-      out = dt2gr(out, seqlengths = sl)
-      out = grok_vcf(out, keep.modifier = keep.modifier, long = long, oneliner = oneliner, verbose = verbose, label = label)
-    }
-  else
-    out = GRanges(seqlengths = sl)
-  return(out)
-}
-
-#' @name oncotable
-#' @title oncotable
-#' @description
-#'
-#' THIS ONCOTABLE IS ADAPTED FOR SKILIFT
-#' in that it will report only the putatively impacted transcript based on SnpEff outputs to remove duplicated SNV entries
-#'
-#' Takes as input (keyed) "tumors" (aka pairs) table which a metadata table with specific
-#' columns pointing to paths corresponding to one or more of the following pipeline outputs:
-#'
-#' $annotated_bcf  Path to annotated.bcf file that is the primary output of SnpEff module from which TMB and basic mutation
-#' descriptions are extracted along with their basic categories (these will comprising the core of the oncoplot are computed)
-#' 
-#' $fusions  Path to fusion.rds file that is the primary output of the Fusions modjle, from which protein coding fusions will
-#' be computed for
-#' 
-#' $jabba_rds  Path to jabba.simple.rds output representing primary output of JaBbA module from which SCNA and overall
-#' junction burden are computed
-#' 
-#' $complex    Path to complex.rds gGnome cached object that is the primary output of Events module, from which simple
-#' and complex event burdens are computed
-#' 
-#' $signature_counts Path to signature_counts.txt that is the primary output of Signatures module from which SNV signature
-#' counts are computed
-#' 
-#' The function then outputs a melted data.table of "interesting" features that can be saved and/or immediately output
-#' into oncoprint.  This data.table will at the very least have fields $id $type (event type), $track, and  $source
-#' populated in addition to a few other data type specific columns.
-#'
-#' The $source column is the name of the column of tumors from which that data was extracted, and track is a grouping
-#' variable that allows separation of the various data types. 
-#'
-#' All the paths above can be NA or non existent, in which case a dummy row is inserted into the table so that downstream
-#' applications know that data is missing for that sample. 
-#'
-#' @param tumors keyed data.table i.e. keyed by unique tumor id with specific columns corresponding to  paths to pipeline outputs(see description)
-#' @param gencode path to gencode with just a single entry for each gene (so gencode entries for each gene are collapse to a single range). The input could be .gtf or .rds with GRanges object, or a GRanges object i.e. resulting from importing the (appropriate) GENCODE .gtf via rtracklayer, note: this input is only used in CNA to gene mapping. If nothing is provided then 'http://mskilab.com/fishHook/hg19/gencode.v19.genes.gtf' is used by default.
-#' @param amp.thresh SCNA amplification threshold to call an amp as a function of ploidy (4)
-#' @param del.thresh SCNA deletion threshold for (het) del as a function of ploidy (by default cn = 1 will be called del, but this allows additoinal regions in high ploidy tumors to be considered het dels)
-#' @param mc.cores number of cores for multithreading
-#' @param verbose logical flag 
-#' @author Marcin Imielinski
-#' @export
-oncotable = function(tumors, gencode = 'http://mskilab.com/fishHook/hg19/gencode.v19.genes.gtf', verbose = TRUE, amp.thresh = 4, filter = 'PASS', del.thresh = 0.5, mc.cores = 1)
-{
-  gencode = process_gencode(gencode)
-
-  if ('type' %in% names(mcols(gencode))){
-      # This is a bit hacky. The hg38 object does not contain the "type" column so we check if it is there and only use it when it is present
-      pge = gencode %Q% (type  == 'gene' & gene_type == 'protein_coding')
-  } else {
-      pge = gencode %Q% (gene_type == 'protein_coding')
-  }
-
-  .oncotable = function(dat, x = dat[[key(dat)]][1], pge, verbose = TRUE, amp.thresh = 2, del.thresh = 0.5, filter = 'PASS')
-  {
-    out = data.table()
-
-    ## collect gene fusions
-    if (!is.null(dat$fusions) && file.exists(dat[x, fusions]))
-    {
-      if (verbose)
-        message('pulling $fusions for ', x)
-      fus = readRDS(dat[x, fusions])$meta
-      if (nrow(fus))
-      {
-        fus = fus[silent == FALSE, ][!duplicated(genes), ]
-        fus[, vartype := ifelse(in.frame == TRUE, 'fusion', 'outframe_fusion')] # annotate out of frame fusions
-        fus = fus[, .(
-            gene = strsplit(genes, ',') %>% unlist,
-            vartype = rep(vartype, sapply(strsplit(genes, ','), length)),
-            fusion_genes = rep(genes, sapply(strsplit(genes, ','), length))
-        )][, id := x][, track := 'variants'][, type := vartype][, source := 'fusions']
-        # get coordinates for fusion genes
-        fus[, fusion_gene_coords := unlist(lapply(strsplit(fusion_genes, ','), function(genes) {
-          coords <- lapply(genes, function(gene) {
-            gene_ranges <- pge[mcols(pge)$gene_name == gene]
-            paste0(seqnames(gene_ranges), ":", start(gene_ranges), "-", end(gene_ranges))
-          })
-          paste(unlist(coords), collapse = ",")
-        }))]
-        out = rbind(out, fus, fill = TRUE, use.names = TRUE)
-      }
-    } 
-    else ## signal missing result
-      out = rbind(out, data.table(id = x, type = NA, source = 'fusions'), fill = TRUE, use.names = TRUE)
-
-    ## collect complex events
-    if (!is.null(dat$complex) && file.exists(dat[x, complex]))
-    {
-      if (verbose)
-        message('pulling $complex events for ', x)
-      sv = readRDS(dat[x, complex])$meta$events
-      if (nrow(sv))
-      {
-        sv = sv[, .(value = .N), by = type][, id := x][, track := ifelse(type %in% c('del', 'dup', 'invdup', 'tra', 'inv'), 'simple sv', 'complex sv')][, source := 'complex']
-        out = rbind(out, sv, fill = TRUE, use.names = TRUE)
-      }
-    }
-    else
-      out = rbind(out, data.table(id = x, type = NA, source = 'complex'), fill = TRUE, use.names = TRUE)
-
-    ## collect copy number / jabba
-    if (!is.null(dat$jabba_rds) && file.exists(dat[x, jabba_rds]))
-    {
-      if (verbose)
-        message('pulling $jabba_rds to get SCNA and purity / ploidy for ', x)
-      jab = readRDS(dat[x, jabba_rds])
-      out = rbind(out,
-                  data.table(id = x, value = c(jab$purity, jab$ploidy), type = c('purity', 'ploidy'), track = 'pp'),
-                  fill = TRUE, use.names = TRUE)
-
-      # get the ncn data from jabba
-      if (is.null(dat$karyograph) || !file.exists(dat[x, karyograph])) {
-        stop("karyograph file not found")
-      }
-
-      kag = readRDS(dat$karyograph)
-      nseg = NULL
-      if ('ncn' %in% names(mcols(kag$segstats))){
-          nseg = kag$segstats[,c('ncn')]
-      }
-      scna = get_gene_ampdels_from_jabba(jab, amp.thresh = amp.thresh,
-                                     del.thresh = del.thresh, pge = pge, nseg = nseg)
-
-        if (nrow(scna))
-        {
-          scna[, track := 'variants'][, source := 'jabba_rds'][, vartype := 'scna']
-          out = rbind(out,
-                      scna[, .(id = x, value = min_cn, type, track, gene = gene_name)],
-                      fill = TRUE, use.names = TRUE)
-        }
-    } else {
-      out = rbind(out, data.table(id = x, type = NA, source = 'jabba_rds'), fill = TRUE, use.names = TRUE)
-    }
-
-    ## collect signatures
-    if (!is.null(dat$signature_counts) && file.exists(dat[x, signature_counts]))
-    {
-      if (verbose)
-        message('pulling $signature_counts for ', x)
-      sig = fread(dat[x, signature_counts])
-      sig = sig[, .(id = x, value = num_events, type = Signature, etiology = Etiology, frac = frac.events, track = 'signature', source = 'signature_counts')]
-      out = rbind(out, sig, fill = TRUE, use.names = TRUE)
-    }
-    else
-      out = rbind(out, data.table(id = x, type = NA, source = 'signature_counts'), fill = TRUE, use.names = TRUE)
-
-    ## collect gene mutations
-    if (!is.null(dat$annotated_bcf) && file.exists(dat[x, annotated_bcf]))
-    {
-      if (verbose)
-        message('pulling $annotated_bcf for ', x, ' using FILTER=', filter)
-      local_bcftools_path <- Sys.which("bcftools")
-      local_bcftools_path <- ifelse(local_bcftools_path == "", stop("bcftools not found in the system PATH. Please install or moudule load bcftools."), local_bcftools_path)
-      message("bcftools found at: ", local_bcftools_path)
-      bcf = grok_bcf(dat[x, annotated_bcf], label = x, long = TRUE, filter = filter, bpath=local_bcftools_path)
-      if (verbose)
-        message(length(bcf), ' variants pass filter')
-      genome.size = sum(seqlengths(bcf), na.rm = TRUE)/1e6
-      if (is.na(genome.size)) ## something went wrong with vcf
-        genome.size = sum(seqlengths(gG(jabba = dat[x, jabba_rds])), na.rm = TRUE)/1e6
-      nmut = data.table(as.character(seqnames(bcf)), start(bcf), end(bcf), bcf$REF, bcf$ALT) %>% unique %>% nrow
-      mut.density = data.table(id = x, value = c(nmut, nmut/genome.size), type = c('count', 'density'),  track = 'tmb', source = 'annotated_bcf')
-      out = rbind(out, mut.density, fill = TRUE, use.names = TRUE)
-      keepeff = c('trunc', 'cnadel', 'cnadup', 'complexsv', 'splice', 'inframe_indel', 'fusion', 'missense', 'promoter', 'regulatory','mir')
-      bcf = bcf[bcf$short %in% keepeff]
-      if (verbose)
-        message(length(bcf), ' variants pass keepeff')
-      vars = NULL
-      if (length(bcf))
-      {
-        bcf$variant.g = paste0(seqnames(bcf), ':', start(bcf), '-', end(bcf), ' ', bcf$REF, '>', bcf$ALT)
-        vars = gr2dt(bcf)[, .(id = x, gene, vartype, variant.g, variant.p, distance, annotation, type = short, track = 'variants', source = 'annotated_bcf')]
-        setkey(vars, variant.g)
-        vars = vars[, .SD[1], by = variant.g]
-      }
-      out = rbind(out, vars, fill = TRUE, use.names = TRUE)
-    }
-    else
-      out = rbind(out, data.table(id = x, type = NA, source = 'annotated_bcf'), fill = TRUE, use.names = TRUE)
-
-    if (verbose)
-      message('done ', x)
-
-    return(out)
-  }
-
-  if (is.null(key(tumors)))
-  {
-    if (is.null(tumors$id))
-      stop('Input tumors table must be keyed or have column $id')
-    else
-      setkey(tumors, id)
-  }
-
-  out = mclapply(tumors[[key(tumors)]], .oncotable,
-                 dat = tumors, pge = pge, amp.thresh = amp.thresh, filter = filter, del.thresh = del.thresh, verbose = verbose, mc.cores = mc.cores)
-  out = rbindlist(out, fill = TRUE, use.names = TRUE)
-
-  setnames(out, 'id', key(tumors))
-  return(out)
-}
-
-
-#' @name create_oncotable
-#' @title create_oncotable
-#' @description
-#'
-#' function to create oncotable for use with filtered_events_json
-#' 
-#' @param pair patient id 
-#' @param annotated_bcf bcf with variant annotations (snpeff)
-#' @param signature_counts output of Signatures task (optional)
-#' @param jabba_simple jabba.simple.rds from JaBbA
-#' @param fusions output of fusions task
-#' @param events output of events task 
-#' @param gencode file to gencode annotations (uses v29lift37 by default)
-#' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
-#' @param outdir path to directory in which to write oncotable outputs
-#' @return data.table or NULL
-#' @export
-#' @author Shihab Dider, Joel Rosiene
-create_oncotable = function(
-    pair,
-    annotated_bcf,
-    signature_counts = NULL,
-    fusions,
-    jabba_simple,
-    karyograph,
-    events,
-    gencode = NULL,
-    amp_thresh_multiplier = NULL,
-    outdir
-) {
-    tumors = data.table(
-      id = pair,
-      annotated_bcf = annotated_bcf,
-      signature_counts = signature_counts,
-      fusions = fusions,
-      jabba_rds = jabba_simple,
-      karyograph = karyograph,
-      complex = events
-    )
-    setkey(tumors, id)
-
-    if (system("which bcftools", intern = TRUE) == "") {
-      stop("bcftools is not available on the system PATH. Try `module load htslib` first or install it.")
-    } else {
-      message("bcftools is available.")
-    }
-
-    if (is.null(gencode)) {
-        warning("path to gencode was not passed, setting to default ~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds")
-        gencode = "~/DB/GENCODE/gencode.v29lift37.annotation.nochr.rds"
-    }
-
-    if (is.null(amp_thresh_multiplier)) {
-        warning("amp_thres_multiplier was not passed, setting to default 1.5")
-        amp_thresh_multiplier = 1.5
-    }
-
-    ploidy = ifelse(is.null(readRDS(jabba_simple)$ploidy), readRDS(jabba_simple)$meta$ploidy, readRDS(jabba_simple)$ploidy)
-    amp_thresh = amp_thresh_multiplier*ploidy
-    message(paste("using amp.thresh of", amp_thresh))
-
-    oncotable = oncotable(
-      tumors,
-      gencode = gencode,
-      filter = "PASS",
-      verbose = TRUE,
-      amp.thresh=amp_thresh
+    decomposed.probs.per.sample <- melt(decomposed.probs,
+        measure.vars = c(3:ncol(decomposed.probs)),
+        variable.name = "signature",
+        value.name = "p"
     )
     samples <- unique(decomposed.probs.per.sample$samples)
     mclapply(samples, function(pair) {
@@ -1895,15 +1287,13 @@ dlrs <- function(x) {
 #' @author Shihab Dider, Sukanya Panja
 create_mutations_catalog_json <- function(
     sig_matrix_path,
-    is_indel = FALSE,
-    suffix = "_somatic",
-    output_dir
-) {
-    sig_matrix = fread(sig_matrix_path)
-    sig_matrix_dt = as.data.frame(sig_matrix)
-    samples = gsub(suffix, "", colnames(sig_matrix_dt))
-    for(i in 2:(ncol(sig_matrix_dt))) { # skip first column as it has the tnc
-        pair = samples[i]
+    is_indel,
+    output_dir) {
+    sig_matrix <- fread(sig_matrix_path)
+    sig_matrix_dt <- as.data.frame(sig_matrix)
+    samples <- colnames(sig_matrix_dt)
+    for (i in 2:(ncol(sig_matrix_dt))) { # skip first column as it has the tnc
+        pair <- samples[i]
 
         if (is_indel) {
             samp_data <- data.frame(
@@ -1922,7 +1312,7 @@ create_mutations_catalog_json <- function(
         }
         pair_data <- list(pair = pair, data = samp_data)
         system(paste("mkdir -p", paste0(output_dir, "/", pair)))
-        output_path = paste0(output_dir, "/", pair, "/", catalog_file_name)
+        output_path <- paste0(output_dir, "/", catalog_file_name)
         write_json(
             pair_data,
             output_path,
@@ -2223,7 +1613,7 @@ meta_data_json <- function(
     }
 
     ## Load beta/gamma for karyograph
-   if (!is.null(coverage)) {
+    if (!is.null(coverage)) {
         rel2abs.cov <- skitools::rel2abs(readRDS(coverage),
             field = "foreground.X",
             purity = meta.dt$purity,
@@ -2352,7 +1742,7 @@ create_distributions <- function(
 
     files <- list.files(
         case_reports_data_folder,
-        pattern = "metadata.json$",
+        pattern = "metadata.json",
         recursive = TRUE,
         full.names = TRUE
     )
@@ -2412,22 +1802,6 @@ create_distributions <- function(
         tmb.dt = list(
             cols = c("pair", "tmb", "tumor_type"),
             new_names = c("pair", "value", "tumor_type")
-        ),
-        msisensor.dt = list(
-            cols = c("pair", "msisensor.score", "tumor_type"),
-            new_names = c("pair", "value", "tumor_type")
-        ),
-        b1_2.dt = list(
-            cols = c("pair", "hrd.b1_2_score", "tumor_type"),
-            new_names = c("pair", "value", "tumor_type")
-        ),
-        b1.dt = list(
-            cols = c("pair", "hrd.b1_score", "tumor_type"),
-            new_names = c("pair", "value", "tumor_type")
-        ),
-        b2.dt = list(
-            cols = c("pair", "hrd.b2_score", "tumor_type"),
-            new_names = c("pair", "value", "tumor_type")
         )
     )
 
@@ -2466,10 +1840,6 @@ create_distributions <- function(
             "purity",
             "coverageVariance",
             "tmb",
-            "msisensor",
-            "b1_2",
-            "b1",
-            "b2",
             "sbs",
             "sigprofiler_indel_fraction",
             "sigprofiler_indel_count",
@@ -2485,19 +1855,13 @@ create_distributions <- function(
             "ploidy",
             "purity",
             "coverageVariance",
-            "tmb",
-            "msisensor",
-            "b1_2",
-            "b1",
-            "b2"
+            "tmb"
         )
     }
 
     if (write_to_json) {
         if (is.null(common_dir)) {
-            # follow directory structure
-            common_dir <- paste0(case_reports_datadir, "../common") %>% normalizePath()
-            dir.exists(common_dir) || stop("common_dir must be provided if write_to_json is TRUE")
+            stop("common_dir must be provided if write_to_json is TRUE")
         }
         write_distributions_to_json(json.lst, common_dir, cores, overwrite, haveSignatures)
         return(NULL)
@@ -2635,10 +1999,6 @@ write_distributions_to_json <- function(
     write_json_file(distributions$purity, paste0(common_folder, "/purity.json"))
     write_json_file(distributions$coverageVariance, paste0(common_folder, "/coverageVariance.json"))
     write_json_file(distributions$tmb, paste0(common_folder, "/tmb.json"))
-    write_json_file(distributions$msisensor, paste0(common_folder, "/msisensor.json"))
-    write_json_file(distributions$b1_2, paste0(common_folder, "/b1_2.json"))
-    write_json_file(distributions$b1, paste0(common_folder, "/b1.json"))
-    write_json_file(distributions$b2, paste0(common_folder, "/b2.json"))
 
     if (haveSignatures) {
         write_signature_jsons(
@@ -2673,11 +2033,7 @@ load_distributions <- function(
             "purity.json",
             "snvCount.json",
             "svCount.json",
-            "tmb.json",
-            "msisensor.json",
-            "b1_2.json",
-            "b1.json",
-            "b2.json"
+            "tmb.json"
         )
     )
     files.dt <- data.table(
@@ -2688,11 +2044,7 @@ load_distributions <- function(
             "purity",
             "snvCount",
             "svCount",
-            "tmb",
-            "msisensor",
-            "b1_2",
-            "b1",
-            "b2"
+            "tmb"
         ),
         file = files.lst
     )
@@ -2755,10 +2107,6 @@ add_patient_to_distributions <- function(
     distributions$purity <- update_distribution(distributions$purity, new_patient_data, "purity")
     distributions$coverageVariance <- update_distribution(distributions$coverageVariance, new_patient_data, "dlrs")
     distributions$tmb <- update_distribution(distributions$tmb, new_patient_data, "tmb")
-    distributions$msisensor <- update_distribution(distributions$msisensor, new_patient_data, "msisensor.score")
-    distributions$b1_2 <- update_distribution(distributions$b1_2, new_patient_data, "hrd.b1_2_score")
-    distributions$b1 <- update_distribution(distributions$b1, new_patient_data, "hrd.b1_score")
-    distributions$b2 <- update_distribution(distributions$b2, new_patient_data, "hrd.b2_score")
 
     # Update signature distributions
     update_signature_distribution <- function(distribution, new_data, key_prefix) {
@@ -3286,7 +2634,7 @@ cov2abs <- function(
         purity <- purity
         ploidy <- ploidy
     }
-    mcols(cov_gr)[new_col] <- skitools::rel2abs(
+    mcols(cov_gr)[new_col] <- rel2abs(
         gr = cov_gr,
         purity = purity,
         ploidy = ploidy,
