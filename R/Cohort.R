@@ -862,7 +862,6 @@ dcastski = function(
 #' @export
 merge.Cohort <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
   cohorts <- list(...)
-
   # Validate inputs are all Cohorts
   if (length(cohorts) < 2) {
     stop("At least two Cohort objects must be provided")

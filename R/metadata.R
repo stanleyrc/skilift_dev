@@ -1166,7 +1166,7 @@ create_metadata <- function(
 #' @param genome_length Genome length for the samples (for targeted panels or WES data)
 #' @return None
 #' @export
-lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NULL) {
+lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(1:22, "X", "Y")) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
