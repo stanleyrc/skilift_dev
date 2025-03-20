@@ -444,57 +444,59 @@ test_that("merge combines Cohort objects correctly", {
   cohort3 <- suppressWarnings(Cohort$new(dt3))
   
   # Test basic merge without duplicates
-  merged <- suppressWarnings(merge(cohort1, cohort2))
+  merged <- suppressWarnings(merge.Cohort(cohort1, cohort2))
   expect_equal(nrow(merged$inputs), 4)
   expect_true(all(c("structural_variants", "somatic_snvs") %in% names(merged$inputs)))
   expect_equal(merged$inputs$pair, c("sample1", "sample2", "sample3", "sample4"))
   
   # Test merge with duplicates and warning
   expect_warning(
-    merged <- merge(cohort1, cohort3),
+    merged <- merge.Cohort(cohort1, cohort3),
     "Found 1 duplicate pair\\(s\\): sample2"
   )
   expect_equal(nrow(merged$inputs), 3)  # Duplicate removed
   expect_equal(merged$inputs$pair, c("sample1", "sample2", "sample5"))
   
   # Test merge with duplicates and renaming
-  merged <- suppressWarnings(merge(cohort1, cohort3, rename_duplicates = TRUE))
+  merged <- suppressWarnings(merge.Cohort(cohort1, cohort3, rename_duplicates = TRUE))
   expect_equal(nrow(merged$inputs), 4)  # All rows kept
   expect_true("sample2_1" %in% merged$inputs$pair)
   
   # Test merge with warning disabled
-  merged <- suppressWarnings(merge(cohort1, cohort3, warn_duplicates = FALSE))
+  merged <- suppressWarnings(merge.Cohort(cohort1, cohort3, warn_duplicates = FALSE))
   expect_equal(nrow(merged$inputs), 3)
   
   # Test merge with more than two cohorts
-  merged <- suppressWarnings(merge(cohort1, cohort2, cohort3, rename_duplicates = TRUE))
+  merged <- suppressWarnings(merge.Cohort(cohort1, cohort2, cohort3, rename_duplicates = TRUE))
   expect_equal(nrow(merged$inputs), 6)
   expect_true(all(c("structural_variants", "somatic_snvs", "het_pileups") %in% names(merged$inputs)))
   
   # Test error when trying to merge single cohort
   expect_error(
-    merge(cohort1),
+    merge.Cohort(cohort1),
     "At least two Cohort objects must be provided"
   )
   
   # Test error when trying to merge non-Cohort objects
   expect_error(
-    merge(cohort1, dt1),
+    merge.Cohort(cohort1, dt1),
     "All arguments must be Cohort objects"
   )
 })
 
 # integration tests (only works on NYU hpc)
-test_that("Cohort constructor handles real pairs table correctly", {
-  clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
-  clinical_pairs = readRDS(clinical_pairs_path)
-  expect_silent(suppressWarnings(cohort <- Cohort$new(clinical_pairs)))
-  expect_true(!is.null(cohort))  # Add a positive assertion
-})
+run_integration_tests = FALSE
+if (run_integration_tests) {
+  test_that("Cohort constructor handles real pairs table correctly", {
+    clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
+    clinical_pairs = readRDS(clinical_pairs_path)
+    expect_silent(suppressWarnings(cohort <- Cohort$new(clinical_pairs)))
+    expect_true(!is.null(cohort))  # Add a positive assertion
+  })
 
-test_that("Cohort construct handles real pipeline directory correctly", {
-  pipeline_dir = "/gpfs/data/imielinskilab/projects/Clinical_NYU/nf-casereports-other/"
-  cohort <- Cohort$new(pipeline_dir)
-  expect_silent(cohort <- Cohort$new(pipeline_dir))
-})
-
+  test_that("Cohort construct handles real pipeline directory correctly", {
+    pipeline_dir = "/gpfs/data/imielinskilab/projects/Clinical_NYU/nf-casereports-other/"
+    cohort <- Cohort$new(pipeline_dir)
+    expect_silent(cohort <- Cohort$new(pipeline_dir))
+  })
+}
