@@ -1003,7 +1003,7 @@ create_filtered_events <- function(
     res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
     res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
     res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
-    res.mut <- res[!is.na(Variant), ]
+    res.mut <- res[vartype == "SNV"]
     if (nrow(res.mut) > 0) {
       # res.mut[, Variant := gsub("p.", "", Variant)]
       res.mut[, vartype := "SNV"]
@@ -1013,7 +1013,15 @@ create_filtered_events <- function(
       # but we should encode this as something more robust
       # res.mut[type=="trunc", vartype := "DEL"]
     }
-    res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
+    res.fus = res[type == "fusion"] ## need to deal each class explicitly
+    if (NROW(res.fus) > 0) {
+      res.fus$Variant = res.fus$vartype
+      res.fus$estimated_altered_copies = res.fus$fusion_cn
+    }
+    res.cn.dt = res.cn <- res[(
+      type == "SCNA" ## FIXME: redundant logic for now
+      | vartype %in% c("AMP", "HOMDEL")
+    )]
     if (nrow(res.cn) > 0) {
       jab <- readRDS(jabba_gg)
       res.cn.gr <- GRanges(res.cn)
@@ -1025,33 +1033,20 @@ create_filtered_events <- function(
 
       # remove redundant columns since already added to Variant
       res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL]
-      res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
-    } else {
-      res.final <- res.mut
     }
+    res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
+    res.final[, sample := pair]
     if (cohort_type == "heme") {
       res.final <- select_heme_events(res.final)
     }
+    ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
+    res.final <- res.final[res.final$seqnames != "Y"]
+    ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
     write_json(res.final, out_file, pretty = TRUE)
-    res.final[, sample := pair]
+    
     if (return_table) {
       return(res.final)
     }
-    res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
-    res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
-  } else {
-    res.final <- res.mut
-  }
-  if (cohort_type == "heme") {
-    res.final <- select_heme_events(res.final)
-  }
-  ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
-  res.final <- res.final[res.final$seqnames != "Y"]
-  ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
-  write_json(res.final, out_file, pretty = TRUE)
-  res.final[, sample := pair]
-  if (return_table) {
-    return(res.final)
   }
   NULL
 }
@@ -1083,7 +1078,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
-    cohort_type = cohort$cohort_type
+    cohort_type = cohort$type
     # Process each sample in parallel
     lst_outs = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
@@ -1104,7 +1099,6 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 oncotable = row$oncotable,
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
-                temp_fix = FALSE,
                 return_table = return_table,
                 cohort_type = cohort_type
             )
