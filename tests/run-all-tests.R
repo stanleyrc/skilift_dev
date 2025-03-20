@@ -1,12 +1,12 @@
 suppressWarnings(devtools::load_all())
 
-setwd("~/git/skilift/")
+setwd("~/Projects/skilift/")
 
 library(testthat)
 
 # test_all <- function() { testthat::test_file("tests/run-all-tests.R") }
 
-testthat::test_dir("tests/testthat", reporter = testthat::ListReporter)
+# testthat::test_dir("tests/testthat", reporter = testthat::ListReporter)
 
 # testthat::test_file("tests/testthat/test-CaseReportsData.R")
 testthat::test_file("tests/testthat/test-Cohort.R")

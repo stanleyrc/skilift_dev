@@ -187,8 +187,10 @@ collect_copy_number_jabba <- function(
 
   if (verbose) message("pulling jabba_rds to get SCNA and purity / ploidy")
   jab <- readRDS(jabba_rds)
-  jabpurity <- ifelse(!is.null(jab$meta$purity), jab$meta$purity, jab$purity)
-  jabploidy <- ifelse(!is.null(jab$meta$ploidy), jab$meta$ploidy, jab$ploidy)
+  jabpurity = jabploidy = NA_real_
+  if (!is.null(jab$meta$purity)) { jabpurity = jab$meta$purity }
+  if (!is.null(jab$meta$ploidy)) { jabploidy = jab$meta$ploidy }
+
   result <- data.table(
     value = c(jabpurity, jabploidy),
     type = c("purity", "ploidy"),
@@ -1103,9 +1105,12 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 cohort_type = cohort_type
             )
             if (identical(cohort_type, "heme")) {
-              create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
+              create_heme_highlights(
+                events_tbl = out,
+                jabba_gg = row$jabba_gg,
+                out_file = highlights_out_file
+              )
             }
-            
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
             NULL
