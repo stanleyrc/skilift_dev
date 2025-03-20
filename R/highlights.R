@@ -117,7 +117,7 @@ create_heme_highlights = function(
   hemedb_fusions_fr = rbind(hemedb_fusions, hemedb_fusions_rev)
 
 
-  svs = events_tbl[events_tbl$type == "fusion",]
+  svs = events_tbl[grepl("fusion", events_tbl$type, ignore.case = TRUE)]
   svsForJson = data.table::copy(emptyDfForJson)
   fg_exon = svs$fusion_genes ## this still works if svs is empty
   fg_exon = gsub("@.*$", "", fg_exon)
@@ -169,7 +169,7 @@ create_heme_highlights = function(
   }
   
 
-  cna = events_tbl[events_tbl$type == "SCNA",]
+  cna = events_tbl[grepl("SCNA", events_tbl$type, ignore.case = TRUE),]
   cnaForJson = data.table::copy(emptyDfForJson)
   # any_cna_in_guidelines = length(intersect(cna$gene, hemedb_guideline$GENE)) > 0 ## accounts for merge stelater
   criterias = list(
