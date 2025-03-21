@@ -174,6 +174,71 @@ lift_segment_width_distribution <- function(
     invisible(NULL)
 }
 
+#' @name lift_allelic_pp_fit
+#' @title lift_allelic_pp_fit
+#' @description This function will create PNG files for allelic ploidy/purity fits
+#' @param cohort Cohort object containing sample information
+#' @param output_data_dir Base directory for output files
+#' @param cores Number of cores for parallel processing (default: 1)
+#' @param file.name Name of the output file (default: "hetsnps_major_minor.png")
+#' @export 
+#' @author Johnathan Rafailov
+lift_allelic_pp_fit <- function(cohort, 
+                                output_data_dir,
+                                cores = 1, 
+                                file.name = "hetsnps_major_minor.png") {
+    if (!inherits(cohort, "Cohort")) {
+        stop("Input must be a Cohort object")
+    }
+
+    # Validate required columns exist
+    required_cols <- c("pair", "jabba_gg", "het_pileups")
+    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+
+    if (length(missing_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+
+    # Process each sample in parallel
+    mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+        row <- cohort$inputs[i, ]
+        pair_dir <- file.path(output_data_dir, row$pair)
+
+        if (!dir.exists(pair_dir)) {
+            dir.create(pair_dir, recursive = TRUE)
+        }
+
+        #out_file <- file.path(pair_dir, "allelic_pp_fit.json")
+        out_file_png <- file.path(pair_dir, file.name)
+
+        tryCatch(
+            {
+                ppplot <- pp_plot(jabba_rds = row$jabba_gg,
+                        hets.fname = row$het_pileups,
+                        allele = TRUE,
+                        scatter = TRUE,
+                        save = FALSE,
+                        field = "count",
+                        height = 6 * 300,
+                        width = 6 * 300,
+                        units = "px",
+                        output.fname = out_file_png,
+                        verbose = T) 
+
+                ggsave(file = out_file_png, plot = ppplot, width = 6, height = 6, dpi = 300)
+        
+                
+            },
+            error = function(e) {
+                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            }
+        )
+    }, mc.cores = cores, mc.preschedule = FALSE)
+
+    invisible(NULL)
+}
+
+
 #' @name lift_multiplicity_fits
 #' @title lift_multiplicity_fits
 #' @description This function will create JSON files for somatic, germline, and hetsnps multiplicity fits
@@ -202,6 +267,13 @@ lift_multiplicity_fits <- function(cohort,
         message("Skipping... missing columns will not be processed")
     }
 
+    lift_allelic_pp_fit(cohort, 
+                        output_data_dir, 
+                        cores,
+                        file.name = "purple_sunrise_beta_gamma.png") 
+    ## TODO: update me once new plot is ready; right now using Zi plot from skitools
+    ## also hacking and just getting rid of the purple sunrise plot to make it work for now
+    ## eventually tell CX to update the png we are using on the frontend
 
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i, ]
@@ -240,6 +312,11 @@ lift_multiplicity_fits <- function(cohort,
                             save_html = F
                         )
                     }, out_files, field_to_use)
+
+                    # if(col == "hetsnps_multiplicity"){
+                    #     zi_plot(row[[col]], out_file = file.path(pair_dir, "hetsnps_major_minor.png"))
+                    # }
+
                 },
                 error = function(e) {
                     warning(sprintf("Error processing %s: %s", row$pair, e$message))
@@ -248,6 +325,71 @@ lift_multiplicity_fits <- function(cohort,
         }
     }, mc.cores = cores, mc.preschedule = FALSE)
 }
+
+# zi_plot <- function(hist, out_file) {
+#     if (is.character(hist)) {
+#         hist <- readRDS(hist) %>% gr2dt()
+#     }
+
+#     browser()
+
+#     integer_lines <- seq(floor(min(hist$cn)),
+#                 ceiling(max(hist$cn)), by = 1)
+#     colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
+#         pals::glasbey(length(which(integer_lines %/% 32 == i)))
+#     }))
+
+#     hist_top <- ggplot(hist[cn <= 10], aes(x = major_snv_copies, fill = as.factor(cn))) +
+#         geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
+#         scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
+#         theme_minimal() +
+#         labs(x = NULL, y = NULL) +
+#         theme(legend.position = "none") +
+#         scale_x_continuous(breaks = 0:10, limits = c(0, 10)) 
+    
+#     hist_right <- ggplot(hist[cn <= 10], aes(x = minor_snv_copies, fill = as.factor(cn))) +
+#         geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
+#         scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
+#         theme_minimal() +
+#         labs(x = NULL, y = NULL) +
+#         coord_flip() +
+#         theme(legend.position = "none") +
+#         scale_x_continuous(breaks = 0:10, limits = c(0, 10))
+        
+#     scatter <- ggplot(hist, aes(x = major_snv_copies, y = minor_snv_copies, color = factor(cn))) +
+#     geom_point(alpha = 0.1, size = 0.5) +
+#     scale_color_manual(values = colors.for.plot) +
+#     labs(
+#         x = "Major SNV Copies",
+#         y = "Minor SNV Copies",
+#         color = "JaBbA CN"
+#     ) +
+#     theme_bw() +
+#     coord_equal() +
+#     scale_x_continuous(breaks = 0:10, limits = c(0, 10)) +
+#     scale_y_continuous(breaks = 0:10, limits = c(0, 10))
+
+#     combined_plot <- cowplot::plot_grid(
+#         cowplot::plot_grid(hist_top + theme(axis.title.x = element_blank()), NULL,  ncol = 2, rel_widths = c(1, 0.3)),
+#         cowplot::plot_grid(
+#             scatter + theme(legend.position = "none"),
+#             hist_right + theme(axis.title.y = element_blank()),
+#             ncol = 2,
+#             rel_widths = c(1, 0.3),
+#             align = "hv"
+#         ),
+#         nrow = 2,
+#         rel_heights = c(0.3, 1),
+#         align = "v"
+#     ) +
+#     cowplot::draw_grob(
+#         cowplot::get_legend(scatter + theme(legend.position = "right")),
+#         x = 0.8, y = 0.8, width = 0.2, height = 0.2
+#     )
+
+#     ggsave(file = gsub(".json", ".png", out_file), plot = combined_plot, width = 6, height = 6, dpi = 300, type = "cairo")
+# }
+
 
 #' @name process_multiplicity_fit
 #' @title process_multiplicity_fit
@@ -300,48 +442,6 @@ process_multiplicity_fit <- function(variants,
 
     # create png
     if(save_png) {
-
-        if(histogram){
-
-            integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
-                     ceiling(max(binned_hist_data$jabba_cn)), by = 1)
-            colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
-                pals::glasbey(length(which(integer_lines %/% 32 == i)))
-            }))
-
-            hist_top <- ggplot(hets.short[cn <= 10], aes(x = major_snv_copies, fill = as.factor(cn))) +
-                geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
-                scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
-                theme_minimal() +
-                labs(x = NULL, y = NULL) +
-                theme(legend.position = "none") +
-                xlim(0, 10)
-            
-            hist_right <- ggplot(hets.short[cn <= 10], aes(x = minor_snv_copies, fill = as.factor(cn))) +
-                geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
-                scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
-                theme_minimal() +
-                labs(x = NULL, y = NULL) +
-                coord_flip() +
-                theme(legend.position = "none") +
-                xlim(0, 10)
-
-            ggplot(binned_hist_data, aes(x = mult_cn, fill = factor(jabba_cn))) +
-            geom_vline(xintercept = seq(0, 10, by = 1), color = "gray", linetype = "dashed") +
-            geom_histogram(binwidth = 0.2, color = "black", linewidth = 0.01) +
-            scale_fill_manual(values = colors.for.plot) +
-            labs(
-                x = "Multiplicity",
-                y = "Count",
-                fill = "JaBbA CN"
-            ) +
-            theme_bw() +
-            xlim(0, 10)
-
-            ggsave(file = gsub(".json", ".png", out_file), width = 6, height = 6, dpi = 300)
-
-        }
-        
 
         ggplot(binned_hist_data, aes(x = mult_cn, fill = factor(jabba_cn))) +
             geom_vline(xintercept = seq(0, 10, by = 1), color = "gray", linetype = "dashed") +
@@ -577,10 +677,10 @@ save_coverage_jabba_cn_png <- function(tiles.dt, out_file_denoised_png, out_file
 #' @importFrom scico scale_fill_scico scale_color_scico
 #' @export
 #' 
-#'@author Johnathan Rafailov
 #' @references Code adapted from:
 #'  - https://github.com/hartwigmedical/hmftools/tree/642436265858083a0bfc81b793a51ccde42edd02/purple/src/main/resources/r/copyNumberPlots.R
 lift_purple_sunrise_plot <- function(cohort,
+#'@author Johnathan Rafailov
                                     output_data_dir, cores = 1, save_pngs = TRUE, save_html = TRUE, save_data = TRUE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
