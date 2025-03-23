@@ -513,7 +513,6 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
     }
     
     # Calculate total SV count
-    # metadata[, sv_count := (junction_count + (loose_count / 2))]
     metadata[, sv_count := (junction_count)]
     
     return(metadata)
@@ -728,6 +727,7 @@ add_coverage_parameters <- function(metadata, tumor_coverage, field = "foregroun
         }
         cov <- tumor_coverage %>% readRDS()
         mcols(cov)[[field]] <- mcols(cov)[, field] * 2 * 151 / width(cov)
+        browser()
         rel2abs.cov <- skitools::rel2abs(cov,
             field = field,
             purity = metadata$purity,
@@ -1183,15 +1183,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
         "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
-        "insert_size_metrics"
-        , 
-        # was "wgs_metrics"
-        "tumor_wgs_metrics"
-        ,
-        "normal_wgs_metrics"
-        , 
-        "het_pileups",
-        "activities_sbs_signatures", "activities_indel_signatures",
+        "insert_size_metrics", "tumor_wgs_metrics", "normal_wgs_metrics",
+        "het_pileups", "activities_sbs_signatures", "activities_indel_signatures",
         "hrdetect", "onenesstwoness", "msisensorpro"
     )
     

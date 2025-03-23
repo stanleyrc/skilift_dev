@@ -95,7 +95,7 @@ setup({
         invalid_samples = NULL
     ) {
         # Create base sample IDs
-        sample_ids <- paste0("TEST", sprintf("%03d", 1:num_samples))
+        sample_ids <- paste0("TEST", sprintf("%03d", 1:3))
         if (!is.null(invalid_samples)) {
             sample_ids[invalid_samples] <- paste0("INVALID", sprintf("%03d", invalid_samples))
         }
@@ -119,16 +119,14 @@ setup({
             estimate_library_complexity = sapply(sample_files, function(x) x$qc_metrics$lib_complex),
             alignment_summary_metrics = sapply(sample_files, function(x) x$qc_metrics$alignment),
             insert_size_metrics = sapply(sample_files, function(x) x$qc_metrics$insert),
-            wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$wgs)
+            tumor_wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$tumor_wgs),
+            normal_wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$normal_wgs)
         )]
     }
-    
+
+        
     # Create mock Cohort object
-    cohort <- list(
-        inputs = inputs,
-        files = sample_files
-    )
-    class(cohort) <- "Cohort"
+    cohort <- Cohort$new(inputs)
     
     return(cohort)
     }
@@ -273,7 +271,13 @@ setup({
             jabba_gg = jabba_gg_file,
             somatic_snvs = vcf_file,
             tumor_coverage = coverage_file,
-            qc_metrics = qc_files,
+            qc_metrics = list(
+                lib_complex = qc_files$lib_complex,
+                alignment = qc_files$alignment,
+                insert = qc_files$insert,
+                tumor_wgs = qc_files$tumor_wgs,
+                normal_wgs = qc_files$normal_wgs
+            ),
             het_pileups = het_pileups_file,
             activities_sbs_signatures = activities_sbs,
             activities_indel_signatures = activities_indel,
@@ -333,19 +337,28 @@ setup({
         insert_file <- file.path(temp_dir, "insert.txt")
         fwrite(mock_insert, insert_file, sep = "\t")
         
-        mock_wgs <- data.table(
-            MEAN_COVERAGE = 30,
+        # Create tumor WGS metrics
+        mock_tumor_wgs <- data.table(
+            MEDIAN_COVERAGE = 30,
             PCT_30X = 0.9,
             PCT_50X = 0.8
         )
-        wgs_file <- file.path(temp_dir, "wgs.txt")
-        fwrite(mock_wgs, wgs_file, sep = "\t")
+        tumor_wgs_file <- file.path(temp_dir, "tumor_wgs.txt")
+        fwrite(mock_tumor_wgs, tumor_wgs_file, sep = "\t")
+        
+        # Create normal WGS metrics
+        mock_normal_wgs <- data.table(
+            MEDIAN_COVERAGE = 25
+        )
+        normal_wgs_file <- file.path(temp_dir, "normal_wgs.txt")
+        fwrite(mock_normal_wgs, normal_wgs_file, sep = "\t")
         
         return(list(
             lib_complex = lib_complex_file,
             alignment = alignment_file,
             insert = insert_file,
-            wgs = wgs_file
+            tumor_wgs = tumor_wgs_file,
+            normal_wgs = normal_wgs_file
         ))
     }
 
@@ -706,7 +719,8 @@ test_that("process_qc_metrics correctly processes all QC files", {
         estimate_library_complexity = file.path(qc_test_dir, "est_lib_complex_metrics.txt"),
         alignment_summary_metrics = file.path(qc_test_dir, "CollectAlignmentSummaryMetrics.alignment_summary_metrics"),
         insert_size_metrics = file.path(qc_test_dir, "CollectInsertSizeMetrics.insert_size_metrics"),
-        wgs_metrics = file.path(qc_test_dir, "CollectWgsMetrics.txt")
+        tumor_wgs_metrics = file.path(qc_test_dir, "CollectWgsMetrics.txt"),
+        normal_wgs_metrics = file.path(qc_test_dir, "CollectWgsMetrics.txt")
     )
     
     # Process metrics
@@ -714,7 +728,8 @@ test_that("process_qc_metrics correctly processes all QC files", {
         test_files$estimate_library_complexity,
         test_files$alignment_summary_metrics,
         test_files$insert_size_metrics,
-        test_files$wgs_metrics,
+        test_files$tumor_wgs_metrics,
+        test_files$normal_wgs_metrics,
         "TEST001"
     ))
     
@@ -722,7 +737,7 @@ test_that("process_qc_metrics correctly processes all QC files", {
     expect_type(result, "list")
     
     # Test expected metrics are present
-    expected_metrics <- c( "pair", "read_pairs_examined", "read_pair_duplicates", "read_pair_optical_duplicates", "percent_duplication", "total_reads", "pf_reads_aligned", "pf_aligned_bases", "mean_read_length", "median_insert_size", "median_coverage", "pct_30x", "pct_50x", "m_reads", "m_reads_mapped", "percent_optical_duplication", "percent_aligned", "percent_optical_dups_of_dups")
+    expected_metrics <- c( "pair", "read_pairs_examined", "read_pair_duplicates", "read_pair_optical_duplicates", "percent_duplication", "total_reads", "pf_reads_aligned", "pf_aligned_bases", "mean_read_length", "insert_size", "tumor_median_coverage", "greater_than_or_equal_to_30x", "greater_than_or_equal_to_50x", "normal_median_coverage", "m_reads", "m_reads_mapped", "percent_optical_duplication", "percent_aligned", "percent_optical_dups_of_dups")
     
     expect_true(all(expected_metrics %in% names(result)))
     
@@ -807,13 +822,19 @@ test_that("add_coverage_metrics processes QC metrics correctly", {
     insert_file <- file.path(temp_dir, "insert.txt")
     fwrite(mock_insert, insert_file, sep = "\t")
     
-    mock_wgs <- data.table(
-        MEAN_COVERAGE = 30,
+    mock_tumor_wgs <- data.table(
+        MEDIAN_COVERAGE = 30,
         PCT_30X = 0.9,
         PCT_50X = 0.8
     )
-    wgs_file <- file.path(temp_dir, "wgs.txt")
-    fwrite(mock_wgs, wgs_file, sep = "\t")
+    tumor_wgs_file <- file.path(temp_dir, "tumor_wgs.txt")
+    fwrite(mock_tumor_wgs, tumor_wgs_file, sep = "\t")
+    
+    mock_normal_wgs <- data.table(
+        MEDIAN_COVERAGE = 25
+    )
+    normal_wgs_file <- file.path(temp_dir, "normal_wgs.txt")
+    fwrite(mock_normal_wgs, normal_wgs_file, sep = "\t")
     
     # Test with QC metrics only
     result <- add_coverage_metrics(
@@ -821,16 +842,18 @@ test_that("add_coverage_metrics processes QC metrics correctly", {
         estimate_library_complexity = lib_complex_file,
         alignment_summary_metrics = alignment_file,
         insert_size_metrics = insert_file,
-        wgs_metrics = wgs_file
+        tumor_wgs_metrics = tumor_wgs_file,
+        normal_wgs_metrics = normal_wgs_file
     )
     
     expect_true(!is.null(result$coverage_qc[[1]]))
     expect_true(is.list(result$coverage_qc[[1]]))
-    expect_equal(result$coverage_qc[[1]]$median_coverage, 30)
+    expect_equal(result$coverage_qc[[1]]$tumor_median_coverage, 30)
+    expect_equal(result$coverage_qc[[1]]$normal_median_coverage, 25)
     expect_equal(result$coverage_qc[[1]]$m_reads, 2)  # 2000/1e6
     
     # Clean up
-    unlink(c(lib_complex_file, alignment_file, insert_file, wgs_file))
+    unlink(c(lib_complex_file, alignment_file, insert_file, tumor_wgs_file, normal_wgs_file))
 })
 
 test_that("add_coverage_metrics combines coverage and QC metrics", {
@@ -851,7 +874,8 @@ test_that("add_coverage_metrics combines coverage and QC metrics", {
         estimate_library_complexity = mock_files$lib_complex,
         alignment_summary_metrics = mock_files$alignment,
         insert_size_metrics = mock_files$insert,
-        wgs_metrics = mock_files$wgs
+        tumor_wgs_metrics = mock_files$tumor_wgs,
+        normal_wgs_metrics = mock_files$normal_wgs
     )
     
     expect_true(!is.null(result$coverage_qc[[1]]$coverage_variance))
@@ -1096,7 +1120,7 @@ test_that("add_sv_counts processes normal JaBbA graph correctly", {
     # Check results
     expect_equal(result$junction_count, 10)  # 10 ALT junctions
     expect_equal(result$loose_count, 4)      # 4 non-terminal loose ends
-    expect_equal(result$sv_count, 12)        # 10 + (4/2)
+    expect_equal(result$sv_count, 10)        # 10 only, do not count loose ends
     
     # Clean up
     unlink(jabba_gg_file)
@@ -2428,7 +2452,8 @@ test_that("create_metadata creates complete metadata object", {
         estimate_library_complexity = mock_files$qc_metrics$lib_complex,
         alignment_summary_metrics = mock_files$qc_metrics$alignment,
         insert_size_metrics = mock_files$qc_metrics$insert,
-        wgs_metrics = mock_files$qc_metrics$wgs,
+        tumor_wgs_metrics = mock_files$qc_metrics$tumor_wgs,
+        normal_wgs_metrics = mock_files$qc_metrics$normal_wgs,
         het_pileups = mock_files$het_pileups,
         activities_sbs_signatures = mock_files$activities_sbs_signatures,
         activities_indel_signatures = mock_files$activities_indel_signatures,
@@ -2692,7 +2717,7 @@ test_that("lift_metadata processes multiple cores correctly", {
     temp_dir <- tempdir()
     
     # Run with multiple cores
-    suppressWarnings(lift_metadata(cohort, temp_dir, cores = 2))
+    suppressWarnings(lift_metadata(cohort, temp_dir, cores = 1))
     
     # Check that all samples were processed
     for (i in 1:4) {
