@@ -32,6 +32,10 @@ has_required_columns <- function(cohort, columns, any = FALSE) {
     germline_multiplicity = c("germline_multiplicity"),
     multiplicity = c("multiplicity"),
     segment_width = c("balanced_jabba_gg", "tumor_coverage"),
+    allelic_pp_fit = c("jabba_gg", "het_pileups"),
+    multiplicity_fit = c("multiplicity"),
+    coverage_jabba_cn = c("jabba_gg", "tumor_coverage"),
+    purple_sunrise_plot = c("purple_pp_range", "purple_pp_bestFit"),
     pp_plot = c("jabba_gg", "het_pileups"),
     signatures = c(
       "matrix_sbs_signatures",
@@ -212,6 +216,38 @@ lift_mvp <- function(
 
   if (has_required_columns(cohort, required_columns$segment_width)) {
     lift_segment_width_distribution(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
+  if (has_required_columns(cohort, required_columns$allelic_pp_fit)) {
+    lift_allelic_pp_fit(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
+  if (has_required_columns(cohort, required_columns$multiplicity_fit)) {
+    lift_multiplicity_fit(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
+  if (has_required_columns(cohort, required_columns$coverage_jabba_cn)) {
+    lift_coverage_jabba_cn(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
+  if (has_required_columns(cohort, required_columns$purple_sunrise_plot)) {
+    lift_purple_sunrise_plot(
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores
