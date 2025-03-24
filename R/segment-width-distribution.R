@@ -81,6 +81,7 @@ get_segstats <- function(
 lift_segment_width_distribution <- function(
     cohort,
     output_data_dir,
+    annotations = NULL,
     cores = 1) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
@@ -103,18 +104,19 @@ lift_segment_width_distribution <- function(
         }
 
         out_file <- file.path(pair_dir, "ppfit.json")
-
-        tryCatch(
+        
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!file.exists(row$balanced_jabba_gg)) {
-                    warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$balanced_jabba_gg))
+                    print(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$balanced_jabba_gg))
                     return(NULL)
                 }
 
                 # Read the gGraph
                 ggraph <- readRDS(row$balanced_jabba_gg)
                 if (!any(class(ggraph) == "gGraph")) {
-                    warning(sprintf("File is not a gGraph for %s: %s", row$pair, row$balanced_jabba_gg))
+                    print(sprintf("File is not a gGraph for %s: %s", row$pair, row$balanced_jabba_gg))
                     return(NULL)
                 }
 
@@ -151,7 +153,7 @@ lift_segment_width_distribution <- function(
                 # Check for sequence name overlap
                 ggraph.reduced <- gg_w_segstats[seqnames %in% names(seq_lengths)]
                 if (length(ggraph.reduced) == 0) {
-                    warning(sprintf("No overlap in sequence names for %s", row$pair))
+                    print(sprintf("No overlap in sequence names for %s", row$pair))
                     return(NULL)
                 }
 
@@ -166,10 +168,11 @@ lift_segment_width_distribution <- function(
                 )
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 
     invisible(NULL)
 }
@@ -226,7 +229,8 @@ lift_multiplicity_fits <- function(cohort,
                 hetsnps_multiplicity = c("major_snv_copies", "minor_snv_copies")
             )
 
-            tryCatch(
+            futile.logger::flog.threshold("ERROR")
+            tryCatchLog(
                 {
                     if (!file.exists(row[[col]])) {
                         warning(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
@@ -241,11 +245,12 @@ lift_multiplicity_fits <- function(cohort,
                     }, out_files, field_to_use)
                 },
                 error = function(e) {
-                    warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                    print(sprintf("Error processing %s: %s", row$pair, e$message))
+                    NULL
                 }
             )
         }
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 }
 
 #' @name process_multiplicity_fit
@@ -256,6 +261,7 @@ lift_multiplicity_fits <- function(cohort,
 #' @param mask logical value to mask the data or not; default is TRUE
 #' @param mask_gr GRanges object containing the mask; default is maskA as provided in the package
 #' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
+#' @param histogram  Create histogram
 #' @param out_file output file path
 process_multiplicity_fit <- function(variants,
                                      field = "altered_copies",
@@ -264,6 +270,7 @@ process_multiplicity_fit <- function(variants,
                                      save_data = TRUE,
                                      save_png = TRUE,
                                      save_html = FALSE,
+                                     histogram = FALSE,
                                      bins = 1e6,
                                      out_file) {
     if (is.character(variants)) {
@@ -292,6 +299,13 @@ process_multiplicity_fit <- function(variants,
     # create binned histogram data
     binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn, na.rm = T), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][, bin := NULL]
 
+    # Instantiate variables before conditionals..
+    integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
+                     ceiling(max(binned_hist_data$jabba_cn)), by = 1)
+    colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
+        pals::glasbey(length(which(integer_lines %/% 32 == i)))
+    }))
+
     # write json to file
     if(save_data) {
         write_json(binned_hist_data, out_file, pretty = TRUE)
@@ -301,12 +315,8 @@ process_multiplicity_fit <- function(variants,
     if(save_png) {
 
         if(histogram){
-
-            integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
-                     ceiling(max(binned_hist_data$jabba_cn)), by = 1)
-            colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
-                pals::glasbey(length(which(integer_lines %/% 32 == i)))
-            }))
+            ## TODO: what is hets.short!?
+            .NotYetImplemented()
 
             hist_top <- ggplot(hets.short[cn <= 10], aes(x = major_snv_copies, fill = as.factor(cn))) +
                 geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
@@ -419,7 +429,8 @@ lift_coverage_jabba_cn <- function(
         out_file_original_png <- file.path(pair_dir, "coverage_cn_boxplot_original.png")
         out_file_html <- file.path(pair_dir, "coverage_cn_boxplot.html")
                 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!file.exists(row$jabba_gg)) {
                     warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$jabba_gg))
@@ -482,7 +493,8 @@ lift_coverage_jabba_cn <- function(
 
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
@@ -604,8 +616,9 @@ lift_purple_sunrise_plot <- function(cohort,
         out_file_png <- file.path(pair_dir, "purple_sunrise_pp.png")
         out_file_beta_gamma_png <- file.path(pair_dir, "purple_sunrise_beta_gamma.png")
         out_file_html <- file.path(pair_dir, "combined_plot.html")
-
-        tryCatch(
+        
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!file.exists(row$purple_pp_range)) {
                     warning(sprintf("Purple purity range file not found for %s: %s", row$pair, row$purple_pp_range))
@@ -691,7 +704,8 @@ lift_purple_sunrise_plot <- function(cohort,
 
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
@@ -832,8 +846,8 @@ create_pp_plot <- function(jabba_gg = NA,
         segs <- jab$nodes$gr[, c()]
 
         major.segs <- gr.val(segs, hets %Q% (allele == "major"), val = "cn", mean = TRUE, na.rm = TRUE)
+        minor.segs <- gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
         if (is.wgs) {
-            minor.segs <- gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
 
             tiles <- gr.tile(gr = segs, width = 1e4)
             major.tiles <- gr.val(tiles, major.segs, val = "cn", mean = TRUE, na.rm = TRUE)
@@ -903,8 +917,9 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
 
         # out_file <- file.path(pair_dir, "ppfit.json")
         png_path <- paste0(normalizePath(pair_dir), "/pp_plot.png")
-
-        tryCatch(
+        
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 pp_plot_list <- create_pp_plot(
                     jabba_gg = row$jabba_gg,
@@ -956,7 +971,8 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
                 grDevices::dev.off()
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
     }
