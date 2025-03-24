@@ -7,28 +7,84 @@
 #'
 #' @return data.table containing processed mutation data
 #' @export
-create_multiplicity <- function(snv_cn, is_germline = FALSE, field = "total_copies") {
-  mutations.dt <- tryCatch({
+create_multiplicity <- function(snv_cn, oncokb_snv, is_germline = FALSE, field = "altered_copies") {
+  mutations.gr <- tryCatch({
     if (!grepl("\\.rds$", snv_cn)) {
       message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
     }
-    as.data.table(readRDS(snv_cn))
+    readRDS(snv_cn)
   }, error = function(e) {
     message(paste0("Input was not .rds; failed with '", e$message, "'\nAssuming input is .maf"))
-    return(fread(snv_cn) %>% dt2gr() %>% gr2dt())
+    return(fread(snv_cn) %>% dt2gr())
   }, finally = {
     message("Finished attempting to load input.")
   })
 
-  if (is.null(mutations.dt)) {
-    stop("Failed to assign a valid value to mutations.dt.")
+  if (!inherits(mutations.gr, "GRanges")) {
+    mutations.gr.tmp = tryCatch(
+      {
+        dt2gr(mutations.gr)
+      }, error = function(e) tryCatch(
+      {
+        as(mutations.gr, "GRanges")
+      }, error = function(e) NULL)
+    )
+    if (is.null(mutations.gr.tmp)) {
+      stop("input snv_cn must be a maf/snv file coercible into GRanges")
+    }
+    mutations.gr = mutations.gr.tmp
+    rm(mutations.gr.tmp)
+  }
+
+  if (is.null(mutations.gr)) {
+    stop("Failed to assign a valid value to mutations.gr.")
   } else {
     message("Successfully loaded input snv_cn.")
   }
 
+  if (!is.null(oncokb_snv)) {
+    message("oncokb_snv provided, processing input")
+    is_path_character = is.character(oncokb_snv)
+    is_length_one = NROW(oncokb_snv) == 1
+    is_file_exists = is_path_character && is_length_one && file.exists(oncokb_snv)
+    is_rds = is_file_exists && grepl("rds$", oncokb_snv)
+    is_txt = is_file_exists && grepl("maf$|(c|t)sv$|txt$", oncokb_snv)
+    if (is_rds) {
+      oncokb_snv = readRDS(oncokb_snv)
+    } else if (is_txt) {
+      oncokb_snv = fread(oncokb_snv)
+    } else {
+      stop("Provided oncokb_snv file extension not supported")
+    }
+
+    is_data_frame = inherits(oncokb_snv, "data.frame")
+    if (is_data_frame) {
+      oncokb_snv_tmp = tryCatch(
+        {
+          dt2gr(oncokb_snv)
+        }, error = function(e) tryCatch(
+        {
+          as(oncokb_snv, "GRanges")
+        }, error = function(e) NULL)
+      )
+      if (is.null(oncokb_snv_tmp)) {
+        stop("oncokb_snv must be coercible to GRanges")
+      }
+      oncokb_snv = oncokb_snv_tmp
+    }
+    if (!inherits(oncokb_snv, "GRanges")) {
+      stop("final oncokb_snv not a GRanges object")
+    }
+    
+  }
+  mutations.gr.annotated = merge_oncokb_multiplicity(oncokb_snv, mutations.gr, overwrite = TRUE)
+  mutations.dt = gr2dt(mutations.gr.annotated)
+
   if (!any(class(mutations.dt) == "data.table")) {
     stop("Input must be a data.table.")
   }
+
+  
 
   ## Process mutations
   setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
@@ -134,7 +190,7 @@ multiplicity_to_intervals <- function(
         GenomeInfoDb::seqlevelsStyle(gr) = "NCBI"
     }
 
-    if (is.null(cohort_type)) stop("cohort_type is missing")
+    if (is.null(cohort_type)) stop("Cohort type is missing")
 
     if (cohort_type == "heme") {
         hemedb = readRDS(Skilift:::HEMEDB)
@@ -215,7 +271,7 @@ lift_multiplicity <- function(
     output_data_dir,
     is_germline = FALSE,
     node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
-    field = "total_copies",
+    field = "altered_copies",
     cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
@@ -228,6 +284,8 @@ lift_multiplicity <- function(
     
     # Determine which column to use based on is_germline
     snv_cn_col <- if(is_germline) "germline_multiplicity" else "multiplicity"
+
+    oncokb_snv_col <- if(is_germline) NULL else "oncokb_snv"
     
     # Validate required column exists
     if (!snv_cn_col %in% names(cohort$inputs)) {
@@ -255,11 +313,15 @@ lift_multiplicity <- function(
             if(is_germline) "germline_mutations.json" else "mutations.json"
         )
         
+        snv_cn_path = row[[snv_cn_col]]
+        oncokb_snv_path = NULL
+        if (!is.null(oncokb_snv_col)) oncokb_snv_path = row[[oncokb_snv_col]]
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
             # Create multiplicity data.table
             mult_dt <- create_multiplicity(
-                snv_cn = row[[snv_cn_col]],
+                snv_cn = snv_cn_path,
+                oncokb_snv = oncokb_snv_path,
                 is_germline = is_germline,
                 field = field
             )
@@ -270,7 +332,7 @@ lift_multiplicity <- function(
                 reference_name = reference_name,
                 node_metadata = node_metadata,
                 field = field,
-                cohort_type = cohort$cohort_type
+                cohort_type = cohort$type
             )
             
             # Write to JSON
