@@ -1030,7 +1030,11 @@ create_filtered_events <- function(
       res.cn.dt[, segment_cn := cn]
       res.cn.dt[, Variant := vartype]
 
+      # To fix very small CNAs that can appear due to forcing in reciprocal
+      # junctions with very small gaps.
+      res.cn.dt = res.cn.dt[!res.cn.dt$width < 1000,]
       # remove redundant columns since already added to Variant
+      
       res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL]
     }
     res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
@@ -1101,7 +1105,6 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 oncotable = row$oncotable,
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
-                # temp_fix = FALSE,
                 return_table = return_table,
                 cohort_type = cohort_type
             )

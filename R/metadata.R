@@ -215,6 +215,7 @@ process_qc_metrics <- function(
     normal_wgs_metrics,
     pair
 ) {
+
     # Define metric mappings for each file type
     complexity_metrics_cols <- c(
         read_pairs_examined = "READ_PAIRS_EXAMINED",
@@ -1194,7 +1195,7 @@ create_metadata <- function(
 #' @param genome_length Genome length for the samples (for targeted panels or WES data)
 #' @return None
 #' @export
-lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NULL) {
+lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(1:22, "X", "Y")) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1252,6 +1253,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
+
             # Create metadata object
 
             metadata <- create_metadata(

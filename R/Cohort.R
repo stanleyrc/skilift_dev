@@ -375,11 +375,7 @@ Cohort <- R6Class("Cohort",
 nf_path_patterns <- list(
   balanced_jabba_gg = "non_integer_balance/.*/non_integer.balanced.gg.rds$",
   tumor_coverage = "dryclean_tumor/.*/drycleaned.cov.rds$",
-  fragcounter_tumor_coverage = "fragcounter_tumor/.*/cov.rds$",
-  cbs_seg = "cbs/.*(?<!n)seg.rds$",
-  cbs_cov = "cbs/.*cov.rds$",
   het_pileups = "(hetpileups|amber)/.*/sites.txt$",
-  amber_baf = "amber/.*amber.baf.tsv.gz",
   purple_pp_range = "purple/.*purple.purity.range.tsv",
   purple_pp_bestFit = "purple/.*purple.purity.tsv",
   jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
@@ -883,7 +879,6 @@ dcastski = function(
 #' @export
 merge.Cohort <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
   cohorts <- list(...)
-
   # Validate inputs are all Cohorts
   if (length(cohorts) < 2) {
     stop("At least two Cohort objects must be provided")
