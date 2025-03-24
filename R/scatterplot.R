@@ -264,8 +264,8 @@ subsample_hetsnps <- function(
 lift_denoised_coverage <- function(
     cohort,
     output_data_dir,
-    cores = 1,
-    mask = TRUE) {
+    cores = 1
+) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -292,7 +292,8 @@ lift_denoised_coverage <- function(
 
         out_file <- file.path(pair_dir, "coverage.arrow")
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
 
@@ -306,7 +307,7 @@ lift_denoised_coverage <- function(
                         ref = cohort$reference_name,
                         cov.color.field = row$denoised_coverage_color_field,
                         bin.width = row$denoised_coverage_bin_width,
-                        mask = mask
+                        mask = row$denoised_coverage_apply_mask
                     )
 
                     # Write arrow table
@@ -317,7 +318,8 @@ lift_denoised_coverage <- function(
                 }
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
