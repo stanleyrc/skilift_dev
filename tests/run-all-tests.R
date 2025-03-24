@@ -9,7 +9,7 @@ library(testthat)
 # testthat::test_dir("tests/testthat", reporter = testthat::ListReporter)
 
 # testthat::test_file("tests/testthat/test-CaseReportsData.R")
-testthat::test_file("tests/testthat/test-Cohort.R")
+testthat::test_file("tests/testthat/test-Cohort.R") #3
 testthat::test_file("tests/testthat/test-copy-number-graph.R")
 testthat::test_file("tests/testthat/test-filtered-events.R")
 testthat::test_file("tests/testthat/test-metadata.R")
