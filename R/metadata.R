@@ -531,12 +531,12 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
     
     ggraph <- gg <- readRDS(jabba_gg)
     
-    ploidy = tau = gg$meta$ploidy
-    purity = alpha = gg$meta$purity
+    ploidy = gg$meta$ploidy
+    purity = gg$meta$purity
     metadata$purity <- purity
     metadata$ploidy <- ploidy
-    metadata$beta = alpha / (alpha * ploidy + 2*(1 - alpha)) # from Multiplicity
-    metadata$gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) # from Multiplicity
+    metadata$beta = purity / (purity * ploidy + 2 * (1 - purity)) # from Multiplicity
+    metadata$gamma = 2 * (1 - purity) / (purity * ploidy + 2 * (1 - purity)) # from Multiplicity
     
     # # Get sequence lengths from the gGraph
     # seq_lengths <- seqlengths(ggraph$nodes$gr)
@@ -641,12 +641,14 @@ add_genome_length <- function(
     jabba_gg = NULL,
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
+    # handle targeted panels/whole exome
     if (is.numeric(seqnames_genome_width_or_genome_length) && NROW(seqnames_genome_width_or_genome_length) == 1) {
         metadata$total_genome_length <- seqnames_genome_width_or_genome_length
         return(metadata)
     }
 
-    if (is.null(jabba_gg) && is.null(seqnames_genome_width_or_genome_length)) {
+    # otherwise, handle genome-wide
+    if (is.null(jabba_gg) || is.null(seqnames_genome_width_or_genome_length)) {
         return(metadata)
     }
     
@@ -727,7 +729,6 @@ add_coverage_parameters <- function(metadata, tumor_coverage, field = "foregroun
         }
         cov <- tumor_coverage %>% readRDS()
         mcols(cov)[[field]] <- mcols(cov)[, field] * 2 * 151 / width(cov)
-        browser()
         rel2abs.cov <- skitools::rel2abs(cov,
             field = field,
             purity = metadata$purity,
@@ -940,31 +941,6 @@ add_signatures <- function(
 #' @param onenesstwoness Oneness and twoness scores.
 #' @return Updated metadata with HRD scores added.
 add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
-
-    #browser()
-
-    # if (!is.null(hrdetect)) {
-    #     hrd <- readRDS(hrdetect)
-    #     # hrd_values <- data.table(
-    #     #     dels_mh = hrd$indels_classification_table$del.mh.count,
-    #     #     rs3 = hrd$exposures_rearr["RefSigR3", ],
-    #     #     rs5 = hrd$exposures_rearr["RefSigR5", ],
-    #     #     sbs3 = hrd$exposures_subs["SBS3", ],
-    #     #     sbs8 = hrd$exposures_subs["SBS8", ],
-    #     #     del_rep = hrd$indels_classification_table$del.rep.count
-    #     # )
-    #     #hrd_score <- hrd$hrdetect_output[1, "Probability"]
-    #     #metadata$hrd_score <- hrd_score
-
-    #     # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
-    #     #     metadata$hrd <- list(as.list(hrd_values))
-    #     # } else {
-    #     #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-    #     # }
-    # } else {
-    #     warning("HRDetect scores not found, skipping HRD scores...")
-    # }
-
     if (!is.null(onenesstwoness)) {
         onetwo <- readRDS(onenesstwoness)
         hrd_values <- data.table(
@@ -996,12 +972,6 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
         }
 
         metadata$hrd <- list(as.list(hrd_values))
-
-        # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
-        #     metadata$hrd <- list(as.list(hrd_values))
-        # } else {
-        #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-        # }
 
     } else {
         warning("Oneness and twoness scores not found, skipping...")

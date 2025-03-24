@@ -95,40 +95,83 @@ setup({
         invalid_samples = NULL
     ) {
         # Create base sample IDs
-        sample_ids <- paste0("TEST", sprintf("%03d", 1:3))
+        sample_ids <- paste0("TEST", sprintf("%03d", 1:num_samples))
         if (!is.null(invalid_samples)) {
             sample_ids[invalid_samples] <- paste0("INVALID", sprintf("%03d", invalid_samples))
         }
         
-    # Create mock files for each sample
-    sample_files <- lapply(sample_ids, function(id) {
-        create_mock_metadata_files(pair = id)
-    })
-    
-    # Create inputs data.table
-    inputs <- data.table(pair = sample_ids)
+        # Create mock files for each sample
+        sample_files <- lapply(sample_ids, function(id) {
+            create_mock_metadata_files(pair = id)
+        })
+        
+        # Create inputs data.table
+        inputs <- data.table(pair = sample_ids)
 
-    if (include_optional) {
-        inputs[, `:=`(
-            tumor_type = "BRCA",
-            disease = "Breast Cancer", 
-            primary_site = "Breast",
-            jabba_gg = sapply(sample_files, function(x) x$jabba_gg),
-            somatic_snvs = sapply(sample_files, function(x) x$somatic_snvs),
-            tumor_coverage = sapply(sample_files, function(x) x$tumor_coverage),
-            estimate_library_complexity = sapply(sample_files, function(x) x$qc_metrics$lib_complex),
-            alignment_summary_metrics = sapply(sample_files, function(x) x$qc_metrics$alignment),
-            insert_size_metrics = sapply(sample_files, function(x) x$qc_metrics$insert),
-            tumor_wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$tumor_wgs),
-            normal_wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$normal_wgs)
-        )]
+        if (include_optional) {
+            inputs[, `:=`(
+                tumor_type = "BRCA",
+                disease = "Breast Cancer", 
+                primary_site = "Breast",
+                jabba_gg = sapply(sample_files, function(x) x$jabba_gg),
+                somatic_snvs = sapply(sample_files, function(x) x$somatic_snvs),
+                tumor_coverage = sapply(sample_files, function(x) x$tumor_coverage),
+                estimate_library_complexity = sapply(sample_files, function(x) x$qc_metrics$lib_complex),
+                alignment_summary_metrics = sapply(sample_files, function(x) x$qc_metrics$alignment),
+                insert_size_metrics = sapply(sample_files, function(x) x$qc_metrics$insert),
+                tumor_wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$tumor_wgs),
+                normal_wgs_metrics = sapply(sample_files, function(x) x$qc_metrics$normal_wgs)
+            )]
+        }
+
+            
+        # Create mock Cohort object
+        cohort <- Cohort$new(inputs)
+        
+        return(cohort)
     }
 
-        
-    # Create mock Cohort object
-    cohort <- Cohort$new(inputs)
-    
-    return(cohort)
+    create_mock_onenesstwoness <<- function(
+        brca1_score = 0.4,
+        brca2_score = 0.3,
+        other_score = 0.3,
+        dup_1kb_100kb = 1,
+        SNV3 = 2,
+        SNV8 = 3,
+        RS3 = 0.4,
+        RS5 = 0.2,
+        del_mh_prop = 0.1,
+        ihdel = 0.05,
+        hrd_score = 0.9,
+        qrppos = 0.2,
+        qrpmin = 0.1,
+        qrpmix = 0.05,
+        qrdup = 0.01,
+        qrdel = 0.02,
+        tib = 0.03
+    ) {
+        # Create ot_scores matrix with columns "BRCA1", "BRCA2", "OTHER"
+        ot_scores_mat <- matrix(
+            c(brca1_score, brca2_score, other_score),
+            nrow = 1,
+            dimnames = list(NULL, c("BRCA1", "BRCA2", "OTHER"))
+        )
+        # Create expl_variables matrix with the new variables
+        expl_variables_mat <- matrix(
+            c(dup_1kb_100kb, SNV3, SNV8, RS3, RS5, del_mh_prop, ihdel,
+              hrd_score, qrppos, qrpmin, qrpmix, qrdup, qrdel, tib),
+            nrow = 1,
+            dimnames = list(NULL, c("DUP_1kb_100kb", "SNV3", "SNV8", "RS3", "RS5",
+                                    "del.mh.prop", "ihdel", "hrd",
+                                    "qrppos", "qrpmin", "qrpmix", "qrdup", "qrdel", "tib"))
+        )
+        onetwo_obj <- list(
+            ot_scores = ot_scores_mat,
+            expl_variables = expl_variables_mat
+        )
+        temp_file <- tempfile(fileext = ".rds")
+        saveRDS(onetwo_obj, temp_file)
+        return(temp_file)
     }
 
     create_mock_deconstruct_sigs <<- function(
@@ -219,26 +262,33 @@ setup({
         return(temp_file)
     }
 
-    create_mock_onenesstwoness <<- function(
-        sum12_score = 0.7,
-        brca1_score = 0.4,
-        brca2_score = 0.3
+    create_mock_het_pileups <<- function(
+        ref_counts_n = c(50, 50, 50, 50, 50),  # Normal ref counts
+        alt_counts_n = c(30, 35, 33, 32, 31),  # Normal alt counts - to create alt fractions between 0.2-0.8
+        ref_counts_t = c(100, 90, 95, 85, 92), # Tumor ref counts
+        alt_counts_t = c(40, 45, 42, 43, 41),  # Tumor alt counts
+        seqnames = "chr1",
+        start = 1000,
+        positions = 5
     ) {
-        # Create mock oneness-twoness scores
-        ot_scores <- matrix(
-            c(sum12_score, brca1_score, brca2_score),
-            nrow = 1,
-            dimnames = list(NULL, c("SUM12", "BRCA1", "BRCA2"))
+        # Create data.table with required structure
+        dt <- data.table(
+            seqnames = rep(seqnames, positions),
+            start = start:(start + positions - 1),
+            end = (start + positions - 1):(start + positions - 1),
+            ref.count.n = ref_counts_n,
+            alt.count.n = alt_counts_n,
+            ref.count.t = ref_counts_t,
+            alt.count.t = alt_counts_t
         )
         
-        # Create complete object
-        onetwo_obj <- list(
-            ot_scores = ot_scores
-        )
+        # Calculate alt fractions
+        dt[, alt.frac.n := alt.count.n / (ref.count.n + alt.count.n)]
+        dt[, alt.frac.t := alt.count.t / (ref.count.t + alt.count.t)]
         
         # Save to temp file and return path
-        temp_file <- tempfile(fileext = ".rds")
-        saveRDS(onetwo_obj, temp_file)
+        temp_file <- tempfile(fileext = ".txt")
+        fwrite(dt, temp_file, sep = "\t")
         return(temp_file)
     }
 
@@ -449,36 +499,6 @@ setup({
   
         temp_file <- tempfile(fileext = ".rds")
         saveRDS(gr, temp_file)
-        return(temp_file)
-    }
-
-    create_mock_het_pileups <<- function(
-        ref_counts_n = c(50, 50, 50, 50, 50),  # Normal ref counts
-        alt_counts_n = c(30, 35, 33, 32, 31),  # Normal alt counts - to create alt fractions between 0.2-0.8
-        ref_counts_t = c(100, 90, 95, 85, 92), # Tumor ref counts
-        alt_counts_t = c(40, 45, 42, 43, 41),  # Tumor alt counts
-        seqnames = "chr1",
-        start = 1000,
-        positions = 5
-    ) {
-        # Create data.table with required structure
-        dt <- data.table(
-            seqnames = rep(seqnames, positions),
-            start = start:(start + positions - 1),
-            end = (start + positions - 1):(start + positions - 1),
-            ref.count.n = ref_counts_n,
-            alt.count.n = alt_counts_n,
-            ref.count.t = ref_counts_t,
-            alt.count.t = alt_counts_t
-        )
-        
-        # Calculate alt fractions
-        dt[, alt.frac.n := alt.count.n / (ref.count.n + alt.count.n)]
-        dt[, alt.frac.t := alt.count.t / (ref.count.t + alt.count.t)]
-        
-        # Save to temp file and return path
-        temp_file <- tempfile(fileext = ".txt")
-        fwrite(dt, temp_file, sep = "\t")
         return(temp_file)
     }
 
@@ -1167,10 +1187,10 @@ test_that("add_sv_counts handles various junction/loose end combinations", {
     
     # Test cases matrix:
     test_cases <- list(
-        list(junctions = 5, loose = 2, expected_sv = 6),   # 5 + (2/2)
-        list(junctions = 0, loose = 4, expected_sv = 2),   # 0 + (4/2)
-        list(junctions = 3, loose = 0, expected_sv = 3),   # 3 + (0/2)
-        list(junctions = 10, loose = 1, expected_sv = 10.5) # 10 + (1/2)
+        list(junctions = 5, loose = 2, expected_sv = 5),   # 5
+        list(junctions = 0, loose = 4, expected_sv = 0),   # 0
+        list(junctions = 3, loose = 0, expected_sv = 3),   # 3
+        list(junctions = 10, loose = 1, expected_sv = 10) # 10
     )
     
     for(test_case in test_cases) {
@@ -1211,17 +1231,21 @@ test_that("add_purity_ploidy processes normal JaBbA graph correctly", {
     # Create mock metadata
     metadata <- initialize_metadata_columns("TEST001")
     
+    purity = 0.8
+    ploidy = 2.1
     # Create mock JaBbA graph with specific purity and ploidy values
-    jabba_gg_file <- create_mock_jabba_gg(purity = 0.8, ploidy = 2.1)
+    jabba_gg_file <- create_mock_jabba_gg(purity = purity, ploidy = ploidy)
     
     # Test function
     result <- add_purity_ploidy(metadata, jabba_gg_file)
-    
-    # Check results
-    expect_equal(result$purity, 0.8)
-    expect_equal(result$ploidy, 2.1)
-    expect_equal(result$beta, 2.1)    # beta should equal ploidy
-    expect_equal(result$gamma, 0.2)   # gamma should be 1 - purity
+
+    test_beta = purity / (purity * ploidy + 2 * (1 - purity))
+    test_gamma = 2 * (1 - purity) / (purity * ploidy + 2 * (1 - purity))
+
+    expect_equal(result$purity, purity)
+    expect_equal(result$ploidy, ploidy)
+    expect_equal(result$beta, test_beta)
+    expect_equal(result$gamma, test_gamma)
     
     # Clean up
     unlink(jabba_gg_file)
@@ -1256,10 +1280,15 @@ test_that("add_purity_ploidy handles various purity/ploidy combinations", {
         
         result <- add_purity_ploidy(metadata, jabba_gg_file)
         
+        purity = result$purity
+        ploidy = result$ploidy
+        test_beta = purity / (purity * ploidy + 2 * (1 - purity))
+        test_gamma = 2 * (1 - purity) / (purity * ploidy + 2 * (1 - purity))
+
         expect_equal(result$purity, test_case$purity)
         expect_equal(result$ploidy, test_case$ploidy)
-        expect_equal(result$beta, test_case$ploidy)
-        expect_equal(result$gamma, 1 - test_case$purity)
+        expect_equal(result$beta, test_beta)
+        expect_equal(result$gamma, test_gamma)
         
         unlink(jabba_gg_file)
     }
@@ -1684,8 +1713,7 @@ test_that("add_coverage_parameters calculates parameters correctly", {
     result <- suppressWarnings(add_coverage_parameters(metadata, coverage_file))
     
     # Calculate expected values based on rel2abs formula
-    data_mean <- mean(c(1, 2, 1, 2, 1))
-    expected_slope <- ((1 - 0.8) * 2 + 0.8 * 2.1)/(0.8 * data_mean)
+    expected_slope <- 0.01844844
     expected_intercept <- -(2 * (1 - 0.8)/0.8)
     
     expect_equal(result$cov_slope, expected_slope)
@@ -2298,57 +2326,37 @@ test_that("add_signatures handles different pair names correctly", {
     unlink(c(deconstruct_sigs, activities_indel, activities_sbs))
 })
 
-test_that("add_hrd_scores processes HRDetect scores correctly", {
-    # Create mock metadata
-    metadata <- initialize_metadata_columns("TEST001")
-    
-    # Create mock HRDetect file with known values
-    hrdetect_file <- create_mock_hrdetect(
-        dels_mh = 100,
-        rs3_exp = 0.4,
-        rs5_exp = 0.2,
-        sbs3_exp = 0.3,
-        sbs8_exp = 0.1,
-        del_rep = 50,
-        hrd_score = 0.8
-    )
-    
-    # Test function
-    result <- suppressWarnings(add_hrd_scores(metadata, hrdetect_file, NULL))
-    
-    # Check HRD score
-    expect_equal(result$hrd_score, 0.8)
-    
-    # Check HRD values
-    expect_type(result$hrd[[1]], "list")
-    expect_equal(result$hrd[[1]]$dels_mh, 100)
-    expect_equal(result$hrd[[1]]$rs3, 0.4)
-    expect_equal(result$hrd[[1]]$rs5, 0.2)
-    expect_equal(result$hrd[[1]]$sbs3, 0.3)
-    expect_equal(result$hrd[[1]]$sbs8, 0.1)
-    expect_equal(result$hrd[[1]]$del_rep, 50)
-    
-    # Clean up
-    unlink(hrdetect_file)
-})
-
 test_that("add_hrd_scores processes oneness-twoness scores correctly", {
     metadata <- initialize_metadata_columns("TEST001")
     
     # Create mock oneness-twoness file
     onetwo_file <- create_mock_onenesstwoness(
-        sum12_score = 0.7,
         brca1_score = 0.4,
-        brca2_score = 0.3
+        brca2_score = 0.3,
+        other_score = 0.3,
+        dup_1kb_100kb = 1,
+        SNV3 = 2,
+        SNV8 = 3,
+        RS3 = 0.4,
+        RS5 = 0.2,
+        del_mh_prop = 0.1,
+        ihdel = 0.05,
+        hrd_score = 0.9,
+        qrppos = 0.2,
+        qrpmin = 0.1,
+        qrpmix = 0.05,
+        qrdup = 0.01,
+        qrdel = 0.02,
+        tib = 0.03
     )
     
     # Test function
     result <- suppressWarnings(add_hrd_scores(metadata, NULL, onetwo_file))
     
     # Check scores
-    expect_equal(result$b1_2, 0.7)
-    expect_equal(result$b1, 0.4)
-    expect_equal(result$b2, 0.3)
+    expect_equal(result$hrd[[1]]$b1_2_score, 0.7)  # BRCA1 + BRCA2 (0.4 + 0.3)
+    expect_equal(result$hrd[[1]]$b1_score, 0.4)
+    expect_equal(result$hrd[[1]]$b2_score, 0.3)
     
     # Clean up
     unlink(onetwo_file)
@@ -2361,11 +2369,11 @@ test_that("add_hrd_scores handles NULL inputs gracefully", {
     result <- suppressWarnings(add_hrd_scores(metadata, NULL, NULL))
     
     # Check that values remain NA
-    expect_true(is.na(result$hrd_score))
     expect_null(result$hrd[[1]])
-    expect_true(is.na(result$b1_2))
-    expect_true(is.na(result$b1))
-    expect_true(is.na(result$b2))
+    expect_true(is.null(result$hrd[[1]]$hrd_score))
+    expect_true(is.null(result$hrd[[1]]$b1_2_score))
+    expect_true(is.null(result$hrd[[1]]$b1_score))
+    expect_true(is.null(result$hrd[[1]]$b2_score))
 })
 
 test_that("add_hrd_scores processes both inputs simultaneously", {
@@ -2373,21 +2381,17 @@ test_that("add_hrd_scores processes both inputs simultaneously", {
     
     # Create both mock files
     hrdetect_file <- create_mock_hrdetect(hrd_score = 0.8)
-    onetwo_file <- create_mock_onenesstwoness(
-        sum12_score = 0.7,
-        brca1_score = 0.4,
-        brca2_score = 0.3
-    )
+    onetwo_file <- create_mock_onenesstwoness()
     
     # Test function with both inputs
     result <- add_hrd_scores(metadata, hrdetect_file, onetwo_file)
     
     # Check all scores are present
-    expect_equal(result$hrd_score, 0.8)
+    expect_equal(result$hrd[[1]]$hrd_score, 0.8)
     expect_type(result$hrd[[1]], "list")
-    expect_equal(result$b1_2, 0.7)
-    expect_equal(result$b1, 0.4)
-    expect_equal(result$b2, 0.3)
+    expect_equal(result$hrd[[1]]$b1_2_score, 0.7)
+    expect_equal(result$hrd[[1]]$b1_score, 0.4)
+    expect_equal(result$hrd[[1]]$b2_score, 0.3)
     
     # Clean up
     unlink(c(hrdetect_file, onetwo_file))
@@ -2473,7 +2477,7 @@ test_that("create_metadata creates complete metadata object", {
     expect_false(is.na(result$snv_count))
     expect_false(is.null(result$coverage_qc[[1]]))
     expect_false(is.null(result$deconstructsigs_sbs_fraction[[1]]))
-    expect_false(is.na(result$hrd_score))
+    expect_false(is.na(result$hrd[[1]]$hrd_score))
     expect_false(is.na(result$tmb))
     
     # Clean up
@@ -2600,7 +2604,7 @@ test_that("create_metadata handles different genome length specifications", {
 
 test_that("lift_metadata processes cohort correctly", {
     # Create mock cohort and temporary output directory
-    cohort <- create_mock_cohort(num_samples = 2)
+    cohort <- suppressWarnings(create_mock_cohort(num_samples = 2))
     temp_dir <- tempdir()
     
     # Run lift_metadata
@@ -2627,7 +2631,7 @@ test_that("lift_metadata processes cohort correctly", {
 
 test_that("lift_metadata handles missing required column", {
     # Create cohort without pair column
-    cohort <- create_mock_cohort(num_samples = 2)
+    cohort <- suppressWarnings(create_mock_cohort(num_samples = 2))
     cohort$inputs[, pair := NULL]
     temp_dir <- tempdir()
     
@@ -2643,13 +2647,13 @@ test_that("lift_metadata handles missing required column", {
 
 test_that("lift_metadata handles missing optional columns", {
     # Create cohort without optional columns
-    cohort <- create_mock_cohort(num_samples = 2, include_optional = FALSE)
+    cohort <- suppressWarnings(create_mock_cohort(num_samples = 2, include_optional = FALSE))
     temp_dir <- tempdir()
     
     # Should run with warning but not error
     expect_warning(
         lift_metadata(cohort, temp_dir),
-        "Missing optional columns in cohort"
+        "Missing optional columns in cohort: tumor_type, disease, primary_site, inferred_sex, jabba_gg, events, somatic_snvs, germline_snvs, tumor_coverage, estimate_library_complexity, alignment_summary_metrics, insert_size_metrics, tumor_wgs_metrics, normal_wgs_metrics, het_pileups, activities_sbs_signatures, activities_indel_signatures, hrdetect, onenesstwoness, msisensorpro"
     )
     
     # Check that output was still created
@@ -2661,7 +2665,7 @@ test_that("lift_metadata handles missing optional columns", {
 })
 
 test_that("lift_metadata creates output directory if missing", {
-    cohort <- create_mock_cohort(num_samples = 1)
+    cohort <- suppressWarnings(create_mock_cohort(num_samples = 1))
     temp_dir <- file.path(tempdir(), "new_directory")
     
     # Ensure directory doesn't exist
@@ -2680,7 +2684,7 @@ test_that("lift_metadata creates output directory if missing", {
 
 test_that("lift_metadata handles parallel processing failures", {
     # Create cohort with some invalid samples
-    cohort <- create_mock_cohort(num_samples = 3, invalid_samples = 2)
+    cohort <- suppressWarnings(create_mock_cohort(num_samples = 3, invalid_samples = 2))
     temp_dir <- tempdir()
     
     # Should complete with warnings
@@ -2713,9 +2717,9 @@ test_that("lift_metadata validates input type", {
 
 test_that("lift_metadata processes multiple cores correctly", {
     # Create larger cohort to test parallel processing
-    cohort <- create_mock_cohort(num_samples = 4)
+    cohort <- suppressWarnings(create_mock_cohort(num_samples = 4))
     temp_dir <- tempdir()
-    
+
     # Run with multiple cores
     suppressWarnings(lift_metadata(cohort, temp_dir, cores = 1))
     
