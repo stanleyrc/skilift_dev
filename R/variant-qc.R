@@ -123,7 +123,8 @@ lift_variant_qc <- function(cohort, output_data_dir, cores = 1) {
         
         out_file <- file.path(pair_dir, "sage.qc.json")
         
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             # Generate QC metrics
             qc_data <- create_variant_qc(
                 somatic_snvs = row$somatic_snvs,
@@ -133,7 +134,8 @@ lift_variant_qc <- function(cohort, output_data_dir, cores = 1) {
             # Write to JSON
             jsonlite::write_json(qc_data, out_file, pretty = TRUE)
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
         })
     }, mc.cores = cores, mc.preschedule = FALSE)
     
