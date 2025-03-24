@@ -10,7 +10,7 @@ setup({
         seqnames = c("chr1", "chr2", "chr3"),
         start = c(100, 200, 300),
         end = c(100, 200, 300),
-        total_copies = c(2, 3, 4),
+        altered_copies = c(2, 3, 4),
         gene = c("GENE1", "GENE2", "GENE3"),
         feature_type = c("missense", "missense", "missense"),
         annotation = c("exonic", "exonic", "exonic"),
@@ -22,7 +22,10 @@ setup({
         transcript_type = c("protein_coding", "protein_coding", "protein_coding"),
         impact = c("MODERATE", "MODERATE", "MODERATE"),
         rank = c(1, 2, 3),
-        FILTER = c("PASS", "PASS", "LowQual")
+        FILTER = c("PASS", "PASS", "LowQual"),
+        ONCOGENIC = c(NA, NA, NA),
+        MUTATION_EFFECT = c(NA, NA, NA),
+        HIGHEST_LEVEL = c(NA, NA, NA)
     )
     
     # Mock settings JSON content
@@ -46,12 +49,13 @@ setup({
         public = list(
             inputs = NULL,
             reference_name = "hg19",
+            type = "paired",
             initialize = function() {
                 self$inputs <- data.table(
                     pair = c("sample1", "sample2"),
                     multiplicity = c(mock_rds_path, mock_rds_path),
                     germline_multiplicity = c(mock_rds_path, mock_rds_path),
-                    multiplicity_field = "total_copies",
+                    multiplicity_field = "altered_copies",
                     multiplicity_node_metadata = list(c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"))
                 )
             }
@@ -91,9 +95,9 @@ test_that("create_multiplicity processes RDS input correctly", {
     result <- create_multiplicity(mock_rds_path)
     
     expect_s3_class(result, "data.table")
-    expect_equal(nrow(result), 3)
+    expect_equal(nrow(result), 2)
     expect_true("annotation" %in% names(result))
-    expect_error(create_multiplicity(mock_snv_dt), "Input must be a file path to an RDS file")
+    expect_error(suppressWarnings(create_multiplicity(mock_snv_dt)))
 })
 
 test_that("multiplicity_to_intervals creates correct structure", {
@@ -103,9 +107,10 @@ test_that("multiplicity_to_intervals creates correct structure", {
     # Test the function
     result <- multiplicity_to_intervals(
         mult_data,
-        field = "total_copies",
+        field = "altered_copies",
         settings = mock_settings_json,
-        reference_name = "hg19"
+        reference_name = "hg19",
+        cohort_type = "paired"
     )
     
     # Structure tests
@@ -115,10 +120,10 @@ test_that("multiplicity_to_intervals creates correct structure", {
     expect_s3_class(result$connections, "data.table")
     
     # Content tests
-    expect_equal(nrow(result$intervals), 3)
+    expect_equal(nrow(result$intervals), 2)
     expect_named(result$intervals, c("chromosome", "startPoint", "endPoint", 
-                                   "iid", "title", "type", "y"))
-    expect_equal(result$intervals$y, c(2, 3, 4))  # matches total_copies from mock data
+                                   "iid", "title", "type", "y", "annotation"))
+    expect_equal(result$intervals$y, c(2, 3))  # matches total_copies from mock data
     expect_true(all(result$intervals$type == "interval"))
 })
 

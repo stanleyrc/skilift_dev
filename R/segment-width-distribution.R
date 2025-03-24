@@ -400,15 +400,17 @@ lift_multiplicity_fits <- function(cohort,
 #' @param mask_gr GRanges object containing the mask; default is maskA as provided in the package
 #' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
 #' @param out_file output file path
-process_multiplicity_fit <- function(variants,
-                                     field = "altered_copies",
-                                     mask = TRUE,
-                                     mask_gr = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
-                                     save_data = TRUE,
-                                     save_png = TRUE,
-                                     save_html = FALSE,
-                                     bins = 1e6,
-                                     out_file) {
+process_multiplicity_fit <- function(
+    variants,
+    field = "altered_copies",
+    mask = TRUE,
+    mask_gr = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+    save_data = TRUE,
+    save_png = TRUE,
+    save_html = FALSE,
+    bins = 1e6,
+    out_file
+) {
     if (is.character(variants)) {
         variants <- readRDS(variants)
     }
