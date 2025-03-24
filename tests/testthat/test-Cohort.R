@@ -6,7 +6,7 @@ library(data.table)
 # test <- function() { testthat::test_file("tests/testthat/test-Cohort.R") }
 
 setup({
-  num_cols_default <<- 16
+  num_cols_default <<- 17
 })
 
 test_that("Cohort constructor handles various data.table inputs correctly", {
@@ -87,6 +87,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
       c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")
     ),
     multiplicity_field = c("total_copies", "total_copies"),
+    denoised_coverage_apply_mask = c(TRUE, TRUE),
     denoised_coverage_field = c("foreground", "foreground"),
     denoised_coverage_color_field = c(NA_character_, NA_character_),
     denoised_coverage_bin_width = c(1e4, 1e4),

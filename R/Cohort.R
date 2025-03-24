@@ -493,6 +493,7 @@ config_parameter_names <- c(
   "copy_number_graph_annotations",
   "multiplicity_node_metadata",
   "multiplicity_field",
+  "denoised_coverage_apply_mask",
   "denoised_coverage_field",
   "denoised_coverage_color_field",
   "denoised_coverage_bin_width",
