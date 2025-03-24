@@ -74,7 +74,6 @@ get_segstats <- function(
 #'
 #' @param cohort Cohort object containing sample information
 #' @param output_data_dir Base directory for output files
-#' @param annotations (list) Optional annotations to include in JSON output (default: NULL)
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
@@ -156,11 +155,14 @@ lift_segment_width_distribution <- function(
                     return(NULL)
                 }
 
+                annotations = row$segment_width_distribution_annotations
+                annotations = if (!is.null(annotations)) unlist(annotations) else NULL
+
                 # Create JSON
                 gGnome::refresh(ggraph.reduced)$json(
                     filename = out_file,
                     verbose = TRUE,
-                    annotations = if (!is.null(annotations)) unlist(annotations) else NULL,
+                    annotations = annotations,
                     maxcn = 500,
                     nfields = fields.keep,
                     save = TRUE
