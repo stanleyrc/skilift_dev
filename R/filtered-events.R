@@ -419,7 +419,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     if (length(grovA) > 0) {
       grovA <- GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
       non_silent_fusions$cytoA <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
-        gUtils::gr2dt(grovB)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband, 1))]), collapse = "-"), by = query.id]$V1, NA
+        gUtils::gr2dt(grovA)[, paste(unique(chromband[chromband %in% c(chromband[1], tail(chromband, 1))]), collapse = "-"), by = query.id]$V1, NA
       )
     } else {
       non_silent_fusions$cytoA <- ""
@@ -742,21 +742,6 @@ oncotable <- function(
   return(out)
 }
 
-#' @name create_oncotable
-#' @title create_oncotable
-#' @description
-#'
-#' function to create oncotable for use with filtered_events_json
-#'
-#' @param cohort Cohort object containing sample information
-#' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
-#' @param gencode file to gencode annotations (uses v29lift37 by default)
-#' @param outdir path to directory in which to write oncotable outputs
-#' @param cores number of cores for parallel processing
-#' @return None
-#' @export
-#' @author Shihab Dider, Joel Rosiene
-
 create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
@@ -801,8 +786,9 @@ create_oncotable <- function(
   if (!"oncotable" %in% names(updated_cohort$inputs)) {
     updated_cohort$inputs[, oncotable := NA_character_]
   }
+  futile.logger::flog.threshold("ERROR")
   results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-    tryCatch(
+  tryCatchLog(
       {
         row <- cohort$inputs[i]
 
@@ -838,7 +824,7 @@ create_oncotable <- function(
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
 
         # Run oncotable for this pair
-        oncotable_result <- tryCatch(
+        oncotable_result <- tryCatchLog(
           {
             oncotable(
               pair = row$pair,
@@ -862,7 +848,7 @@ create_oncotable <- function(
           },
           error = function(e) {
             msg <- sprintf("Error in oncotable for %s: %s", row$pair, e$message)
-            warning(msg)
+            print(msg)
             return(NULL)
           }
         )
@@ -877,7 +863,7 @@ create_oncotable <- function(
       },
       error = function(e) {
         msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
-        warning(msg)
+        print(msg)
       }
     )
   }, mc.cores = cores, mc.preschedule = FALSE)
@@ -1003,7 +989,7 @@ create_filtered_events <- function(
     res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
     res[, start := tstrsplit(start, ":", fixed = TRUE, keep = 2)]
     res[, end := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 2)]
-    res.mut <- res[!is.na(Variant), ]
+    res.mut <- res[vartype == "SNV"]
     if (nrow(res.mut) > 0) {
       # res.mut[, Variant := gsub("p.", "", Variant)]
       res.mut[, vartype := "SNV"]
@@ -1013,7 +999,15 @@ create_filtered_events <- function(
       # but we should encode this as something more robust
       # res.mut[type=="trunc", vartype := "DEL"]
     }
-    res.cn <- res[is.na(Variant) & !is.na(Genome_Location), ]
+    res.fus = res[type == "fusion"] ## need to deal each class explicitly
+    if (NROW(res.fus) > 0) {
+      res.fus$Variant = res.fus$vartype
+      res.fus$estimated_altered_copies = res.fus$fusion_cn
+    }
+    res.cn.dt = res.cn <- res[(
+      type == "SCNA" ## FIXME: redundant logic for now
+      | vartype %in% c("AMP", "HOMDEL")
+    )]
     if (nrow(res.cn) > 0) {
       jab <- readRDS(jabba_gg)
       res.cn.gr <- GRanges(res.cn)
@@ -1025,33 +1019,23 @@ create_filtered_events <- function(
 
       # remove redundant columns since already added to Variant
       res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL]
-      res.final <- rbind(res.mut, res.cn.dt, fill = TRUE)
-    } else {
-      res.final <- res.mut
     }
+    res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
+    res.final[, sample := pair]
     if (cohort_type == "heme") {
       res.final <- select_heme_events(res.final)
     }
+    ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
+    res.final <- res.final[res.final$seqnames != "Y"]
+    ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
     write_json(res.final, out_file, pretty = TRUE)
-    res.final[, sample := pair]
+    
+    ## FIXME: Decide whether to either propagate return_table to lift_mvp in lift_heme somehow, or change this
+    ## conditional logic to be based on cohort_type. Can also be left alone.
+    ## Note that return_table for debugging purposes as well.
     if (return_table) {
       return(res.final)
     }
-    res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL] # make null, already added to Variant
-    res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
-  } else {
-    res.final <- res.mut
-  }
-  if (cohort_type == "heme") {
-    res.final <- select_heme_events(res.final)
-  }
-  ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
-  res.final <- res.final[res.final$seqnames != "Y"]
-  ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
-  write_json(res.final, out_file, pretty = TRUE)
-  res.final[, sample := pair]
-  if (return_table) {
-    return(res.final)
   }
   NULL
 }
@@ -1083,7 +1067,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
-    cohort_type = cohort$cohort_type
+    cohort_type = cohort$type
     # Process each sample in parallel
     lst_outs = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
@@ -1104,7 +1088,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 oncotable = row$oncotable,
                 jabba_gg = row$jabba_gg,
                 out_file = out_file,
-                temp_fix = FALSE,
+                # temp_fix = FALSE,
                 return_table = return_table,
                 cohort_type = cohort_type
             )
@@ -1167,19 +1151,64 @@ select_heme_events <- function(
 #'
 #' @export
 merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
-  if (is.character(oncokb)) {
+  is_character_oncokb = is.character(oncokb)
+  is_length_one = NROW(oncokb) == 1
+  is_exists_oncokb = is_character_oncokb && is_length_one && file.exists(oncokb)
+  is_oncokb_rds = is_exists_oncokb && grep("rds$", oncokb)
+  is_oncokb_txt = is_exists_oncokb && grep("(c|t)sv$|maf$|txt$", oncokb)
+
+  if (is_oncokb_txt) {
     oncokb <- data.table::fread(oncokb)
+  } else if (is_oncokb_rds) {
+    oncokb <- readRDS(oncokb)
   }
 
-  if (is.character(multiplicity)) {
-    gr_multiplicity <- readRDS(multiplicity)
-  } else if (inherits(multiplicity, "GRanges")) {
+  is_character_mult = is.character(multiplicity)
+  is_length_one = NROW(multiplicity) == 1
+  is_exists_mult = is_character_mult && is_length_one && file.exists(multiplicity)
+  is_mult_rds = is_exists_mult && grep("rds$", multiplicity)
+  is_mult_txt = is_exists_mult && grep("(c|t)sv$|maf$|txt$", multiplicity)
+
+  if (is_mult_rds) {
+    multiplicity <- readRDS(multiplicity)
+  } else if (is_mult_txt) {
+    multiplicity = fread(multiplicity)
+  }
+  if (inherits(multiplicity, "GRanges")) {
     gr_multiplicity <- multiplicity
-  } else if (inherits(multiplicity, "data.frame")) {
-    gr_multiplicity <- gUtils::dt2gr(multiplicity)
+  } else {
+    multiplicity_tmp = tryCatch(
+      {
+        dt2gr(multiplicity)
+      }, error = function(e) tryCatch(
+      {
+        as(multiplicity, "GRanges")
+      }, error = function(e) NULL)
+    )
+    if (is.null(multiplicity_tmp)) {
+      stop("multiplicity must be coercible to GRanges")
+    }
+    gr_multiplicity = multiplicity_tmp
   }
 
-  gr_oncokb <- gUtils::dt2gr(oncokb)
+  if (inherits(oncokb, "GRanges")) {
+    gr_oncokb <- oncokb
+    oncokb = gr2dt(oncokb)
+  } else {
+    oncokb_tmp = tryCatch(
+      {
+        dt2gr(oncokb)
+      }, error = function(e) tryCatch(
+      {
+        as(oncokb, "GRanges")
+      }, error = function(e) NULL)
+    )
+    if (is.null(oncokb_tmp)) {
+      stop("oncokb must be coercible to GRanges")
+    }
+    gr_oncokb = oncokb_tmp
+  }
+
   gr_oncokb$ALT <- gr_oncokb$Allele
 
   mc <- S4Vectors::mcols(gr_multiplicity)
@@ -1218,6 +1247,7 @@ merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
   }
   ovQuery <- rbind(ovQuery, missingOvQuery)
 
+  # # Logic for when there's not an exact match due to VCF -> maf parsing.
   # missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
   # missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
 
@@ -1257,7 +1287,7 @@ merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
       oncokb_multiplicity[[multiplicity_col]] <- NULL
       oncokb_multiplicity[[multiplicity_col]] <- subject_ord[[multiplicity_col]]
     }
-    # S4Vectors::mcols(mc_oncokb_multiplicity) = mc_oncokb_multiplicity
+    # S4Vectors::mcols(oncokb_multiplicity) = mc_oncokb_multiplicity
   }
 
   oncokb_multiplicity$multiplicity_id_match <- skey$subject.id
