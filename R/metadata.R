@@ -241,11 +241,13 @@ process_qc_metrics <- function(
         # pct_30x = "PCT_30X",
         greater_than_or_equal_to_30x = "PCT_30X",
         # pct_50x = "PCT_50X"
-        greater_than_or_equal_to_50x = "PCT_50X"
+        greater_than_or_equal_to_50x = "PCT_50X",
+        fraction_excluded = "PCT_EXC_TOTAL"
     )
 
     normal_wgs_metrics_cols <- c(
-        normal_median_coverage = "MEDIAN_COVERAGE"
+        normal_median_coverage = "MEDIAN_COVERAGE",
+        fraction_excluded = "PCT_EXC_TOTAL"
     )
     
     test_file_is_present = function(x) {
@@ -292,6 +294,10 @@ process_qc_metrics <- function(
             tumor_wgs_metrics_cols,
             pair
         )
+        tumor_wgs_data$tumor_median_coverage = round(
+            tumor_wgs_data$tumor_median_coverage / (1 - tumor_wgs_data$fraction_excluded)
+        )
+        tumor_wgs_data$fraction_excluded = NULL
     }
 
     normal_wgs_data = data.table(pair = character(0))
@@ -301,6 +307,10 @@ process_qc_metrics <- function(
             normal_wgs_metrics_cols,
             pair
         )
+        normal_wgs_data$normal_median_coverage = round(
+            normal_wgs_data$normal_median_coverage / (1 - normal_wgs_data$fraction_excluded)
+        )
+        normal_wgs_data$fraction_excluded = NULL
     }
     
     # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
@@ -319,7 +329,8 @@ process_qc_metrics <- function(
         data.table::merge.data.table(
             x, y, by = "pair", 
             all.x = TRUE, 
-            all.y = TRUE
+            all.y = TRUE,
+            suffixes = c("_x", "_y")
         )
     }   , lst_to_merge)
     
@@ -472,7 +483,25 @@ add_variant_counts <- function(
 ) {
     if (!is.null(somatic_snvs)) {
         # snv_counts_dt <- sage_count(somatic_snvs, genome = genome)
-        snv_counts_dt <- vcf_count(somatic_snvs, genome = genome)
+        is_path_character = is.character(somatic_snvs)
+        is_length_one = NROW(somatic_snvs) == 1
+        is_snvs_exists = is_path_character && is_length_one && file.exists(somatic_snvs)
+        is_rds = is_snvs_exists && grepl("rds$", somatic_snvs)
+        is_vcf = is_snvs_exists && grepl("vcf(.gz|.bgz)?$", somatic_snvs)
+        is_txt = is_snvs_exists && grepl("(txt|maf|(t|c)sv)(.gz|.bgz)?$", somatic_snvs)
+        is_other = is_txt || is_rds
+        snv_counts_dt = data.table()
+        if (is_vcf) {
+            snv_counts_dt <- vcf_count(somatic_snvs, genome = genome)
+        }
+        if (is_rds) snvs = readRDS(somatic_snvs)
+        if (is_txt) snvs = fread(somatic_snvs)
+        if (is_other) {
+            snv_counts_dt = data.table(
+                category = c("snv_count", "snv_count_normal_vaf_greater0"),
+                counts = c(NROW(snvs), NA_integer_)
+            )
+        }
         
         metadata$snv_count <- snv_counts_dt[category == "snv_count", ]$counts
         ## count up filtered variants in VCF 
