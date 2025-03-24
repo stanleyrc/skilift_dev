@@ -104,7 +104,8 @@ lift_segment_width_distribution <- function(
 
         out_file <- file.path(pair_dir, "ppfit.json")
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!file.exists(row$balanced_jabba_gg)) {
                     warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$balanced_jabba_gg))
@@ -166,7 +167,7 @@ lift_segment_width_distribution <- function(
                 )
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
@@ -211,7 +212,8 @@ lift_allelic_pp_fit <- function(cohort,
         #out_file <- file.path(pair_dir, "allelic_pp_fit.json")
         out_file_png <- file.path(pair_dir, file.name)
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 ppplot <- pp_plot(jabba_rds = row$jabba_gg,
                         hets.fname = row$het_pileups,
@@ -230,7 +232,7 @@ lift_allelic_pp_fit <- function(cohort,
                 
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
@@ -267,10 +269,12 @@ lift_multiplicity_fits <- function(cohort,
         message("Skipping... missing columns will not be processed")
     }
 
-    lift_allelic_pp_fit(cohort, 
-                        output_data_dir, 
-                        cores,
-                        file.name = "purple_sunrise_beta_gamma.png") 
+    lift_allelic_pp_fit(
+        cohort,
+        output_data_dir,
+        cores,
+        file.name = "purple_sunrise_beta_gamma.png"
+    ) 
     ## TODO: update me once new plot is ready; right now using Zi plot from skitools
     ## also hacking and just getting rid of the purple sunrise plot to make it work for now
     ## eventually tell CX to update the png we are using on the frontend
@@ -298,7 +302,8 @@ lift_multiplicity_fits <- function(cohort,
                 hetsnps_multiplicity = c("major_snv_copies", "minor_snv_copies")
             )
 
-            tryCatch(
+            futile.logger::flog.threshold("ERROR")
+            tryCatchLog(
                 {
                     if (!file.exists(row[[col]])) {
                         warning(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
@@ -319,7 +324,7 @@ lift_multiplicity_fits <- function(cohort,
 
                 },
                 error = function(e) {
-                    warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                    print(sprintf("Error processing %s: %s", row$pair, e$message))
                 }
             )
         }
@@ -522,7 +527,8 @@ lift_coverage_jabba_cn <- function(
         out_file_original_png <- file.path(pair_dir, "coverage_cn_boxplot_original.png")
         out_file_html <- file.path(pair_dir, "coverage_cn_boxplot.html")
                 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!file.exists(row$jabba_gg)) {
                     warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$jabba_gg))
@@ -585,7 +591,7 @@ lift_coverage_jabba_cn <- function(
 
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
@@ -708,7 +714,8 @@ lift_purple_sunrise_plot <- function(cohort,
         out_file_beta_gamma_png <- file.path(pair_dir, "purple_sunrise_beta_gamma.png")
         out_file_html <- file.path(pair_dir, "combined_plot.html")
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!file.exists(row$purple_pp_range)) {
                     warning(sprintf("Purple purity range file not found for %s: %s", row$pair, row$purple_pp_range))
@@ -769,7 +776,7 @@ lift_purple_sunrise_plot <- function(cohort,
 
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
@@ -988,7 +995,8 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
         # out_file <- file.path(pair_dir, "ppfit.json")
         png_path <- paste0(normalizePath(pair_dir), "/pp_plot.png")
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 pp_plot_list <- create_pp_plot(
                     jabba_gg = row$jabba_gg,

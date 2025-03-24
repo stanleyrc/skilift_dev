@@ -53,7 +53,8 @@ lift_copy_number_graph <- function(
         
         out_file <- file.path(pair_dir, out_filename)
         
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             ggraph_path <- row[[cn_column]]
             
             if (!is.null(ggraph_path) && file.exists(ggraph_path)) {
@@ -98,7 +99,7 @@ lift_copy_number_graph <- function(
                 warning(sprintf("Copy number graph file missing for %s", row$pair))
             }
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
         })
     }, mc.cores = cores, mc.preschedule = FALSE)
     
