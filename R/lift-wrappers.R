@@ -64,7 +64,22 @@ has_required_columns <- function(cohort, columns, any = FALSE) {
       "tumor_bam",
       "normal_bam",
       "bam"
+    ),
+    multiplicity_fits = c(
+       "multiplicity", 
+       "germline_multiplicity", 
+       "hetsnps_multiplicity"
+    ),
+
+    coverage_jabba_cn = c(
+      "jabba_gg", "tumor_coverage"
+    ),
+    
+    purple_sunrise_plot = c(
+      "purple_pp_range",
+      "purple_pp_bestFit"
     )
+
   )
 
 
@@ -84,7 +99,12 @@ lift_all <- function(
     cohort,
     output_data_dir,
     cores = 1,
+    genome_length = NULL,
+    width = 10000,
     ...) {
+  
+  list2env(list(...), envir = environment())
+
   # make sure pair is in cohort
   if (!"pair" %in% names(cohort$inputs)) {
     stop("Missing required column in cohort: pair")
@@ -113,6 +133,8 @@ lift_all <- function(
       output_data_dir = output_data_dir,
       oncotable_dir = oncotable_dir,
       cores = cores,
+      genome_length = genome_length,
+      width = width,
       ... = ...
     )
   } else if (cohort$type == "heme") {
@@ -121,6 +143,8 @@ lift_all <- function(
       output_data_dir = output_data_dir,
       oncotable_dir = oncotable_dir,
       cores = cores,
+      genome_length = genome_length,
+      width = width,
       ... = ...
     )
   } else if (cohort$type == "tumor_only") {
@@ -129,6 +153,8 @@ lift_all <- function(
       output_data_dir = output_data_dir,
       oncotable_dir = oncotable_dir,
       cores = cores,
+      genome_length = genome_length,
+      width = width,
       ... = ...
     )
   }
@@ -238,6 +264,31 @@ lift_mvp <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
   if (has_required_columns(cohort, Skilift:::required_columns$bam, any = TRUE)) {
     lift_bam(
       cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
+  if (has_required_columns(cohort, Skilift:::required_columns$multiplicity_fits, any = TRUE)) {
+    lift_multiplicity_fits(
+      cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
+  if (has_required_columns(cohort, Skilift:::required_columns$coverage_jabba_cn)) {
+    lift_coverage_jabba_cn(
+      cohort,
+      output_data_dir = output_data_dir,
+      cores = cores,
+      width = width
+    )
+  }
+
+  if (has_required_columns(cohort, Skilift:::required_columns$purple_sunrise_plot)) {
+    lift_purple_sunrise_plot(
+      cohort,
       output_data_dir = output_data_dir,
       cores = cores
     )
