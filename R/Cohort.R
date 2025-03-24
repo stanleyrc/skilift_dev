@@ -100,7 +100,7 @@ Cohort <- R6Class("Cohort",
       )
 
       # Define metadata fields and configuration parameter fields that should only check for NA/NULL
-      metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex")
+      metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex", "metadata_is_visible")
       config_fields <- Skilift:::config_parameter_names # Use the existing config parameter names
 
       # Combine metadata and config fields
@@ -462,6 +462,7 @@ default_col_mapping <- list(
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
   msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
   # Configuration parameters with default values
+  metadata_is_visible = structure(c("metadata_is_visible"), default = TRUE),
   copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
   copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))),
   multiplicity_node_metadata = structure(c("multiplicity_node_metadata"), default = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")),

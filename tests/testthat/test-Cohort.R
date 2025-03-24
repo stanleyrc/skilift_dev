@@ -6,7 +6,7 @@ library(data.table)
 # test <- function() { testthat::test_file("tests/testthat/test-Cohort.R") }
 
 setup({
-  num_cols_default <<- 15
+  num_cols_default <<- 16
 })
 
 test_that("Cohort constructor handles various data.table inputs correctly", {
@@ -76,6 +76,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
     purple_pp_range = c("ppr1", "ppr2"),
     purple_pp_bestFit = c("ppb1", "ppb2"),
     msisensorpro = c("msi1", "msi2"),
+    metadata_is_visible = c(TRUE, TRUE),
     copy_number_graph_max_cn = c(100, 100),
     copy_number_graph_annotations = list(
       c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"),

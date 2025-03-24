@@ -1069,7 +1069,8 @@ create_metadata <- function(
     genome = "hg19",
     seqnames_loh = c(1:22),
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
-    denoised_coverage_field = "foreground"
+    denoised_coverage_field = "foreground",
+    is_visible = TRUE
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
@@ -1121,6 +1122,10 @@ create_metadata <- function(
 
     # Add MSIsensor score
     metadata <- add_msisensor_score(metadata, msisensorpro)    
+
+    if (!is_visible) {
+        metadata$visible <- FALSE
+    }
     
     return(metadata)
 }
@@ -1213,7 +1218,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 onenesstwoness = row$onenesstwoness,
                 msisensorpro = row$msisensorpro,
                 seqnames_genome_width_or_genome_length = genome_length,
-                denoised_coverage_field = row$denoised_coverage_field
+                denoised_coverage_field = row$denoised_coverage_field,
+                is_visible = row$metadata_is_visible
             )
 
             if (is.null(metadata)) {
