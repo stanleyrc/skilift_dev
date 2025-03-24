@@ -68,10 +68,10 @@ Cohort <- R6Class("Cohort",
 
 
       if (is.character(x) && length(x) == 1) {
-        self$inputs <- private$construct_from_path(x)
+        self$inputs <- private$construct_from_path(x)[]
         self$nextflow_results_path <- x
       } else if (is.data.table(x)) {
-        self$inputs <- private$construct_from_datatable(x)
+        self$inputs <- private$construct_from_datatable(x)[]
       } else {
         stop("Input must be either a path (character) or data.table")
       }
@@ -422,6 +422,7 @@ nf_path_patterns <- list(
 #' @export
 default_col_mapping <- list(
   pair = c("pair", "patient_id", "pair_id", "sample"),
+  status = c("status"),
   tumor_type = c("tumor_type"),
   disease = c("disease"),
   primary_site = c("primary_site"),
@@ -656,9 +657,15 @@ cohort_attributes <- c(
   }
   colmap <- as.list(names(tblj))
   names(colmap) <- names(tblj)
-  tbli <- tblj
+  tbli <- tblj[]
   if (is_i_given) {
-    tbli <- tblj[i, , with = with]
+      expr = substitute(i)
+      if (is.call(expr)) {
+          tbli <- tblj[eval(expr), , with = with][]
+      } else {
+          tbli <- tblj[expr, , with = with][]
+      }
+      
   }
   # obj_out$inputs = tbli
   suppressWarnings({
@@ -732,6 +739,15 @@ read_nf_log <- function(nflog_path, max_lines = 1000000L) {
 Cohort$private_methods[["read_nf_log"]] <- read_nf_log
 
 
+## Already - we need to deal with backwards compatibility
+## It makes sense to refer to Cohort$type and in the arguments to functions, specify "cohort_type"
+## But there are cached cohorts where we've already instantiated the cohort_type attribute.
+## Skilift::refresh() can restore this, but we would need to make sure that the right attributes are
+## propagated forward.
+refresh_attributes = list(
+  list("type", "cohort_type") ## attributes that could be present, but need to be updated
+)
+
 #' Refresh Cohort object
 #'
 #' Reinstantiate Cohort object
@@ -743,6 +759,11 @@ refresh_cohort <- function(cohort) {
   )
   for (attribute in setdiff(Skilift:::cohort_attributes, "inputs")) {
     obj_out[[attribute]] <- cohort[[attribute]]
+  }
+  for (attribute_lst in Skilift:::refresh_attributes) {
+    if ( !is.null(cohort[[ attribute_lst[[2]] ]]) ) {
+      obj_out[[ attribute_lst[[1]] ]] <- cohort[[ attribute_lst[[2]] ]]
+    }
   }
   return(obj_out)
 }
