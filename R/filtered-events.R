@@ -741,7 +741,20 @@ oncotable <- function(
   if (verbose) message("done processing sample")
   return(out)
 }
-
+#' @name create_oncotable
+#' @title create_oncotable
+#' @description
+#'
+#' function to create oncotable for use with filtered_events_json
+#'
+#' @param cohort Cohort object containing sample information
+#' @param amp_thresh_multiplier amp.thresh for oncotable is amp_thresh_multiplier*ploidy
+#' @param gencode file to gencode annotations (uses v29lift37 by default)
+#' @param outdir path to directory in which to write oncotable outputs
+#' @param cores number of cores for parallel processing
+#' @return None
+#' @export
+#' @author Shihab Dider, Joel Rosiene
 create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
