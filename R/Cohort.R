@@ -467,6 +467,7 @@ default_col_mapping <- list(
   copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))),
   multiplicity_node_metadata = structure(c("multiplicity_node_metadata"), default = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")),
   multiplicity_field = structure(c("multiplicity_field"), default = "total_copies"),
+  denoised_coverage_apply_mask = structure(c("denoised_coverage_apply_mask"), default = TRUE),
   denoised_coverage_field = structure(c("denoised_coverage_field"), default = "foreground"),
   denoised_coverage_color_field = structure(c("denoised_coverage_color_field"), default = NULL),
   denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = 1e4),
