@@ -7,7 +7,7 @@
 #'
 #' @return data.table containing processed mutation data
 #' @export
-create_multiplicity <- function(snv_cn, oncokb_snv, is_germline = FALSE, field = "altered_copies") {
+create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, field = "altered_copies") {
   mutations.gr <- tryCatch({
     if (!grepl("\\.rds$", snv_cn)) {
       message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
@@ -42,6 +42,8 @@ create_multiplicity <- function(snv_cn, oncokb_snv, is_germline = FALSE, field =
     message("Successfully loaded input snv_cn.")
   }
 
+  mutations.dt <- gr2dt(mutations.gr)
+
   if (!is.null(oncokb_snv)) {
     message("oncokb_snv provided, processing input")
     is_path_character = is.character(oncokb_snv)
@@ -75,10 +77,14 @@ create_multiplicity <- function(snv_cn, oncokb_snv, is_germline = FALSE, field =
     if (!inherits(oncokb_snv, "GRanges")) {
       stop("final oncokb_snv not a GRanges object")
     }
-    
+
+    mutations.gr.annotated = merge_oncokb_multiplicity(
+      oncokb_snv,
+      mutations.gr,
+      overwrite = TRUE
+    )
+    mutations.dt = gr2dt(mutations.gr.annotated)
   }
-  mutations.gr.annotated = merge_oncokb_multiplicity(oncokb_snv, mutations.gr, overwrite = TRUE)
-  mutations.dt = gr2dt(mutations.gr.annotated)
 
   if (!any(class(mutations.dt) == "data.table")) {
     stop("Input must be a data.table.")
@@ -133,7 +139,6 @@ create_multiplicity <- function(snv_cn, oncokb_snv, is_germline = FALSE, field =
 
   for (col in names(annotation_fields)) {
     if (col %in% colnames(mutations.dt)) {
-      print(col)
       mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
     }
   }
