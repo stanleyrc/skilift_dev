@@ -147,7 +147,14 @@ lift_all <- function(
 #' @param oncotable_dir Directory for oncotable outputs
 #'
 #' @return Modified cohort object if oncotable is created, otherwise NULL
-lift_mvp <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
+lift_mvp <- function(
+  cohort,
+  output_data_dir,
+  oncotable_dir,
+  cores,
+  genome_length = c(1:22, "X", "Y"),
+  ...
+) {
   list2env(list(...), envir = environment())
 
   if (has_required_columns(cohort, required_columns$total_copy_number_graph)) {
