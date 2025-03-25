@@ -455,8 +455,6 @@ vcf_count <- function(
     )
 }
     
-
-
 #' @name add_variant_counts
 #' @title Add Variant Counts
 #' @description
@@ -1037,6 +1035,7 @@ add_msisensor_score <- function(metadata, msisensorpro) {
 #' @param activities_sbs_signatures Activities of SBS signatures.
 #' @param hrdetect HRDetect scores.
 #' @param onenesstwoness Oneness and twoness scores.
+#' @param msisensorpro MSIsensor profile file.
 #' @param genome The genome reference used.
 #' @param seqnames_loh Sequence names for loss of heterozygosity.
 #' @param seqnames_genome_width_or_genome_length Sequence names and genome width in list or genome length as a numeric
@@ -1243,4 +1242,39 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
     }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(NULL)
+}
+
+#' @name lift_datafiles_json
+#' @title lift_datafiles_json
+#' @description
+#' Create a combined JSON file for all data files in a directory
+#'
+#' @param data_dir Directory containing data files
+#' @return None
+#' @export
+lift_datafiles_json <- function(data_dir) {
+  if (!dir.exists(data_dir)) {
+    stop("Data directory does not exist.")
+  }
+  
+  # Recursively look for all files named "metadata.json"
+  metadata_files <- list.files(
+    path = data_dir,
+    pattern = "^metadata\\.json$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  
+  if (length(metadata_files) == 0) {
+    stop("No metadata.json files found in the specified directory.")
+  }
+  
+  # Read each JSON file and combine them into a list
+  combined_data <- lapply(metadata_files, function(file) {
+    jsonlite::fromJSON(file)
+  })
+  
+  # Write the combined JSON list to "datafiles.json" in the data directory
+  output_file <- file.path(data_dir, "datafiles.json")
+  jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")
 }
