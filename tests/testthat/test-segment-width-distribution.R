@@ -58,7 +58,7 @@ test_that("get_segstats handles missing inputs correctly", {
     )
     
     # Test missing tumor_coverage
-    mock_gg_path <- create_mock_ggraph()
+    mock_gg_path <- suppressWarnings(create_mock_ggraph())
     expect_error(
         get_segstats(
             balanced_jabba_gg = mock_gg_path,
