@@ -262,13 +262,13 @@ lift_multiplicity_fits <- function(cohort,
     }
 
     # Validate required columns exist
-    required_cols <- c("pair", "multiplicity", "germline_multiplicity", "hetsnps_multiplicity")
-    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
-    iter_cols <- required_cols[-1][required_cols[-1] %in% names(cohort$inputs)]
+    required_cols <- c("pair", "multiplicity")
+    optional_cols <-  c("germline_multiplicity", "hetsnps_multiplicity")
+    required_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    iter_cols <- c("multiplicity", optional_cols[which(optional_cols %in% names(cohort$inputs))])
 
-    if (length(missing_cols) > 0) {
-        message("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
-        message("Skipping... missing columns will not be processed")
+    if (length(required_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
 
     lift_allelic_pp_fit(
