@@ -269,6 +269,11 @@ lift_mvp <- function(
       cores = cores,
       genome_length = genome_length
     )
+
+    lift_datafiles_json(
+      cohort = cohort,
+      output_data_dir = output_data_dir
+    )
   }
 
   if (has_required_columns(cohort, required_columns$pp_plot)) {

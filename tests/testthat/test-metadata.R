@@ -2653,7 +2653,7 @@ test_that("lift_metadata handles missing optional columns", {
     # Should run with warning but not error
     expect_warning(
         lift_metadata(cohort, temp_dir),
-        "Missing optional columns in cohort: tumor_type, disease, primary_site, inferred_sex, jabba_gg, events, somatic_snvs, germline_snvs, tumor_coverage, estimate_library_complexity, alignment_summary_metrics, insert_size_metrics, tumor_wgs_metrics, normal_wgs_metrics, het_pileups, activities_sbs_signatures, activities_indel_signatures, hrdetect, onenesstwoness, msisensorpro"
+        "Missing optional columns in cohort: tumor_type, disease, primary_site, inferred_sex, jabba_gg, events, germline_snvs, het_pileups, activities_sbs_signatures, activities_indel_signatures, hrdetect, onenesstwoness, msisensorpro"
     )
     
     # Check that output was still created
@@ -2734,7 +2734,42 @@ test_that("lift_metadata processes multiple cores correctly", {
     unlink(temp_dir, recursive = TRUE)
 })
 
+test_that("lift_datafiles_json creates combined JSON file", {
+  # Create a temporary directory
+  temp_dir <- tempfile("metadata_test_")
+  dir.create(temp_dir)
+  
+  # Create two sample subdirectories each with a metadata.json file
+  sample_dirs <- file.path(temp_dir, c("sample1", "sample2"))
+  lapply(sample_dirs, dir.create)
+  
+  # Create dummy metadata objects and write them to metadata.json in each subdirectory
+  meta1 <- list(pair = "SAMPLE1", tumor_type = "BRCA")
+  meta2 <- list(pair = "SAMPLE2", tumor_type = "LUAD")
+  jsonlite::write_json(meta1, file.path(sample_dirs[1], "metadata.json"), auto_unbox = TRUE, pretty = TRUE)
+  jsonlite::write_json(meta2, file.path(sample_dirs[2], "metadata.json"), auto_unbox = TRUE, pretty = TRUE)
+  
+  # Call the function to combine metadata files
+  lift_datafiles_json(temp_dir)
+  
+  # Check that a datafiles.json file has been created in the temp_dir
+  datafiles_path <- file.path(temp_dir, "datafiles.json")
+  expect_true(file.exists(datafiles_path))
+  
+  # Read in the combined JSON and verify that both metadata objects are present
+  combined <- jsonlite::read_json(datafiles_path)
+  expect_true(length(combined) >= 2)
+  pairs <- sapply(combined, function(x) x$pair)
+  expect_true("SAMPLE1" %in% pairs)
+  expect_true("SAMPLE2" %in% pairs)
+  
+  # Clean up
+  unlink(temp_dir, recursive = TRUE)
+})
+
+##############################################
 ## integration tests (only works on NYU hpc)
+##############################################
 will_test_integration = FALSE
 if (will_test_integration) {
 test_that("lift_metadata works on real cohort", {
@@ -2842,3 +2877,4 @@ metadata <- suppressWarnings(create_metadata(
     onenesstwoness = row$onenesstwoness
 ))
 }
+
