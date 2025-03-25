@@ -689,8 +689,8 @@ save_coverage_jabba_cn_png <- function(tiles.dt, out_file_denoised_png, out_file
 #' 
 #' @references Code adapted from:
 #'  - https://github.com/hartwigmedical/hmftools/tree/642436265858083a0bfc81b793a51ccde42edd02/purple/src/main/resources/r/copyNumberPlots.R
-lift_purple_sunrise_plot <- function(cohort,
 #'@author Johnathan Rafailov
+lift_purple_sunrise_plot <- function(cohort,
                                     output_data_dir, cores = 1, save_pngs = TRUE, save_html = TRUE, save_data = TRUE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
