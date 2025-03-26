@@ -4,7 +4,15 @@
 \alias{collect_oncokb_cna}
 \title{collect_oncokb_cna}
 \usage{
-collect_oncokb_cna(oncokb_cna, verbose = TRUE)
+collect_oncokb_cna(
+  oncokb_cna,
+  jabba_gg,
+  pge,
+  amp.thresh,
+  del.thresh,
+  karyograph = NULL,
+  verbose = TRUE
+)
 }
 \arguments{
 \item{oncokb_cna}{Path to the oncokb CNA file.}

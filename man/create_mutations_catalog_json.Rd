@@ -4,12 +4,7 @@
 \alias{create_mutations_catalog_json}
 \title{create_mutations_catalog_json}
 \usage{
-create_mutations_catalog_json(
-  sig_matrix_path,
-  is_indel = FALSE,
-  suffix = "_somatic",
-  output_dir
-)
+create_mutations_catalog_json(sig_matrix_path, is_indel, output_dir)
 }
 \arguments{
 \item{sig_matrix_path}{Path to either the SBS or ID matrix}

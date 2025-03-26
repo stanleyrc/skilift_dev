@@ -4,7 +4,15 @@
 \alias{lift_multiplicity}
 \title{lift_multiplicity}
 \usage{
-lift_multiplicity(cohort, output_data_dir, is_germline = FALSE, cores = 1)
+lift_multiplicity(
+  cohort,
+  output_data_dir,
+  is_germline = FALSE,
+  node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
+    "variant.p", "vaf", "transcript_type", "impact", "rank"),
+  field = "altered_copies",
+  cores = 1
+)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
