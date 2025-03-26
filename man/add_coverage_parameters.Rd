@@ -4,12 +4,14 @@
 \alias{add_coverage_parameters}
 \title{Add Coverage Parameters}
 \usage{
-add_coverage_parameters(metadata, tumor_coverage)
+add_coverage_parameters(metadata, tumor_coverage, field = "foreground")
 }
 \arguments{
 \item{metadata}{A data.table containing metadata}
 
 \item{tumor_coverage}{Coverage data for the tumor}
+
+\item{field}{The field to use for coverage calculation}
 }
 \value{
 Updated metadata with coverage parameters added

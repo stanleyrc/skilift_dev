@@ -5,7 +5,7 @@
 \alias{default_col_mapping}
 \title{Default column mappings}
 \format{
-An object of class \code{list} of length 56.
+An object of class \code{list} of length 60.
 }
 \usage{
 default_col_mapping

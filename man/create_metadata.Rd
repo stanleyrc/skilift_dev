@@ -27,9 +27,11 @@ create_metadata(
   activities_sbs_signatures = NULL,
   hrdetect = NULL,
   onenesstwoness = NULL,
+  msisensorpro = NULL,
   genome = "hg19",
   seqnames_loh = c(1:22),
-  seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
+  seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
+  denoised_coverage_field = "foreground"
 )
 }
 \arguments{

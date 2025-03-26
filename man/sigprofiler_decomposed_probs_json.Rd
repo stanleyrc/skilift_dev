@@ -4,15 +4,7 @@
 \alias{sigprofiler_decomposed_probs_json}
 \title{sigprofiler_decomposed_probs_json}
 \usage{
-sigprofiler_decomposed_probs_json(
-  probs,
-  is_indel = FALSE,
-  data_dir,
-  suffix = "_somatic",
-  pairs = NULL,
-  pair_name = NULL,
-  cores = 1
-)
+sigprofiler_decomposed_probs_json(probs, is_indel, data_dir, pairs, cores = 1)
 }
 \arguments{
 \item{probs}{path to sigprofiler decomposed probabilities}
@@ -21,11 +13,7 @@ sigprofiler_decomposed_probs_json(
 
 \item{data_dir}{path to data directory of which each subdirectory contains jsons per patient}
 
-\item{suffix}{expected suffix of sample name in decomposed_probs_json matrix, default = "_somatic" but have also seen "_0000"}
-
 \item{pairs}{vector of samples for which to create jsons, by default = NULL, indicating process all patients}
-
-\item{pair_name}{expected pair name; only supply if you know the pair name and the input table is only for one sample!}
 
 \item{cores}{number of cores to parallelize with}
 }
