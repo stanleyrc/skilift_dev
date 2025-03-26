@@ -138,6 +138,96 @@ collect_complex_events <- function(complex, verbose = TRUE) {
   return(sv_summary)
 }
 
+check_GRanges_compatibility = function (gr1, gr2, name1 = "first", name2 = "second") 
+{
+    non_overlapping_seqnames1 = setdiff(seqlevels(gr1), seqlevels(gr2))
+    non_overlapping_seqnames2 = setdiff(seqlevels(gr2), seqlevels(gr1))
+    overlap = intersect(seqlevels(gr1), seqlevels(gr2))
+    message("The following seqnames are only in the ", name1, 
+        " GRanges, but not in the ", name2, " GRanges: ", paste(non_overlapping_seqnames1, 
+            collapse = ", "))
+    message("The following seqnames are only in the ", name2, 
+        " GRanges, but not in the ", name1, " GRanges: ", paste(non_overlapping_seqnames2, 
+            collapse = ", "))
+    message("The follosing seqnames are in both GRanges objects: ", 
+        paste(overlap, collapse = ", "))
+    if (length(non_overlapping_seqnames1) > 0 | length(non_overlapping_seqnames2) > 
+        0) {
+        return(FALSE)
+    }
+    return(TRUE)
+}
+
+get_gene_copy_numbers <- function(
+  gg, 
+  gene_ranges, 
+  nseg = NULL, 
+  gene_id_col = "gene_id", 
+  simplify_seqnames = FALSE, 
+  mfields = c("gene_name", "source", "gene_id", "gene_type", "level", "hgnc_id", "havana_gene"), 
+  output_type = "data.table",
+  min_width = 1e3
+) {
+    if (is.character(gg)) {
+        gg = readRDS(gg)
+    }
+    if (!inherits(gene_ranges, "GRanges")) {
+        gene_ranges = rtracklayer::import(gene_ranges)
+    }
+    if (!(output_type %in% c("GRanges", "data.table"))) {
+        stop("Invalid output_type: ", output_type, ". outputtype must be either \"GRanges\" or \"data.table\".")
+    }
+    ngr = gg$nodes$gr
+    if (simplify_seqnames) {
+        ngr = gr.sub(ngr)
+        gene_ranges = gr.sub(gene_ranges)
+    }
+    GRanges_are_compatible = check_GRanges_compatibility(ngr, 
+        gene_ranges, "gGraph segments", "genes")
+    if (!is.null(nseg)) {
+        ngr = ngr %$% nseg[, c("ncn")]
+    }
+    else {
+        message("No normal copy number segmentation was provided so assuming CN = 2 for all seqnames.")
+        ngr$ncn = 2
+    }
+    ndt = gr2dt(ngr)
+    seq_widths = as.numeric(width(ngr))
+    normal_ploidy = round(sum(seq_widths * ngr$ncn, na.rm = T)/sum(seq_widths, 
+        na.rm = T))
+    ndt[, `:=`(normalized_cn, cn * normal_ploidy/(gg$meta$ploidy * 
+        ncn))]
+    gene_cn_segments = dt2gr(ndt, seqlengths = seqlengths(gg)) %*% 
+        gene_ranges %>% gr2dt
+    split_genes = gene_cn_segments[duplicated(get(gene_id_col)), 
+        get(gene_id_col)]
+    gene_cn_non_split_genes = gene_cn_segments[!(get(gene_id_col) %in% 
+        split_genes)]
+    gene_cn_non_split_genes[, `:=`(max_normalized_cn = normalized_cn, 
+        min_normalized_cn = normalized_cn, max_cn = cn, min_cn = cn, 
+        number_of_cn_segments = 1, cn = NULL, normalized_cn = NULL)]
+    gene_cn_split_genes_min = gene_cn_segments[get(gene_id_col) %in% 
+        split_genes, .SD[which.min(cn)], by = gene_id_col]
+    gene_cn_split_genes_min[, `:=`(min_normalized_cn = normalized_cn, 
+        min_cn = cn, cn = NULL, normalized_cn = NULL)]
+    gene_cn_split_genes_max = gene_cn_segments[get(gene_id_col) %in% 
+        split_genes, .SD[which.max(cn)], by = gene_id_col][, 
+        .(get(gene_id_col), max_normalized_cn = normalized_cn, 
+            max_cn = cn)]
+    setnames(gene_cn_split_genes_max, "V1", gene_id_col)
+    number_of_segments_per_split_gene = gene_cn_segments[get(gene_id_col) %in% 
+        split_genes, .(number_of_cn_segments = .N), by = gene_id_col]
+    gene_cn_split_genes = merge(gene_cn_split_genes_min, gene_cn_split_genes_max, 
+        by = gene_id_col)
+    gene_cn_split_genes = merge(gene_cn_split_genes, number_of_segments_per_split_gene, 
+        by = gene_id_col)
+    gene_cn_table = rbind(gene_cn_split_genes, gene_cn_non_split_genes)
+    if (output_type == "data.table") {
+        return(gene_cn_table)
+    }
+    return(dt2gr(gene_cn_table, seqlengths = seqlengths(gene_ranges)))
+}
+
 #' Get gene amplifications and deletions from jabba object
 #'
 #' Copied from github::mskilab-org/skitools.
@@ -150,7 +240,7 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
   if (!inherits(gg, "gGraph")) {
     gg <- gG(jabba = jab)
   }
-  gene_CN <- skitools::get_gene_copy_numbers(gg, gene_ranges = pge, nseg = nseg)
+  gene_CN <- Skilift:::get_gene_copy_numbers(gg, gene_ranges = pge, nseg = nseg)
   gene_CN[, `:=`(type, NA_character_)]
   gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
   gene_CN[min_cn > 1 & min_normalized_cn < del.thresh, `:=`(
@@ -325,13 +415,51 @@ collect_gene_mutations <- function(
 #' @param oncokb_cna Path to the oncokb CNA file.
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed OncoKB CNA information.
-collect_oncokb_cna <- function(oncokb_cna, verbose = TRUE) {
+collect_oncokb_cna <- function(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh, karyograph = NULL, verbose = TRUE) {
   if (is.null(oncokb_cna) || !file.exists(oncokb_cna)) {
     if (verbose) message("OncoKB CNA file is missing or does not exist.")
     return(data.table(type = NA, source = "oncokb_cna"))
   }
 
   oncokb_cna <- data.table::fread(oncokb_cna)
+
+  nseg = NULL
+  if (!is.null(karyograph) && file.exists(karyograph)) {
+      nseg <- readRDS(karyograph)$segstats[, c("ncn")]
+  }
+
+  scna <- get_gene_ampdels_from_jabba(
+      jabba_gg,
+      amp.thresh = amp.thresh,
+      del.thresh = del.thresh,
+      pge = pge,
+      nseg = nseg
+  )
+
+  scna_rd = gUtils::gr_deconstruct_by(
+    GenomicRanges::reduce(
+      gUtils::gr_construct_by(dt2gr(scna), c("gene_name", "type"))
+    ), meta = TRUE, by = c("gene_name", "type")
+  )
+  scna_rd = gr2dt(scna_rd)[, c("gene_name", "width", "type")]
+ 
+
+  matches = list(
+      c("Deletion", "homdel"),
+      c("Amplification", "amp")
+  )
+  is_valid_oncokb_cna = rep(TRUE, NROW(oncokb_cna))
+  for (match_lst in matches) {
+      valid_gene = scna_rd[
+          scna_rd$width > 1e3
+          & scna_rd$type == match_lst[2],
+      ]$gene_name
+      is_valid_oncokb_cna = (
+          is_valid_oncokb_cna
+          & (oncokb_cna$HUGO_SYMBOL %in% valid_gene & oncokb_cna$ALTERATION %in% match_lst[1])
+      )
+  }
+  oncokb_cna = oncokb_cna[is_valid_oncokb_cna,]
 
   if (NROW(oncokb_cna) > 0) {
     oncokb_cna <- parse_oncokb_tier(
@@ -445,7 +573,7 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
       role = Role,
       value = min_cn,
       vartype,
-      type = vartype,
+      type = "fusion",
       tier = tier,
       tier_description = tier_factor,
       variant_summary = VARIANT_SUMMARY,
@@ -685,7 +813,7 @@ oncotable <- function(
   if (!is.null(oncokb_cna) && file.exists(oncokb_cna)) {
     out <- rbind(
       out,
-      collect_oncokb_cna(oncokb_cna, verbose),
+      collect_oncokb_cna(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh, karyograph, verbose),
       fill = TRUE,
       use.names = TRUE
     )
@@ -741,6 +869,7 @@ oncotable <- function(
   if (verbose) message("done processing sample")
   return(out)
 }
+
 #' @name create_oncotable
 #' @title create_oncotable
 #' @description
@@ -959,7 +1088,7 @@ create_filtered_events <- function(
 
       homdels <- ot[ot$type == "homdel",][, vartype := "HOMDEL"][, type := "SCNA"]
       amps <- ot[ot$type == "amp",][, vartype := "AMP"][, type := "SCNA"]
-      fusions <- ot[ot$type == "fusion",]
+      fusions <- ot[ot$type == "fusion",] ## fusion vartype is either fusion or outframe_fusion
       possible_drivers <- rbind(snvs, homdels, amps, fusions)
   }
 
@@ -1012,9 +1141,21 @@ create_filtered_events <- function(
       # but we should encode this as something more robust
       # res.mut[type=="trunc", vartype := "DEL"]
     }
-    res.fus = res[type == "fusion"] ## need to deal each class explicitly
+    res.fus = res[type == "fusion",] ## need to deal each class explicitly
     if (NROW(res.fus) > 0) {
-      res.fus$Variant = res.fus$vartype
+      res.fus$gene = res.fus$fusion_genes
+      is_inframe = res.fus$vartype == "fusion"
+      is_outframe = res.fus$vartype == "outframe_fusion"
+      res.fus$Variant = ifelse(
+        is_inframe,
+        "In-Frame Fusion",
+        ifelse(
+          is_outframe,
+          "Out-of-Frame Fusion",
+          NA_character_
+        )
+      )
+
       res.fus$estimated_altered_copies = res.fus$fusion_cn
     }
     res.cn.dt = res.cn <- res[(
@@ -1024,7 +1165,7 @@ create_filtered_events <- function(
     if (nrow(res.cn) > 0) {
       jab <- readRDS(jabba_gg)
       res.cn.gr <- GRanges(res.cn)
-      res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
+      res.cn.gr <- gr.val(res.cn.gr, gr_jab_nodes, c("cn", "cn.low", "cn.high"))
       res.cn.dt <- as.data.table(res.cn.gr)
       res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
       res.cn.dt[, segment_cn := cn]
@@ -1032,7 +1173,7 @@ create_filtered_events <- function(
 
       # To fix very small CNAs that can appear due to forcing in reciprocal
       # junctions with very small gaps.
-      res.cn.dt = res.cn.dt[!res.cn.dt$width < 1000,]
+      ## res.cn.dt = res.cn.dt[!res.cn.dt$node_width_jab < 1000,]
       # remove redundant columns since already added to Variant
       
       res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL]
@@ -1042,6 +1183,7 @@ create_filtered_events <- function(
     if (cohort_type == "heme") {
       res.final <- select_heme_events(res.final)
     }
+    res.final$type = tools::toTitleCase(res.final$type)
     ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
     res.final <- res.final[res.final$seqnames != "Y"]
     ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
