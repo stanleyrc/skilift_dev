@@ -31,7 +31,7 @@ lift_copy_number_graph <- function(
         out_filename <- "allelic.json"
     } else {
         message("Processing total copy number")
-        cn_column <- "jabba_gg"
+        cn_column <- "events"
         out_filename <- "complex.json"
     }
     
@@ -88,7 +88,9 @@ lift_copy_number_graph <- function(
                     verbose = TRUE,
                     maxcn = row$copy_number_graph_max_cn,
                     nfields = if("col" %in% names(mcols(ggraph$nodes$gr))) "col" else NULL,
-                    annotations = unlist(row$copy_number_graph_annotations)
+                    annotations = unlist(row$copy_number_graph_annotations),
+                    node_field_val_sep = ": ",
+                    node_delimiter = "; "
                 )
                 
                 # Generate and write JSON
