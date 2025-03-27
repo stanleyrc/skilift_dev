@@ -224,9 +224,9 @@ get_gene_copy_numbers <- function(
       avg_cn = sum(cn * width, na.rm = TRUE) / sum(width),
       # total_node_width = sum(width, na.rm = TRUE),
       number_of_cn_segments = .N,
-      ncn = ncn[1]
+      ncn = ncn[1],
       # list_of_segs = list(.SD[, list(gene_name = gene_name[1], normalized_cn, cn, width)])
-      ## gene_width = gene_width[1]
+      gene_width = gene_width[1]
     ), by = gene_name]
     
     # gene_cn_table = data.table::merge.data.table(
@@ -299,7 +299,8 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
         avg_normalized_cn = avg_normalized_cn[1],
         avg_cn = avg_cn[1],
         number_of_cn_segments = number_of_cn_segments[1],
-        total_node_width = sum(width) # This must be calculated after nominating SCNA type, not before.
+        gene_width = gene_width[1],
+        total_node_width = sum(width) # This must be calculated after nominating SCNA type, not before.,
       ), 
       by = .(gene_name, type)]
   )
