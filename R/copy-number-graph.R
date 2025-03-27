@@ -83,14 +83,30 @@ lift_copy_number_graph <- function(
                 }
                 
                 # Set parameters for json export
+                mc = mcols(ggraph.reduced$nodes$gr)
+                nfields_arg = NULL
+                nfields_present = names(mc)[names(mc) %in% c(unlist(row$copy_number_graph_annotations))]
+                ggraph.reduced$nodes$mark(Events = NA_character_)
+                if (NROW(nfields_present) > 0) {
+                    events_string = gGnome:::.dtstring(
+                        dt = mc[,nfields_present,drop=FALSE],
+                        field_val_sep = ": ",
+                        delimiter = "; "
+                    )
+                    ggraph.reduced$nodes$mark(Events = events_string)
+                    nfields_arg = c("col", "Events")
+                }   
+                
+                # if("col" %in% names(mcols(ggraph$nodes$gr))) "col" else NULL
                 params <- list(
                     filename = out_file,
                     verbose = TRUE,
                     maxcn = row$copy_number_graph_max_cn,
-                    nfields = if("col" %in% names(mcols(ggraph$nodes$gr))) "col" else NULL,
+                    # nfields = if("col" %in% names(mcols(ggraph$nodes$gr))) "col" else NULL,
+                    nfields = nfields_arg,
                     annotations = unlist(row$copy_number_graph_annotations),
-                    node_field_val_sep = ": ",
-                    node_delimiter = "; "
+                    node_field_val_sep = ":",
+                    node_delimiter = ";"
                 )
                 
                 # Generate and write JSON
