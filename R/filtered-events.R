@@ -196,32 +196,54 @@ get_gene_copy_numbers <- function(
     normal_ploidy = round(sum(seq_widths * ngr$ncn, na.rm = T)/sum(seq_widths, 
         na.rm = T))
     ndt[, `:=`(normalized_cn, cn * normal_ploidy/(gg$meta$ploidy * 
-        ncn))]
+                                                    ncn))]
+    gene_ranges$gene_width = width(gene_ranges)
     gene_cn_segments = dt2gr(ndt, seqlengths = seqlengths(gg)) %*% 
-        gene_ranges %>% gr2dt
-    split_genes = gene_cn_segments[duplicated(get(gene_id_col)), 
-        get(gene_id_col)]
-    gene_cn_non_split_genes = gene_cn_segments[!(get(gene_id_col) %in% 
-        split_genes)]
-    gene_cn_non_split_genes[, `:=`(max_normalized_cn = normalized_cn, 
-        min_normalized_cn = normalized_cn, max_cn = cn, min_cn = cn, 
-        number_of_cn_segments = 1, cn = NULL, normalized_cn = NULL)]
-    gene_cn_split_genes_min = gene_cn_segments[get(gene_id_col) %in% 
-        split_genes, .SD[which.min(cn)], by = gene_id_col]
-    gene_cn_split_genes_min[, `:=`(min_normalized_cn = normalized_cn, 
-        min_cn = cn, cn = NULL, normalized_cn = NULL)]
-    gene_cn_split_genes_max = gene_cn_segments[get(gene_id_col) %in% 
-        split_genes, .SD[which.max(cn)], by = gene_id_col][, 
-        .(get(gene_id_col), max_normalized_cn = normalized_cn, 
-            max_cn = cn)]
-    setnames(gene_cn_split_genes_max, "V1", gene_id_col)
-    number_of_segments_per_split_gene = gene_cn_segments[get(gene_id_col) %in% 
-        split_genes, .(number_of_cn_segments = .N), by = gene_id_col]
-    gene_cn_split_genes = merge(gene_cn_split_genes_min, gene_cn_split_genes_max, 
-        by = gene_id_col)
-    gene_cn_split_genes = merge(gene_cn_split_genes, number_of_segments_per_split_gene, 
-        by = gene_id_col)
-    gene_cn_table = rbind(gene_cn_split_genes, gene_cn_non_split_genes)
+      gene_ranges %>% gr2dt
+    
+    gene_cn_stats = gene_cn_segments[, .(
+      max_normalized_cn = max(normalized_cn, na.rm = TRUE),
+      max_cn = max(cn, na.rm = TRUE),
+      min_normalized_cn = min(normalized_cn, na.rm = TRUE),
+      min_cn = min(cn, na.rm = TRUE),
+      avg_normalized_cn = sum(normalized_cn * width, na.rm = TRUE) / sum(width),
+      avg_cn = sum(cn * width, na.rm = TRUE) / sum(width),
+      total_node_width = sum(width, na.rm = TRUE),
+      number_of_cn_segments = .N,
+      ncn = ncn[1]      
+      ## gene_width = gene_width[1]
+    ), by = gene_name]
+    
+    gene_cn_table = data.table::merge.data.table(
+      gr2dt(gene_ranges),
+      gene_cn_stats,
+      by = "gene_name",
+      suffixes = c("", "__DUPED")
+    )
+    
+    ## split_genes = gene_cn_segments[duplicated(get(gene_id_col)), 
+    ##     get(gene_id_col)]
+    ## gene_cn_non_split_genes = gene_cn_segments[!(get(gene_id_col) %in% 
+    ##     split_genes)]
+    ## gene_cn_non_split_genes[, `:=`(max_normalized_cn = normalized_cn, 
+    ##     min_normalized_cn = normalized_cn, max_cn = cn, min_cn = cn, 
+    ##     number_of_cn_segments = 1, cn = NULL, normalized_cn = NULL)]
+    ## gene_cn_split_genes_min = gene_cn_segments[get(gene_id_col) %in% 
+    ##     split_genes, .SD[which.min(cn)], by = gene_id_col]
+    ## gene_cn_split_genes_min[, `:=`(min_normalized_cn = normalized_cn, 
+    ##     min_cn = cn, cn = NULL, normalized_cn = NULL)]
+    ## gene_cn_split_genes_max = gene_cn_segments[get(gene_id_col) %in% 
+    ##     split_genes, .SD[which.max(cn)], by = gene_id_col][, 
+    ##     .(get(gene_id_col), max_normalized_cn = normalized_cn, 
+    ##         max_cn = cn)]
+    ## setnames(gene_cn_split_genes_max, "V1", gene_id_col)
+    ## number_of_segments_per_split_gene = gene_cn_segments[get(gene_id_col) %in% 
+    ##     split_genes, .(number_of_cn_segments = .N), by = gene_id_col]
+    ## gene_cn_split_genes = merge(gene_cn_split_genes_min, gene_cn_split_genes_max, 
+    ##     by = gene_id_col)
+    ## gene_cn_split_genes = merge(gene_cn_split_genes, number_of_segments_per_split_gene, 
+    ##     by = gene_id_col)
+    ## gene_cn_table = rbind(gene_cn_split_genes, gene_cn_non_split_genes)
     if (output_type == "data.table") {
         return(gene_cn_table)
     }
@@ -434,29 +456,22 @@ collect_oncokb_cna <- function(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh
       del.thresh = del.thresh,
       pge = pge,
       nseg = nseg
-  )
-
-  scna_rd = gUtils::gr_deconstruct_by(
-    GenomicRanges::reduce(
-      gUtils::gr_construct_by(dt2gr(scna), c("gene_name", "type"))
-    ), meta = TRUE, by = c("gene_name", "type")
-  )
-  scna_rd = gr2dt(scna_rd)[, c("gene_name", "width", "type")]
- 
+  ) 
 
   matches = list(
       c("Deletion", "homdel"),
       c("Amplification", "amp")
   )
-  is_valid_oncokb_cna = rep(TRUE, NROW(oncokb_cna))
+  is_valid_oncokb_cna = rep(FALSE, NROW(oncokb_cna))
   for (match_lst in matches) {
-      valid_gene = scna_rd[
-          scna_rd$width > 1e3
-          & scna_rd$type == match_lst[2],
+      valid_gene = scna[
+          scna$total_node_width > 1e3
+          & scna$type == match_lst[2],
+
       ]$gene_name
       is_valid_oncokb_cna = (
           is_valid_oncokb_cna
-          & (oncokb_cna$HUGO_SYMBOL %in% valid_gene & oncokb_cna$ALTERATION %in% match_lst[1])
+          | (oncokb_cna$HUGO_SYMBOL %in% valid_gene & oncokb_cna$ALTERATION %in% match_lst[1])
       )
   }
   oncokb_cna = oncokb_cna[is_valid_oncokb_cna,]
@@ -663,7 +678,6 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
 
   # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
-
   if (
     is.character(multiplicity) &&
       NROW(multiplicity) == 1 &&
@@ -693,16 +707,16 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
       px_cols = c("LEVEL_Px1")
     )
 
-    coerce_column_tuples <- list(
-      c("altered_copies", "total_copies")
-    )
-    current_nms <- names(oncokb)
-    for (col in coerce_column_tuples) {
-      # if (col[1] %in% current_nms && !col[2] %in% current_nms) {
-      current_nms[current_nms == col[1]] <- col[2]
-      # }
-    }
-    names(oncokb) <- current_nms
+    # coerce_column_tuples <- list(
+    #   c("altered_copies", "total_copies")
+    # )
+    # current_nms <- names(oncokb)
+    # for (col in coerce_column_tuples) {
+    #   # if (col[1] %in% current_nms && !col[2] %in% current_nms) {
+    #   current_nms[current_nms == col[1]] <- col[2]
+    #   # }
+    # }
+    # names(oncokb) <- current_nms
     return(oncokb[, .(
       gene = Hugo_Symbol,
       gene_summary = GENE_SUMMARY,
@@ -726,7 +740,8 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
       minor_count = minor.count,
       major_snv_copies,
       minor_snv_copies,
-      total_copies, ## total_copies gets converted to estimated_altered_copies downstream
+      # total_copies, ## total_copies gets converted to estimated_altered_copies downstream
+      altered_copies,
       segment_cn,
       ref,
       alt,
@@ -928,9 +943,9 @@ create_oncotable <- function(
   if (!"oncotable" %in% names(updated_cohort$inputs)) {
     updated_cohort$inputs[, oncotable := NA_character_]
   }
-  futile.logger::flog.threshold("ERROR")
+  
   results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-  tryCatchLog(
+  (
       {
         row <- cohort$inputs[i]
 
@@ -965,6 +980,7 @@ create_oncotable <- function(
         amp_thresh <- amp_thresh_multiplier * ploidy
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
 
+        futile.logger::flog.threshold("ERROR")
         # Run oncotable for this pair
         oncotable_result <- tryCatchLog(
           {
@@ -1002,19 +1018,15 @@ create_oncotable <- function(
           fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
           return(list(index = i, path = oncotable_path))
         }
-      },
-      error = function(e) {
-        msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
-        print(msg)
       }
     )
-  }, mc.cores = cores, mc.preschedule = FALSE)
+  }, mc.cores = cores, mc.preschedule = TRUE)
 
 
   # Update oncotable paths in the cohort
   results <- Filter(Negate(is.null), results)
   for (result in results) {
-    updated_cohort$inputs[result$index, oncotable := result$path]
+    updated_cohort$inputs[result$index, oncotable := result$path][]
   }
   message(sprintf("\nProcessing complete - results written to %s", outdir))
 
@@ -1054,7 +1066,7 @@ create_filtered_events <- function(
     variant.c = character(0), variant.p = character(0), annotation = character(0), 
     distance = logical(0), major_count = numeric(0), minor_count = numeric(0), 
     major_snv_copies = numeric(0), minor_snv_copies = numeric(0), 
-    total_copies = numeric(0), segment_cn = integer(0), ref = integer(0), 
+    altered_copies = numeric(0), segment_cn = integer(0), ref = integer(0), 
     alt = integer(0), VAF = numeric(0), gene_location = character(0), 
     id = character(0)), row.names = c(NA, 0L), class = c("data.table", 
 "data.frame"))
@@ -1102,7 +1114,7 @@ create_filtered_events <- function(
     "type" = "type",
     "variant.g" = "Variant_g",
     "variant.p" = "Variant",
-    "total_copies" = "estimated_altered_copies",
+    "altered_copies" = "estimated_altered_copies",
     "segment_cn" = "segment_cn",
     "ref" = "ref",
     "alt" = "alt",
@@ -1163,20 +1175,25 @@ create_filtered_events <- function(
       | vartype %in% c("AMP", "HOMDEL")
     )]
     if (nrow(res.cn) > 0) {
-      jab <- readRDS(jabba_gg)
-      res.cn.gr <- GRanges(res.cn)
-      res.cn.gr <- gr.val(res.cn.gr, gr_jab_nodes, c("cn", "cn.low", "cn.high"))
-      res.cn.dt <- as.data.table(res.cn.gr)
-      res.cn.dt[, estimated_altered_copies := abs(cn - 2)]
-      res.cn.dt[, segment_cn := cn]
+      # jab <- readRDS(jabba_gg)
+      # res.cn.gr <- GRanges(res.cn)
+      # res.cn.dt
+      # res.cn.gr <- gr.val(res.cn.gr, jab$nodes$gr, c("cn", "cn.low", "cn.high"))
+      # res.cn.dt <- as.data.table(res.cn.gr)
+      # FIXME: value is actually min_cn is renamed fusion_cn!!
+      # Also, we already picked out the corresponding segment cn to use (min_cn)
+      res.cn.dt$min_cn = res.cn.dt$fusion_cn 
+      res.cn.dt[, estimated_altered_copies := abs(min_cn - 2)]
+      res.cn.dt[, segment_cn := min_cn]
       res.cn.dt[, Variant := vartype]
+      res.cn.dt$fusion_cn = NA_real_
 
       # To fix very small CNAs that can appear due to forcing in reciprocal
       # junctions with very small gaps.
       ## res.cn.dt = res.cn.dt[!res.cn.dt$node_width_jab < 1000,]
       # remove redundant columns since already added to Variant
       
-      res.cn.dt[, c("cn", "cn.high", "cn.low", "width", "strand") := NULL]
+      res.cn.dt[, c("min_cn", "cn", "cn.high", "cn.low", "width", "strand") := NULL]
     }
     res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
     res.final[, sample := pair]
@@ -1377,7 +1394,6 @@ merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
     }
   }
   S4Vectors::mcols(gr_multiplicity) <- mc
-
   ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = "ALT", type = "equal")
   ovQuery <- data.table(query.id = integer(0), subject.id = integer(0))
   if (NROW(ov) > 0) {
@@ -1405,22 +1421,50 @@ merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
   }
   ovQuery <- rbind(ovQuery, missingOvQuery)
 
-  # # Logic for when there's not an exact match due to VCF -> maf parsing.
-  # missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
-  # missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+  # Logic for when there's exact match in coordinates but REF/ALT slight mismatch due to VCF -> maf parsing.
+  missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+  
+  if (length(missingIds) > 0) {
+    gr_oncokb_missing = gr_oncokb[missingIds]
+    gr_oncokb_missing$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+      gr_oncokb_missing, gr_multiplicity
+     ,
+     type = "equal",
+      qcol = c("oid"),
+     )
+    if (NROW(ovMissing) > 0) {
+      missingOvQuery = (
+        gr2dt(ovMissing)
+        [, .(query.id = oid, subject.id)]
+        [!duplicated(query.id)]
+      )
+    }
+  }
+  ovQuery = rbind(ovQuery, missingOvQuery)
 
-  # if (length(missingIds) > 0) {
-  #   gr_oncokb_missing = gr_oncokb[missingIds]
-  #   gr_oncokb_missing$oid = missingIds
-  #   ovMissing = gUtils::gr.findoverlaps(
-  #     gr_oncokb_missing, gr_multiplicity
-  #    ,
-  #     qcol = c("oid")
-  #   )
-  #   if (NROW(ovMissing) > 0)
-  #     missingOvQuery = gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
-  # }
-  # ovQuery = rbind(ovQuery, missingOvQuery)
+  # Logic for when there's inexact coordinate match due to VCF -> maf parsing.
+  missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+
+  if (length(missingIds) > 0) {
+    gr_oncokb_missing = gr_oncokb[missingIds]
+    gr_oncokb_missing$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+      gr_oncokb_missing, gr_multiplicity
+     ,
+      qcol = c("oid")
+    )
+    if (NROW(ovMissing) > 0) {
+      missingOvQuery = (
+        gr2dt(ovMissing)
+        [, .(query.id = oid, subject.id)]
+        [!duplicated(query.id)]
+      )
+    }
+  }
+  ovQuery = rbind(ovQuery, missingOvQuery)
 
   cols.keep <- c(
     "ref", "alt", "ref_denoised", "alt_denoised", "normal.ref", "normal.alt",
