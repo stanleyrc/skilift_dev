@@ -201,25 +201,40 @@ get_gene_copy_numbers <- function(
     gene_cn_segments = dt2gr(ndt, seqlengths = seqlengths(gg)) %*% 
       gene_ranges %>% gr2dt
     
-    gene_cn_stats = gene_cn_segments[, .(
+    # gene_cn_stats = gene_cn_segments[, .(
+    #   max_normalized_cn = max(normalized_cn, na.rm = TRUE),
+    #   max_cn = max(cn, na.rm = TRUE),
+    #   min_normalized_cn = min(normalized_cn, na.rm = TRUE),
+    #   min_cn = min(cn, na.rm = TRUE),
+    #   avg_normalized_cn = sum(normalized_cn * width, na.rm = TRUE) / sum(width),
+    #   avg_cn = sum(cn * width, na.rm = TRUE) / sum(width),
+    #   total_node_width = sum(width, na.rm = TRUE),
+    #   number_of_cn_segments = .N,
+    #   ncn = ncn[1],
+    #   list_of_segs = list(.SD[, list(gene_name = gene_name[1], normalized_cn, cn, width)])
+    #   ## gene_width = gene_width[1]
+    # ), by = gene_name]
+
+    gene_cn_table = gene_cn_segments[, `:=`(
       max_normalized_cn = max(normalized_cn, na.rm = TRUE),
       max_cn = max(cn, na.rm = TRUE),
       min_normalized_cn = min(normalized_cn, na.rm = TRUE),
       min_cn = min(cn, na.rm = TRUE),
       avg_normalized_cn = sum(normalized_cn * width, na.rm = TRUE) / sum(width),
       avg_cn = sum(cn * width, na.rm = TRUE) / sum(width),
-      total_node_width = sum(width, na.rm = TRUE),
+      # total_node_width = sum(width, na.rm = TRUE),
       number_of_cn_segments = .N,
-      ncn = ncn[1]      
+      ncn = ncn[1]
+      # list_of_segs = list(.SD[, list(gene_name = gene_name[1], normalized_cn, cn, width)])
       ## gene_width = gene_width[1]
     ), by = gene_name]
     
-    gene_cn_table = data.table::merge.data.table(
-      gr2dt(gene_ranges),
-      gene_cn_stats,
-      by = "gene_name",
-      suffixes = c("", "__DUPED")
-    )
+    # gene_cn_table = data.table::merge.data.table(
+    #   gr2dt(gene_ranges),
+    #   gene_cn_stats,
+    #   by = "gene_name",
+    #   suffixes = c("", "__DUPED")
+    # )
     
     ## split_genes = gene_cn_segments[duplicated(get(gene_id_col)), 
     ##     get(gene_id_col)]
@@ -264,6 +279,7 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
   }
   gene_CN <- Skilift:::get_gene_copy_numbers(gg, gene_ranges = pge, nseg = nseg)
   gene_CN[, `:=`(type, NA_character_)]
+
   gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
   gene_CN[min_cn > 1 & min_normalized_cn < del.thresh, `:=`(
     type,
@@ -271,7 +287,29 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
   )]
   gene_CN[min_cn == 1 & min_cn < ncn, `:=`(type, "hetdel")]
   gene_CN[min_cn == 0, `:=`(type, "homdel")]
-  return(gene_CN[!is.na(type)])
+
+  # scna_result = gene_CN[!is.na(type)]
+  scna_result = (
+      gene_CN[, 
+      .(
+        max_normalized_cn = max_normalized_cn[1],
+        max_cn = max_cn[1],
+        min_normalized_cn = min_normalized_cn[1],
+        min_cn = min_cn[1],
+        avg_normalized_cn = avg_normalized_cn[1],
+        avg_cn = avg_cn[1],
+        number_of_cn_segments = number_of_cn_segments[1],
+        total_node_width = sum(width) # This must be calculated after nominating SCNA type, not before.
+      ), 
+      by = .(gene_name, type)]
+  )
+
+  scna_result = base::subset(
+    scna_result,
+    !is.na(scna_result$type)
+  )
+
+  return(scna_result)
 }
 
 #' @title collect_copy_number_jabba
