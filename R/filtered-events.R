@@ -692,7 +692,6 @@ parse_oncokb_tier <- function(
 
   oncokb$tier_factor <- tier_factor
   oncokb$tier <- as.integer(tier_factor)
-
   oncokb$tx_string <- .concat_string(oncokb, tx_cols)
   oncokb$rx_string <- .concat_string(oncokb, rx_cols)
   oncokb$dx_string <- .concat_string(oncokb, dx_cols)
@@ -1236,7 +1235,7 @@ create_filtered_events <- function(
     }
     res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
     res.final[, sample := pair]
-    if (cohort_type == "heme") {
+    if (identical(cohort_type, "heme")) {
       res.final <- select_heme_events(res.final)
     }
     res.final$type = tools::toTitleCase(res.final$type)
@@ -1248,7 +1247,7 @@ create_filtered_events <- function(
     ## FIXME: Decide whether to either propagate return_table to lift_mvp in lift_heme somehow, or change this
     ## conditional logic to be based on cohort_type. Can also be left alone.
     ## Note that return_table for debugging purposes as well.
-    if (return_table) {
+    if (return_table || identical(cohort_type, "heme")) {
       return(res.final)
     }
   }
@@ -1298,17 +1297,17 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         out = NULL
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
-            out <- create_filtered_events(
-                pair = row$pair,
-                oncotable = row$oncotable,
-                jabba_gg = row$jabba_gg,
-                out_file = out_file,
-                return_table = return_table,
-                cohort_type = cohort_type
-            )
-            if (identical(cohort_type, "heme")) {
-              create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
-            }
+          out <- create_filtered_events(
+              pair = row$pair,
+              oncotable = row$oncotable,
+              jabba_gg = row$jabba_gg,
+              out_file = out_file,
+              return_table = return_table,
+              cohort_type = cohort_type
+          )
+          if (identical(cohort_type, "heme")) {
+            create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
+          }
             
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
