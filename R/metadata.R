@@ -559,14 +559,15 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
         return(metadata)
     }
     
-    ggraph <- gg <- readRDS(jabba_gg)
+    gg <- readRDS(jabba_gg)
+
+    purity = base::get0("purity", as.environment(gg$meta), ifnotfound = stop("purity meta field not found in ggraph"))
+    ploidy = base::get0("ploidy", as.environment(gg$meta), ifnotfound = stop("ploidy meta field not found in ggraph"))
     
-    ploidy = tau = gg$meta$ploidy
-    purity = alpha = gg$meta$purity
     metadata$purity <- purity
     metadata$ploidy <- ploidy
-    metadata$beta = alpha / (alpha * ploidy + 2*(1 - alpha)) # from Multiplicity
-    metadata$gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) # from Multiplicity
+    metadata$beta = purity / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
+    metadata$gamma = 2*(1 - purity) / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
     
     # # Get sequence lengths from the gGraph
     # seq_lengths <- seqlengths(ggraph$nodes$gr)
