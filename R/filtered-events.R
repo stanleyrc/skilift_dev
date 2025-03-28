@@ -338,20 +338,11 @@ collect_copy_number_jabba <- function(
 
   if (verbose) message("pulling jabba_rds to get SCNA and purity / ploidy")
   jab <- readRDS(jabba_rds)
-  jabpurity = tryCatch(
-    base::get("purity", jab$meta), 
-    error = function(e) {
-      tryCatch(base::get("purity", jab), error = function(e) {
-      stop("ploidy not found in jabba object")
-    })
-  })
-  jabploidy = tryCatch(
-    base::get("ploidy", jab$meta), 
-    error = function(e) {
-      tryCatch(base::get("ploidy", jab), error = function(e) {
-      stop("ploidy not found in jabba object")
-    })
-  })
+  jabpurity = base::get0("purity", as.environment(jab$meta), ifnotfound = NULL)
+  if (is.null(jabpurity)) jabpurity = base::get("purity", jab) ## will error out if not found
+  jabploidy = base::get0("ploidy", as.environment(jab$meta), ifnotfound = NULL)
+  if (is.null(jabploidy)) jabploidy = base::get("ploidy", jab) ## will error out if not found
+
   result <- data.table(
     value = c(jabpurity, jabploidy),
     type = c("purity", "ploidy"),
