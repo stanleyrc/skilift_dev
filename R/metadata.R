@@ -561,8 +561,8 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
     
     gg <- readRDS(jabba_gg)
 
-    purity = base::get("purity", gg$meta)
-    ploidy = base::get("ploidy", gg$meta)
+    purity = base::get("purity", gg$meta) # Errors out if not found
+    ploidy = base::get("ploidy", gg$meta) # Errors out if not found
 
     metadata$purity <- purity
     metadata$ploidy <- ploidy
