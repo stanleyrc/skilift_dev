@@ -561,8 +561,8 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
     
     gg <- readRDS(jabba_gg)
 
-    purity = tryCatch(base::get("purity", gg$meta), error = function(e) stop("purity meta field not found in ggraph"))
-    ploidy = tryCatch(base::get("ploidy", gg$meta), error = function(e) stop("ploidy meta field not found in ggraph"))
+    purity = base::get("purity", gg$meta)
+    ploidy = base::get("ploidy", gg$meta)
 
     metadata$purity <- purity
     metadata$ploidy <- ploidy
