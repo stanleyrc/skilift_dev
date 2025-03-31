@@ -804,7 +804,8 @@ create_oncotable <- function(
     updated_cohort$inputs[, oncotable := NA_character_]
   }
   results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-    tryCatch(
+    futile.logger::flog.threshold("ERROR")
+    tryCatchLog(
       {
         row <- cohort$inputs[i]
 
@@ -840,7 +841,8 @@ create_oncotable <- function(
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
 
         # Run oncotable for this pair
-        oncotable_result <- tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        oncotable_result <- tryCatchLog(
           {
             oncotable(
               pair = row$pair,
@@ -863,9 +865,8 @@ create_oncotable <- function(
             )
           },
           error = function(e) {
-            msg <- sprintf("Error in oncotable for %s: %s", row$pair, e$message)
-            warning(msg)
-            return(NULL)
+            print(sprintf("Error in oncotable for %s: %s", row$pair, e$message))
+            NULL
           }
         )
 
@@ -878,8 +879,8 @@ create_oncotable <- function(
         }
       },
       error = function(e) {
-        msg <- sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message)
-        warning(msg)
+        print(sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message))
+        NULL
       }
     )
   }, mc.cores = cores, mc.preschedule = FALSE)
@@ -1077,7 +1078,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     required_cols <- c("pair", "oncotable", "jabba_gg")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
-        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+        warn("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
     cohort_type = cohort$type
