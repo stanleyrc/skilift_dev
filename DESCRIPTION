@@ -12,6 +12,7 @@ Remotes:
   github::mskilab-org/JaBbA,
   github::mskilab-org/skidb,
   github::mskilab-org/skitools,
+  github::thomasp85/scico,
   bioc::VariantAnnotation,
   bioc::MatrixGenerics,
   bioc::Biostrings
@@ -44,7 +45,8 @@ Imports:
     tryCatchLog,
     futile.logger,
     glue,
-    pals
+    pals,
+    scico
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8
