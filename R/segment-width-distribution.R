@@ -217,7 +217,7 @@ lift_allelic_pp_fit <- function(cohort,
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {
-                ppplot <- pp_plot(jabba_rds = row$jabba_gg,
+                ppplot <- skitools::pp_plot(jabba_rds = row$jabba_gg,
                         hets.fname = row$het_pileups,
                         allele = TRUE,
                         scatter = TRUE,
@@ -235,6 +235,7 @@ lift_allelic_pp_fit <- function(cohort,
             },
             error = function(e) {
                 print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = FALSE)
