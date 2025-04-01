@@ -1271,9 +1271,9 @@ lift_datafiles_json <- function(output_data_dir) {
   
   # Read each JSON file and combine them into a list
   combined_data <- lapply(metadata_files, function(file) {
-    jsonlite::fromJSON(file)
+    unbox(jsonlite::fromJSON(file))
   })
-  
+
   # Write the combined JSON list to "datafiles.json" in the data directory
   output_file <- file.path(output_data_dir, "datafiles.json")
   jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")
