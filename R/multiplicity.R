@@ -157,7 +157,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv, is_germline = FALSE, field =
 #' @export
 multiplicity_to_intervals <- function(
     multiplicity,
-    field = "total_copies",
+    field = "altered_copies",
     settings = Skilift:::default_settings_path,
     node_metadata = NULL,
     reference_name = "hg19",
