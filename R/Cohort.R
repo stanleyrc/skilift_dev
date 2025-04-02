@@ -388,9 +388,9 @@ nf_path_patterns <- list(
   somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$"),
   somatic_snvs_unfiltered = c("sage/somatic/.*/.*sage.somatic.vcf.gz$"),
   somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
-  multiplicity = "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds",
-  germline_multiplicity = "snv_multiplicity3/.*/.*est_snv_cn_germline.rds", ### TO DO FIX ME
-  hetsnps_multiplicity = "snv_multiplicity3/.*/.*est_snv_cn_hetsnps.rds", ### TO DO FIX ME
+  multiplicity = "snv_multiplicity/.*/.*est_snv_cn_somatic.rds",
+  germline_multiplicity = "snv_multiplicity/.*/.*est_snv_cn_germline.rds", ### TO DO FIX ME
+  hetsnps_multiplicity = "snv_multiplicity/.*/.*est_snv_cn_hetsnps.rds", ### TO DO FIX ME
   ## discard for heme/tumor-only
   activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
   matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
