@@ -143,7 +143,8 @@ lift_signatures <- function(cohort, output_data_dir, cores = 1) {
             dir.create(pair_dir, recursive = TRUE)
         }
         
-        tryCatch({
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog({
             # Process all signature types
             for (sig_type in names(signature_configs)) {
                 for (process_type in names(signature_configs[[sig_type]])) {
@@ -166,9 +167,10 @@ lift_signatures <- function(cohort, output_data_dir, cores = 1) {
                 }
             }
         }, error = function(e) {
-            warning(sprintf("Error processing %s: %s", row$pair, e$message))
+            print(sprintf("Error processing %s: %s", row$pair, e$message))
+            NULL
         })
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(NULL)
 }

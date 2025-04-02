@@ -214,7 +214,8 @@ lift_allelic_pp_fit <- function(cohort,
         #out_file <- file.path(pair_dir, "allelic_pp_fit.json")
         out_file_png <- file.path(pair_dir, file.name)
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 ppplot <- pp_plot(jabba_rds = row$jabba_gg,
                         hets.fname = row$het_pileups,
@@ -233,10 +234,10 @@ lift_allelic_pp_fit <- function(cohort,
                 
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
             }
         )
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 
     invisible(NULL)
 }
@@ -305,7 +306,7 @@ lift_multiplicity_fits <- function(cohort,
             tryCatchLog(
                 {
                     if (!file.exists(row[[col]])) {
-                        warning(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
+                        print(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
                     }
 
                     mapply(function(out_file, field_to_use) {
@@ -538,12 +539,12 @@ lift_coverage_jabba_cn <- function(
         tryCatchLog(
             {
                 if (!file.exists(row$jabba_gg)) {
-                    warning(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$jabba_gg))
+                    print(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$jabba_gg))
                     return(NULL)
                 }
 
                 if (!file.exists(row$tumor_coverage)) {
-                    warning(sprintf("Tumor coverage file not found for %s: %s", row$pair, row$tumor_coverage))
+                    print(sprintf("Tumor coverage file not found for %s: %s", row$pair, row$tumor_coverage))
                     return(NULL)
                 }
 
@@ -552,7 +553,7 @@ lift_coverage_jabba_cn <- function(
                 cov <- readRDS(row$tumor_coverage)
 
                 if (!any(class(ggraph) == "gGraph")) {
-                    warning(sprintf("File is not a gGraph for %s: %s", row$pair, row$jabba_gg))
+                    print(sprintf("File is not a gGraph for %s: %s", row$pair, row$jabba_gg))
                     return(NULL)
                 }
 
@@ -602,7 +603,7 @@ lift_coverage_jabba_cn <- function(
                 NULL
             }
         )
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 
     invisible(NULL)
 }
@@ -726,12 +727,12 @@ lift_purple_sunrise_plot <- function(cohort,
         tryCatchLog(
             {
                 if (!file.exists(row$purple_pp_range)) {
-                    warning(sprintf("Purple purity range file not found for %s: %s", row$pair, row$purple_pp_range))
+                    print(sprintf("Purple purity range file not found for %s: %s", row$pair, row$purple_pp_range))
                     return(NULL)
                 }
 
                 if (!file.exists(row$purple_pp_bestFit)) {
-                    warning(sprintf("Purple best fit file not found for %s: %s", row$pair, row$purple_pp_bestFit))
+                    print(sprintf("Purple best fit file not found for %s: %s", row$pair, row$purple_pp_bestFit))
                     return(NULL)
                 }
                 range <- fread(row$purple_pp_range)
@@ -788,7 +789,7 @@ lift_purple_sunrise_plot <- function(cohort,
                 NULL
             }
         )
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 }
 
 create_purity_ploidy_plot <- function(purple_purity_range, bestPloidy, bestPurity, minPurity, maxPurity, minPloidy, maxPloidy, use_geom_rect = TRUE) {
@@ -1067,7 +1068,7 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
         seq_len(nrow(cohort$inputs)),
         iterate_function,
         mc.cores = cores,
-        mc.preschedule = FALSE
+        mc.preschedule = TRUE
     )
 
     invisible(NULL)

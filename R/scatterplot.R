@@ -292,7 +292,8 @@ lift_denoised_coverage <- function(
 
         out_file <- file.path(pair_dir, "coverage.arrow")
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
 
@@ -317,10 +318,11 @@ lift_denoised_coverage <- function(
                 }
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 
     invisible(NULL)
 }
@@ -362,7 +364,8 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
 
         out_file <- file.path(pair_dir, "hetsnps.arrow")
 
-        tryCatch(
+        futile.logger::flog.threshold("ERROR")
+        tryCatchLog(
             {
                 if (!is.null(row$het_pileups) && file.exists(row$het_pileups)) {
                     # Subsample hetsnps
@@ -400,10 +403,11 @@ lift_hetsnps <- function(cohort, output_data_dir, cores = 1) {
                 }
             },
             error = function(e) {
-                warning(sprintf("Error processing %s: %s", row$pair, e$message))
+                print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
-    }, mc.cores = cores, mc.preschedule = FALSE)
+    }, mc.cores = cores, mc.preschedule = TRUE)
 
     invisible(NULL)
 }
