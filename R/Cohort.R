@@ -905,16 +905,11 @@ merge.Cohort <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE)
     }
 
     # Merge inputs data.tables
-    merged_dt <- rbindlist(
-      list(merged_dt, current_dt),
-      fill = TRUE, # Union of columns
-      use.names = TRUE
-    )
+    merged_dt <- merge(merged_dt, cohorts[[i]]$inputs, by="pair")
   }
 
   # Create new Cohort with merged data
-  result <- refresh_cohort(cohorts[[1]])
-  result$inputs <- merged_dt
+  result <- Cohort$new(merged_dt, cohort_type=cohorts[[1]]$type)
 
   return(result)
 }
