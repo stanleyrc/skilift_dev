@@ -672,11 +672,13 @@ add_genome_length <- function(
     jabba_gg = NULL,
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
+    # handle targeted panels/whole exome
     if (is.numeric(seqnames_genome_width_or_genome_length) && NROW(seqnames_genome_width_or_genome_length) == 1) {
         metadata$total_genome_length <- seqnames_genome_width_or_genome_length
         return(metadata)
     }
 
+    # otherwise, handle genome-wide
     if (is.null(jabba_gg) && is.null(seqnames_genome_width_or_genome_length)) {
         return(metadata)
     }
@@ -1129,7 +1131,8 @@ create_metadata <- function(
     genome = "hg19",
     seqnames_loh = c(1:22),
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
-    denoised_coverage_field = "foreground"
+    denoised_coverage_field = "foreground",
+    is_visible = TRUE
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
@@ -1180,7 +1183,11 @@ create_metadata <- function(
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
 
     # Add MSIsensor score
-    metadata <- add_msisensor_score(metadata, msisensorpro)    
+    metadata <- add_msisensor_score(metadata, msisensorpro)
+
+    if (!is_visible) {
+        metadata$visible <- FALSE
+    }
     
     return(metadata)
 }
@@ -1280,7 +1287,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 onenesstwoness = row$onenesstwoness,
                 msisensorpro = row$msisensorpro,
                 seqnames_genome_width_or_genome_length = genome_length,
-                denoised_coverage_field = row$denoised_coverage_field
+                denoised_coverage_field = row$denoised_coverage_field,
+                is_visible = row$metadata_is_visible
             )
 
             if (is.null(metadata)) {
@@ -1302,6 +1310,41 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
             NULL
         })
     }, mc.cores = cores, mc.preschedule = TRUE)
-    
+
     invisible(NULL)
+}
+
+#' @name lift_datafiles_json
+#' @title lift_datafiles_json
+#' @description
+#' Create a combined JSON file for all data files in a directory
+#'
+#' @param data_dir Directory containing data files
+#' @return None
+#' @export
+lift_datafiles_json <- function(output_data_dir) {
+  if (!dir.exists(output_data_dir)) {
+    stop("Data directory does not exist.")
+  }
+  
+  # Recursively look for all files named "metadata.json"
+  metadata_files <- list.files(
+    path = output_data_dir,
+    pattern = "^metadata\\.json$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  
+  if (length(metadata_files) == 0) {
+    stop("No metadata.json files found in the specified directory.")
+  }
+  
+  # Read each JSON file and combine them into a list
+  combined_data <- lapply(metadata_files, function(file) {
+    jsonlite::fromJSON(file)
+  })
+  
+  # Write the combined JSON list to "datafiles.json" in the data directory
+  output_file <- file.path(output_data_dir, "datafiles.json")
+  jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")
 }
