@@ -156,12 +156,14 @@ lift_segment_width_distribution <- function(
                     print(sprintf("No overlap in sequence names for %s", row$pair))
                     return(NULL)
                 }
+                annotations = row$segment_width_distribution_annotations
+                annotations = if (!is.null(annotations)) unlist(annotations) else NULL
 
                 # Create JSON
                 gGnome::refresh(ggraph.reduced)$json(
                     filename = out_file,
                     verbose = TRUE,
-                    annotations = if (!is.null(annotations)) unlist(annotations) else NULL,
+                    annotations = annotations,
                     maxcn = 500,
                     nfields = fields.keep,
                     save = TRUE
@@ -407,16 +409,17 @@ lift_multiplicity_fits <- function(cohort,
 #' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
 #' @param histogram  Create histogram
 #' @param out_file output file path
-process_multiplicity_fit <- function(variants,
-                                     field = "altered_copies",
-                                     mask = TRUE,
-                                     mask_gr = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
-                                     save_data = TRUE,
-                                     save_png = TRUE,
-                                     save_html = FALSE,
-                                     histogram = FALSE,
-                                     bins = 1e6,
-                                     out_file) {
+process_multiplicity_fit <- function(
+    variants,
+    field = "altered_copies",
+    mask = TRUE,
+    mask_gr = system.file("extdata", "data", "maskA_re.rds", package = "Skilift"),
+    save_data = TRUE,
+    save_png = TRUE,
+    save_html = FALSE,
+    bins = 1e6,
+    out_file
+) {
     if (is.character(variants)) {
         variants <- readRDS(variants)
     }
@@ -443,12 +446,12 @@ process_multiplicity_fit <- function(variants,
     # create binned histogram data
     binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn, na.rm = T), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][, bin := NULL]
 
-    # Instantiate variables before conditionals..
-    integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
-                     ceiling(max(binned_hist_data$jabba_cn)), by = 1)
-    colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
-        pals::glasbey(length(which(integer_lines %/% 32 == i)))
-    }))
+    # # Instantiate variables before conditionals..
+    # integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
+    #                  ceiling(max(binned_hist_data$jabba_cn)), by = 1)
+    # colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
+    #     pals::glasbey(length(which(integer_lines %/% 32 == i)))
+    # }))
 
     # write json to file
     if(save_data) {
@@ -696,8 +699,8 @@ save_coverage_jabba_cn_png <- function(tiles.dt, out_file_denoised_png, out_file
 #' 
 #' @references Code adapted from:
 #'  - https://github.com/hartwigmedical/hmftools/tree/642436265858083a0bfc81b793a51ccde42edd02/purple/src/main/resources/r/copyNumberPlots.R
+#' @author Johnathan Rafailov
 lift_purple_sunrise_plot <- function(cohort,
-#'@author Johnathan Rafailov
                                     output_data_dir, cores = 1, save_pngs = TRUE, save_html = TRUE, save_data = TRUE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
@@ -935,7 +938,6 @@ create_pp_plot <- function(jabba_gg = NA,
         major.segs <- gr.val(segs, hets %Q% (allele == "major"), val = "cn", mean = TRUE, na.rm = TRUE)
         minor.segs <- gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
         if (is.wgs) {
-
             tiles <- gr.tile(gr = segs, width = 1e4)
             major.tiles <- gr.val(tiles, major.segs, val = "cn", mean = TRUE, na.rm = TRUE)
             minor.tiles <- gr.val(tiles, minor.segs, val = "cn", mean = TRUE, na.rm = TRUE)
@@ -1004,7 +1006,7 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
 
         # out_file <- file.path(pair_dir, "ppfit.json")
         png_path <- paste0(normalizePath(pair_dir), "/pp_plot.png")
-        
+
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {

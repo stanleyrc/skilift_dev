@@ -118,7 +118,7 @@ grab.hets <- function(agt.fname = NULL,
 #' @param settings Path to settings.json file.
 #'
 #' @return NULL.
-create_scatterplot_arrow = function(plot_metadata, datadir, settings = internal_settings_path, color_field = NULL) {
+create_scatterplot_arrow = function(plot_metadata, datadir, settings = internal_settings_path, color_field = NULL, mask = TRUE) {
     cov_json_path <- file.path(
         datadir,
         plot_metadata$patient.id,
@@ -155,7 +155,8 @@ create_scatterplot_arrow = function(plot_metadata, datadir, settings = internal_
                 field = plot_metadata$field,
                 ref_seqinfo_json = settings,
                 ref = plot_metadata$ref,
-                cov.color.field = color_field
+                cov.color.field = color_field,
+                mask = mask
             )
             message('Writing arrow file...')
 
