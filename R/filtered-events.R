@@ -719,6 +719,7 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
 
   # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
+  browser()
   if (
     is.character(multiplicity) &&
       NROW(multiplicity) == 1 &&
