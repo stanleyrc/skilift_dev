@@ -219,7 +219,7 @@ lift_allelic_pp_fit <- function(cohort,
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {
-                ppplot <- pp_plot(jabba_rds = row$jabba_gg,
+                ppplot <- skitools::pp_plot(jabba_rds = row$jabba_gg,
                         hets.fname = row$het_pileups,
                         allele = TRUE,
                         scatter = TRUE,
@@ -643,7 +643,12 @@ save_coverage_jabba_cn_html <- function(tiles.dt, out_file_html) {
         plot_bgcolor = 'rgba(0,0,0,0)',
         paper_bgcolor = 'rgba(0,0,0,0)'
     ) %>%
-    saveWidget(file = out_file_html, selfcontained = TRUE)
+    saveWidget(
+        file = out_file_html
+        , 
+        # selfcontained = TRUE # Is this necessary?? You have to have pandoc loaded.
+        selfcontained = FALSE
+    )
 }
 save_coverage_jabba_cn_png <- function(tiles.dt, out_file_denoised_png, out_file_original_png) {
     # Create ggplot
@@ -861,7 +866,12 @@ save_purple_sunrise_html <- function(p, q, out_file_html) {
         plot_bgcolor = 'rgba(0,0,0,0)',
         paper_bgcolor = 'rgba(0,0,0,0)'
     ) %>%
-    saveWidget(file = out_file_html, selfcontained = TRUE)
+    saveWidget(
+        file = out_file_html
+        , 
+        # selfcontained = TRUE # is this absolutely necessary?
+        selfcontained = FALSE
+    )
 }
 
 save_purple_sunrise_pngs <- function(p, q, out_file_png, out_file_beta_gamma_png) {

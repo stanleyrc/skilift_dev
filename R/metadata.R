@@ -568,6 +568,12 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
     metadata$ploidy <- ploidy
     metadata$beta = purity / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
     metadata$gamma = 2*(1 - purity) / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
+
+    # tau = ploidy
+    # alpha = purity
+    # beta <- alpha / (alpha * ploidy + 2 * (1 - alpha))
+    # gamma <- 2 * (1 - alpha) / (alpha * tau + 2 * (1 - alpha))
+
     
     # # Get sequence lengths from the gGraph
     # seq_lengths <- seqlengths(ggraph$nodes$gr)
@@ -1290,6 +1296,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 denoised_coverage_field = row$denoised_coverage_field,
                 is_visible = row$metadata_is_visible
             )
+            
 
             if (is.null(metadata)) {
                 print(sprintf("No metadata generated for %s", row$pair))

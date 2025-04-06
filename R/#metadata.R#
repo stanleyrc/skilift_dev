@@ -215,6 +215,7 @@ process_qc_metrics <- function(
     normal_wgs_metrics,
     pair
 ) {
+
     # Define metric mappings for each file type
     complexity_metrics_cols <- c(
         read_pairs_examined = "READ_PAIRS_EXAMINED",
@@ -241,11 +242,13 @@ process_qc_metrics <- function(
         # pct_30x = "PCT_30X",
         greater_than_or_equal_to_30x = "PCT_30X",
         # pct_50x = "PCT_50X"
-        greater_than_or_equal_to_50x = "PCT_50X"
+        greater_than_or_equal_to_50x = "PCT_50X",
+        fraction_excluded = "PCT_EXC_TOTAL"
     )
 
     normal_wgs_metrics_cols <- c(
-        normal_median_coverage = "MEDIAN_COVERAGE"
+        normal_median_coverage = "MEDIAN_COVERAGE",
+        fraction_excluded = "PCT_EXC_TOTAL"
     )
     
     test_file_is_present = function(x) {
@@ -292,6 +295,10 @@ process_qc_metrics <- function(
             tumor_wgs_metrics_cols,
             pair
         )
+        tumor_wgs_data$tumor_median_coverage = round(
+            tumor_wgs_data$tumor_median_coverage / (1 - tumor_wgs_data$fraction_excluded)
+        )
+        tumor_wgs_data$fraction_excluded = NULL
     }
 
     normal_wgs_data = data.table(pair = character(0))
@@ -301,6 +308,10 @@ process_qc_metrics <- function(
             normal_wgs_metrics_cols,
             pair
         )
+        normal_wgs_data$normal_median_coverage = round(
+            normal_wgs_data$normal_median_coverage / (1 - normal_wgs_data$fraction_excluded)
+        )
+        normal_wgs_data$fraction_excluded = NULL
     }
     
     # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
@@ -319,7 +330,8 @@ process_qc_metrics <- function(
         data.table::merge.data.table(
             x, y, by = "pair", 
             all.x = TRUE, 
-            all.y = TRUE
+            all.y = TRUE,
+            suffixes = c("_x", "_y")
         )
     }   , lst_to_merge)
     
@@ -472,7 +484,25 @@ add_variant_counts <- function(
 ) {
     if (!is.null(somatic_snvs)) {
         # snv_counts_dt <- sage_count(somatic_snvs, genome = genome)
-        snv_counts_dt <- vcf_count(somatic_snvs, genome = genome)
+        is_path_character = is.character(somatic_snvs)
+        is_length_one = NROW(somatic_snvs) == 1
+        is_snvs_exists = is_path_character && is_length_one && file.exists(somatic_snvs)
+        is_rds = is_snvs_exists && grepl("rds$", somatic_snvs)
+        is_vcf = is_snvs_exists && grepl("vcf(.gz|.bgz)?$", somatic_snvs)
+        is_txt = is_snvs_exists && grepl("(txt|maf|(t|c)sv)(.gz|.bgz)?$", somatic_snvs)
+        is_other = is_txt || is_rds
+        snv_counts_dt = data.table()
+        if (is_vcf) {
+            snv_counts_dt <- vcf_count(somatic_snvs, genome = genome)
+        }
+        if (is_rds) snvs = readRDS(somatic_snvs)
+        if (is_txt) snvs = fread(somatic_snvs)
+        if (is_other) {
+            snv_counts_dt = data.table(
+                category = c("snv_count", "snv_count_normal_vaf_greater0"),
+                counts = c(NROW(snvs), NA_integer_)
+            )
+        }
         
         metadata$snv_count <- snv_counts_dt[category == "snv_count", ]$counts
         ## count up filtered variants in VCF 
@@ -529,14 +559,15 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
         return(metadata)
     }
     
-    ggraph <- gg <- readRDS(jabba_gg)
-    
-    ploidy = tau = gg$meta$ploidy
-    purity = alpha = gg$meta$purity
+    gg <- readRDS(jabba_gg)
+
+    purity = base::get("purity", gg$meta) # Errors out if not found
+    ploidy = base::get("ploidy", gg$meta) # Errors out if not found
+
     metadata$purity <- purity
     metadata$ploidy <- ploidy
-    metadata$beta = alpha / (alpha * ploidy + 2*(1 - alpha)) # from Multiplicity
-    metadata$gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) # from Multiplicity
+    metadata$beta = purity / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
+    metadata$gamma = 2*(1 - purity) / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
     
     # # Get sequence lengths from the gGraph
     # seq_lengths <- seqlengths(ggraph$nodes$gr)
@@ -641,12 +672,14 @@ add_genome_length <- function(
     jabba_gg = NULL,
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
+    # handle targeted panels/whole exome
     if (is.numeric(seqnames_genome_width_or_genome_length) && NROW(seqnames_genome_width_or_genome_length) == 1) {
         metadata$total_genome_length <- seqnames_genome_width_or_genome_length
         return(metadata)
     }
 
-    if (is.null(jabba_gg) || is.null(seqnames_genome_width_or_genome_length)) {
+    # otherwise, handle genome-wide
+    if (is.null(jabba_gg) && is.null(seqnames_genome_width_or_genome_length)) {
         return(metadata)
     }
     
@@ -659,7 +692,10 @@ add_genome_length <- function(
         )
     )
     seqlengths.dt[, seqnames := gsub("chr", "", seqnames)]
-    seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
+    if (!is.null(seqnames_genome_width_or_genome_length)) {
+        seqlengths.dt <- seqlengths.dt[seqnames %in% seqnames_genome_width_or_genome_length, ]
+    }
+    
     metadata$total_genome_length <- sum(seqlengths.dt$seqlengths)
     
     return(metadata)
@@ -715,14 +751,17 @@ add_sv_types <- function(metadata, jabba_gg = NULL, complex = NULL) {
 #' @description Adds coverage parameters to the metadata based on tumor coverage
 #' @param metadata A data.table containing metadata
 #' @param tumor_coverage Coverage data for the tumor
+#' @param field The field to use for coverage calculation
 #' @return Updated metadata with coverage parameters added
-add_coverage_parameters <- function(metadata, tumor_coverage) {
+add_coverage_parameters <- function(metadata, tumor_coverage, field = "foreground") {
     if (!is.null(tumor_coverage)) {
         if (is.null(metadata$purity) || is.null(metadata$ploidy)) {
             warning("Purity and ploidy not found in metadata, cov_slope and cov_intercept will not be calculated")
         }
-        rel2abs.cov <- skitools::rel2abs(readRDS(tumor_coverage),
-            field = "foreground",
+        cov <- tumor_coverage %>% readRDS()
+        mcols(cov)[[field]] <- mcols(cov)[, field] * 2 * 151 / width(cov)
+        rel2abs.cov <- skitools::rel2abs(cov,
+            field = field,
             purity = metadata$purity,
             ploidy = metadata$ploidy,
             return.params = TRUE
@@ -784,9 +823,9 @@ add_tmb <- function(
     
     # Then ensure we have total_genome_length
     if (is.null(meta_dt$total_genome_length) || is.na(meta_dt$total_genome_length)) {
-        meta_dnodes.gr <- gg$nodes$grt <- add_genome_length(meta_dt, jabba_gg, seqnames_genome_width_or_genome_length)
+        meta_dt <- add_genome_length(meta_dt, jabba_gg, seqnames_genome_width_or_genome_length)
     }
-    browser()
+    
     
     # Calculate TMB if we have both required values
     is_tmb_computable <- !is.na(meta_dt$snv_count) && !is.na(meta_dt$total_genome_length) && !is.null(meta_dt$snv_count) && !is.null(meta_dt$total_genome_length)
@@ -933,43 +972,105 @@ add_signatures <- function(
 #' @param onenesstwoness Oneness and twoness scores.
 #' @return Updated metadata with HRD scores added.
 add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
-    if (!is.null(hrdetect)) {
-        hrd <- readRDS(hrdetect)
-        hrd_values <- data.table(
-            dels_mh = hrd$indels_classification_table$del.mh.count,
-            rs3 = hrd$exposures_rearr["RefSigR3", ],
-            rs5 = hrd$exposures_rearr["RefSigR5", ],
-            sbs3 = hrd$exposures_subs["SBS3", ],
-            sbs8 = hrd$exposures_subs["SBS8", ],
-            del_rep = hrd$indels_classification_table$del.rep.count
-        )
-        hrd_score <- hrd$hrdetect_output[1, "Probability"]
-        metadata$hrd_score <- hrd_score
 
-        if (
-            is.null(metadata$hrd[[1]])
-            || (
-                NROW(metadata$hrd[[1]]) == 1
-                && is.na(metadata$hrd[[1]])
-            )
-        ) {
-            metadata$hrd <- list(as.list(hrd_values))
-        } else {
-            metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-        }
-    } else {
-        warning("HRDetect scores not found, skipping HRD scores...")
-    }
+    #browser()
+
+    # if (!is.null(hrdetect)) {
+    #     hrd <- readRDS(hrdetect)
+    #     # hrd_values <- data.table(
+    #     #     dels_mh = hrd$indels_classification_table$del.mh.count,
+    #     #     rs3 = hrd$exposures_rearr["RefSigR3", ],
+    #     #     rs5 = hrd$exposures_rearr["RefSigR5", ],
+    #     #     sbs3 = hrd$exposures_subs["SBS3", ],
+    #     #     sbs8 = hrd$exposures_subs["SBS8", ],
+    #     #     del_rep = hrd$indels_classification_table$del.rep.count
+    #     # )
+    #     #hrd_score <- hrd$hrdetect_output[1, "Probability"]
+    #     #metadata$hrd_score <- hrd_score
+
+    #     # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+    #     #     metadata$hrd <- list(as.list(hrd_values))
+    #     # } else {
+    #     #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
+    #     # }
+    # } else {
+    #     warning("HRDetect scores not found, skipping HRD scores...")
+    # }
 
     if (!is.null(onenesstwoness)) {
         onetwo <- readRDS(onenesstwoness)
-        metadata$b1_2 <- onetwo$ot_scores[, "SUM12"]
-        metadata$b1 <- onetwo$ot_scores[, "BRCA1"]
-        metadata$b2 <- onetwo$ot_scores[, "BRCA2"]
+        hrd_values <- data.table(
+            b1_2_score = onetwo$ot_scores[, "BRCA1"] + onetwo$ot_scores[, "BRCA2"],
+            b1_score = onetwo$ot_scores[, "BRCA1"],
+            b2_score = onetwo$ot_scores[, "BRCA2"],
+            wt_score = onetwo$ot_scores[, "OTHER"],
+            DUP_1kb_100kb = onetwo$expl_variables[, "DUP_1kb_100kb"],
+            SNV3 = onetwo$expl_variables[, "SNV3"],
+            SNV8 = onetwo$expl_variables[, "SNV8"],
+            RS3 = onetwo$expl_variables[, "RS3"],
+            RS5 = onetwo$expl_variables[, "RS5"],
+            del_mh_prop = onetwo$expl_variables[, "del.mh.prop"],
+            ihdel = onetwo$expl_variables[, "ihdel"],
+            loh_score = onetwo$expl_variables[, "hrd"],
+            qrppos = onetwo$expl_variables[, "qrppos"],
+            qrpmin = onetwo$expl_variables[, "qrpmin"],
+            qrpmix = onetwo$expl_variables[, "qrpmix"],
+            qrdup = onetwo$expl_variables[, "qrdup"],
+            qrdel = onetwo$expl_variables[, "qrdel"],
+            tib = onetwo$expl_variables[, "tib"]
+        )
+
+        if (!is.null(hrdetect)) {
+            hrd <- readRDS(hrdetect)
+            hrd_values <- hrd_values[, hrd_score := hrd$hrdetect_output[1, "Probability"]]
+        } else {
+            warning("HRDetect scores not found, skipping HRD scores...")
+        }
+
+        metadata$hrd <- list(as.list(hrd_values))
+
+        # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
+        #     metadata$hrd <- list(as.list(hrd_values))
+        # } else {
+        #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
+        # }
+
     } else {
         warning("Oneness and twoness scores not found, skipping...")
     }
     
+    return(metadata)
+}
+
+#' @name add_msisensor_score
+#' @title Add MSIsensor Score
+#' @description
+#' Adds MSIsensor score to the metadata.    
+#' 
+#' @param metadata A data.table containing metadata.
+#' @param msisensor_pro Path to MSIsensor profile file.
+#' @return Updated metadata with MSIsensor score added.
+add_msisensor_score <- function(metadata, msisensorpro) {
+    if (!is.null(msisensorpro)) {
+        msisensorpro <- fread(msisensorpro)
+
+        score <- msisensorpro[,3][[1]]
+        label.msi <- ifelse(score < 10, "MSS",
+            ifelse(score < 20, "MSI-Low", "MSI-High"))
+
+        #add attributes as a list
+        dt <- data.table(
+            score = msisensorpro[,3][[1]] / 100,
+            n_unstable = msisensorpro[,2][[1]],
+            n_evaluated = msisensorpro[,1][[1]],
+            label = label.msi
+        )
+
+        metadata$msisensor <- list(as.list(dt))
+
+    } else {
+        warning("MSIsensor profile not found, skipping MSIsensor score...")
+    }
     return(metadata)
 }
 
@@ -1026,26 +1127,23 @@ create_metadata <- function(
     activities_sbs_signatures = NULL,
     hrdetect = NULL,
     onenesstwoness = NULL,
+    msisensorpro = NULL,
     genome = "hg19",
     seqnames_loh = c(1:22),
-    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
+    seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
+    denoised_coverage_field = "foreground",
+    is_visible = TRUE
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics"
-    , 
-    # was wgs_metrics
-    "tumor_wgs_metrics"
-    ,
-    "normal_wgs_metrics"
-    , 
-    "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness")
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
         }
     }    
+
     # Add each component sequentially
     metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
@@ -1068,7 +1166,7 @@ create_metadata <- function(
     metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
     metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
     metadata <- add_sv_types(metadata, jabba_gg, events)
-    metadata <- add_coverage_parameters(metadata, tumor_coverage)
+    metadata <- add_coverage_parameters(metadata, tumor_coverage, denoised_coverage_field)
     metadata <- add_het_pileups_parameters(metadata, het_pileups)
     
     # Add TMB calculation
@@ -1083,6 +1181,13 @@ create_metadata <- function(
     
     # Add HRD scores
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
+
+    # Add MSIsensor score
+    metadata <- add_msisensor_score(metadata, msisensorpro)
+
+    if (!is_visible) {
+        metadata$visible <- FALSE
+    }
     
     return(metadata)
 }
@@ -1098,7 +1203,7 @@ create_metadata <- function(
 #' @param genome_length Genome length for the samples (for targeted panels or WES data)
 #' @return None
 #' @export
-lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NULL) {
+lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(1:22, "X", "Y")) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1124,7 +1229,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         , 
         "het_pileups",
         "activities_sbs_signatures", "activities_indel_signatures",
-        "hrdetect", "onenesstwoness"
+        "hrdetect", "onenesstwoness", "msisensorpro"
     )
     
     # Check for required column
@@ -1136,6 +1241,11 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
     missing_cols <- all_cols[!all_cols %in% names(lift_inputs)]
     if (length(missing_cols) > 0) {
         warning("Missing optional columns in cohort: ", paste(missing_cols, collapse = ", "))
+    }
+
+    if(is.null(genome_length)) {
+        warning("No genome length provided, assuming WGS data")
+        genome_length <- c(1:22, "X", "Y")
     }
     
     # Process each sample in parallel
@@ -1151,7 +1261,9 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
         
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
+
             # Create metadata object
+
             metadata <- create_metadata(
                 pair = row$pair,
                 tumor_type = row$tumor_type,
@@ -1173,8 +1285,12 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
                 activities_indel_signatures = row$activities_indel_signatures,
                 hrdetect = row$hrdetect,
                 onenesstwoness = row$onenesstwoness,
-                seqnames_genome_width_or_genome_length = genome_length # if genome length is provided
+                msisensorpro = row$msisensorpro,
+                seqnames_genome_width_or_genome_length = genome_length,
+                denoised_coverage_field = row$denoised_coverage_field,
+                is_visible = row$metadata_is_visible
             )
+            
 
             if (is.null(metadata)) {
                 print(sprintf("No metadata generated for %s", row$pair))
@@ -1195,6 +1311,41 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = NU
             NULL
         })
     }, mc.cores = cores, mc.preschedule = TRUE)
-    
+
     invisible(NULL)
+}
+
+#' @name lift_datafiles_json
+#' @title lift_datafiles_json
+#' @description
+#' Create a combined JSON file for all data files in a directory
+#'
+#' @param data_dir Directory containing data files
+#' @return None
+#' @export
+lift_datafiles_json <- function(output_data_dir) {
+  if (!dir.exists(output_data_dir)) {
+    stop("Data directory does not exist.")
+  }
+  
+  # Recursively look for all files named "metadata.json"
+  metadata_files <- list.files(
+    path = output_data_dir,
+    pattern = "^metadata\\.json$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  
+  if (length(metadata_files) == 0) {
+    stop("No metadata.json files found in the specified directory.")
+  }
+  
+  # Read each JSON file and combine them into a list
+  combined_data <- lapply(metadata_files, function(file) {
+    jsonlite::fromJSON(file)
+  })
+  
+  # Write the combined JSON list to "datafiles.json" in the data directory
+  output_file <- file.path(output_data_dir, "datafiles.json")
+  jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")
 }

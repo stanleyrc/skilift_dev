@@ -82,7 +82,6 @@ create_multiplicity <- function(snv_cn, oncokb_snv = NULL, is_germline = FALSE, 
       mutations.gr, 
       overwrite = TRUE
     )
-    mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
     
   }
@@ -208,6 +207,15 @@ multiplicity_to_intervals <- function(
         genes = gencode[gencode$type == "gene"]
         gr_heme_genes = genes[na.omit(match(hemedb$GENE, genes$gene_name))]
         message("Filtering multiplicity to heme relevant genes")
+        browser()
+        gene_field = mcols(gr)$gene
+        if (is.null(gene_field)) gene_field = mcols(gr)$Hugo_Symbol
+        get0(
+            "gene",
+            as.environment(),
+            ifnotfound =
+                get0("HugoSymbol", as.environment(mcols(gr)))
+        )
         is_heme = (gr %^% gr_heme_genes) & (gr$gene %in% gr_heme_genes$gene_name)
         gr_heme = gr[is_heme]
         gr_other = gr[!is_heme]
