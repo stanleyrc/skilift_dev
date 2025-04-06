@@ -719,7 +719,6 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
 
   # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
-  browser()
   if (
     is.character(multiplicity) &&
       NROW(multiplicity) == 1 &&
@@ -1095,6 +1094,7 @@ create_filtered_events <- function(
     out_file,
     return_table = FALSE,
     cohort_type = "paired") {
+  
   ot <- readRDS(oncotable)
 
   possible_drivers = empty_oncotable = structure(list(gene = character(0), gene_summary = character(0), 

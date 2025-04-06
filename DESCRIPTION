@@ -46,7 +46,9 @@ Imports:
     futile.logger,
     glue,
     pals,
-    scico
+    scico,
+    pandoc,
+    ggExtra
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8

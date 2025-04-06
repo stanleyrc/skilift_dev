@@ -82,6 +82,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv = NULL, is_germline = FALSE, 
       mutations.gr, 
       overwrite = TRUE
     )
+    mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
     
   }

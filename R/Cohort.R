@@ -100,7 +100,7 @@ Cohort <- R6Class("Cohort",
       )
 
       # Define metadata fields and configuration parameter fields that should only check for NA/NULL
-      metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex")
+      metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex", "metadata_is_visible")
       config_fields <- Skilift:::config_parameter_names # Use the existing config parameter names
 
       # Combine metadata and config fields
@@ -463,21 +463,23 @@ default_col_mapping <- list(
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
   msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
   # Configuration parameters with default values
-  copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
-  copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))),
-  multiplicity_node_metadata = structure(c("multiplicity_node_metadata"), default = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")),
-  multiplicity_field = structure(c("multiplicity_field"), default = "altered_copies"),
-  denoised_coverage_field = structure(c("denoised_coverage_field"), default = "foreground"),
-  denoised_coverage_color_field = structure(c("denoised_coverage_color_field"), default = NULL),
-  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = 1e4),
-  hetsnps_field = structure(c("hetsnps_field"), default = "count"),
-  hetsnps_color_field = structure(c("hetsnps_color_field"), default = "col"),
-  hetsnps_bin_width = structure(c("hetsnps_bin_width"), default = NA),
-  hetsnps_mask = structure(c("hetsnps_mask"), default = system.file("extdata", "data", "maskA_re.rds", package = "Skilift")),
-  hetsnps_subsample_size = structure(c("hetsnps_subsample_size"), default = 100000),
-  hetsnps_min_normal_freq = structure(c("hetsnps_min_normal_freq"), default = 0.2),
-  hetsnps_max_normal_freq = structure(c("hetsnps_max_normal_freq"), default = 0.8),
-  segment_width_distribution_annotations = structure(c("segment_width_distribution_annotations"), default = NULL)
+  metadata_is_visible = structure(c("metadata_is_visible"), default = TRUE), 
+  copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100), 
+  copy_number_graph_annotations = structure(c("copy_number_graph_annotations"), default = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas"))), 
+  multiplicity_node_metadata = structure(c("multiplicity_node_metadata"), default = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank")), 
+  multiplicity_field = structure(c("multiplicity_field"), default = "altered_copies"), 
+  denoised_coverage_field = structure(c("denoised_coverage_field"), default = "foreground"), 
+  denoised_coverage_color_field = structure(c("denoised_coverage_color_field"), default = NULL), 
+  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = 1e4), 
+  denoised_coverage_apply_mask = structure(c("denoised_coverage_apply_mask"), default = TRUE), 
+  hetsnps_field = structure(c("hetsnps_field"), default = "count"), 
+  hetsnps_color_field = structure(c("hetsnps_color_field"), default = "col"), 
+  hetsnps_bin_width = structure(c("hetsnps_bin_width"), default = NA), 
+  hetsnps_mask = structure(c("hetsnps_mask"), default = system.file("extdata", "data", "maskA_re.rds", package = "Skilift")), 
+  hetsnps_subsample_size = structure(c("hetsnps_subsample_size"), default = 100000), 
+  hetsnps_min_normal_freq = structure(c("hetsnps_min_normal_freq"), default = 0.2), 
+  hetsnps_max_normal_freq = structure(c("hetsnps_max_normal_freq"), default = 0.8), 
+  segment_width_distribution_annotations = structure(c("segment_width_distribution_annotations"), default = NULL) 
 )
 
 #' Configuration parameter names
@@ -492,6 +494,7 @@ config_parameter_names <- c(
   "copy_number_graph_annotations",
   "multiplicity_node_metadata",
   "multiplicity_field",
+  "denoised_coverage_apply_mask",
   "denoised_coverage_field",
   "denoised_coverage_color_field",
   "denoised_coverage_bin_width",

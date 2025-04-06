@@ -48,7 +48,6 @@ create_heme_highlights = function(
   criterias = list(
     is_small_in_guidelines = small_muts$gene %in% hemedb_guideline$GENE, ## accounts for merge step
     is_frequent = small_muts$gene %in% hemedb[hemedb$FREQ >= 5]$GENE,
-    is_guideline = small_muts$gene %in% hemedb_guideline$GENE,
     is_tier2_or_better = small_muts$Tier <= 2
   )
   is_small_mutation_heme_relevant = base::Reduce("&", criterias)
@@ -115,7 +114,6 @@ create_heme_highlights = function(
   hemedb_fusions_rev$Gene = paste(fg_split[[2]], fg_split[[1]], sep = "::")
 
   hemedb_fusions_fr = rbind(hemedb_fusions, hemedb_fusions_rev)
-
 
   svs = events_tbl[grepl("fusion", events_tbl$type, ignore.case = TRUE)]
   svsForJson = data.table::copy(emptyDfForJson)
