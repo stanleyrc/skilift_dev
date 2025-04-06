@@ -104,7 +104,7 @@ lift_segment_width_distribution <- function(
         }
 
         out_file <- file.path(pair_dir, "ppfit.json")
-        
+
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {
@@ -264,19 +264,23 @@ lift_multiplicity_fits <- function(cohort,
     }
 
     # Validate required columns exist
-    required_cols <- c("pair", "multiplicity", "germline_multiplicity", "hetsnps_multiplicity")
-    missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
-    iter_cols <- required_cols[-1][required_cols[-1] %in% names(cohort$inputs)]
+    required_cols <- c("pair", "multiplicity")
+    optional_cols <-  c("germline_multiplicity", "hetsnps_multiplicity")
+    required_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    iter_cols <- c("multiplicity", optional_cols[which(optional_cols %in% names(cohort$inputs))])
+    # missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
+    # iter_cols <- required_cols[-1][required_cols[-1] %in% names(cohort$inputs)]
 
-    if (length(missing_cols) > 0) {
-        message("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
-        message("Skipping... missing columns will not be processed")
+    if (length(required_cols) > 0) {
+        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
 
-    lift_allelic_pp_fit(cohort, 
-                        output_data_dir, 
-                        cores,
-                        file.name = "purple_sunrise_beta_gamma.png") 
+    lift_allelic_pp_fit(
+        cohort,
+        output_data_dir,
+        cores,
+        file.name = "purple_sunrise_beta_gamma.png"
+    ) 
     ## TODO: update me once new plot is ready; right now using Zi plot from skitools
     ## also hacking and just getting rid of the purple sunrise plot to make it work for now
     ## eventually tell CX to update the png we are using on the frontend
@@ -407,7 +411,6 @@ lift_multiplicity_fits <- function(cohort,
 #' @param mask logical value to mask the data or not; default is TRUE
 #' @param mask_gr GRanges object containing the mask; default is maskA as provided in the package
 #' @param bins  number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000
-#' @param histogram  Create histogram
 #' @param out_file output file path
 process_multiplicity_fit <- function(
     variants,
@@ -445,13 +448,6 @@ process_multiplicity_fit <- function(
 
     # create binned histogram data
     binned_hist_data <- hist_data[, .(mult_cn = mean(mult_cn, na.rm = T), count = .N), by = .(bin, jabba_cn)][order(mult_cn)][, bin := NULL]
-
-    # # Instantiate variables before conditionals..
-    # integer_lines <- seq(floor(min(binned_hist_data$jabba_cn)),
-    #                  ceiling(max(binned_hist_data$jabba_cn)), by = 1)
-    # colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
-    #     pals::glasbey(length(which(integer_lines %/% 32 == i)))
-    # }))
 
     # write json to file
     if(save_data) {
@@ -730,7 +726,7 @@ lift_purple_sunrise_plot <- function(cohort,
         out_file_png <- file.path(pair_dir, "purple_sunrise_pp.png")
         out_file_beta_gamma_png <- file.path(pair_dir, "purple_sunrise_beta_gamma.png")
         out_file_html <- file.path(pair_dir, "combined_plot.html")
-        
+
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {

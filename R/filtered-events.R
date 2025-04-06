@@ -1020,9 +1020,8 @@ create_oncotable <- function(
 
         amp_thresh <- amp_thresh_multiplier * ploidy
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
-
-        futile.logger::flog.threshold("ERROR")
         # Run oncotable for this pair
+        futile.logger::flog.threshold("ERROR")
         oncotable_result <- tryCatchLog(
           {
             oncotable(
@@ -1310,9 +1309,12 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
               cohort_type = cohort_type
           )
           if (identical(cohort_type, "heme")) {
-            create_heme_highlights(events_tbl = out, jabba_gg = row$jabba_gg, out_file = highlights_out_file)
+            create_heme_highlights(
+              events_tbl = out,
+              jabba_gg = row$jabba_gg,
+              out_file = highlights_out_file
+              )
           }
-            
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
             NULL
