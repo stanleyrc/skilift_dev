@@ -466,8 +466,6 @@ vcf_count <- function(
     )
 }
     
-
-
 #' @name add_variant_counts
 #' @title Add Variant Counts
 #' @description
@@ -978,31 +976,6 @@ add_signatures <- function(
 #' @param onenesstwoness Oneness and twoness scores.
 #' @return Updated metadata with HRD scores added.
 add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
-
-    #browser()
-
-    # if (!is.null(hrdetect)) {
-    #     hrd <- readRDS(hrdetect)
-    #     # hrd_values <- data.table(
-    #     #     dels_mh = hrd$indels_classification_table$del.mh.count,
-    #     #     rs3 = hrd$exposures_rearr["RefSigR3", ],
-    #     #     rs5 = hrd$exposures_rearr["RefSigR5", ],
-    #     #     sbs3 = hrd$exposures_subs["SBS3", ],
-    #     #     sbs8 = hrd$exposures_subs["SBS8", ],
-    #     #     del_rep = hrd$indels_classification_table$del.rep.count
-    #     # )
-    #     #hrd_score <- hrd$hrdetect_output[1, "Probability"]
-    #     #metadata$hrd_score <- hrd_score
-
-    #     # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
-    #     #     metadata$hrd <- list(as.list(hrd_values))
-    #     # } else {
-    #     #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-    #     # }
-    # } else {
-    #     warning("HRDetect scores not found, skipping HRD scores...")
-    # }
-
     if (!is.null(onenesstwoness)) {
         onetwo <- readRDS(onenesstwoness)
         hrd_values <- data.table(
@@ -1034,12 +1007,6 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
         }
 
         metadata$hrd <- list(as.list(hrd_values))
-
-        # if (is.null(metadata$hrd[[1]]) || is.na(metadata$hrd[[1]])) {
-        #     metadata$hrd <- list(as.list(hrd_values))
-        # } else {
-        #     metadata$hrd <- list(c(metadata$hrd[[1]], as.list(hrd_values)))
-        # }
 
     } else {
         warning("Oneness and twoness scores not found, skipping...")
@@ -1105,6 +1072,7 @@ add_msisensor_score <- function(metadata, msisensorpro) {
 #' @param activities_sbs_signatures Activities of SBS signatures.
 #' @param hrdetect HRDetect scores.
 #' @param onenesstwoness Oneness and twoness scores.
+#' @param msisensorpro MSIsensor profile file.
 #' @param genome The genome reference used.
 #' @param seqnames_loh Sequence names for loss of heterozygosity.
 #' @param seqnames_genome_width_or_genome_length Sequence names and genome width in list or genome length as a numeric
@@ -1189,7 +1157,7 @@ create_metadata <- function(
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
 
     # Add MSIsensor score
-    metadata <- add_msisensor_score(metadata, msisensorpro)
+    metadata <- add_msisensor_score(metadata, msisensorpro)    
 
     if (!is_visible) {
         metadata$visible <- FALSE
@@ -1226,15 +1194,9 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
         "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
-        "insert_size_metrics"
-        , 
-        # was "wgs_metrics"
-        "tumor_wgs_metrics"
-        ,
-        "normal_wgs_metrics"
-        , 
-        "het_pileups",
-        "activities_sbs_signatures", "activities_indel_signatures",
+        "insert_size_metrics", "tumor_wgs_metrics", 
+        "normal_wgs_metrics",
+        "het_pileups", "activities_sbs_signatures", "activities_indel_signatures",
         "hrdetect", "onenesstwoness", "msisensorpro"
     )
     
@@ -1296,7 +1258,6 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 denoised_coverage_field = row$denoised_coverage_field,
                 is_visible = row$metadata_is_visible
             )
-            
 
             if (is.null(metadata)) {
                 print(sprintf("No metadata generated for %s", row$pair))
@@ -1348,9 +1309,9 @@ lift_datafiles_json <- function(output_data_dir) {
   
   # Read each JSON file and combine them into a list
   combined_data <- lapply(metadata_files, function(file) {
-    jsonlite::fromJSON(file)
+    unbox(jsonlite::fromJSON(file))
   })
-  
+
   # Write the combined JSON list to "datafiles.json" in the data directory
   output_file <- file.path(output_data_dir, "datafiles.json")
   jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")

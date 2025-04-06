@@ -98,7 +98,6 @@ granges_to_arrow_scatterplot <- function(
     }
 
     message("Preparing GRanges for conversion to arrow format")
-
     dat <- gGnome::cov2cov.js(
         gr,
         meta.js = ref_seqinfo_json,
@@ -297,11 +296,11 @@ lift_denoised_coverage <- function(
         tryCatchLog(
             {
                 if (!is.null(row$tumor_coverage) && file.exists(row$tumor_coverage)) {
+
                     cov <- row$tumor_coverage %>% readRDS()
                     mcols(cov)[[row$denoised_coverage_field]] <- mcols(cov)[, row$denoised_coverage_field] * 2 * 151 / width(cov)
                                         
                     # Create arrow table
-
                     arrow_table <- granges_to_arrow_scatterplot(
                         gr_path = cov,
                         field = row$denoised_coverage_field,

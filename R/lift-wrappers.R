@@ -71,6 +71,8 @@ has_required_columns <- function(cohort, columns, any = FALSE) {
        "hetsnps_multiplicity"
     ),
 
+    allelic_pp_fit = c("jabba_gg", "het_pileups"),
+
     coverage_jabba_cn = c(
       "jabba_gg", "tumor_coverage"
     ),
@@ -173,7 +175,14 @@ lift_all <- function(
 #' @param oncotable_dir Directory for oncotable outputs
 #'
 #' @return Modified cohort object if oncotable is created, otherwise NULL
-lift_mvp <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
+lift_mvp <- function(
+  cohort,
+  output_data_dir,
+  oncotable_dir,
+  cores,
+  genome_length = c(1:22, "X", "Y"),
+  ...
+) {
   list2env(list(...), envir = environment())
 
   if (has_required_columns(cohort, required_columns$total_copy_number_graph)) {
@@ -251,6 +260,10 @@ lift_mvp <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
       output_data_dir = output_data_dir,
       cores = cores,
       genome_length = genome_length
+    )
+
+    lift_datafiles_json(
+      output_data_dir = output_data_dir
     )
   }
 
@@ -340,6 +353,14 @@ lift_paired <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
       output_data_dir = output_data_dir,
       cores = cores,
       is_allelic = TRUE
+    )
+  }
+
+  if (has_required_columns(cohort, required_columns$allelic_pp_fit)) {
+    lift_allelic_pp_fit(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
     )
   }
 

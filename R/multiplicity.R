@@ -7,7 +7,7 @@
 #'
 #' @return data.table containing processed mutation data
 #' @export
-create_multiplicity <- function(snv_cn, oncokb_snv = NULL, is_germline = FALSE, field = "altered_copies") {
+create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, field = "altered_copies") {
   mutations.gr <- tryCatch({
     if (!grepl("\\.rds$", snv_cn)) {
       message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
@@ -77,16 +77,15 @@ create_multiplicity <- function(snv_cn, oncokb_snv = NULL, is_germline = FALSE, 
     if (!inherits(oncokb_snv, "GRanges")) {
       stop("final oncokb_snv not a GRanges object")
     }
-     mutations.gr.annotated = merge_oncokb_multiplicity(
-      oncokb_snv, 
-      mutations.gr, 
+
+    mutations.gr.annotated = merge_oncokb_multiplicity(
+      oncokb_snv,
+      mutations.gr,
       overwrite = TRUE
     )
     mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
-    
   }
- 
 
   if (!any(class(mutations.dt) == "data.table")) {
     stop("Input must be a data.table.")
@@ -141,7 +140,6 @@ create_multiplicity <- function(snv_cn, oncokb_snv = NULL, is_germline = FALSE, 
 
   for (col in names(annotation_fields)) {
     if (col %in% colnames(mutations.dt)) {
-      print(col)
       mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
     }
   }
