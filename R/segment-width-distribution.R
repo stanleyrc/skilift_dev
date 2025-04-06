@@ -156,8 +156,6 @@ lift_segment_width_distribution <- function(
                     print(sprintf("No overlap in sequence names for %s", row$pair))
                     return(NULL)
                 }
-                annotations = row$segment_width_distribution_annotations
-                annotations = if (!is.null(annotations)) unlist(annotations) else NULL
 
                 annotations = row$segment_width_distribution_annotations
                 annotations = if (!is.null(annotations)) unlist(annotations) else NULL
