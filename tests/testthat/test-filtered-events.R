@@ -488,7 +488,7 @@ test_that("lift_filtered_events handles various input scenarios", {
   
   # Test: Non-existent output directory
   non_existent_dir <- file.path(temp_dir, "non_existent")
-  lift_filtered_events(complete_cohort, non_existent_dir)
+  lift_filtered_events(complete_cohort, non_existent_dir, cores = 2)
   expect_true(dir.exists(non_existent_dir))
   expect_true(dir.exists(file.path(non_existent_dir, "397089")))
   expect_true(file.exists(file.path(non_existent_dir, "397089", "filtered.events.json")))
@@ -506,20 +506,16 @@ test_that("lift_filtered_events handles various input scenarios", {
     "Missing required columns in cohort: oncotable, jabba_gg"
   )
   
-  # Test: Cohort with missing inputs for some samples
-  warning_msg <- capture_warnings(
-    lift_filtered_events(missing_cohort, temp_dir)
-  )
-  expect_match(
-    warning_msg,
-    "Error processing 397090: invalid 'description' argument",
+  expect_output(
+    lift_filtered_events(missing_cohort, temp_dir, cores = 2),
+    regex = "Error processing 397090: invalid 'description' argument",
     all = FALSE
   )
   
   # Test: Existing output directory
   existing_dir <- file.path(temp_dir, "existing")
   dir.create(existing_dir)
-  lift_filtered_events(complete_cohort, existing_dir)
+  lift_filtered_events(complete_cohort, existing_dir, cores = 2)
   expect_true(file.exists(file.path(existing_dir, "397089", "filtered.events.json")))
   
   # Test: Output file content validation

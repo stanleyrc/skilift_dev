@@ -178,9 +178,9 @@ test_that("lift_variant_qc handles errors in individual samples", {
     temp_dir <- tempfile()
     
     # Should complete with warning but not error
-    expect_warning(
+    expect_output(
         lift_variant_qc(mock_cohort, temp_dir, cores = 1),
-        "Error processing sample2"
+        regex="Error processing sample2"
     )
     
     # Check that valid sample was processed

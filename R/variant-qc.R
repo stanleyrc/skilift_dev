@@ -135,7 +135,6 @@ lift_variant_qc <- function(cohort, output_data_dir, cores = 1) {
             jsonlite::write_json(qc_data, out_file, pretty = TRUE)
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
-            NULL
         })
     }, mc.cores = cores, mc.preschedule = TRUE)
     
