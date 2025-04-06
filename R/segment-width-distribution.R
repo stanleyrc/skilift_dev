@@ -159,6 +159,9 @@ lift_segment_width_distribution <- function(
                 annotations = row$segment_width_distribution_annotations
                 annotations = if (!is.null(annotations)) unlist(annotations) else NULL
 
+                annotations = row$segment_width_distribution_annotations
+                annotations = if (!is.null(annotations)) unlist(annotations) else NULL
+
                 # Create JSON
                 gGnome::refresh(ggraph.reduced)$json(
                     filename = out_file,
@@ -171,7 +174,6 @@ lift_segment_width_distribution <- function(
             },
             error = function(e) {
                 print(sprintf("Error processing %s: %s", row$pair, e$message))
-                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = TRUE)
@@ -237,6 +239,7 @@ lift_allelic_pp_fit <- function(cohort,
             },
             error = function(e) {
                 print(sprintf("Error processing %s: %s", row$pair, e$message))
+                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = TRUE)
@@ -268,8 +271,6 @@ lift_multiplicity_fits <- function(cohort,
     optional_cols <-  c("germline_multiplicity", "hetsnps_multiplicity")
     required_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     iter_cols <- c("multiplicity", optional_cols[which(optional_cols %in% names(cohort$inputs))])
-    # missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
-    # iter_cols <- required_cols[-1][required_cols[-1] %in% names(cohort$inputs)]
 
     if (length(required_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
@@ -331,7 +332,6 @@ lift_multiplicity_fits <- function(cohort,
                 },
                 error = function(e) {
                     print(sprintf("Error processing %s: %s", row$pair, e$message))
-                    NULL
                 }
             )
         }
@@ -599,7 +599,6 @@ lift_coverage_jabba_cn <- function(
             },
             error = function(e) {
                 print(sprintf("Error processing %s: %s", row$pair, e$message))
-                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = TRUE)
@@ -701,8 +700,13 @@ save_coverage_jabba_cn_png <- function(tiles.dt, out_file_denoised_png, out_file
 #' @references Code adapted from:
 #'  - https://github.com/hartwigmedical/hmftools/tree/642436265858083a0bfc81b793a51ccde42edd02/purple/src/main/resources/r/copyNumberPlots.R
 #' @author Johnathan Rafailov
-lift_purple_sunrise_plot <- function(cohort,
-                                    output_data_dir, cores = 1, save_pngs = TRUE, save_html = TRUE, save_data = TRUE) {
+lift_purple_sunrise_plot <- function(
+    cohort,
+    output_data_dir, cores = 1, 
+    save_pngs = TRUE, 
+    save_html = TRUE, 
+    save_data = TRUE
+) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -790,7 +794,6 @@ lift_purple_sunrise_plot <- function(cohort,
             },
             error = function(e) {
                 print(sprintf("Error processing %s: %s", row$pair, e$message))
-                NULL
             }
         )
     }, mc.cores = cores, mc.preschedule = TRUE)

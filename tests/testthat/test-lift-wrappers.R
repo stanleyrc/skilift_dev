@@ -53,15 +53,16 @@ test_that("lift_all passes parameters correctly to individual lifters", {
   )
   
   # Create mock files
-  sapply(c(dt$structural_variants, dt$tumor_coverage, 
-          dt$somatic_snvs, dt$germline_snvs, dt$het_pileups), 
-         function(x) writeLines("", file.path(base_dir, x)))
+  sapply(
+    c(dt$structural_variants, dt$tumor_coverage, dt$somatic_snvs, dt$germline_snvs, dt$het_pileups), 
+    function(x) writeLines("", file.path(base_dir, x))
+  )
   
   cohort <- suppressWarnings(Cohort$new(dt))
   
   # Test with custom parameters
   custom_annotations <- list(genes = c("BRCA1", "BRCA2"))
-  
+
   expect_message(
     suppressWarnings(lift_all(
       cohort = cohort,

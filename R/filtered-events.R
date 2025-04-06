@@ -986,7 +986,8 @@ create_oncotable <- function(
   }
   
   results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-  (
+    futile.logger::flog.threshold("ERROR")
+    tryCatchLog(
       {
         row <- cohort$inputs[i]
 
@@ -1020,6 +1021,7 @@ create_oncotable <- function(
 
         amp_thresh <- amp_thresh_multiplier * ploidy
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
+
         # Run oncotable for this pair
         futile.logger::flog.threshold("ERROR")
         oncotable_result <- tryCatchLog(
@@ -1045,9 +1047,8 @@ create_oncotable <- function(
             )
           },
           error = function(e) {
-            msg <- sprintf("Error in oncotable for %s: %s", row$pair, e$message)
-            print(msg)
-            return(NULL)
+            print(sprintf("Error in oncotable for %s: %s", row$pair, e$message))
+            NULL
           }
         )
 
@@ -1058,6 +1059,10 @@ create_oncotable <- function(
           fwrite(oncotable_result, file.path(pair_outdir, "oncotable.txt"))
           return(list(index = i, path = oncotable_path))
         }
+      },
+      error = function(e) {
+        print(sprintf("Unexpected error processing %s: %s", cohort$inputs[i]$pair, e$message))
+        NULL
       }
     )
   }, mc.cores = cores, mc.preschedule = TRUE)
@@ -1093,7 +1098,6 @@ create_filtered_events <- function(
     out_file,
     return_table = FALSE,
     cohort_type = "paired") {
-  
   ot <- readRDS(oncotable)
 
   possible_drivers = empty_oncotable = structure(list(gene = character(0), gene_summary = character(0), 
@@ -1281,7 +1285,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     required_cols <- c("pair", "oncotable", "jabba_gg")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
-        stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+        warn("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
     cohort_type = cohort$type
@@ -1300,28 +1304,25 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         out = NULL
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
-          out <- create_filtered_events(
-              pair = row$pair,
-              oncotable = row$oncotable,
-              jabba_gg = row$jabba_gg,
-              out_file = out_file,
-              return_table = return_table,
-              cohort_type = cohort_type
-          )
-          if (identical(cohort_type, "heme")) {
-            create_heme_highlights(
-              events_tbl = out,
-              jabba_gg = row$jabba_gg,
-              out_file = highlights_out_file
+            out <- create_filtered_events(
+                pair = row$pair,
+                oncotable = row$oncotable,
+                jabba_gg = row$jabba_gg,
+                out_file = out_file,
+                return_table = return_table,
+                cohort_type = cohort_type
+            )
+            if (identical(cohort_type, "heme")) {
+              create_heme_highlights(
+                events_tbl = out,
+                jabba_gg = row$jabba_gg,
+                out_file = highlights_out_file
               )
-          }
+            }
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
             NULL
-        }
-        )
-
-        
+        })
         return(out)
     }, mc.cores = cores, mc.preschedule = TRUE)
     

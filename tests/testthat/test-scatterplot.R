@@ -167,7 +167,8 @@ test_that("granges_to_arrow_scatterplot creates an arrow table correctly", {
     field = "foreground",
     ref = 'hg19',
     cov.color.field = "color",
-    bin.width = NA
+    bin.width = NA,
+    mask = FALSE
   )
   
   result_dt <- as.data.table(result)
@@ -181,6 +182,7 @@ test_that("granges_to_arrow_scatterplot handles missing color field gracefully",
     field = "foreground",
     ref = 'hg19',
     cov.color.field = NULL,
+    mask = FALSE
   )
   
   result_dt <- as.data.table(result)
@@ -201,7 +203,7 @@ test_that("create_scatterplot_arrow handles path input correctly", {
   
   datadir <- tempdir()
   
-  create_scatterplot_arrow(plot_metadata, datadir)
+  create_scatterplot_arrow(plot_metadata, datadir, mask = FALSE)
   
   expected_output_path <- file.path(datadir, plot_metadata$patient.id, plot_metadata$source)
   expect_true(file.exists(expected_output_path))
@@ -223,7 +225,7 @@ test_that("create_scatterplot_arrow handles path not in list correctly", {
   
   datadir <- tempdir()
   
-  create_scatterplot_arrow(plot_metadata, datadir)
+  create_scatterplot_arrow(plot_metadata, datadir, mask = FALSE)
   
   expected_output_path <- file.path(datadir, plot_metadata$patient.id, plot_metadata$source)
   expect_true(file.exists(expected_output_path))
@@ -249,7 +251,7 @@ test_that("create_scatterplot_arrow handles GRanges input correctly", {
   
   datadir <- tempdir()
   
-  create_scatterplot_arrow(plot_metadata, datadir)
+  create_scatterplot_arrow(plot_metadata, datadir, mask = FALSE)
   
   expected_output_path <- file.path(datadir, plot_metadata$patient.id, plot_metadata$source)
   expect_true(file.exists(expected_output_path))
@@ -271,7 +273,7 @@ test_that("create_scatterplot_arrow warns when input path does not exist", {
   datadir <- tempdir()
   
   expect_warning(
-    create_scatterplot_arrow(plot_metadata, datadir),
+    create_scatterplot_arrow(plot_metadata, datadir, mask = FALSE),
     "Input coverage file does not exist for name:"
   )
 })
@@ -288,8 +290,8 @@ test_that("create_scatterplot_arrow handles multiple entries in data.table corre
   
   datadir <- tempdir()
   
-  create_scatterplot_arrow(plot_metadata[1], datadir)
-  create_scatterplot_arrow(plot_metadata[2], datadir)
+  create_scatterplot_arrow(plot_metadata[1], datadir, mask = FALSE)
+  create_scatterplot_arrow(plot_metadata[2], datadir, mask = FALSE)
   
   expected_output_path1 <- file.path(datadir, plot_metadata$patient.id[1], plot_metadata$source[1])
   expected_output_path2 <- file.path(datadir, plot_metadata$patient.id[2], plot_metadata$source[2])
@@ -323,14 +325,16 @@ test_that("lift_denoised_coverage handles various input scenarios", {
   # 1. Complete cohort with all required inputs
   complete_inputs <- data.table(
     pair = c("test_patient"),
-    tumor_coverage = c(mock_coverage_file)
+    tumor_coverage = c(mock_coverage_file),
+    denoised_coverage_apply_mask = FALSE
   )
   complete_cohort <- suppressWarnings(Cohort$new(complete_inputs))
   
   # 2. Cohort with missing inputs
   missing_inputs <- data.table(
     pair = c("test_patient", "missing_patient"),
-    tumor_coverage = c(mock_coverage_file, NA)
+    tumor_coverage = c(mock_coverage_file, NA),
+    denoised_coverage_apply_mask = FALSE
   )
   missing_cohort <- suppressWarnings(Cohort$new(missing_inputs))
   

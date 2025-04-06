@@ -118,7 +118,6 @@ lift_copy_number_graph <- function(
             }
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
-            NULL
         })
     }, mc.cores = cores, mc.preschedule = TRUE)
     

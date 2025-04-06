@@ -168,7 +168,6 @@ lift_signatures <- function(cohort, output_data_dir, cores = 1) {
             }
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
-            NULL
         })
     }, mc.cores = cores, mc.preschedule = TRUE)
     
