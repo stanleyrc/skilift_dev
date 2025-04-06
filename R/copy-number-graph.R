@@ -31,7 +31,7 @@ lift_copy_number_graph <- function(
         out_filename <- "allelic.json"
     } else {
         message("Processing total copy number")
-        cn_column <- "jabba_gg"
+        cn_column <- "events"
         out_filename <- "complex.json"
     }
     
