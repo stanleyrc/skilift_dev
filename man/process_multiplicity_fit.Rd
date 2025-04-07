@@ -12,7 +12,6 @@ process_multiplicity_fit(
   save_data = TRUE,
   save_png = TRUE,
   save_html = FALSE,
-  histogram = FALSE,
   bins = 1e+06,
   out_file
 )
@@ -25,8 +24,6 @@ process_multiplicity_fit(
 \item{mask}{logical value to mask the data or not; default is TRUE}
 
 \item{mask_gr}{GRanges object containing the mask; default is maskA as provided in the package}
-
-\item{histogram}{Create histogram}
 
 \item{bins}{number of bins for histogram; should specify for lower limit to avoid performance issues; default = 100000}
 

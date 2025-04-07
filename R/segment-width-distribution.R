@@ -94,6 +94,8 @@ lift_segment_width_distribution <- function(
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
 
+    ## TODO: Deal with Hypersegmentated data
+
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i, ]

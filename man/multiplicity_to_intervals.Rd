@@ -6,7 +6,7 @@
 \usage{
 multiplicity_to_intervals(
   multiplicity,
-  field = "total_copies",
+  field = "altered_copies",
   settings = Skilift:::default_settings_path,
   node_metadata = NULL,
   reference_name = "hg19",

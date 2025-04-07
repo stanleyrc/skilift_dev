@@ -3,7 +3,7 @@
 \docType{data}
 \name{HEMEDB}
 \alias{HEMEDB}
-\title{Global HemeDB path}
+\title{FIXME: HARDCODED}
 \format{
 An object of class \code{character} of length 1.
 }

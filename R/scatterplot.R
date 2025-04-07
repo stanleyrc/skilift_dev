@@ -305,9 +305,9 @@ lift_denoised_coverage <- function(
                         gr_path = cov,
                         field = row$denoised_coverage_field,
                         ref = cohort$reference_name,
-                        cov.color.field = get0("denoised_coverage_color_field", as.environment(row), ifnotfound = NULL),
-                        bin.width = get0("denoised_coverage_bin_width", as.environment(row), ifnotfound = 1e4),
-                        mask = get0("denoised_coverage_apply_mask", as.environment(row), ifnotfound = TRUE)
+                        cov.color.field = row$denoised_coverage_color_field,
+                        bin.width = row$denoised_coverage_bin_width,
+                        mask = row$denoised_coverage_apply_mask
                     )
 
                     # Write arrow table

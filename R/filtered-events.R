@@ -1330,8 +1330,10 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
 }
 
 
+#' FIXME: HARDCODED
+#' 
 #' Global HemeDB path
-HEMEDB = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+HEMEDB = system.file("extdata", "data", "hemedb.rds", package = "Skilift")
 
 #' Select Heme events from Addy's hemedb
 #' 

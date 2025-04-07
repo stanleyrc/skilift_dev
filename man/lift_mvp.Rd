@@ -4,7 +4,14 @@
 \alias{lift_mvp}
 \title{Run MVP (Minimum Viable Product) lift methods}
 \usage{
-lift_mvp(cohort, output_data_dir, oncotable_dir, cores, ...)
+lift_mvp(
+  cohort,
+  output_data_dir,
+  oncotable_dir,
+  cores,
+  genome_length = c(1:22, "X", "Y"),
+  ...
+)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}
