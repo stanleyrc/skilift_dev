@@ -13,7 +13,7 @@
 #' @importFrom VariantAnnotation readVcf geno ref alt
 #' @importFrom arrow Table write_feather schema float32
 #' @importFrom gGnome cov2cov.js
-#' @importFrom gUtils gr2dt dt2gr %Q% gr.val %$% %*% gr.chr gr.nochr gr.findoverlaps
+#' @importFrom gUtils gr2dt dt2gr %Q% gr.val %$% %*% gr.chr gr.nochr gr.findoverlaps gr.stripstrand gr.tile
 #' @importFrom skitools rel2abs
 #' @importFrom magrittr %>%
 #' @importFrom parallel mclapply
