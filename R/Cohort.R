@@ -418,7 +418,7 @@ nf_path_patterns <- list(
 #' @export
 default_col_mapping <- list(
   pair = c("pair", "patient_id", "pair_id", "sample"),
-  # status = c("status"),
+  status = c("status"),
   tumor_type = c("tumor_type"),
   disease = c("disease"),
   primary_site = c("primary_site"),
