@@ -44,6 +44,8 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 
   mutations.dt <- gr2dt(mutations.gr)
 
+  mut_ann <- ""
+
   if (!is.null(oncokb_snv)) {
     message("oncokb_snv provided, processing input")
     is_path_character = is.character(oncokb_snv)
@@ -85,66 +87,70 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     )
     mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
-  }
+
+    ## Process mutations
+    setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+    mutations.dt <- mutations.dt[!is.na(get(field)), ]
+    mutations.dt[start == end, end := end + 1]
+    mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
+    mutations.dt[, ONCOGENIC := fcase(
+      is.na(ONCOGENIC), "",
+      grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
+      default = ONCOGENIC
+    )]
+    mutations.dt[, MUTATION_EFFECT := fcase(
+      is.na(MUTATION_EFFECT), "",
+      grepl("Unknown", MUTATION_EFFECT), "", ## extraneous string
+      default = MUTATION_EFFECT
+    )]
+    mutations.dt[, HIGHEST_LEVEL := fcase(
+      HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
+      default = gsub("LEVEL_", "", HIGHEST_LEVEL) ## extraneous string
+    )]
+
+    mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
+
+    if ("strand" %in% colnames(mutations.dt)) {
+      mutations.dt[, strand := NULL]
+    }
+
+    ## Create annotation string
+    
+    annotation_fields <- list(
+      Variant_Classification = "Type",
+      Gene = "Gene",
+      HGVSc = "Variant",
+      HGVSp = "Protein_variant",
+      variant.g = "Genomic_variant",
+      vaf = "VAF",
+      alt = "Alt_count",
+      ref = "Ref_count",
+      normal.alt = "Normal_alt_count",
+      normal.ref = "Normal_ref_count",
+      FILTER = "Filter",
+      ONCOGENIC = "Oncogenicity",
+      MUTATION_EFFECT = "Effect",
+      HIGHEST_LEVEL = "Level"
+    )
+
+    ## parse mut_ann variable
+    for (col in names(annotation_fields)) {
+      if (col %in% colnames(mutations.dt)) {
+        mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
+      }
+    }
+    
+  } 
 
   if (!any(class(mutations.dt) == "data.table")) {
     stop("Input must be a data.table.")
   }
 
-  
 
-  ## Process mutations
-  setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
-  mutations.dt <- mutations.dt[!is.na(get(field)), ]
-  mutations.dt[start == end, end := end + 1]
-  mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
-  mutations.dt[, ONCOGENIC := fcase(
-    is.na(ONCOGENIC), "",
-    grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
-    default = ONCOGENIC
-  )]
-  mutations.dt[, MUTATION_EFFECT := fcase(
-    is.na(MUTATION_EFFECT), "",
-    grepl("Unknown", MUTATION_EFFECT), "", ## extraneous string
-    default = MUTATION_EFFECT
-  )]
-  mutations.dt[, HIGHEST_LEVEL := fcase(
-    HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
-    default = gsub("LEVEL_", "", HIGHEST_LEVEL) ## extraneous string
-  )]
-
-  mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
-
-  if ("strand" %in% colnames(mutations.dt)) {
-    mutations.dt[, strand := NULL]
-  }
-
-  ## Create annotation string
-  mut_ann <- ""
-  annotation_fields <- list(
-    Variant_Classification = "Type",
-    Gene = "Gene",
-    HGVSc = "Variant",
-    HGVSp = "Protein_variant",
-    variant.g = "Genomic_variant",
-    vaf = "VAF",
-    alt = "Alt_count",
-    ref = "Ref_count",
-    normal.alt = "Normal_alt_count",
-    normal.ref = "Normal_ref_count",
-    FILTER = "Filter",
-    ONCOGENIC = "Oncogenicity",
-    MUTATION_EFFECT = "Effect",
-    HIGHEST_LEVEL = "Level"
-  )
-
-  for (col in names(annotation_fields)) {
-    if (col %in% colnames(mutations.dt)) {
-      mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
-    }
-  }
 
   mutations.dt[, annotation := mut_ann]
+
+  
 
   return(mutations.dt)
 }

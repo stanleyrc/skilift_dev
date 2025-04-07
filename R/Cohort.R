@@ -471,7 +471,7 @@ default_col_mapping <- list(
   denoised_coverage_apply_mask = structure(c("denoised_coverage_apply_mask"), default = TRUE),
   denoised_coverage_field = structure(c("denoised_coverage_field"), default = "foreground"),
   denoised_coverage_color_field = structure(c("denoised_coverage_color_field"), default = NULL),
-  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = 1e4),
+  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = NA_integer_),
   hetsnps_field = structure(c("hetsnps_field"), default = "count"),
   hetsnps_color_field = structure(c("hetsnps_color_field"), default = "col"),
   hetsnps_bin_width = structure(c("hetsnps_bin_width"), default = NA),

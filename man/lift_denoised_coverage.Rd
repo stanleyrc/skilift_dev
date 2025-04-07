@@ -4,7 +4,7 @@
 \alias{lift_denoised_coverage}
 \title{lift_denoised_coverage}
 \usage{
-lift_denoised_coverage(cohort, output_data_dir, cores = 1, mask = TRUE)
+lift_denoised_coverage(cohort, output_data_dir, cores = 1)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}

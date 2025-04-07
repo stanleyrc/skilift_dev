@@ -172,7 +172,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   override_mapping <- list(
     pair = c("patient_id")  # Changed order from default
   )
-  expect_silent(    
+  expect_silent(
     cohort <- Cohort$new(override_dt, col_mapping = override_mapping)
   )
   expect_true("pair" %in% names(cohort$inputs))

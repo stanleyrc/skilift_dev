@@ -31,7 +31,8 @@ create_metadata(
   genome = "hg19",
   seqnames_loh = c(1:22),
   seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
-  denoised_coverage_field = "foreground"
+  denoised_coverage_field = "foreground",
+  is_visible = TRUE
 )
 }
 \arguments{
@@ -68,6 +69,8 @@ create_metadata(
 \item{hrdetect}{HRDetect scores.}
 
 \item{onenesstwoness}{Oneness and twoness scores.}
+
+\item{msisensorpro}{MSIsensor profile file.}
 
 \item{genome}{The genome reference used.}
 
