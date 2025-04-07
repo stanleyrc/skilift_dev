@@ -1372,7 +1372,17 @@ select_heme_events <- function(
 #' while multiplicity encodes VCF coordinates based on reference bases.
 #'
 #' @export
-merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
+merge_oncokb_multiplicity <- function(
+  oncokb, 
+  multiplicity, 
+  overwrite = FALSE,
+  cols.keep = c(
+    "annotation", "ref", "alt", "ref_denoised", "alt_denoised", "normal.ref", "normal.alt", "variant.c", "variant.p",
+    "variant.g", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies",
+    "total_snv_copies", "total_copies", "VAF", "cn", "altered_copies"
+  ),
+  other.cols.keep = NULL
+) {
   is_character_oncokb = is.character(oncokb)
   is_length_one = NROW(oncokb) == 1
   is_exists_oncokb = is_character_oncokb && is_length_one && file.exists(oncokb)
@@ -1513,14 +1523,25 @@ merge_oncokb_multiplicity <- function(oncokb, multiplicity, overwrite = FALSE) {
   }
   ovQuery = rbind(ovQuery, missingOvQuery)
 
-  cols.keep <- c(
-    "ref", "alt", "ref_denoised", "alt_denoised", "normal.ref", "normal.alt",
-    "variant.g", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies",
-    "total_snv_copies", "total_copies", "VAF", "cn", "altered_copies"
+  # cols.keep <- c(
+  #   "ref", "alt", "ref_denoised", "alt_denoised", "normal.ref", "normal.alt",
+  #   "variant.g", "major.count", "minor.count", "major_snv_copies", "minor_snv_copies",
+  #   "total_snv_copies", "total_copies", "VAF", "cn", "altered_copies"
+  # )
+
+  is_othercols_null = is.null(other.cols.keep)
+  is_othercols_character = (
+    is.character(other.cols.keep) 
+    && NROW(other.cols.keep) > 0
   )
-  # if(!any(cols.keep %in% names(mcols(gr_multiplicity)))) {
-  #   stop("")
-  # }
+  is_othercols_valid = (
+    is_othercols_character
+    && all(nzchar(other.cols.keep))
+    && !all(other.cols.keep %in% cols.keep)
+  )
+  if (!is_othercols_null && is_othercols_character && is_othercols_valid) {
+    cols.keep = c(cols.keep, other.cols.keep[!other.cols.keep %in% cols.keep])
+  }
   cols.keep <- cols.keep[cols.keep %in% names(mcols(gr_multiplicity))]
   subject <- base::subset(gUtils::gr2dt(gr_multiplicity), select = cols.keep)
   skey <- data.table::setkey(ovQuery, query.id)

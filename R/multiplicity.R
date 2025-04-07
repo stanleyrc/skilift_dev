@@ -42,10 +42,43 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     message("Successfully loaded input snv_cn.")
   }
 
-  mutations.dt <- gr2dt(mutations.gr)
+  
+  mcols(mutations.gr)$snpeff_annotation = mutations.gr$annotation
+  annotationsplit = strsplit(mcols(mutations.gr)$snpeff_annotation, "&")
+  annotationsplit = gGnome::dunlist(annotationsplit)
+  annotationsplit[, ix := seq_len(.N), by = listid]
+  annotationsplit[, num := .N, by = listid]
+
+  ## Normalize everything to just the 1st variant
+  ## type that appears if we get
+  ## splice&intron_variant nonsense.
+  mcols(mutations.gr)$snpeff_annotation = annotationsplit[ix == 1]$V1
+  rm("annotationsplit")
 
   mut_ann <- ""
 
+  # Annotation fields that should always be present
+  # We're using 
+  annotation_fields <- list(
+    # Variant_Classification = "Type"
+    # Let's just use the snpeff annotations here because
+    # it should still be possible to populate with just SnpEff/Multiplicity.
+    snpeff_annotation = "Type",
+    Gene = "Gene",
+    # HGVSc = "Variant",
+    variant.c = "Variant",
+    # HGVSp = "Protein_variant",
+    variant.p = "Protein_variant",
+    variant.g = "Genomic_variant",
+    vaf = "VAF",
+    alt = "Alt_count",
+    ref = "Ref_count",
+    normal.alt = "Normal_alt_count",
+    normal.ref = "Normal_ref_count",
+    FILTER = "Filter"
+  )
+  
+  mutations.dt <- gr2dt(mutations.gr)
   if (!is.null(oncokb_snv)) {
     message("oncokb_snv provided, processing input")
     is_path_character = is.character(oncokb_snv)
@@ -83,7 +116,8 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     mutations.gr.annotated = merge_oncokb_multiplicity(
       oncokb_snv,
       mutations.gr,
-      overwrite = TRUE
+      overwrite = TRUE,
+      other.cols.keep = c("snpeff_annotation")
     )
     mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
@@ -114,31 +148,26 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
       mutations.dt[, strand := NULL]
     }
 
-    ## Create annotation string
-    
-    annotation_fields <- list(
-      Variant_Classification = "Type",
-      Gene = "Gene",
-      HGVSc = "Variant",
-      HGVSp = "Protein_variant",
-      variant.g = "Genomic_variant",
-      vaf = "VAF",
-      alt = "Alt_count",
-      ref = "Ref_count",
-      normal.alt = "Normal_alt_count",
-      normal.ref = "Normal_ref_count",
-      FILTER = "Filter",
-      ONCOGENIC = "Oncogenicity",
-      MUTATION_EFFECT = "Effect",
-      HIGHEST_LEVEL = "Level"
+    ## Add OncoKB specific annotation fields
+    annotation_fields = c(
+      annotation_fields,
+      list(
+        ONCOGENIC = "Oncogenicity",
+        MUTATION_EFFECT = "Effect",
+        HIGHEST_LEVEL = "Level"
+      )
     )
 
-    ## parse mut_ann variable
-    for (col in names(annotation_fields)) {
-      if (col %in% colnames(mutations.dt)) {
-        mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
-      }
-    }
+    # Converting to the OncoKB HGVSc and p variants.
+    # for internal consistency
+    names(annotation_fields)[
+      names(annotation_fields) == "variant.c"
+    ] = "HGVSc"
+
+    names(annotation_fields)[
+      names(annotation_fields) == "variant.p"
+    ] = "HGVSp"
+
     
   } 
 
@@ -146,11 +175,14 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     stop("Input must be a data.table.")
   }
 
-
+  ## parse mut_ann variable
+  for (col in names(annotation_fields)) {
+    if (col %in% colnames(mutations.dt)) {
+      mut_ann <- paste0(mut_ann, annotation_fields[[col]], ": ", mutations.dt[[col]], "; ")
+    }
+  }
 
   mutations.dt[, annotation := mut_ann]
-
-  
 
   return(mutations.dt)
 }
@@ -207,6 +239,7 @@ multiplicity_to_intervals <- function(
     if (cohort_type == "heme") {
         hemedb = readRDS(Skilift:::HEMEDB)
         # HEMEDB = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+        # FIXME: HARDCODED PATH!
         gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds"
         gencode <- Skilift:::process_gencode(gencode)
         genes = gencode[gencode$type == "gene"]
