@@ -4,7 +4,16 @@
 \alias{merge_oncokb_multiplicity}
 \title{Merge oncokb and multiplicity}
 \usage{
-merge_oncokb_multiplicity(oncokb, multiplicity, overwrite = FALSE)
+merge_oncokb_multiplicity(
+  oncokb,
+  multiplicity,
+  overwrite = FALSE,
+  cols.keep = c("annotation", "ref", "alt", "ref_denoised", "alt_denoised", "normal.ref",
+    "normal.alt", "variant.c", "variant.p", "variant.g", "major.count", "minor.count",
+    "major_snv_copies", "minor_snv_copies", "total_snv_copies", "total_copies", "VAF",
+    "cn", "altered_copies"),
+  other.cols.keep = NULL
+)
 }
 \description{
 Finds overlaps between oncokb maf coordinates and multiplicity

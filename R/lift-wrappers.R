@@ -198,6 +198,15 @@ lift_mvp <- function(
     )
   }
 
+  if (has_required_columns(cohort, required_columns$allelic_copy_number_graph)) {
+    lift_copy_number_graph(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores,
+      is_allelic = TRUE
+    )
+  }
+
   if (has_required_columns(cohort, required_columns$denoised_coverage)) {
     lift_denoised_coverage(
       cohort = cohort,
@@ -343,6 +352,15 @@ lift_mvp <- function(
       cores = cores
     )
   }
+
+  if (has_required_columns(cohort, required_columns$allelic_pp_fit)) {
+    lift_allelic_pp_fit(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  }
+
   
 }
 
@@ -352,25 +370,6 @@ lift_tumor_only <- function(cohort, output_data_dir, oncotable_dir, cores, ...) 
 
 lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
   cohort <- lift_mvp(cohort, output_data_dir, oncotable_dir, cores, ...)
-
-  if (has_required_columns(cohort, required_columns$allelic_copy_number_graph)) {
-    lift_copy_number_graph(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      is_allelic = TRUE
-    )
-  }
-
-
-  if (has_required_columns(cohort, Skilift:::required_columns$multiplicity)) {
-    lift_multiplicity(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      is_germline = TRUE
-    )
-  }
 
   if (has_required_columns(cohort, required_columns$aggregated_events)) {
     warning("not implemented yet")
@@ -383,23 +382,6 @@ lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
 
 lift_paired <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
   cohort <- lift_mvp(cohort, output_data_dir, oncotable_dir, cores, ...)
-
-  if (has_required_columns(cohort, required_columns$allelic_copy_number_graph)) {
-    lift_copy_number_graph(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores,
-      is_allelic = TRUE
-    )
-  }
-
-  if (has_required_columns(cohort, required_columns$allelic_pp_fit)) {
-    lift_allelic_pp_fit(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
 
   if (has_required_columns(cohort, required_columns$germline_multiplicity)) {
     lift_multiplicity(
