@@ -4,7 +4,7 @@
 \alias{select_heme_events}
 \title{Select Heme events from Addy's hemedb}
 \usage{
-select_heme_events(filtered_events, hemedb_path = Skilift:::HEMEDB)
+select_heme_events(filtered_events, hemedb_path = Skilift:::HEMEDB())
 }
 \description{
 Coarse selection of Heme events for first pass filtering
