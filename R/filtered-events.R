@@ -63,6 +63,69 @@ process_cytoband <- function(cyto = NULL, coarse = FALSE) {
 
 
 
+#' Global HemeDB path
+HEMEDB = function() {
+  system.file("extdata", "data", "hemedb.rds", package = "Skilift")
+} 
+
+#' Duncavage DB 
+#' 
+#' Duncavage et al. Blood 2022.
+DUNCAVAGEDB = function() {
+  system.file("extdata", "data", "Duncavage_Blood_22.rds", package = "Skilift")
+}
+
+#' COSMIC Fusions
+#' 
+#' https://cancer.sanger.ac.uk/cosmic/download/cosmic/v101/fusion
+#' 
+COSMIC_FUSIONS = function() {
+  system.file("extdata", "data", "Cosmic_Fusion_v101_GRCh37.tsv.gz", package = "Skilift")
+}
+
+#' COSMIC fusions
+get_curated_fusions <- function() {
+
+  fusions_recurrent = character(0)
+  fusions_recurrent = c(
+    fusions_recurrent,
+    readRDS(Skilift:::DUNCAVAGEDB())[grepl("::", Gene)]$Gene
+  )
+
+  fusions_cosmic = fread(Skilift:::COSMIC_FUSIONS())
+  fusions_cosmic[, fusion_gene := paste(FIVE_PRIME_GENE_SYMBOL, "::", THREE_PRIME_GENE_SYMBOL, sep = "")]
+
+  fusions_recurrent = c(
+    fusions_recurrent,
+    (
+      fusions_cosmic[, .(
+        num_samples = length(unique(COSMIC_SAMPLE_ID))
+      ), by = fusion_gene]
+      [num_samples > 1]
+    )$fusion_gene
+  )
+  fusions_recurrent = unique(fusions_recurrent)
+  
+  ## Blacklist are fusions that absolutely should not
+  ## appear. AFF1::KMT2A and RUNX1::ETV6 are both present
+  ## as recurrent COSMIC fusions but are not themselves
+  ## the drivers.
+  blacklist = c(
+    "AFF1::KMT2A",
+    "RUNX1::ETV6"
+  )
+
+  return(
+    list(
+      fusions_recurrent = fusions_recurrent,
+      blacklist = blacklist
+    )
+  )
+}
+
+
+
+
 #' @title collect_gene_fusions
 #' @description
 #' Collects gene fusion data from a specified file and processes it.
@@ -1214,6 +1277,37 @@ create_filtered_events <- function(
       )
 
       res.fus$estimated_altered_copies = res.fus$fusion_cn
+
+      ## Filtering Fusions based on COSMIC and Duncavage:
+      ## If the exact match is found -
+      ## remove any reverse reciprocal fusion
+      fusions_curated = Skilift:::get_curated_fusions()
+      fusions_recurrent = fusions_curated$fusions_recurrent
+
+      blacklist = fusions_curated$blacklist
+      fusions_recurrent = fusions_recurrent[!fusions_recurrent %in% blacklist]
+
+      fus_lst = data.table::tstrsplit(fusions_recurrent, "::")
+      forwards = paste(fus_lst[[1]], "::", fus_lst[[2]], sep = "")
+      reverse = paste(fus_lst[[2]], "::", fus_lst[[1]], sep = "")
+
+      fgenes = gsub("@.*", "", res.fus$fusion_genes)
+      fgenes = gsub("\\([0-9]+\\)", "", fgenes, perl = TRUE)
+
+      is_in_forward = fgenes %in% forwards
+      is_in_reverse = fgenes %in% reverse
+      ## Some are present in both directions,
+      ## but are not well-curated. So leave them in.
+      is_both_f_and_r = fgenes %in% forwards[forwards %in% reverse]
+      is_valid = (
+          is_in_forward & !is_in_reverse
+      ) | is_both_f_and_r
+      ## Other is anything that's completely outside of the list
+      ## in either direction.
+      is_other = ! fgenes %in% c(forwards, reverse)
+
+      res.fus = base::subset(res.fus, subset = is_valid | is_other)
+      
     }
     res.cn.dt = res.cn <- res[(
       type == "SCNA" ## FIXME: redundant logic for now
@@ -1327,19 +1421,6 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     }, mc.cores = cores, mc.preschedule = TRUE)
     
     invisible(lst_outs)
-}
-
-
-#' Global HemeDB path
-HEMEDB = function() {
-  system.file("extdata", "data", "hemedb.rds", package = "Skilift")
-} 
-
-#' Duncavage DB 
-#' 
-#' Duncavage et al. Blood 2022.
-DUNCAVAGEDB = function() {
-  system.file("extdata", "data", "Duncavage_Blood_22.rds", package = "Skilift")
 }
 
 #' Select Heme events from Addy's hemedb
