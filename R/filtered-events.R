@@ -1193,6 +1193,7 @@ create_filtered_events <- function(
       if (NROW(snvs) > 0) {
         snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
         snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
+        # FIXME: variant.c should not be absent..
         remove_variant_c = FALSE
         if (is.null(snvs$variant.c)) {
           snvs$variant.c = 1:NROW(snvs)
