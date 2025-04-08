@@ -8,9 +8,8 @@ create_heme_highlights(
   events_tbl,
   jabba_gg,
   out_file,
-  hemedb_path =
-    "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds",
-  duncavage_path = "~/projects/Clinical_NYU/db/Duncavage_Blood_22.rds"
+  hemedb_path = Skilift:::HEMEDB(),
+  duncavage_path = Skilift:::DUNCAVAGEDB()
 )
 }
 \description{

@@ -1330,10 +1330,17 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
 }
 
 
-#' FIXME: HARDCODED
-#' 
 #' Global HemeDB path
-HEMEDB = system.file("extdata", "data", "hemedb.rds", package = "Skilift")
+HEMEDB = function() {
+  system.file("extdata", "data", "hemedb.rds", package = "Skilift")
+} 
+
+#' Duncavage DB 
+#' 
+#' Duncavage et al. Blood 2022.
+DUNCAVAGEDB = function() {
+  system.file("extdata", "data", "Duncavage_Blood_22.rds", package = "Skilift")
+}
 
 #' Select Heme events from Addy's hemedb
 #' 
@@ -1342,7 +1349,7 @@ HEMEDB = system.file("extdata", "data", "hemedb.rds", package = "Skilift")
 #' @export
 select_heme_events <- function(
   filtered_events, 
-  hemedb_path = Skilift:::HEMEDB
+  hemedb_path = Skilift:::HEMEDB()
 ) {
   hemedb = readRDS(hemedb_path) 
 
