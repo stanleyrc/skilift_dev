@@ -1204,6 +1204,16 @@ create_filtered_events <- function(
         snvs$is_unique_g = NULL
         snvs$is_unique_c = NULL
         if (remove_variant_c) snvs$variant.c = NULL
+        variant_concatenated = snvs[, paste(variant.p, "/", variant.c, sep = " ")]
+        variant_concatenated = gsub(" / NA", "",
+          gsub("NA / ", "",
+            variant_concatenated,
+            perl = TRUE
+          ), perl = TRUE
+        )
+        snvs$variant.p = variant_concatenated
+        rm("variant_concatenated")
+        
       }
 
       homdels <- ot[ot$type == "homdel",][, vartype := "HOMDEL"][, type := "SCNA"]
@@ -1254,12 +1264,16 @@ create_filtered_events <- function(
     res.mut <- res[vartype == "SNV"]
     if (nrow(res.mut) > 0) {
       # res.mut[, Variant := gsub("p.", "", Variant)]
-      res.mut[, vartype := "SNV"]
+      # res.mut[, vartype := "SNV"]
       # TODO:
       # truncating mutations are not always deletions
       # initial logic may be misleading calling all small mutations "SNV"
       # but we should encode this as something more robust
       # res.mut[type=="trunc", vartype := "DEL"]
+      ## res.mut
+      
+      ## FIXME: Nothing seems to be necessary here at this point.
+      NULL
     }
     res.fus = res[type == "fusion",] ## need to deal each class explicitly
     if (NROW(res.fus) > 0) {
