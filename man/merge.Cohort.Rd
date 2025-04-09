@@ -4,10 +4,14 @@
 \alias{merge.Cohort}
 \title{Merge Cohort objects}
 \usage{
-\method{merge}{Cohort}(..., warn_duplicates = TRUE, rename_duplicates = FALSE)
+\method{merge}{Cohort}(x, y, ..., warn_duplicates = TRUE, rename_duplicates = FALSE)
 }
 \arguments{
-\item{...}{Two or more Cohort objects to merge}
+\item{x}{Cohort object to merge}
+
+\item{y}{Cohort object to merge}
+
+\item{...}{Arbitrary remaining Cohort objects to merge}
 
 \item{warn_duplicates}{Logical indicating whether to warn about duplicate pairs (default TRUE)}
 
