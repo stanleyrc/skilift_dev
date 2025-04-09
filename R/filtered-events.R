@@ -1545,6 +1545,7 @@ merge_oncokb_multiplicity <- function(
   }
 
   gr_oncokb$ALT <- gr_oncokb$Allele
+  gr_oncokb$gene <- gr_oncokb$Hugo_Symbol
 
   mc <- S4Vectors::mcols(gr_multiplicity)
   checknormalcols <- c("normal.ref", "normal.alt")
@@ -1554,7 +1555,7 @@ merge_oncokb_multiplicity <- function(
     }
   }
   S4Vectors::mcols(gr_multiplicity) <- mc
-  ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = "ALT", type = "equal")
+  ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = c("gene", "ALT"), type = "equal")
   ovQuery <- data.table(query.id = integer(0), subject.id = integer(0))
   if (NROW(ov) > 0) {
     ovQuery <- gUtils::gr2dt(ov)[, .(query.id, subject.id)]
@@ -1573,7 +1574,7 @@ merge_oncokb_multiplicity <- function(
     dt_oncokb$oid <- missingIds
     ovMissing <- gUtils::gr.findoverlaps(
       gUtils::dt2gr(dt_oncokb), gr_multiplicity,
-      by = "ALT", type = "equal", qcol = c("oid")
+      by = c("gene", "ALT"), type = "equal", qcol = c("oid")
     )
     if (NROW(ovMissing) > 0) {
       missingOvQuery <- gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
@@ -1591,6 +1592,7 @@ merge_oncokb_multiplicity <- function(
     ovMissing = gUtils::gr.findoverlaps(
       gr_oncokb_missing, gr_multiplicity
      ,
+     by = "gene",
      type = "equal",
       qcol = c("oid"),
      )
@@ -1614,6 +1616,30 @@ merge_oncokb_multiplicity <- function(
     ovMissing = gUtils::gr.findoverlaps(
       gr_oncokb_missing, gr_multiplicity
      ,
+      by = "gene",
+      qcol = c("oid")
+    )
+    if (NROW(ovMissing) > 0) {
+      missingOvQuery = (
+        gr2dt(ovMissing)
+        [, .(query.id = oid, subject.id)]
+        [!duplicated(query.id)]
+      )
+    }
+  }
+  ovQuery = rbind(ovQuery, missingOvQuery)
+
+  # Logic for when there's inexact coordinate match due to VCF -> maf parsing.
+  missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+
+  if (length(missingIds) > 0) {
+    gr_oncokb_missing = gr_oncokb[missingIds]
+    gr_oncokb_missing$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+      gr_oncokb_missing, gr_multiplicity
+     ,
+      ## by = "gene",
       qcol = c("oid")
     )
     if (NROW(ovMissing) > 0) {

@@ -49,9 +49,9 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   annotationsplit[, ix := seq_len(.N), by = listid]
   annotationsplit[, num := .N, by = listid]
 
-  ## Normalize everything to just the 1st variant
-  ## type that appears if we get
-  ## splice&intron_variant nonsense.
+  # Normalize everything to just the 1st variant
+  # type that appears if we get
+  # splice&intron_variant nonsense.
   mcols(mutations.gr)$snpeff_annotation = annotationsplit[ix == 1]$V1
   rm("annotationsplit")
 
@@ -116,11 +116,19 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     mutations.gr.annotated = merge_oncokb_multiplicity(
       oncokb_snv,
       mutations.gr,
-      overwrite = TRUE,
-      other.cols.keep = c("snpeff_annotation")
+      overwrite = TRUE
+      ## other.cols.keep = c("snpeff_annotation")
     )
     mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
+    ## Overwrite with SnpEff annotations pulled out from OncoKB
+    ## Held in Consequence column.
+    annotationsplit = strsplit(mutations.dt$Consequence, ",")
+    annotationsplit = gGnome::dunlist(annotationsplit)
+    annotationsplit[, ix := seq_len(.N), by = listid]
+    annotationsplit[, num := .N, by = listid]
+    mutations.dt$snpeff_annotation = annotationsplit[ix == 1]$V1
+    rm("annotationsplit")
 
     ## Process mutations
     setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
