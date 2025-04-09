@@ -1394,7 +1394,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     required_cols <- c("pair", "oncotable", "jabba_gg")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
-        warn("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+        print("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
     cohort_type = cohort$type
