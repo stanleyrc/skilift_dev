@@ -878,7 +878,13 @@ dcastski = function(
     columns_to_process = c(columns_to_process, remaining_cols)
   }
   columns_to_process = c(columns_to_process, cast_columns)
-  skeleton = unique(base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols)))
+  ## A very unfortunate circumstance.
+  ## Have to use unique.data.frame due to lists present in cohort inputs
+  ## The data.frame base R method is slow, but works on list elements in columns.
+  ## If tbl is a data.table, skeleton will remain a data.table
+  skeleton = unique.data.frame(
+    base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols))
+  )
   reduced_tbl = base::subset(tbl, select = columns_to_process)
   reduced_tbl$types = reduced_tbl[[type_columns[1]]]
   types = unique(reduced_tbl$types)
@@ -1011,11 +1017,17 @@ merge.Cohort <- function(x, y, ..., warn_duplicates = TRUE, rename_duplicates = 
   cohorts_dots <- list(...)
   is_x_missing = missing(x)
   is_y_missing = missing(y)
+  is_x_or_y_missing = is_x_missing || is_y_missing
   number_cohorts_dots = NROW(cohorts_dots)
   length_cohorts = sum(as.integer(!is_x_missing), as.integer(!is_y_missing), number_cohorts_dots)
   # Validate inputs are all Cohorts
   if (length_cohorts < 2) {
     stop("At least two Cohort objects must be provided")
+  }
+  if (is_x_or_y_missing) {
+    if (is_x_missing) print("x argument not provided!")
+    if (is_y_missing) print("y argument not provided!")
+    stop("Both x and y must be provided as Cohort objects")
   }
   cohorts = c(list(x), list(y), cohorts_dots)
   for (cohort in cohorts) {
