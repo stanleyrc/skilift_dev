@@ -486,7 +486,7 @@ add_variant_counts <- function(
         is_length_one = NROW(somatic_snvs) == 1
         is_snvs_exists = is_path_character && is_length_one && file.exists(somatic_snvs)
         is_rds = is_snvs_exists && grepl("rds$", somatic_snvs)
-        is_vcf = is_snvs_exists && grepl("vcf(.gz|.bgz)?$", somatic_snvs)
+        is_vcf = is_snvs_exists && grepl("(v|b)cf(.gz|.bgz)?$", somatic_snvs)
         is_txt = is_snvs_exists && grepl("(txt|maf|(t|c)sv)(.gz|.bgz)?$", somatic_snvs)
         is_other = is_txt || is_rds
         snv_counts_dt = data.table()
