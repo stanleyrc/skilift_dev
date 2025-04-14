@@ -450,6 +450,19 @@ vcf_count <- function(
     if (!file.exists(vcf_path)) {
         stop("VCF file does not exist.")
     }
+    is_len_one = NROW(vcf_path) == 1
+    is_character = is.character(vcf_path)
+    is_na = is_len_one && is_character && (is.na(vcf_path) || vcf_path %in% c("NA", "na"))
+    is_vcf = is_len_one && is_character && !is_na && grepl("vcf(.gz|.bgz)?$", vcf_path)
+    is_bcf = is_len_one && is_character && !is_na && grepl("bcf(.gz|.bgz)?$", vcf_path)
+    is_valid_path = is_vcf || is_bcf
+    if (!is_valid_path) stop("either bcf or vcf path must be provided to vcf_count()")
+    if (is_bcf) {
+        temp_vcf = tempfile(fileext = ".vcf")
+        on.exit(unlink(temp_vcf, force = TRUE))
+        system2("bcftools", c("view", vcf_path, "-Ov", "-o", temp_vcf))
+        vcf_path = temp_vcf
+    }
     vcf <- readVcf(vcf_path, genome)
 
     # Filter for PASS variants
