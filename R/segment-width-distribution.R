@@ -39,17 +39,28 @@ get_segstats <- function(
   }
 
     ## need to replace NaN with NA or JaBbA:::segstats breaks
-    mcols(cov)[[coverage_field]] <- ifelse(is.nan(mcols(cov)[[coverage_field]]),
-        NA,
-        mcols(cov)[[coverage_field]]
-    )
-    mcols(cov)[[coverage_field]] <- as.numeric(mcols(cov)[[coverage_field]])
+    # mcols(cov)[[coverage_field]] <- ifelse(is.nan(mcols(cov)[[coverage_field]]),
+    #     NA,
+    #     mcols(cov)[[coverage_field]]
+    # )
+    # mcols(cov)[[coverage_field]] <- as.numeric(mcols(cov)[[coverage_field]])
+
+    ## Modifying coverage field in place to coerce mean = 1
+    signal = mcols(cov)[[coverage_field]]
+    signal[is.na(signal)] = NA_real_
+    signal[is.nan(signal)] = NA_real_
+    signal = as.numeric(signal)
+    mcols(cov)[[coverage_field]] = signal
+    # cov_w = as.numeric(width(cov))
+    # cov_w[is.na(signal)] = NA
+    # cov_sw = sum(cov_w, na.rm = T)
+    # signal_mutl = sum(signal * cov_w, na.rm = T)
+    # mcols(cov)[[coverage_field]] = as.numeric(signal * (cov_sw / signal_mutl))
 
   if (is.character(balanced_jabba_gg)) {
     balanced_jabba_gg = readRDS(balanced_jabba_gg)
   }
   balanced_gg_gr <- balanced_jabba_gg$nodes$gr
-
     segstats <- JaBbA:::segstats(
         balanced_gg_gr,
         cov,
@@ -62,6 +73,13 @@ get_segstats <- function(
         max.na = max_na,
         lp = FALSE
     )
+    mu = segstats$mean
+    mu[is.infinite(mu)] = NA
+    w = as.numeric(width(segstats))
+    w[is.na(mu)] = NA
+    sw = sum(w, na.rm = T)
+    mutl = sum(mu * w, na.rm = T)
+    segstats$mean = mu * (sw / mutl)
     segstats_dt <- gr2dt(segstats)
     names(segstats_dt) <- gsub("\\.", "_", names(segstats_dt))
     return(segstats_dt)
