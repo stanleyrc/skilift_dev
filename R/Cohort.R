@@ -404,7 +404,10 @@ nf_path_patterns <- list(
   alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
   insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
   wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics",
-  msisensor_pro = "msisensor_pro/.*/.*msisensor_pro_results.tsv" ## TODO FILL ME
+  msisensor_pro = "msisensorpro/.*/.*msisensor_pro_results.tsv", ## TODO FILL ME
+  oncokb_snv = "oncokb/.*/merged_oncokb.maf",
+  oncokb_cna = "oncokb/.*/merged_oncokb_cna.tsv",
+  oncokb_fusions = "oncokb/.*/merged_oncokb_fusions.tsv"
 )
 
 #' Default column mappings
