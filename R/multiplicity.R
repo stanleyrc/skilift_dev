@@ -169,8 +169,8 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     # Converting Gene annotation Hugo_Symbol
     # Meaning don't use ENSG* ids.
     names(annotation_fields)[
-      names(annotation_fields) == "Hugo_Symbol"
-    ] = "Gene"
+      names(annotation_fields) == "Gene"
+    ] = "Hugo_Symbol"
 
     # Converting to the OncoKB HGVSc and p variants.
     # for internal consistency
