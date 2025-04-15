@@ -661,9 +661,13 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     grB <- pge[ixB]
     coordA <- gUtils::gr.string(grA)
     coordB <- gUtils::gr.string(grB)
+
+    # Leaving cytoband query code in for now, because we will want to re-incorporate
+    # at a later date
     grovA <- gUtils::gr.findoverlaps(grA, cytoband, scol = "chromband")
     grovB <- gUtils::gr.findoverlaps(grB, cytoband, scol = "chromband")
 
+    
     if (length(grovA) > 0) {
       grovA <- GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
       non_silent_fusions$cytoA <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
@@ -682,15 +686,61 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
       non_silent_fusions$cytoB <- ""
     }
 
-    non_silent_fusions$fusion_genes <- paste0(genes_matrix[, 1], "(", non_silent_fusions$exonA, ")::", genes_matrix[, 2], "(", non_silent_fusions$exonB, ")@", non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB)
+    # non_silent_fusions$fusion_genes <- paste0(
+    #   genes_matrix[, 1], "(", non_silent_fusions$exonA, ")::", 
+    #   genes_matrix[, 2], "(", non_silent_fusions$exonB, ")@", 
+    #   non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB
+    # )
+
+    non_silent_fusions$fusion_genes <- paste0(
+      genes_matrix[, 1], "::", genes_matrix[, 2]
+    )
     non_silent_fusions$fusion_gene_coords <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
       paste(coordA, coordB, sep = ","),
       NA
     )
+
+    variant.g.fus = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+      as.character(glue::glue('{coordA} ({non_silent_fusions$cytoA}), {coordB} ({non_silent_fusions$cytoB})')),
+      NA_character_
+    )
+
+    non_silent_fusions$variant.g = variant.g.fus
+
+
+    get_queries = c("exonA", "aminoA", "exonB", "aminoB")
+    query_variables = base::mget(
+      get_queries,
+      as.environment(as.list(non_silent_fusions)),
+      ifnotfound = rep_len(
+        list(rep_len(NA_character_, NROW(non_silent_fusions))),
+        NROW(get_queries)
+      )
+    )
+    exonA_label = glue::glue('Exon {query_variables$exonA}')
+    aminoA_label = ifelse(is.na(query_variables$aminoA), "", glue::glue(' (p.{query_variables$aminoA})'))
+    exonB_label = glue::glue('Exon {query_variables$exonB}')
+    aminoB_label = ifelse(is.na(query_variables$aminoB), "", glue::glue(' (p.{query_variables$aminoB})'))
+
+    variant.p.parsed = as.character(
+      glue::glue(
+        '{exonA_label}',
+        '{aminoA_label}', # Note space is encoded by aminoA_label
+        '::',
+        '{exonB_label}',
+        '{aminoB_label}' # Note space is encoded by aminoB_label
+      )
+    )
+    variant.p.parsed = trimws(variant.p.parsed)
+    variant.p.parsed = gsub("[[:space:]]{2,}", "", variant.p.parsed, perl = TRUE)
+
+    non_silent_fusions$variant.p = variant.p.parsed
     out <- non_silent_fusions[, .(
       gene = Hugo_Symbol,
       gene_summary = GENE_SUMMARY,
       role = Role,
+      variant.g,
+      variant.p,
       value = min_cn,
       vartype,
       type = "fusion",
@@ -1281,7 +1331,16 @@ create_filtered_events <- function(
       res.fus$gene = res.fus$fusion_genes
       is_inframe = res.fus$vartype == "fusion"
       is_outframe = res.fus$vartype == "outframe_fusion"
-      res.fus$Variant = ifelse(
+      ## If variant.p isn't found
+      ## i.e. OncoKB isn't updated
+      ## then only in frame or out of frame
+      ## will be labeled
+      variant.p.fus = base::get0(
+        "Variant",
+        as.environment(as.list(res.fus)),
+        ifnotfound = rep_len("", NROW(res.fus))
+      )
+      fus_frame_label = ifelse(
         is_inframe,
         "In-Frame Fusion",
         ifelse(
@@ -1290,6 +1349,14 @@ create_filtered_events <- function(
           NA_character_
         )
       )
+      if (any(is.na(fus_frame_label))) stop("A fusion was not labeled as in-frame or out-of-frame")
+      variant_label = paste(
+          fus_frame_label,
+          variant.p.fus
+      )
+      variant_label = trimws(variant_label)
+      variant_label = gsub("[[:space:]]{2,}", "", variant_label)
+      res.fus$Variant = variant_label
 
       res.fus$estimated_altered_copies = res.fus$fusion_cn
 
