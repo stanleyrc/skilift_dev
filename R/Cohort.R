@@ -363,16 +363,79 @@ Cohort$private_methods[["length"]] = function() {
   return(base::NROW(self$inputs))
 }
 
+Cohort$private_methods[["key"]] = function() {
+  return(data.table::key(self$inputs))
+}
+
 Cohort$active[["length"]] = function() {
   return(private$length())
+}
+
+Cohort$active[["getkeys"]] = function() {
+  input_key = private$key()
+  return(self$inputs[[input_key]])
+}
+
+Cohort$public_methods[["setkey"]] = function(..., verbose = getOption("datatable.verbose"), physical = TRUE) {
+  Skilift::setkey.Cohort(x = self, ... = ..., verbose = verbose, physical = physical)
+  return(self)
+}
+
+Cohort$active[["key"]] = function() {
+  input_key = private$key()
+  return(input_key)
 }
 
 #' Cohort length
 #' 
 #' Get Cohort length (use inputs)
 #' @export 
+#' @export length.Cohort
 length.Cohort = function(x) {
   return(x$length)
+}
+
+#' @export 
+setkey <- function(x, ...) {
+  UseMethod("setkey")
+}
+
+#' @export 
+setkey.default = function(x, ..., verbose = getOption("datatable.verbose"), physical = TRUE) {
+  return(
+    data.table::setkey(x, ..., verbose = getOption("datatable.verbose"), physical = TRUE)
+  )
+}
+
+#' Cohort setkey
+#' 
+#' setkey on Cohort inputs
+#' @export 
+#' @export setkey.Cohort
+setkey.Cohort = function(x, ..., verbose = getOption("datatable.verbose"), physical = TRUE) {
+  return(
+    data.table::setkey(x$inputs, ..., verbose = verbose, physical = physical)
+  )
+}
+
+#' @export 
+key <- function(x, ...) {
+  UseMethod("key")
+}
+
+#' @export 
+key.default = function(x) {
+  return(data.table::key(x))
+}
+
+#' Cohort key
+#' 
+#' Get key from Cohort inputs
+#' @export 
+key.Cohort = function(x) {
+  return(
+    data.table::key(x$inputs)
+  )
 }
 
 # Cohort$private_fields = list()
@@ -771,8 +834,10 @@ refresh_attributes = list(
 #'
 #' @export
 refresh_cohort <- function(cohort) {
+  former_inputs = data.table::copy(cohort$inputs) # Create a deep copy of the inputs
+  former_inputs_colnames = names(former_inputs)
   obj_out <- Skilift::Cohort$new(
-    x = data.table::copy(cohort$inputs) # Create a deep copy of the inputs
+    x = former_inputs 
   )
   for (attribute in setdiff(Skilift:::cohort_attributes, "inputs")) {
     obj_out[[attribute]] <- cohort[[attribute]]
@@ -781,6 +846,9 @@ refresh_cohort <- function(cohort) {
     if ( !is.null(cohort[[ attribute_lst[[2]] ]]) ) {
       obj_out[[ attribute_lst[[1]] ]] <- cohort[[ attribute_lst[[2]] ]]
     }
+  }
+  for (remaining_col in former_inputs_colnames[! former_inputs_colnames %in% names(obj_out$inputs)]) {
+    obj_out$inputs[[remaining_col]] = former_inputs[[remaining_col]]
   }
   return(obj_out)
 }
