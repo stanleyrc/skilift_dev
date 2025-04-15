@@ -359,6 +359,22 @@ Cohort <- R6Class("Cohort",
   active = list()
 )
 
+Cohort$private_methods[["length"]] = function() {
+  return(base::NROW(self$inputs))
+}
+
+Cohort$active[["length"]] = function() {
+  return(private$length())
+}
+
+#' Cohort length
+#' 
+#' Get Cohort length (use inputs)
+#' @export 
+length.Cohort = function(x) {
+  return(x$length)
+}
+
 # Cohort$private_fields = list()
 # Cohort$private_fields[[".inputs"]] = data.table::data.table()
 
