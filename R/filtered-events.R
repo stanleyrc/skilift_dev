@@ -654,13 +654,17 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     ixA <- match(genes_matrix[, 1], pge$gene_name)
     ixB <- match(genes_matrix[, 2], pge$gene_name)
     # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
-    na.index <- which(is.na(ixA))
-    ixA <- ixA[!is.na(ixA)]
-    ixB <- ixB[!is.na(ixB)]
-    grA <- pge[ixA]
-    grB <- pge[ixB]
-    coordA <- gUtils::gr.string(grA)
-    coordB <- gUtils::gr.string(grB)
+    is_na_A = is.na(ixA)
+    is_na_B = is.na(ixB)
+    is_either_na = is_na_A | is_na_B
+    na.index <- which(is_either_na)
+    # ixA <- ixA[!is.na(ixA)]
+    # ixB <- ixB[!is.na(ixB)]
+    grA <- pge[ixA[!is_na_A]]
+    grB <- pge[ixB[!is_na_B]]
+    coordB = coordA = character(NROW(non_silent_fusions))
+    coordA[!is_na_A] <- gUtils::gr.string(grA)
+    coordB[!is_na_B] <- gUtils::gr.string(grB)
 
     # Leaving cytoband query code in for now, because we will want to re-incorporate
     # at a later date
