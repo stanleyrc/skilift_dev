@@ -217,7 +217,10 @@ Cohort <- R6Class("Cohort",
           outputs_lst[[i]] = base::subset(outputs_lst[[i]], select = !nm_outputs %in% remove_cols)
       }
 
-      outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
+      outputs = outputs_lst[[1]]
+      if (length(outputs_lst) > 1) outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
+
+      # outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
       outputs = merge(sample_metadata, outputs, by = "pair_original", all = TRUE)
 
       ## outputs <- parse_pipeline_paths(
