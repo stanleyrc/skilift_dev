@@ -161,6 +161,21 @@ Cohort <- R6Class("Cohort",
 
       # Get sample metadata first - this contains our patient IDs
       sample_metadata <- private$get_pipeline_samples_metadata(pipeline_outdir)
+      sample_metadata$pair_original = sample_metadata$pair
+
+      is_paired = (
+          all(!is.na(sample_metadata$sample_type))
+          && all(c("normal", "tumor") %in% sample_metadata$sample_type)
+      )
+
+      id_to_parse = "pair"
+      if (is_paired) {
+          sample_metadata = Skilift::dcastski(sample_metadata, id_columns = c("pair", "tumor_type", "disease", "primary_site", "inferred_sex", "pair_original"), type_columns = "sample_type", cast_columns = "sample", sep = "_")
+          sample_metadata$realpair = paste(sample_metadata$tumor_sample, "_vs_", sample_metadata$normal_sample, sep = "")
+          id_to_parse = c("realpair", "tumor_sample", "normal_sample")
+      }
+      
+      
 
       if (is.null(sample_metadata)) {
         stop("Could not get sample metadata - this is required for patient IDs")
@@ -183,12 +198,33 @@ Cohort <- R6Class("Cohort",
       # Get all file paths recursively
       pipeline_output_paths <- list.files(pipeline_outdir, recursive = TRUE, full.names = TRUE)
 
+      outputs_lst = mclapply(id_to_parse, function(id_name) {
+          sample_metadata$pair = sample_metadata[[id_name]]
+          parse_pipeline_paths(
+              pipeline_output_paths,
+              initial_dt = sample_metadata,
+              path_patterns = self$path_patterns,
+              id_name = id_name
+          )
+      }, mc.cores = 2)
 
-      outputs <- parse_pipeline_paths(
-        pipeline_output_paths,
-        initial_dt = sample_metadata,
-        path_patterns = self$path_patterns
-      )
+      nm = names(sample_metadata)
+
+      remove_cols = nm[!nm %in% c("pair_original")]
+
+      for (i in seq_len(NROW(outputs_lst))) {
+          nm_outputs = names(outputs_lst[[i]])
+          outputs_lst[[i]] = base::subset(outputs_lst[[i]], select = !nm_outputs %in% remove_cols)
+      }
+
+      outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
+      outputs = merge(sample_metadata, outputs, by = "pair_original", all = TRUE)
+
+      ## outputs <- parse_pipeline_paths(
+      ##     pipeline_output_paths,
+      ##     initial_dt = sample_metadata,
+      ##     path_patterns = self$path_patterns
+      ## )
 
       if (nrow(outputs) == 0) {
         warning("No data could be extracted from pipeline directory")
@@ -262,17 +298,32 @@ Cohort <- R6Class("Cohort",
         return(NULL)
       }
 
+      
+
       # Read samplesheet and extract metadata
       samplesheet <- fread(samplesheet_path)
-      metadata <- data.table(
-        pair = samplesheet$patient,
-        tumor_type = samplesheet$tumor_type,
-        disease = samplesheet$disease,
-        primary_site = samplesheet$primary_site,
-        inferred_sex = samplesheet$sex
+      metacols = c("patient", "sample", "tumor_type", "status", "disease", "primary_site", "sex")
+      metavars = base::mget(
+        metacols, 
+        as.environment(as.list(samplesheet)),
+        ifnotfound = rep_len(
+          list(rep_len(NA_character_, NROW(samplesheet))),
+          NROW(metacols)
+        )
       )
+      metadata <- data.table(
+        pair = metavars$patient,
+        sample = metavars$sample,
+        tumor_type = metavars$tumor_type,
+        status = metavars$status,
+        disease = metavars$disease,
+        primary_site = metavars$primary_site,
+        inferred_sex = metavars$sex
+      )
+      metadata$sample_type = ifelse(metadata$status == 0, "normal", ifelse(metadata$status == 1, "tumor", NA_character_))
 
       # remove duplicates
+     
       metadata <- unique(metadata)
 
       return(metadata)
