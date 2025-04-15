@@ -197,7 +197,6 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   }
 
   mutations.dt[, annotation := mut_ann]
-  browser()
   return(mutations.dt)
 }
 
