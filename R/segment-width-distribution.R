@@ -455,7 +455,8 @@ process_multiplicity_fit <- function(
     if (mask) {
         mask_gr <- readRDS(mask_gr)
         variants$masked <- variants %^% mask_gr
-        variants <- variants %Q% (masked == TRUE)
+        # variants <- variants %Q% (masked == TRUE) ## Should be vice versa..
+        variants = variants[!variants$masked %in% TRUE]
     }
 
     # create histogram data
