@@ -163,16 +163,31 @@ Cohort <- R6Class("Cohort",
       sample_metadata <- private$get_pipeline_samples_metadata(pipeline_outdir)
       sample_metadata$pair_original = sample_metadata$pair
 
-      is_paired = (
+      is_castable = (
           all(!is.na(sample_metadata$sample_type))
-          && all(c("normal", "tumor") %in% sample_metadata$sample_type)
       )
+      is_paired = is_castable && all(c("normal", "tumor") %in% sample_metadata$sample_type)
+
 
       id_to_parse = "pair"
+      if (is_castable) {
+          sample_metadata = Skilift::dcastski(sample_metadata, id_columns = c("pair", "tumor_type", "disease", "primary_site", "inferred_sex", "pair_original"), type_columns = "sample_type", cast_columns = c("sample", "bam"), sep = "_")
+      }
+
       if (is_paired) {
-          sample_metadata = Skilift::dcastski(sample_metadata, id_columns = c("pair", "tumor_type", "disease", "primary_site", "inferred_sex", "pair_original"), type_columns = "sample_type", cast_columns = "sample", sep = "_")
           sample_metadata$realpair = paste(sample_metadata$tumor_sample, "_vs_", sample_metadata$normal_sample, sep = "")
           id_to_parse = c("realpair", "tumor_sample", "normal_sample")
+      }
+
+      is_null_tumor_bam = is.null(sample_metadata$tumor_bam)
+      is_all_na_tumor_bam = !is_null_tumor_bam && all(is.na(sample_metadata$tumor_bam))
+      is_null_normal_bam = is.null(sample_metadata$normal_bam)
+      is_all_na_normal_bam = !is_null_normal_bam && all(is.na(sample_metadata$normal_bam))
+      if (is_all_na_tumor_bam) {
+          sample_metadata$tumor_bam = NULL
+      }
+      if (is_all_na_normal_bam) {
+          sample_metadata$normal_bam = NULL
       }
       
       
@@ -286,6 +301,7 @@ Cohort <- R6Class("Cohort",
         return(NULL)
       }
 
+
       # Clean up paths
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
       samplesheet_filename <- gsub(".*input: ", "", samplesheet_path)
@@ -305,7 +321,7 @@ Cohort <- R6Class("Cohort",
 
       # Read samplesheet and extract metadata
       samplesheet <- fread(samplesheet_path)
-      metacols = c("patient", "sample", "tumor_type", "status", "disease", "primary_site", "sex")
+      metacols = c("patient", "sample", "tumor_type", "status", "disease", "primary_site", "sex", "bam")
       metavars = base::mget(
         metacols, 
         as.environment(as.list(samplesheet)),
@@ -321,7 +337,8 @@ Cohort <- R6Class("Cohort",
         status = metavars$status,
         disease = metavars$disease,
         primary_site = metavars$primary_site,
-        inferred_sex = metavars$sex
+        inferred_sex = metavars$sex,
+        bam = metavars$bam        
       )
       metadata$sample_type = ifelse(metadata$status == 0, "normal", ifelse(metadata$status == 1, "tumor", NA_character_))
 
@@ -558,6 +575,8 @@ default_col_mapping <- list(
   disease = c("disease"),
   primary_site = c("primary_site"),
   inferred_sex = c("inferred_sex"),
+  tumor_bam = c("tumor_bam"),
+  normal_bam = c("normal_bam"),
   structural_variants = c("structural_variants", "gridss_somatic", "gridss_sv", "svaba_sv", "sv", "svs", "vcf"),
   structural_variants_unfiltered = "structural_variants_unfiltered",
   tumor_coverage = c("tumor_coverage", "dryclean_tumor", "tumor_dryclean_cov", "dryclean_cov"),
@@ -1026,7 +1045,7 @@ dcastski = function(
   skeleton = unique.data.frame(
     base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols))
   )
-  reduced_tbl = base::subset(tbl, select = columns_to_process)
+  reduced_tbl = base::subset(tbl, select = names(tbl) %in% columns_to_process)
   reduced_tbl$types = reduced_tbl[[type_columns[1]]]
   types = unique(reduced_tbl$types)
   if (is.factor(reduced_tbl$types) && !identical(drop, TRUE)) {
@@ -1034,13 +1053,13 @@ dcastski = function(
   }
   if (length(type_columns) > 1) {
     .NotYetImplemented()
-    lst = as.list(base::subset(reduced_tbl, select = type_columns))
+    lst = as.list(base::subset(reduced_tbl, select = names(reduced_tbl) %in% type_columns))
     types = do.call(interaction, lst)
     skeleton$types = types
   }
   for (type in types) {
     merge_type = reduced_tbl[reduced_tbl$types == type,]
-    merge_type = base::subset(merge_type, select = c(id_columns, cast_columns))
+    merge_type = base::subset(merge_type, select = names(merge_type) %in% c(id_columns, cast_columns))
     colnms = names(merge_type)
     names_to_change = colnms[colnms %in% cast_columns]
 	if (prefix_type) {
