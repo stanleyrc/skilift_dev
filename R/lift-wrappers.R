@@ -223,13 +223,7 @@ lift_mvp <- function(
     )
   }
 
-  if (has_required_columns(cohort, required_columns$filtered_events)) {
-    lift_filtered_events(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  } else if (has_required_columns(cohort, required_columns$oncotable, any = TRUE) && 'jabba_gg' %in% names(cohort$inputs)) {
+  if (has_required_columns(cohort, required_columns$oncotable, any = TRUE) && 'jabba_gg' %in% names(cohort$inputs)) {
     cohort <- create_oncotable(
       cohort = cohort,
       outdir = oncotable_dir,
@@ -241,7 +235,13 @@ lift_mvp <- function(
       output_data_dir = output_data_dir,
       cores = cores
     )
-  }
+  } else if (has_required_columns(cohort, required_columns$filtered_events)) {
+    lift_filtered_events(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  } 
 
   if (has_required_columns(cohort, required_columns$signatures)) {
     lift_signatures(

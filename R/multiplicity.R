@@ -49,9 +49,9 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   annotationsplit[, ix := seq_len(.N), by = listid]
   annotationsplit[, num := .N, by = listid]
 
-  ## Normalize everything to just the 1st variant
-  ## type that appears if we get
-  ## splice&intron_variant nonsense.
+  # Normalize everything to just the 1st variant
+  # type that appears if we get
+  # splice&intron_variant nonsense.
   mcols(mutations.gr)$snpeff_annotation = annotationsplit[ix == 1]$V1
   rm("annotationsplit")
 
@@ -116,11 +116,19 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     mutations.gr.annotated = merge_oncokb_multiplicity(
       oncokb_snv,
       mutations.gr,
-      overwrite = TRUE,
-      other.cols.keep = c("snpeff_annotation")
+      overwrite = TRUE
+      ## other.cols.keep = c("snpeff_annotation")
     )
     mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
     mutations.dt = gr2dt(mutations.gr.annotated)
+    ## Overwrite with SnpEff annotations pulled out from OncoKB
+    ## Held in Consequence column.
+    annotationsplit = strsplit(mutations.dt$Consequence, ",")
+    annotationsplit = gGnome::dunlist(annotationsplit)
+    annotationsplit[, ix := seq_len(.N), by = listid]
+    annotationsplit[, num := .N, by = listid]
+    mutations.dt$snpeff_annotation = annotationsplit[ix == 1]$V1
+    rm("annotationsplit")
 
     ## Process mutations
     setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
@@ -158,6 +166,12 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
       )
     )
 
+    # Converting Gene annotation Hugo_Symbol
+    # Meaning don't use ENSG* ids.
+    names(annotation_fields)[
+      names(annotation_fields) == "Gene"
+    ] = "Hugo_Symbol"
+
     # Converting to the OncoKB HGVSc and p variants.
     # for internal consistency
     names(annotation_fields)[
@@ -183,7 +197,6 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   }
 
   mutations.dt[, annotation := mut_ann]
-
   return(mutations.dt)
 }
 
@@ -237,15 +250,16 @@ multiplicity_to_intervals <- function(
     if (is.null(cohort_type)) stop("Cohort type is missing")
 
     if (cohort_type == "heme") {
-        hemedb = readRDS(Skilift:::HEMEDB)
-        # HEMEDB = "/gpfs/data/imielinskilab/projects/Clinical_NYU/db/master_heme_database.20250128_095937.790322.rds"
+        hemedb = readRDS(Skilift:::HEMEDB())
         # FIXME: HARDCODED PATH!
-        gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds"
-        gencode <- Skilift:::process_gencode(gencode)
-        genes = gencode[gencode$type == "gene"]
-        gr_heme_genes = genes[na.omit(match(hemedb$GENE, genes$gene_name))]
+        # gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds"
+        # gencode <- Skilift:::process_gencode(gencode)
+        # genes = gencode[gencode$type == "gene"]
+        # gr_heme_genes = genes[na.omit(match(hemedb$GENE, genes$gene_name))]
         message("Filtering multiplicity to heme relevant genes")
-        is_heme = (gr %^% gr_heme_genes) & (gr$gene %in% gr_heme_genes$gene_name)
+        # is_heme = (gr %^% gr_heme_genes) & (gr$gene %in% gr_heme_genes$gene_name)
+        ## Removing dependency on gencode here. 
+        is_heme = gr$gene %in% hemedb$GENE
         gr_heme = gr[is_heme]
         gr_other = gr[!is_heme]
         remaining = 1e4 - NROW(gr_heme)

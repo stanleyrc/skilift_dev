@@ -17,5 +17,8 @@ dcastski(
 )
 }
 \description{
-Using base R for robustness
+Cast using base R.
+}
+\details{
+Using base R for robustness and flexibility.
 }
