@@ -85,7 +85,8 @@ lift_copy_number_graph <- function(
                 
                 # Set parameters for json export
                 mc = mcols(ggraph.reduced$nodes$gr)
-                nfields_arg = NULL
+                nfields_arg = character(0)
+                if ("col" %in% names(mc)) nfields_arg = c(nfields_arg, "col")
                 nfields_present = names(mc)[names(mc) %in% c(unlist(row$copy_number_graph_annotations))]
                 ggraph.reduced$nodes$mark(Events = NA_character_)
                 if (NROW(nfields_present) > 0) {
@@ -95,8 +96,13 @@ lift_copy_number_graph <- function(
                         delimiter = "; "
                     )
                     ggraph.reduced$nodes$mark(Events = events_string)
-                    nfields_arg = c("col", "Events")
-                }   
+                    ## nfields_arg = c("col", "Events")
+                    nfields_arg = c(nfields_arg, "Events")
+                }
+
+                ## If still nothing in nfields_arg, set to NULL
+                is_nfields_still_empty = NROW(nfields_arg) == 0
+                if (is_nfields_still_empty) nfields_arg = NULL
                 
                 # if("col" %in% names(mcols(ggraph$nodes$gr))) "col" else NULL
                 params <- list(

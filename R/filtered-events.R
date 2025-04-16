@@ -63,6 +63,69 @@ process_cytoband <- function(cyto = NULL, coarse = FALSE) {
 
 
 
+#' Global HemeDB path
+HEMEDB = function() {
+  system.file("extdata", "data", "hemedb.rds", package = "Skilift")
+} 
+
+#' Duncavage DB 
+#' 
+#' Duncavage et al. Blood 2022.
+DUNCAVAGEDB = function() {
+  system.file("extdata", "data", "Duncavage_Blood_22.rds", package = "Skilift")
+}
+
+#' COSMIC Fusions
+#' 
+#' https://cancer.sanger.ac.uk/cosmic/download/cosmic/v101/fusion
+#' 
+COSMIC_FUSIONS = function() {
+  system.file("extdata", "data", "Cosmic_Fusion_v101_GRCh37.tsv.gz", package = "Skilift")
+}
+
+#' COSMIC fusions
+get_curated_fusions <- function() {
+
+  fusions_recurrent = character(0)
+  fusions_recurrent = c(
+    fusions_recurrent,
+    readRDS(Skilift:::DUNCAVAGEDB())[grepl("::", Gene)]$Gene
+  )
+
+  fusions_cosmic = fread(Skilift:::COSMIC_FUSIONS())
+  fusions_cosmic[, fusion_gene := paste(FIVE_PRIME_GENE_SYMBOL, "::", THREE_PRIME_GENE_SYMBOL, sep = "")]
+
+  fusions_recurrent = c(
+    fusions_recurrent,
+    (
+      fusions_cosmic[, .(
+        num_samples = length(unique(COSMIC_SAMPLE_ID))
+      ), by = fusion_gene]
+      [num_samples > 1]
+    )$fusion_gene
+  )
+  fusions_recurrent = unique(fusions_recurrent)
+  
+  ## Blacklist are fusions that absolutely should not
+  ## appear. AFF1::KMT2A and RUNX1::ETV6 are both present
+  ## as recurrent COSMIC fusions but are not themselves
+  ## the drivers.
+  blacklist = c(
+    "AFF1::KMT2A",
+    "RUNX1::ETV6"
+  )
+
+  return(
+    list(
+      fusions_recurrent = fusions_recurrent,
+      blacklist = blacklist
+    )
+  )
+}
+
+
+
+
 #' @title collect_gene_fusions
 #' @description
 #' Collects gene fusion data from a specified file and processes it.
@@ -591,16 +654,24 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     ixA <- match(genes_matrix[, 1], pge$gene_name)
     ixB <- match(genes_matrix[, 2], pge$gene_name)
     # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
-    na.index <- which(is.na(ixA))
-    ixA <- ixA[!is.na(ixA)]
-    ixB <- ixB[!is.na(ixB)]
-    grA <- pge[ixA]
-    grB <- pge[ixB]
-    coordA <- gUtils::gr.string(grA)
-    coordB <- gUtils::gr.string(grB)
+    is_na_A = is.na(ixA)
+    is_na_B = is.na(ixB)
+    is_either_na = is_na_A | is_na_B
+    na.index <- which(is_either_na)
+    # ixA <- ixA[!is.na(ixA)]
+    # ixB <- ixB[!is.na(ixB)]
+    grA <- pge[ixA[!is_na_A]]
+    grB <- pge[ixB[!is_na_B]]
+    coordB = coordA = character(NROW(non_silent_fusions))
+    coordA[!is_na_A] <- gUtils::gr.string(grA)
+    coordB[!is_na_B] <- gUtils::gr.string(grB)
+
+    # Leaving cytoband query code in for now, because we will want to re-incorporate
+    # at a later date
     grovA <- gUtils::gr.findoverlaps(grA, cytoband, scol = "chromband")
     grovB <- gUtils::gr.findoverlaps(grB, cytoband, scol = "chromband")
 
+    
     if (length(grovA) > 0) {
       grovA <- GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
       non_silent_fusions$cytoA <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
@@ -619,15 +690,61 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
       non_silent_fusions$cytoB <- ""
     }
 
-    non_silent_fusions$fusion_genes <- paste0(genes_matrix[, 1], "(", non_silent_fusions$exonA, ")::", genes_matrix[, 2], "(", non_silent_fusions$exonB, ")@", non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB)
+    # non_silent_fusions$fusion_genes <- paste0(
+    #   genes_matrix[, 1], "(", non_silent_fusions$exonA, ")::", 
+    #   genes_matrix[, 2], "(", non_silent_fusions$exonB, ")@", 
+    #   non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB
+    # )
+
+    non_silent_fusions$fusion_genes <- paste0(
+      genes_matrix[, 1], "::", genes_matrix[, 2]
+    )
     non_silent_fusions$fusion_gene_coords <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
       paste(coordA, coordB, sep = ","),
       NA
     )
+
+    variant.g.fus = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+      as.character(glue::glue('{coordA} ({non_silent_fusions$cytoA}), {coordB} ({non_silent_fusions$cytoB})')),
+      NA_character_
+    )
+
+    non_silent_fusions$variant.g = variant.g.fus
+
+
+    get_queries = c("exonA", "aminoA", "exonB", "aminoB")
+    query_variables = base::mget(
+      get_queries,
+      as.environment(as.list(non_silent_fusions)),
+      ifnotfound = rep_len(
+        list(rep_len(NA_character_, NROW(non_silent_fusions))),
+        NROW(get_queries)
+      )
+    )
+    exonA_label = glue::glue('Exon {query_variables$exonA}')
+    aminoA_label = ifelse(is.na(query_variables$aminoA), "", glue::glue(' (p.{query_variables$aminoA})'))
+    exonB_label = glue::glue('Exon {query_variables$exonB}')
+    aminoB_label = ifelse(is.na(query_variables$aminoB), "", glue::glue(' (p.{query_variables$aminoB})'))
+
+    variant.p.parsed = as.character(
+      glue::glue(
+        '{exonA_label}',
+        '{aminoA_label}', # Note space is encoded by aminoA_label
+        '::',
+        '{exonB_label}',
+        '{aminoB_label}' # Note space is encoded by aminoB_label
+      )
+    )
+    variant.p.parsed = trimws(variant.p.parsed)
+    variant.p.parsed = gsub("[[:space:]]{2,}", "", variant.p.parsed, perl = TRUE)
+
+    non_silent_fusions$variant.p = variant.p.parsed
     out <- non_silent_fusions[, .(
       gene = Hugo_Symbol,
       gene_summary = GENE_SUMMARY,
       role = Role,
+      variant.g,
+      variant.p,
       value = min_cn,
       vartype,
       type = "fusion",
@@ -1130,6 +1247,7 @@ create_filtered_events <- function(
       if (NROW(snvs) > 0) {
         snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
         snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
+        # FIXME: variant.c should not be absent..
         remove_variant_c = FALSE
         if (is.null(snvs$variant.c)) {
           snvs$variant.c = 1:NROW(snvs)
@@ -1141,6 +1259,16 @@ create_filtered_events <- function(
         snvs$is_unique_g = NULL
         snvs$is_unique_c = NULL
         if (remove_variant_c) snvs$variant.c = NULL
+        variant_concatenated = snvs[, paste(variant.p, "/", variant.c, sep = " ")]
+        variant_concatenated = gsub(" / NA", "",
+          gsub("NA / ", "",
+            variant_concatenated,
+            perl = TRUE
+          ), perl = TRUE
+        )
+        snvs$variant.p = variant_concatenated
+        rm("variant_concatenated")
+        
       }
 
       homdels <- ot[ot$type == "homdel",][, vartype := "HOMDEL"][, type := "SCNA"]
@@ -1191,19 +1319,32 @@ create_filtered_events <- function(
     res.mut <- res[vartype == "SNV"]
     if (nrow(res.mut) > 0) {
       # res.mut[, Variant := gsub("p.", "", Variant)]
-      res.mut[, vartype := "SNV"]
+      # res.mut[, vartype := "SNV"]
       # TODO:
       # truncating mutations are not always deletions
       # initial logic may be misleading calling all small mutations "SNV"
       # but we should encode this as something more robust
       # res.mut[type=="trunc", vartype := "DEL"]
+      ## res.mut
+      
+      ## FIXME: Nothing seems to be necessary here at this point.
+      NULL
     }
     res.fus = res[type == "fusion",] ## need to deal each class explicitly
     if (NROW(res.fus) > 0) {
       res.fus$gene = res.fus$fusion_genes
       is_inframe = res.fus$vartype == "fusion"
       is_outframe = res.fus$vartype == "outframe_fusion"
-      res.fus$Variant = ifelse(
+      ## If variant.p isn't found
+      ## i.e. OncoKB isn't updated
+      ## then only in frame or out of frame
+      ## will be labeled
+      variant.p.fus = base::get0(
+        "Variant",
+        as.environment(as.list(res.fus)),
+        ifnotfound = rep_len("", NROW(res.fus))
+      )
+      fus_frame_label = ifelse(
         is_inframe,
         "In-Frame Fusion",
         ifelse(
@@ -1212,8 +1353,47 @@ create_filtered_events <- function(
           NA_character_
         )
       )
+      if (any(is.na(fus_frame_label))) stop("A fusion was not labeled as in-frame or out-of-frame")
+      variant_label = paste(
+          fus_frame_label,
+          variant.p.fus
+      )
+      variant_label = trimws(variant_label)
+      variant_label = gsub("[[:space:]]{2,}", "", variant_label)
+      res.fus$Variant = variant_label
 
       res.fus$estimated_altered_copies = res.fus$fusion_cn
+
+      ## Filtering Fusions based on COSMIC and Duncavage:
+      ## If the exact match is found -
+      ## remove any reverse reciprocal fusion
+      fusions_curated = Skilift:::get_curated_fusions()
+      fusions_recurrent = fusions_curated$fusions_recurrent
+
+      blacklist = fusions_curated$blacklist
+      fusions_recurrent = fusions_recurrent[!fusions_recurrent %in% blacklist]
+
+      fus_lst = data.table::tstrsplit(fusions_recurrent, "::")
+      forwards = paste(fus_lst[[1]], "::", fus_lst[[2]], sep = "")
+      reverse = paste(fus_lst[[2]], "::", fus_lst[[1]], sep = "")
+
+      fgenes = gsub("@.*", "", res.fus$fusion_genes)
+      fgenes = gsub("\\([0-9]+\\)", "", fgenes, perl = TRUE)
+
+      is_in_forward = fgenes %in% forwards
+      is_in_reverse = fgenes %in% reverse
+      ## Some are present in both directions,
+      ## but are not well-curated. So leave them in.
+      is_both_f_and_r = fgenes %in% forwards[forwards %in% reverse]
+      is_valid = (
+          is_in_forward & !is_in_reverse
+      ) | is_both_f_and_r
+      ## Other is anything that's completely outside of the list
+      ## in either direction.
+      is_other = ! fgenes %in% c(forwards, reverse)
+
+      res.fus = base::subset(res.fus, subset = is_valid | is_other)
+      
     }
     res.cn.dt = res.cn <- res[(
       type == "SCNA" ## FIXME: redundant logic for now
@@ -1285,7 +1465,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     required_cols <- c("pair", "oncotable", "jabba_gg")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
-        warn("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
+        print("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
     
     cohort_type = cohort$type
@@ -1329,12 +1509,6 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     invisible(lst_outs)
 }
 
-
-#' FIXME: HARDCODED
-#' 
-#' Global HemeDB path
-HEMEDB = system.file("extdata", "data", "hemedb.rds", package = "Skilift")
-
 #' Select Heme events from Addy's hemedb
 #' 
 #' Coarse selection of Heme events for first pass filtering
@@ -1342,7 +1516,7 @@ HEMEDB = system.file("extdata", "data", "hemedb.rds", package = "Skilift")
 #' @export
 select_heme_events <- function(
   filtered_events, 
-  hemedb_path = Skilift:::HEMEDB
+  hemedb_path = Skilift:::HEMEDB()
 ) {
   hemedb = readRDS(hemedb_path) 
 
@@ -1442,6 +1616,7 @@ merge_oncokb_multiplicity <- function(
   }
 
   gr_oncokb$ALT <- gr_oncokb$Allele
+  gr_oncokb$gene <- gr_oncokb$Hugo_Symbol
 
   mc <- S4Vectors::mcols(gr_multiplicity)
   checknormalcols <- c("normal.ref", "normal.alt")
@@ -1451,7 +1626,7 @@ merge_oncokb_multiplicity <- function(
     }
   }
   S4Vectors::mcols(gr_multiplicity) <- mc
-  ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = "ALT", type = "equal")
+  ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = c("gene", "ALT"), type = "equal")
   ovQuery <- data.table(query.id = integer(0), subject.id = integer(0))
   if (NROW(ov) > 0) {
     ovQuery <- gUtils::gr2dt(ov)[, .(query.id, subject.id)]
@@ -1470,7 +1645,7 @@ merge_oncokb_multiplicity <- function(
     dt_oncokb$oid <- missingIds
     ovMissing <- gUtils::gr.findoverlaps(
       gUtils::dt2gr(dt_oncokb), gr_multiplicity,
-      by = "ALT", type = "equal", qcol = c("oid")
+      by = c("gene", "ALT"), type = "equal", qcol = c("oid")
     )
     if (NROW(ovMissing) > 0) {
       missingOvQuery <- gr2dt(ovMissing)[, .(query.id = oid, subject.id)]
@@ -1488,6 +1663,7 @@ merge_oncokb_multiplicity <- function(
     ovMissing = gUtils::gr.findoverlaps(
       gr_oncokb_missing, gr_multiplicity
      ,
+     by = "gene",
      type = "equal",
       qcol = c("oid"),
      )
@@ -1511,6 +1687,30 @@ merge_oncokb_multiplicity <- function(
     ovMissing = gUtils::gr.findoverlaps(
       gr_oncokb_missing, gr_multiplicity
      ,
+      by = "gene",
+      qcol = c("oid")
+    )
+    if (NROW(ovMissing) > 0) {
+      missingOvQuery = (
+        gr2dt(ovMissing)
+        [, .(query.id = oid, subject.id)]
+        [!duplicated(query.id)]
+      )
+    }
+  }
+  ovQuery = rbind(ovQuery, missingOvQuery)
+
+  # Logic for when there's inexact coordinate match due to VCF -> maf parsing.
+  missingIds = setdiff(1:NROW(gr_oncokb), ovQuery$query.id)
+  missingOvQuery = data.table(query.id = integer(0), subject.id = integer(0))
+
+  if (length(missingIds) > 0) {
+    gr_oncokb_missing = gr_oncokb[missingIds]
+    gr_oncokb_missing$oid = missingIds
+    ovMissing = gUtils::gr.findoverlaps(
+      gr_oncokb_missing, gr_multiplicity
+     ,
+      ## by = "gene",
       qcol = c("oid")
     )
     if (NROW(ovMissing) > 0) {
