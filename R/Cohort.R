@@ -535,7 +535,7 @@ nf_path_patterns <- list(
   structural_variants_unfiltered = "gridss.*/.*.gridss.filtered.vcf.gz$",
   karyograph = "jabba/.*/karyograph.rds$",
   allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
-  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$"),
+  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*.sage.pass_filtered.vcf.gz$")),
   somatic_snvs_unfiltered = c("sage/somatic/.*/.*sage.somatic.vcf.gz$"),
   somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
   multiplicity = c("snv_multiplicity/.*/.*est_snv_cn_somatic.rds", "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds"),
