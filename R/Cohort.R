@@ -252,15 +252,45 @@ Cohort <- R6Class("Cohort",
     },
     get_pipeline_samples_metadata = function(pipeline_outdir) {
       report_path <- file.path(pipeline_outdir, "pipeline_info/pipeline_report.txt")
+      launch_dir = character(0)
+      samplesheet_path = character(0)
       if (!file.exists(report_path)) {
-        warning("Pipeline report not found: ", report_path)
-        return(NULL)
+        message("Pipeline report not found: ", report_path)
+        message("Attempting to read from nextflow logs")
+        nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow.*\\.log.*", all.files = TRUE, full.names = TRUE)
+        if (NROW(nflogs) == 0) {
+          pipeline_outdir_upone = dirname(normalizePath(pipeline_outdir))
+          nflogs = list.files(
+            pipeline_outdir_upone, 
+            pattern = "\\.nextflow.*\\.log.*", 
+            all.files = TRUE, 
+            full.names = TRUE
+          )
+        }
+        parsed_meta = lapply(nflogs, private$read_nf_log)
+        parsed_meta = do.call(Map, c(f = c, parsed_meta))
+        launch_dir = unique(parsed_meta$launchdir)
+        launch_dir = launch_dir[nzchar(launch_dir)]
+        samplesheet_path = unique(parsed_meta$samplesheet)
+        samplesheet_path = samplesheet_path[nzchar(samplesheet_path)]
+        if (NROW(launch_dir) > 1) stop("More than one launch_dir found - something's wrong")
+        if (NROW(samplesheet_path) > 1) stop("More than one samplesheet_path found in pipeline directory")
+      } else {
+        # Read pipeline report
+        report_lines <- readLines(report_path)
+
+        # Extract launch directory and samplesheet path
+        launch_dir <- grep("launchDir:", report_lines, value = TRUE)
+        samplesheet_path <- grep("input:", report_lines, value = TRUE)
+
       }
+
       #### Edge case: multiple runs (with different samplesheets) point to the same results
       #### this needs to be handled a bit more carefully as the nflogs have a cap
       #### solution: coerce unique results directory per run (with common results directory)
       ####  merge the samplesheets with the same parent
-      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow\\.log.*", all.files = TRUE, full.names = TRUE)
+      
+      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow.*\\.log.*", all.files = TRUE, full.names = TRUE)
       # parsed_meta = lapply(nflogs, private$read_nf_log)
       # ## transpose the list
       # parsed_meta = do.call(Map, c(f = c, parsed_meta))
@@ -289,12 +319,7 @@ Cohort <- R6Class("Cohort",
       #
       # return(metadata)
 
-      # Read pipeline report
-      report_lines <- readLines(report_path)
-
-      # Extract launch directory and samplesheet path
-      launch_dir <- grep("launchDir:", report_lines, value = TRUE)
-      samplesheet_path <- grep("input:", report_lines, value = TRUE)
+      
 
       if (length(launch_dir) == 0 || length(samplesheet_path) == 0) {
         warning("Could not find launch directory or samplesheet path in pipeline report")
