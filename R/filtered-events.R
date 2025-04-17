@@ -86,7 +86,7 @@ get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS
   is_assembly_arg_character = is.character(assembly)
   is_assembly_arg_legit = (
     is_assembly_arg_provided
-    is_assembly_arg_character 
+    && is_assembly_arg_character 
     && NROW(assembly) == 1 
   )
   is_assembly_arg_valid = is_assembly_arg_legit && all(tolower(assembly) %in% c("hg19", "hg38", "grch37", "grch38"))
