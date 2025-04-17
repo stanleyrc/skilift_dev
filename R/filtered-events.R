@@ -98,10 +98,10 @@ get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS
     output_gencode_path = file.path(gencode_dir_env, basename(gencode_paths_to_parse))
     is_gencode_dir_path_existent = file.exists(output_gencode_path)
     if (!is_gencode_dir_path_existent) {
-      message("GENCODE_DIR provided, but default gencode path could not be found: " output_gencode_path)
+      message("GENCODE_DIR provided, but default gencode path could not be found: ", output_gencode_path)
       output_gencode_path = NULL
     } else {
-      message("GENCODE_DIR provided, and default path found: " output_gencode_path)
+      message("GENCODE_DIR provided, and default path found: ", output_gencode_path)
     }
   } else if (is_any_gencode_default_existent_locally) {
 		output_gencode_path = gencode_path_defaults[1]
