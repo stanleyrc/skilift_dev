@@ -133,7 +133,11 @@ get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS
 	if (is_gencode_path_provided && is_gencode_path_existent) {
 		output_gencode_path = gencode_path_env
 		message("GENCODE_PATH environment variable found: ", output_gencode_path)
-	} else if (is_gencode_dir_provided && is_gencode_dir_existent) {
+	}
+
+  is_output_null = is.null(output_gencode_path)
+  
+  if (is_output_null && is_gencode_dir_provided && is_gencode_dir_existent) {
     output_gencode_path = file.path(gencode_dir_env, basename(gencode_paths_to_parse))
     is_gencode_dir_path_existent = file.exists(output_gencode_path)
     if (!is_gencode_dir_path_existent) {
@@ -142,7 +146,11 @@ get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS
     } else {
       message("GENCODE_DIR provided, and default path found: ", output_gencode_path)
     }
-  } else if (is_any_gencode_default_existent_locally) {
+  }
+
+  is_output_null = is.null(output_gencode_path)
+
+  if (is_output_null && is_any_gencode_default_existent_locally) {
 		output_gencode_path = gencode_paths[1]
 		message("Using gencode path as default: ", output_gencode_path)
 	}

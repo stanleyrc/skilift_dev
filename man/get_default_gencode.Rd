@@ -4,7 +4,10 @@
 \alias{get_default_gencode}
 \title{Get default gencode}
 \usage{
-get_default_gencode(gencode_path_defaults = Skilift::GENCODE_DEFAULTS)
+get_default_gencode(
+  gencode_path_defaults = Skilift::GENCODE_DEFAULTS,
+  assembly = NULL
+)
 }
 \description{
 Function to grab default gencode
