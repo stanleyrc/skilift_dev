@@ -221,7 +221,7 @@ Cohort <- R6Class("Cohort",
               path_patterns = self$path_patterns,
               id_name = id_name
           )
-      }, mc.cores = 2)
+      }, mc.cores = length(id_to_parse))
 
       nm = names(sample_metadata)
 
