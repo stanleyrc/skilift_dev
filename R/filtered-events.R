@@ -47,10 +47,9 @@ process_gencode <- function(gencode = NULL, seqlevelsstyle = "NCBI") {
   } else if (is_not_valid) {
     stop("Path provided must be a length one string")
   }
-  is_still_null = is.null(gencode)
 
   is_granges = inherits(gencode, "GRanges")
-  if (!is_granges || is_still_null) stop("gencode must be read in as, provided as, or coercible to a GRanges")
+  if (!is_granges) stop("gencode must be read in as, provided as, or coercible to a GRanges")
 
   GenomeInfoDb::seqlevelsStyle(gencode) = seqlevelsstyle
 
