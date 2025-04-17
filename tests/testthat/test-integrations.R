@@ -61,7 +61,56 @@ setup({
 
 })
 
-test_that("can lift_all paired cohort without errors", {
+test_that("can lift_all ffpe cohort from gosh outputs csv without errors", {
+  # Load real clinical pairs
+  output_csv_path = system.file(
+    "extdata",
+    "test_data",
+    "ffpe_outputs.csv",
+    package = "Skilift"
+  )
+
+  output_csv_path = system.file(
+    "extdata",
+    "test_data",
+    "ffpe_outputs_new.csv",
+    package = "Skilift"
+  )
+
+  csv = data.table(read.csv(output_csv_path, stringsAsFactors = FALSE))
+  csv$coverage_tumor
+  csv$jabba_gg_allelic
+  csv$patient_id
+  
+  pairs_with_all_outputs = c(
+    "397089"
+  )
+ 
+  cohort <- suppressWarnings(Cohort$new(
+    output_csv_path,
+    cohort_type = "paired"
+  ))
+
+  cohort$inputs
+  names(cohort$inputs)
+
+  # Create temp directory for output
+  temp_dir <- tempdir()
+
+  lift_all(cohort, output_data_dir = temp_dir, cores = 2)
+  lift_filtered_events(cohort, output_data_dir = temp_dir, cores = 2)
+  
+  expect_message(
+    check_output_files(cohort, temp_dir),
+    "All expected output files are present."
+  )
+  
+  # Cleanup
+  unlink(temp_dir, recursive = TRUE)
+})
+
+
+test_that("can lift_all ffpe cohort from pairs table without errors", {
   # Load real clinical pairs
   clinical_pairs_path = "~/projects/Clinical_NYU/db/pairs.rds"
   clinical_pairs = readRDS(clinical_pairs_path)
