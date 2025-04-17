@@ -67,8 +67,24 @@ annotate_karyotype = function(
 
   ge = gg$edges
   geAlt = ge[ge$dt$type == "ALT"]
-  if (length(geAlt) > 0) {
-    sortedGrl = BiocGenerics::sort(GenomeInfoDb::sortSeqlevels(geAlt$grl), ignore.strand = TRUE)
+  grl_alt = GRangesList()
+  is_any_alt_edge_present = NROW(geAlt) > 0
+  # Maybe unnecessary but still..
+  if (is_any_alt_edge_present) {
+    grl_alt = geAlt$grl
+    ## Pre-filtering grl_alt by cytobands
+    ## to get rid of odd junctions
+    ## e.g. Autosomal :: MT junctions
+    ## e.g. Junctions mapping to decoy chromosomes
+    is_in_cyto = gUtils::grl.in(
+      grl = grl_alt,
+      windows = cyto,
+      only = TRUE ## means returns TRUE for each grl element if ALL windows match granges in grl.
+    )
+    grl_alt = grl_alt[is_in_cyto]
+  }
+  if (length(grl_alt) > 0) {
+    sortedGrl = BiocGenerics::sort(GenomeInfoDb::sortSeqlevels(grl_alt), ignore.strand = TRUE)
 
     widths = width(range(sortedGrl, ignore.strand = TRUE))
     widths[base::lengths(widths) == 2] = list(NA_integer_)
@@ -78,7 +94,7 @@ annotate_karyotype = function(
     breakpoints = breakpoints %*% cyto
 
     grl = S4Vectors::split(breakpoints, breakpoints$grl.ix)
-	bedpe = grl2bedpe(grl, add_breakend_mcol = TRUE, zerobased = FALSE)
+  	bedpe = grl2bedpe(grl, add_breakend_mcol = TRUE, zerobased = FALSE)
 
     isTranslocation = !(bedpe$first.chrom_name == bedpe$second.chrom_name)
     k_type = dplyr::case_when(
