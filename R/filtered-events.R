@@ -21,7 +21,7 @@ process_gencode <- function(gencode = NULL) {
   is_na = is_len_one && (is.na(gencode) || gencode %in% c("NA"))
   is_possible_path = is_character && is_len_one && !is_na
   is_existent_path = is_possible_path && file.exists(gencode)
-  is_rds = is_possible_path && grepl(".rds$")
+  is_rds = is_possible_path && grepl(".rds$", gencode)
   
   if (is_existent_path && is_rds) {
     gencode <- readRDS(gencode)
