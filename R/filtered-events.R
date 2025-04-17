@@ -7,16 +7,108 @@
 #' @return gencode_gr GRanges
 #' @author Marcin Imielinski
 process_gencode <- function(gencode = NULL) {
-  if (is.null(gencode)) {
-    stop("gencode file must be provided")
-  } else if (is.character(gencode)) {
-    if (grepl(".rds$", gencode)) {
-      gencode <- readRDS(gencode)
-    } else {
-      gencode <- rtracklayer::import(gencode)
-    }
+  is_null = is.null(gencode)
+  is_character = is.character(gencode)
+  is_len_one = NROW(gencode) == 1
+  is_na = is_len_one && (is.na(gencode) || gencode %in% c("NA"))
+  is_possible_path = is_character && is_len_one && !is_na
+  is_existent_path = is_possible_path && file.exists(gencode)
+  is_rds = is_possible_path && grepl(".rds$")
+  
+  if (is_null) {
+    gencode = get_default_gencode()
+    is_null = is.null(gencode)
+  }
+  
+  if (is_null) stop("No default gencode found, file must be provided")
+  
+  if (is_existent_path && is_rds) {
+    gencode <- readRDS(gencode)
+  } else if (is_existent_path && !is_rds) {
+    gencode <- rtracklayer::import(gencode)
+    GenomeInfoDb::seqlevelsStyle(gencode) = "NCBI"
   }
   return(gencode)
+}
+
+#' Default gencode paths
+#' 
+#' Provided as an exported variable
+#' 
+#' Providing gencode defaults as a variable exposed to user
+#' @export 
+GENCODE_DEFAULTS = list(
+  hg19 = "~/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
+  hg38 = "~/DB/GENCODE/hg38/v29/gencode.v29.annotation.nochr.rds"
+)
+
+#' Get default gencode
+#' 
+#' Function to grab default gencode
+#' 
+#' Use environment variables
+#' GENCODE_PATH
+#' DEFAULT_ASSEMBLY
+#' To get appropriate gencode and
+#' assign it to a package level variable.
+#' @export 
+get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS) {
+  gencode_path_env = Sys.getenv("GENCODE_PATH")
+  gencode_dir_env = Sys.getenv("GENCODE_DIR")
+  default_assembly = tolower(Sys.getenv("DEFAULT_ASSEMBLY"))
+  is_assembly_valid = all(default_assembly %in% c("", "hg19", "hg38", "grch37", "grch38"))
+  is_assembly_provided = nzchar(default_assembly)
+  
+  if (!is_assembly_valid) {
+    stop("Assembly must be one of: hg19, hg38, GRCh37, or GRCh38")
+  }
+
+  if (!is_assembly_provided) {
+    message("No default assembly found, using GRCh37/hg19")
+    default_assembly = "hg19"
+  }
+
+  remap_assembly = list(
+    c("grch37", "hg19"),
+    c("grch38", "hg38")
+  )
+
+  for (x in remap_assembly) {
+    default_assembly[default_assembly == x[1]] = x[2]
+  }
+  
+	is_gencode_path_provided = nzchar(gencode_path_env)
+	is_gencode_path_existent = file.exists(gencode_path_env)
+
+  is_gencode_dir_provided = nzchar(gencode_dir_env)
+	is_gencode_dir_existent = dir.exists(gencode_dir_env)
+
+  gencode_paths_to_parse = gencode_path_defaults[[default_assembly]]
+
+	is_gencode_default_existent_locally = file.exists(gencode_paths_to_parse)
+	gencode_paths = gencode_paths_to_parse[is_gencode_default_existent_locally]
+	is_any_gencode_default_existent_locally = NROW(gencode_paths) > 0
+
+	output_gencode_path = NULL
+
+	if (is_gencode_path_provided && is_gencode_path_existent) {
+		output_gencode_path = gencode_path_env
+		message("GENCODE_PATH environment variable found: ", output_gencode_path)
+	} else if (is_gencode_dir_provided && is_gencode_dir_existent) {
+    output_gencode_path = file.path(gencode_dir_env, basename(gencode_paths_to_parse))
+    is_gencode_dir_path_existent = file.exists(output_gencode_path)
+    if (!is_gencode_dir_path_existent) {
+      message("GENCODE_DIR provided, but default gencode path could not be found: " output_gencode_path)
+      output_gencode_path = NULL
+    } else {
+      message("GENCODE_DIR provided, and default path found: " output_gencode_path)
+    }
+  } else if (is_any_gencode_default_existent_locally) {
+		output_gencode_path = gencode_path_defaults[1]
+		message("Using gencode path as default: ", output_gencode_path)
+	}
+
+  return(output_gencode_path)
 }
 
 #' @title process_cytoband
@@ -1060,7 +1152,7 @@ oncotable <- function(
 create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
-    gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
+    gencode = Skilift::get_default_gencode(),
     cytoband = system.file("extdata", "data", "cytoband.rds", package = "Skilift"),
     outdir,
     cores = 1) {
