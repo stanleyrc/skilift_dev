@@ -226,7 +226,7 @@ Cohort <- R6Class("Cohort",
               path_patterns = self$path_patterns,
               id_name = id_name
           )
-      }, mc.cores = 2)
+      }, mc.cores = length(id_to_parse))
 
       nm = names(sample_metadata)
 
@@ -257,15 +257,45 @@ Cohort <- R6Class("Cohort",
     },
     get_pipeline_samples_metadata = function(pipeline_outdir) {
       report_path <- file.path(pipeline_outdir, "pipeline_info/pipeline_report.txt")
+      launch_dir = character(0)
+      samplesheet_path = character(0)
       if (!file.exists(report_path)) {
-        warning("Pipeline report not found: ", report_path)
-        return(NULL)
+        message("Pipeline report not found: ", report_path)
+        message("Attempting to read from nextflow logs")
+        nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow.*\\.log.*", all.files = TRUE, full.names = TRUE)
+        if (NROW(nflogs) == 0) {
+          pipeline_outdir_upone = dirname(normalizePath(pipeline_outdir))
+          nflogs = list.files(
+            pipeline_outdir_upone, 
+            pattern = "\\.nextflow.*\\.log.*", 
+            all.files = TRUE, 
+            full.names = TRUE
+          )
+        }
+        parsed_meta = lapply(nflogs, private$read_nf_log)
+        parsed_meta = do.call(Map, c(f = c, parsed_meta))
+        launch_dir = unique(parsed_meta$launchdir)
+        launch_dir = launch_dir[nzchar(launch_dir)]
+        samplesheet_path = unique(parsed_meta$samplesheet)
+        samplesheet_path = samplesheet_path[nzchar(samplesheet_path)]
+        if (NROW(launch_dir) > 1) stop("More than one launch_dir found - something's wrong")
+        if (NROW(samplesheet_path) > 1) stop("More than one samplesheet_path found in pipeline directory")
+      } else {
+        # Read pipeline report
+        report_lines <- readLines(report_path)
+
+        # Extract launch directory and samplesheet path
+        launch_dir <- grep("launchDir:", report_lines, value = TRUE)
+        samplesheet_path <- grep("input:", report_lines, value = TRUE)
+
       }
+
       #### Edge case: multiple runs (with different samplesheets) point to the same results
       #### this needs to be handled a bit more carefully as the nflogs have a cap
       #### solution: coerce unique results directory per run (with common results directory)
       ####  merge the samplesheets with the same parent
-      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow\\.log.*", all.files = TRUE, full.names = TRUE)
+      
+      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow.*\\.log.*", all.files = TRUE, full.names = TRUE)
       # parsed_meta = lapply(nflogs, private$read_nf_log)
       # ## transpose the list
       # parsed_meta = do.call(Map, c(f = c, parsed_meta))
@@ -294,12 +324,7 @@ Cohort <- R6Class("Cohort",
       #
       # return(metadata)
 
-      # Read pipeline report
-      report_lines <- readLines(report_path)
-
-      # Extract launch directory and samplesheet path
-      launch_dir <- grep("launchDir:", report_lines, value = TRUE)
-      samplesheet_path <- grep("input:", report_lines, value = TRUE)
+      
 
       if (length(launch_dir) == 0 || length(samplesheet_path) == 0) {
         warning("Could not find launch directory or samplesheet path in pipeline report")
@@ -536,11 +561,14 @@ nf_path_patterns <- list(
   jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
   events = "events/.*/complex.rds$",
   fusions = "fusions/.*/fusions.rds$",
+  fragcounter_normal = "fragcounter_normal/.*/.*cov.rds$",
+  fragcounter_tumor = "fragcounter_tumor/.*/.*cov.rds$",
+  segments_cbs = "cbs/.*/.*(?<!n)seg.rds$",
   structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$", "tumor_only_junction_filter/.*/.*somatic.filtered.sv.rds$"),
   structural_variants_unfiltered = "gridss.*/.*.gridss.filtered.vcf.gz$",
   karyograph = "jabba/.*/karyograph.rds$",
   allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
-  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$"),
+  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*.sage.pass_filtered.vcf.gz$"),
   somatic_snvs_unfiltered = c("sage/somatic/.*/.*sage.somatic.vcf.gz$"),
   somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
   multiplicity = c("snv_multiplicity/.*/.*est_snv_cn_somatic.rds", "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds"),
@@ -588,6 +616,9 @@ default_col_mapping <- list(
   somatic_snvs = c("somatic_snvs", "snvs_somatic", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf", "snv_somatic_vcf"),
   somatic_snvs_unfiltered = c("somatic_snvs_unfiltered", "snvs_somatic_unfiltered"),
   germline_snvs = c("germline_snvs", "snvs_germline", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
+  fragcounter_normal = c("fragcounter_normal"),
+  fragcounter_tumor = c("fragcounter_tumor"),
+  segments_cbs = c("cbs_seg_rds", "seg_rds", "cbs_seg"),
   het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
   multiplicity = c("multiplicity", "somatic_snv_cn", "snv_multiplicity"),
   germline_multiplicity = c("germline_multiplicity", "multiplicity_germline", "germline_snv_cn"),
