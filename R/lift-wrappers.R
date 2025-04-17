@@ -107,7 +107,7 @@ lift_all <- function(
     cores = 1,
     genome_length = NULL,
     width = 10000,
-    gencode = Skilift::get_default_gencode()
+    gencode = Skilift::get_default_gencode(),
     ...) {
   
   list2env(list(...), envir = environment())
