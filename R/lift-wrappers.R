@@ -107,6 +107,7 @@ lift_all <- function(
     cores = 1,
     genome_length = NULL,
     width = 10000,
+    gencode = Skilift::get_default_gencode()
     ...) {
   
   list2env(list(...), envir = environment())
@@ -141,6 +142,7 @@ lift_all <- function(
       cores = cores,
       genome_length = genome_length,
       width = width,
+      gencode = gencode,
       ... = ...
     )
   } else if (cohort$type == "heme") {
@@ -151,6 +153,7 @@ lift_all <- function(
       cores = cores,
       genome_length = genome_length,
       width = width,
+      gencode = gencode,
       ... = ...
     )
   } else if (cohort$type == "tumor_only") {
@@ -161,6 +164,7 @@ lift_all <- function(
       cores = cores,
       genome_length = genome_length,
       width = width,
+      gencode = gencode,
       ... = ...
     )
   }
@@ -227,7 +231,8 @@ lift_mvp <- function(
     cohort <- create_oncotable(
       cohort = cohort,
       outdir = oncotable_dir,
-      cores = cores
+      cores = cores,
+      gencode = gencode
     )
 
     lift_filtered_events(
