@@ -6,11 +6,12 @@
 #' @param gencode path to gencode file. Gencode file must be either rds or some format accepted by rtracklayer::import (e.g. GTF) with just a single entry for each gene (so gencode entries for each gene are collapse to a single range). The input could be .gtf or .rds with GRanges object, or a GRanges object i.e. resulting from importing the (appropriate) GENCODE .gtf via rtracklayer, note: this input is only used in CNA to gene mapping.
 #' @return gencode_gr GRanges
 #' @author Marcin Imielinski
-process_gencode <- function(gencode = NULL, seqlevelsstyle = "NCBI") {
+#' @export
+process_gencode <- function(gencode = NULL, assembly = NULL, seqlevelsstyle = "NCBI") {
   is_null = is.null(gencode)
   
   if (is_null) {
-    gencode = get_default_gencode()
+    gencode = get_default_gencode(assembly = assembly)
     is_null = is.null(gencode)
   }
   
@@ -77,10 +78,23 @@ GENCODE_DEFAULTS = list(
 #' To get appropriate gencode and
 #' assign it to a package level variable.
 #' @export 
-get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS) {
+get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS, assembly = NULL) {
   gencode_path_env = Sys.getenv("GENCODE_PATH")
   gencode_dir_env = Sys.getenv("GENCODE_DIR")
-  default_assembly = tolower(Sys.getenv("DEFAULT_ASSEMBLY"))
+  
+  is_assembly_arg_provided = !is.null(assembly)
+  is_assembly_arg_character = is.character(assembly)
+  is_assembly_arg_legit = (
+    is_assembly_arg_provided
+    is_assembly_arg_character 
+    && NROW(assembly) == 1 
+  )
+  is_assembly_arg_valid = is_assembly_arg_legit && all(tolower(assembly) %in% c("hg19", "hg38", "grch37", "grch38"))
+  default_assembly = assembly
+  if (!is_assembly_arg_valid) {
+    default_assembly = tolower(Sys.getenv("DEFAULT_ASSEMBLY"))
+  }
+  
   is_assembly_valid = all(default_assembly %in% c("", "hg19", "hg38", "grch37", "grch38"))
   is_assembly_provided = nzchar(default_assembly)
   
