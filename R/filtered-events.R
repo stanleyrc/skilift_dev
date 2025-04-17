@@ -6,7 +6,7 @@
 #' @param gencode path to gencode file. Gencode file must be either rds or some format accepted by rtracklayer::import (e.g. GTF) with just a single entry for each gene (so gencode entries for each gene are collapse to a single range). The input could be .gtf or .rds with GRanges object, or a GRanges object i.e. resulting from importing the (appropriate) GENCODE .gtf via rtracklayer, note: this input is only used in CNA to gene mapping.
 #' @return gencode_gr GRanges
 #' @author Marcin Imielinski
-process_gencode <- function(gencode = NULL. seqlevelsstyle = "NCBI") {
+process_gencode <- function(gencode = NULL, seqlevelsstyle = "NCBI") {
   is_null = is.null(gencode)
   
   if (is_null) {
