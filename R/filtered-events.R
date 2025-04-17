@@ -6,7 +6,7 @@
 #' @param gencode path to gencode file. Gencode file must be either rds or some format accepted by rtracklayer::import (e.g. GTF) with just a single entry for each gene (so gencode entries for each gene are collapse to a single range). The input could be .gtf or .rds with GRanges object, or a GRanges object i.e. resulting from importing the (appropriate) GENCODE .gtf via rtracklayer, note: this input is only used in CNA to gene mapping.
 #' @return gencode_gr GRanges
 #' @author Marcin Imielinski
-process_gencode <- function(gencode = NULL) {
+process_gencode <- function(gencode = NULL. seqlevelsstyle = "NCBI") {
   is_null = is.null(gencode)
   
   if (is_null) {
@@ -18,17 +18,42 @@ process_gencode <- function(gencode = NULL) {
 
   is_character = is.character(gencode)
   is_len_one = NROW(gencode) == 1
-  is_na = is_len_one && (is.na(gencode) || gencode %in% c("NA"))
+  is_not_valid = is_character && ! NROW(gencode) == 1
+  is_na = is_len_one && (is.na(gencode) || gencode %in% c("NA", base::nullfile()))
   is_possible_path = is_character && is_len_one && !is_na
   is_existent_path = is_possible_path && file.exists(gencode)
   is_rds = is_possible_path && grepl(".rds$", gencode)
+  is_gff = is_possible_path && grepl(".gtf(.gz){0,}$|.gff([0-9]){0,}(.gz){0,}$", gencode)
   
   if (is_existent_path && is_rds) {
     gencode <- readRDS(gencode)
-  } else if (is_existent_path && !is_rds) {
+  } else if (is_existent_path && is_gff) {
     gencode <- rtracklayer::import(gencode)
-    GenomeInfoDb::seqlevelsStyle(gencode) = "NCBI"
+    
+  } else if (is_existent_path) {
+    gencode = data.table::fread(gencode)
+    gencode = tryCatch(
+      gUtils::dt2gr(gencode),
+      error = function(e) "ERR"
+    )
+    if (identical(gencode, "ERR")) {
+      gencode = tryCatch(
+        as(gencode, "GRanges"),
+        error = function(e) NULL
+      )
+    }
+  } else if (is_character && is_len_one) {
+    stop("Path provided does not exist": gencode)
+  } else if (is_not_valid) {
+    stop("Path provided must be a length one string")
   }
+  is_still_null = is.null(gencode)
+
+  is_granges = inherits(gencode, "GRanges")
+  if (!is_granges || is_still_null) stop("gencode must be read in as, provided as, or coercible to a GRanges")
+
+  GenomeInfoDb::seqlevelsStyle(gencode) = seqlevelsstyle
+
   return(gencode)
 }
 
