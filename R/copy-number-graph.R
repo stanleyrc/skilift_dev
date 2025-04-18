@@ -59,7 +59,7 @@ lift_copy_number_graph <- function(
             
             if (!is.null(ggraph_path) && file.exists(ggraph_path)) {
                 message(sprintf("Reading gGraph for %s", row$pair))
-                ggraph <- readRDS(ggraph_path)
+                ggraph <- process_jabba(ggraph_path)
                 
                 if (!any(class(ggraph) == "gGraph")) {
                     warning(sprintf("Input for %s is not a gGraph object", row$pair))

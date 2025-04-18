@@ -1259,7 +1259,7 @@ create_oncotable <- function(
         if (file.exists(row$jabba_gg)) {
           ploidy_ggraph <- tryCatch(
             {
-              readRDS(row$jabba_gg)
+              process_jabba(row$jabba_gg)
             },
             error = function(e) {
               msg <- sprintf("Error reading JaBbA file for %s: %s. Using default ploidy of 2.", row$pair, e$message)

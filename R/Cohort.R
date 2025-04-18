@@ -1275,3 +1275,84 @@ merge.Cohort <- function(x, y, ..., warn_duplicates = TRUE, rename_duplicates = 
 
   return(result)
 }
+
+#' Test path
+#' 
+#' Test if path exists robustly
+#' 
+#' @export
+test_path = function(
+  object, 
+  rds_regex = ".rds$",
+  gff_regex = ".gtf(.gz){0,}$|.gff([0-9]){0,}(.gz){0,}$",
+  bcf_regex = ".bcf(.bgz|.gz){0,}$",
+  vcf_regex = ".vcf(.bgz|.gz){0,}$",
+  verbose = TRUE
+) {
+  is_character = is.character(object)
+  is_len_one = NROW(object) == 1
+  is_not_valid = is_character && ! NROW(object) == 1
+  is_na = is_len_one && (is.na(object) || object %in% c("NA", base::nullfile()))
+  is_possible_path = is_character && is_len_one && !is_na
+  is_existent_path = is_possible_path && file.exists(object)
+  is_rds = is_possible_path && grepl(rds_regex, object)
+  is_vcf = is_possible_path && grepl(vcf_regex, object)
+  is_bcf = is_possible_path && grepl(bcf_regex, object)
+  is_gff = is_possible_path && grepl(gff_regex, object)
+  logicals = as.list(data.frame(
+      is_character,
+      is_len_one,
+      is_not_valid,
+      is_na,
+      is_possible_path,
+      is_existent_path,
+      is_rds,
+      is_vcf,
+      is_bcf,
+      is_gff
+  ))
+  if (verbose) {
+    nms = names(logicals)
+    message("Assigning:")
+    for (nm in nms) {
+      message(nm)
+    }
+  }
+  list2env(logicals, envir = parent.frame())
+  return(logicals)
+  
+  # FUN = function() {stop(gettextf("%s not a valid path", sQuote(object)), domain = NA)}
+  # if (is_existent_path && is_rds) {
+  #   FUN = readRDS
+  # }
+  # if (is_existent_path && is_vcf) {
+  #   FUN = 
+  # }
+}
+
+#' Read jabba
+#' 
+#' Frickin function to help people who keep uploading the wrong jabba ggraph files
+#' 
+#' @export
+process_jabba = function(jabba) {
+  logicals = test_path(jabba, verbose = FALSE)
+  if (is_existent_path && is_rds) {
+    jabba <- readRDS(jabba)
+  } else if (is_existent_path) {
+    stop("Path exists but is not rds": jabba)
+  } else if (is_character && is_len_one) {
+    stop("Path provided does not exist": jabba)
+  } else if (is_not_valid) {
+    stop("Path provided must be a length one string")
+  }
+  is_jabba_list = is.list(jabba) && all(c("segstats", "purity", "ploidy", "junctions") %in% names(jabba))
+  
+  gg = jabba
+  if (is_jabba_list) gg = gG(jabba = jabba)
+  is_jabba_gg = inherits(gg, "gGraph")
+  if (!is_jabba_gg) {
+    stop("jabba must be a gGraph object or jabba like object")
+  }
+  return(gg)
+}
