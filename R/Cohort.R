@@ -222,6 +222,8 @@ Cohort <- R6Class("Cohort",
               id_name = id_name
           )
       }, mc.cores = length(id_to_parse))
+    #   }, mc.cores = 1)
+
 
       nm = names(sample_metadata)
 
@@ -233,7 +235,24 @@ Cohort <- R6Class("Cohort",
       }
 
       outputs = outputs_lst[[1]]
-      if (length(outputs_lst) > 1) outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
+      if (length(outputs_lst) > 1) {
+		outputs = Reduce(
+			function(x,y) {
+				out = merge(
+					x, y, 
+					by = "pair_original", 
+					all = TRUE,
+					suffixes = c("", "___THROWOUT")
+				)
+				out = base::subset(
+					out,
+					select = ! grepl("___THROWOUT$", names(out))
+				)
+				return(out)
+			}, 
+			outputs_lst
+		)
+	  }
 
       # outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
       outputs = merge(sample_metadata, outputs, by = "pair_original", all = TRUE)
@@ -582,7 +601,7 @@ nf_path_patterns <- list(
   alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
   insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
   wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics",
-  msisensor_pro = "msisensorpro/.*/.*msisensor_pro_results.tsv", ## TODO FILL ME
+  msisensorpro = c("msisensorpro/(?!.*(_dis|_germline|_somatic|_scan.list))", "msisensorpro/.*/.*msisensor_pro_results.tsv"), ## TODO FILL ME
   oncokb_snv = "oncokb/.*/merged_oncokb.maf",
   oncokb_cna = "oncokb/.*/merged_oncokb_cna.tsv",
   oncokb_fusions = "oncokb/.*/merged_oncokb_fusions.tsv"
@@ -772,7 +791,7 @@ parse_pipeline_paths <- function(
         # FIXME: hack for snpeff and other paths that have "snpeff/somatic/PAIR-lane_X/..." directory structure
         # Seems not to be localized to just snpeff
         # balanced_jabba_gg, cbs, jabba_gg, somatic_variant_annotations, events, allelic_jabba_gg
-          pair_paths <- grep(paste0("/", pair, "(-lane_.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+          pair_paths <- grep(paste0("/", pair, "(-lane_.*)?", "/?"), present_paths, value = TRUE, perl = TRUE)
           pair_paths = pair_paths[which.max(file.mtime(pair_paths))]
         # if (col_name %in% c("somatic_variant_annotations", "jabba_gg")) {
         #   pair_paths <- grep(paste0("/", pair, "(-lane.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
@@ -796,8 +815,13 @@ parse_pipeline_paths <- function(
           by = "pair",
           all.x = TRUE,
           all.y = FALSE, # Only keep pairs that were in initial_dt
-          allow.cartesian = FALSE
+          allow.cartesian = FALSE,
+		  suffixes = c("", "___THROWOUT")
         )
+		# initial_dt = base::subset(
+		# 	initial_dt,
+		# 	select = !grepl("___THROWOUT$", names(initial_dt))
+		# )
         break
       }
     }
