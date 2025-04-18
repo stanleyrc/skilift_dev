@@ -7,5 +7,5 @@
 process_jabba(jabba)
 }
 \description{
-Frickin function to help people who keep uploading the wrong jabba ggraph files
+Function to flexibly read in jabba files whether providing raw jabba list or ggraph
 }
