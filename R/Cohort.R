@@ -1332,7 +1332,7 @@ test_path = function(
 
 #' Read jabba
 #' 
-#' Frickin function to help people who keep uploading the wrong jabba ggraph files
+#' Function to flexibly read in jabba files whether providing raw jabba list or ggraph
 #' 
 #' @export
 process_jabba = function(jabba) {
