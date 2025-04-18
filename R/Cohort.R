@@ -1289,6 +1289,7 @@ test_path = function(
   vcf_regex = ".vcf(.bgz|.gz){0,}$",
   verbose = TRUE
 ) {
+  is_null = is.null(object)
   is_character = is.character(object)
   is_len_one = NROW(object) == 1
   is_not_valid = is_character && ! NROW(object) == 1
@@ -1300,6 +1301,7 @@ test_path = function(
   is_bcf = is_possible_path && grepl(bcf_regex, object)
   is_gff = is_possible_path && grepl(gff_regex, object)
   logicals = as.list(data.frame(
+      is_null,
       is_character,
       is_len_one,
       is_not_valid,
