@@ -58,7 +58,7 @@ get_segstats <- function(
     # mcols(cov)[[coverage_field]] = as.numeric(signal * (cov_sw / signal_mutl))
 
   if (is.character(balanced_jabba_gg)) {
-    balanced_jabba_gg = readRDS(balanced_jabba_gg)
+    balanced_jabba_gg = process_jabba(balanced_jabba_gg)
   }
   balanced_gg_gr <- balanced_jabba_gg$nodes$gr
     segstats <- JaBbA:::segstats(
@@ -134,7 +134,7 @@ lift_segment_width_distribution <- function(
                 }
 
                 # Read the gGraph
-                ggraph <- readRDS(row$balanced_jabba_gg)
+                ggraph <- process_jabba(row$balanced_jabba_gg)
                 if (!any(class(ggraph) == "gGraph")) {
                     print(sprintf("File is not a gGraph for %s: %s", row$pair, row$balanced_jabba_gg))
                     return(NULL)
@@ -567,7 +567,7 @@ lift_coverage_jabba_cn <- function(
                 }
 
                 # Read the gGraph and coverage
-                ggraph <- readRDS(row$jabba_gg)
+                ggraph <- process_jabba(row$jabba_gg)
                 cov <- readRDS(row$tumor_coverage)
 
                 if (!any(class(ggraph) == "gGraph")) {
@@ -921,7 +921,7 @@ create_pp_plot <- function(jabba_gg = NA,
             if (is.na(jabba_gg) || !file.exists(jabba_gg)) {
                 stop("jabba_gg does not exist and no purity and ploidy provided")
             } else {
-                jab <- readRDS(jabba_gg)
+                jab <- process_jabba(jabba_gg)
                 if (is.null(jab$meta$purity) & is.null(jab$purity)) {
                     stop("jabba_gg does not have purity and ploidy values")
                 } else {
@@ -1182,7 +1182,7 @@ pp_plot = function(jabba_rds = NULL,
     return (agt.gr)
   }
   
-  jab = readRDS(jabba_rds)
+  jab = process_jabba(jabba_rds)
   purity <- if (!is.null(jab$purity)) jab$purity else jab$meta$purity
   ploidy <- if (!is.null(jab$ploidy)) jab$ploidy else jab$meta$ploidy
   segstats <- if(!is.null(jab$segstats)) jab$segstats else jab$gr

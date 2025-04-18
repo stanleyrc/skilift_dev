@@ -128,7 +128,7 @@ add_sex_information <- function(
     
     # Infer from jabba_gg if available
     if (!is.null(jabba_gg)) {
-        gg <- readRDS(jabba_gg)
+        gg <- process_jabba(jabba_gg)
         ncn.x <- gg$nodes$dt[
             (seqnames == "X" | seqnames == "chrX"),
             weighted.mean(cn, w = end - start + 1, na.rm = TRUE)
@@ -534,7 +534,7 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
         return(metadata)
     }
     
-    gg <- readRDS(jabba_gg)
+    gg <- process_jabba(jabba_gg)
     
     # Count junctions
     if (nrow(gg$junctions$dt) > 0) {
@@ -569,7 +569,7 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
         return(metadata)
     }
     
-    gg <- readRDS(jabba_gg)
+    gg <- process_jabba(jabba_gg)
 
     purity = base::get("purity", gg$meta) # Errors out if not found
     ploidy = base::get("ploidy", gg$meta) # Errors out if not found
@@ -646,7 +646,7 @@ add_loh <- function(
         return(metadata)
     }
     
-    gg <- readRDS(jabba_gg)
+    gg <- process_jabba(jabba_gg)
     nodes.dt <- gg$nodes$dt
     nodes.dt[, seqnames := gsub("chr", "", seqnames)]
     nodes.dt <- nodes.dt[seqnames %in% seqnames_loh]
@@ -693,7 +693,7 @@ add_genome_length <- function(
         return(metadata)
     }
     
-    gg <- readRDS(jabba_gg)
+    gg <- process_jabba(jabba_gg)
     nodes.gr <- gg$nodes$gr
     seqlengths.dt <- suppressWarnings(
         as.data.table(
@@ -721,7 +721,7 @@ add_genome_length <- function(
 add_sv_types <- function(metadata, jabba_gg = NULL, complex = NULL) {
     sv_like_types_count <- NULL
     if (!is.null(jabba_gg)) {
-        gg <- readRDS(jabba_gg)
+        gg <- process_jabba(jabba_gg)
         if (!is.null(gg$edges$dt) && nrow(gg$edges$dt) > 0) {
             sv_like_types_count <- table(gg$edges$dt[type == "ALT" & class != "REF"]$class)
             metadata$sv_types_count <- list(list(list(sv_like_types_count)))
@@ -734,7 +734,7 @@ add_sv_types <- function(metadata, jabba_gg = NULL, complex = NULL) {
     
     sv_types_count <- NULL
     if (!is.null(complex)) {
-        complex_data <- readRDS(complex)
+        complex_data <- process_jabba(complex)
         if (!is.null(complex_data$meta$events$type)) {
             sv_types_count <- table(complex_data$meta$events$type)
             
