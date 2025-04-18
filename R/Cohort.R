@@ -772,7 +772,8 @@ parse_pipeline_paths <- function(
         # FIXME: hack for snpeff and other paths that have "snpeff/somatic/PAIR-lane_X/..." directory structure
         # Seems not to be localized to just snpeff
         # balanced_jabba_gg, cbs, jabba_gg, somatic_variant_annotations, events, allelic_jabba_gg
-        pair_paths <- grep(paste0("/", pair, "(-lane_.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+          pair_paths <- grep(paste0("/", pair, "(-lane_.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
+          pair_paths = pair_paths[which.max(file.mtime(pair_paths))]
         # if (col_name %in% c("somatic_variant_annotations", "jabba_gg")) {
         #   pair_paths <- grep(paste0("/", pair, "(-lane.*)?", "/"), present_paths, value = TRUE, perl = TRUE)
         # } else {
