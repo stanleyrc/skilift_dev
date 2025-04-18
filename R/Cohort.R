@@ -1322,14 +1322,6 @@ test_path = function(
   }
   list2env(logicals, envir = parent.frame())
   return(logicals)
-  
-  # FUN = function() {stop(gettextf("%s not a valid path", sQuote(object)), domain = NA)}
-  # if (is_existent_path && is_rds) {
-  #   FUN = readRDS
-  # }
-  # if (is_existent_path && is_vcf) {
-  #   FUN = 
-  # }
 }
 
 #' Read jabba
