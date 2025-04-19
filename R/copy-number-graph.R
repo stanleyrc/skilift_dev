@@ -60,6 +60,22 @@ lift_copy_number_graph <- function(
             if (!is.null(ggraph_path) && file.exists(ggraph_path)) {
                 message(sprintf("Reading gGraph for %s", row$pair))
                 ggraph <- process_jabba(ggraph_path)
+
+				if (is_allelic) {
+					allele_var = base::get0(
+						"allele",
+						as.environment(as.list(ggraph$nodes$dt)),
+						ifnotfound = rep_len(NA_character_, NROW(ggraph))
+					)
+
+					allele_col = ifelse(
+						allele_var == "major",
+						"#FF000080",
+						ifelse(allele_var == "minor", "#0000FF80", NA_character_)
+					)
+
+					ggraph$nodes$mark(col = allele_col)
+				}
                 
                 if (!any(class(ggraph) == "gGraph")) {
                     warning(sprintf("Input for %s is not a gGraph object", row$pair))
