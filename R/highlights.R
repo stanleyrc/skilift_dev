@@ -274,7 +274,6 @@ create_summary = function(
   altered_copies_threshold = 0.9
 ) {
 
-
   small_muts = events_tbl[events_tbl$vartype == "SNV",]
   criterias = list(
     is_tier2_or_better = small_muts$Tier <= 2
@@ -329,7 +328,8 @@ create_summary = function(
   ) {
     svs_parsed = (
       base::subset(svs, is_svs_relevant)[, .(gene, type)]
-      [, paste(type, ": ", paste(gene, collapse = ","), sep = "")]
+        [, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]
+        $V1
     )
   }
   
