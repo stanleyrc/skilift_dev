@@ -418,8 +418,7 @@ nf_path_patterns <- list(
 #' @export
 default_col_mapping <- list(
   pair = c("pair", "patient_id", "pair_id", "sample"),
-  status = c("status"),
-  tumor_type = c("tumor_type"),
+  tumor_type = c("tumor_type", "status"),
   disease = c("disease"),
   primary_site = c("primary_site"),
   inferred_sex = c("inferred_sex"),
@@ -471,7 +470,7 @@ default_col_mapping <- list(
   denoised_coverage_apply_mask = structure(c("denoised_coverage_apply_mask"), default = TRUE),
   denoised_coverage_field = structure(c("denoised_coverage_field"), default = "foreground"),
   denoised_coverage_color_field = structure(c("denoised_coverage_color_field"), default = NULL),
-  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = NA_integer_),
+  denoised_coverage_bin_width = structure(c("denoised_coverage_bin_width"), default = 1e3L), ## More headaches with testing setting to NA than worth changing
   hetsnps_field = structure(c("hetsnps_field"), default = "count"),
   hetsnps_color_field = structure(c("hetsnps_color_field"), default = "col"),
   hetsnps_bin_width = structure(c("hetsnps_bin_width"), default = NA),
@@ -785,18 +784,56 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
   } else {
     stop("Cohort object or inputs data.table must be provided")
   }
-	is_status_in_cohort = !is.null(inputs$status)
-	is_nextflow_results_path_present = !is.null(nextflow_results_path)
-	is_tumor_bam_in_cohort = !is.null(inputs$tumor_bam)
-	is_normal_bam_in_cohort = !is.null(inputs$normal_bam)
 
-	is_unpaired = is_status_in_cohort && is_nextflow_results_path_present
-	is_paired = is_tumor_bam_in_cohort && is_normal_bam_in_cohort
+  default_tumor_type_cols = Skilift::default_col_mapping[["tumor_type"]]
+
+  tumor_type_vec = character(NROW(inputs))
+  is_tumor_type_found = FALSE
+  for (i in seq_along(default_tumor_type_cols)) {
+    tumor_type_col = default_tumor_type_cols[i]
+    tumor_type_vals = inputs[[tumor_type_col]]
+    is_character = is.character(tumor_type_vals)
+    is_numeric = is.integer(tumor_type_vals) || is.numeric(tumor_type_vals)
+    is_0or1 = is_numeric && all(tumor_type_vals %in% c(0, 1))  
+    if (is_character) {
+      tumor_type_vec[
+        grepl("tumor", tumor_type_vals, ignore.case = TRUE)
+      ] = "tumor"
+      tumor_type_vec[
+        grepl("normal", tumor_type_vals, ignore.case = TRUE)
+      ] = "normal"
+    } else if (is_0or1) {
+      tumor_type_vec[
+        tumor_type_vals == tumor_status
+      ] = "tumor"
+      tumor_type_vec[
+        tumor_type_vals == normal_status
+      ] = "normal"
+    }
+    if (all(tumor_type_vec %in% c("tumor", "normal"))) is_tumor_type_found = TRUE
+    if (is_tumor_type_found) {
+      break
+    }
+  }
+
+  # if (!is_tumor_type_found) stop("Tumor type was not found!")
+  inputs$tumor_type = tumor_type_vec
+
+	# is_status_in_cohort = !is.null(inputs$status)
+
+	is_nextflow_results_path_present = !is.null(nextflow_results_path)
+	# is_tumor_bam_in_cohort = !is.null(inputs$tumor_bam)
+	# is_normal_bam_in_cohort = !is.null(inputs$normal_bam)
+
+	# is_unpaired = is_status_in_cohort && is_nextflow_results_path_present
+	# is_paired = is_tumor_bam_in_cohort && is_normal_bam_in_cohort
+
+  is_unpaired = is_tumor_type_found ## TODO: test if this is sufficient.
 
   tumor_normal_columns = tumor_normal_columns[tumor_normal_columns %in% names(inputs)]
 
 	if (is_unpaired && NROW(tumor_normal_columns) > 0) {
-		inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
+		# inputs$tumor_type = ifelse(inputs$status == tumor_status, "tumor", "normal")
 		return_inputs = Skilift::dcastski(
 			inputs,
 			id_columns = "pair",
@@ -812,7 +849,9 @@ pairify_cohort_inputs = function(cohort, tumor_status = 1L, normal_status = 0L, 
 
 #' Cast table
 #' 
-#' Using base R for robustness
+#' Cast using base R.
+#' 
+#' Using base R for robustness and flexibility.
 #' 
 #' @export
 dcastski = function(
@@ -839,7 +878,13 @@ dcastski = function(
     columns_to_process = c(columns_to_process, remaining_cols)
   }
   columns_to_process = c(columns_to_process, cast_columns)
-  skeleton = unique(base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols)))
+  ## A very unfortunate circumstance.
+  ## Have to use unique.data.frame due to lists present in cohort inputs
+  ## The data.frame base R method is slow, but works on list elements in columns.
+  ## If tbl is a data.table, skeleton will remain a data.table
+  skeleton = unique.data.frame(
+    base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols))
+  )
   reduced_tbl = base::subset(tbl, select = columns_to_process)
   reduced_tbl$types = reduced_tbl[[type_columns[1]]]
   types = unique(reduced_tbl$types)
@@ -871,21 +916,120 @@ dcastski = function(
 }
 
 
+#' Melt table
+#' 
+#' Melt using base R.
+#' 
+#' Using base R for robustness and flexibility, not speed necessarily.
+#' Since this will be used primarily for sample/pairs table manipulation.
+#' 
+#' @export
+meltski = function(
+    tbl,
+    id.vars,
+    measure.vars,
+    is_measure_regex = FALSE,
+    var.name = "variable",
+    value.name = "value",
+    group_regex = "",
+    group_select = "\\1",
+    replacement_regex = "",
+    replacement = "",
+    drop = FALSE,
+    keep_first_variable_col = FALSE
+) {
+  if (missing(id.vars)) {
+    id.vars = names(tbl)
+    id.vars = id.vars[!id.vars %in% measure.vars]
+  }
+  skel = NULL
+  all_names = names(tbl)
+  collected_var_names = character(0)
+  if (is_measure_regex) {
+    message("!!WARNING!!: Regex using measure.vars does not guarantee ordered outputs.")
+    message("!!WARNING!!: You must ensure that input columns are ordered with respect to the regex that you provide")
+    message("!!WARNING!!: Otherwise, you should check that your output value columns are not mixed.")
+    message("!!WARNING!!: Attempting to help by sorting column names first.")
+    all_names = sort(all_names)
+  }
+  for (var_i in seq_along(measure.vars)) {
+    var = measure.vars[var_i]
+    if (is_measure_regex) var = grep(var, all_names, value = TRUE)
+    if (is.list(var)) var = unlist(var)
+    tbl_to_rbind = base::subset(tbl, select = c(id.vars, var))
+    if (drop) {
+      is_any_na = base::complete.cases(
+        base::subset(tbl_to_rbind, select = var)
+      )
+      tbl_to_rbind = base::subset(tbl_to_rbind, is_any_na)
+    }
+    nm = names(tbl_to_rbind)
+    for (i in seq_along(var)) {
+      len_value_name = NROW(value.name)
+      if (!(len_value_name > 1 && len_value_name == length(var))) {
+        value_col_name = paste(value.name, "_", i, sep = "")
+      } else {
+        value_col_name = value.name[i]
+      }
+      nm[nm %in% var[i]] = value_col_name
+    }
+    names(tbl_to_rbind) = nm
+    for (i in seq_along(var)) {
+      var.col = paste(var.name, "_", i, sep = "")
+      tbl_to_rbind[[var.col]] = var[i]
+      collected_var_names = c(collected_var_names, var.col)
+    }    
+    skel = rbind(skel, tbl_to_rbind)
+  }
+  collected_var_names = unique(collected_var_names)
+  if (nzchar(group_regex)) {
+    for (variable in collected_var_names) {
+      skel[[variable]] = gsub(group_regex, group_select, skel[[variable]])
+    }
+  }
+  if (nzchar(replacement_regex)) {
+    for (variable in collected_var_names) {
+      skel[[variable]] = gsub(replacement_regex, replacement, skel[[variable]])
+    }    
+  }
+  remaining_var_names = collected_var_names[-1]
+  remaining_names = names(skel)[!names(skel) %in% remaining_var_names]
+  if (identical(keep_first_variable_col, TRUE) && NROW(remaining_names) > 0) {
+    skel = base::subset(skel, select = remaining_names)
+    names(skel)[names(skel) == collected_var_names[1]] = gsub("_[0-9]+$", "", collected_var_names[1])
+  }
+  return(skel)
+}
+
+
 #' Merge Cohort objects
 #'
 #' Combines two or more Cohort objects into a single Cohort
 #'
-#' @param ... Two or more Cohort objects to merge
+#' @param x Cohort object to merge
+#' @param y Cohort object to merge
+#' @param ... Arbitrary remaining Cohort objects to merge
 #' @param warn_duplicates Logical indicating whether to warn about duplicate pairs (default TRUE)
 #' @param rename_duplicates Logical indicating whether to rename duplicate pairs instead of overwriting (default FALSE)
 #' @return A new Cohort object containing all data from input Cohorts
 #' @export
-merge.Cohort <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
-  cohorts <- list(...)
+merge.Cohort <- function(x, y, ..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
+  cohorts_dots <- list(...)
+  is_x_missing = missing(x)
+  is_y_missing = missing(y)
+  is_x_or_y_missing = is_x_missing || is_y_missing
+  number_cohorts_dots = NROW(cohorts_dots)
+  length_cohorts = sum(as.integer(!is_x_missing), as.integer(!is_y_missing), number_cohorts_dots)
   # Validate inputs are all Cohorts
-  if (length(cohorts) < 2) {
+  if (length_cohorts < 2) {
     stop("At least two Cohort objects must be provided")
   }
+  if (is_x_or_y_missing) {
+    if (is_x_missing) print("x argument not provided!")
+    if (is_y_missing) print("y argument not provided!")
+    stop("Both x and y must be provided as Cohort objects")
+  }
+  cohorts = c(list(x), list(y), cohorts_dots)
   for (cohort in cohorts) {
     if (!inherits(cohort, "Cohort")) {
       stop("All arguments must be Cohort objects")
@@ -926,7 +1070,13 @@ merge.Cohort <- function(..., warn_duplicates = TRUE, rename_duplicates = FALSE)
     }
 
     # Merge inputs data.tables
-    merged_dt <- merge(merged_dt, cohorts[[i]]$inputs, by="pair")
+    merged_dt <- merge(
+      merged_dt, 
+      current_dt,
+      by="pair", 
+      all.x = TRUE, ## Need these two on to do outer join, which seems to be expected behavior
+      all.y = TRUE
+    )
   }
 
   # Create new Cohort with merged data
