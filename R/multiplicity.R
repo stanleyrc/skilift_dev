@@ -79,7 +79,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   )
   
   mutations.dt <- gr2dt(mutations.gr)
-  if (!is.null(oncokb_snv)) {
+  if (!is.null(oncokb_snv) && !is.na(oncokb_snv)) {
     message("oncokb_snv provided, processing input")
     is_path_character = is.character(oncokb_snv)
     is_length_one = NROW(oncokb_snv) == 1
@@ -166,6 +166,12 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
       )
     )
 
+    # Converting Gene annotation Hugo_Symbol
+    # Meaning don't use ENSG* ids.
+    names(annotation_fields)[
+      names(annotation_fields) == "Gene"
+    ] = "Hugo_Symbol"
+
     # Converting to the OncoKB HGVSc and p variants.
     # for internal consistency
     names(annotation_fields)[
@@ -191,7 +197,6 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   }
 
   mutations.dt[, annotation := mut_ann]
-
   return(mutations.dt)
 }
 

@@ -107,6 +107,7 @@ lift_all <- function(
     cores = 1,
     genome_length = NULL,
     width = 10000,
+    gencode = Skilift::get_default_gencode(),
     ...) {
   
   list2env(list(...), envir = environment())
@@ -141,6 +142,7 @@ lift_all <- function(
       cores = cores,
       genome_length = genome_length,
       width = width,
+      gencode = gencode,
       ... = ...
     )
   } else if (cohort$type == "heme") {
@@ -151,6 +153,7 @@ lift_all <- function(
       cores = cores,
       genome_length = genome_length,
       width = width,
+      gencode = gencode,
       ... = ...
     )
   } else if (cohort$type == "tumor_only") {
@@ -161,6 +164,7 @@ lift_all <- function(
       cores = cores,
       genome_length = genome_length,
       width = width,
+      gencode = gencode,
       ... = ...
     )
   }
@@ -223,17 +227,12 @@ lift_mvp <- function(
     )
   }
 
-  if (has_required_columns(cohort, required_columns$filtered_events)) {
-    lift_filtered_events(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  } else if (has_required_columns(cohort, required_columns$oncotable, any = TRUE) && 'jabba_gg' %in% names(cohort$inputs)) {
+  if (has_required_columns(cohort, required_columns$oncotable, any = TRUE) && 'jabba_gg' %in% names(cohort$inputs)) {
     cohort <- create_oncotable(
       cohort = cohort,
       outdir = oncotable_dir,
-      cores = cores
+      cores = cores,
+      gencode = gencode
     )
 
     lift_filtered_events(
@@ -241,7 +240,13 @@ lift_mvp <- function(
       output_data_dir = output_data_dir,
       cores = cores
     )
-  }
+  } else if (has_required_columns(cohort, required_columns$filtered_events)) {
+    lift_filtered_events(
+      cohort = cohort,
+      output_data_dir = output_data_dir,
+      cores = cores
+    )
+  } 
 
   if (has_required_columns(cohort, required_columns$signatures)) {
     lift_signatures(
