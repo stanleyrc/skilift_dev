@@ -361,7 +361,6 @@ lift_multiplicity_fits <- function(cohort,
 #         hist <- readRDS(hist) %>% gr2dt()
 #     }
 
-#     browser()
 
 #     integer_lines <- seq(floor(min(hist$cn)),
 #                 ceiling(max(hist$cn)), by = 1)

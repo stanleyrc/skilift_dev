@@ -1335,6 +1335,7 @@ create_oncotable <- function(
   return(updated_cohort)
 }
 
+  
 
 #' @name create_filtered_events
 #' @title create_filtered_events
@@ -1574,7 +1575,7 @@ create_filtered_events <- function(
     ## FIXME: Decide whether to either propagate return_table to lift_mvp in lift_heme somehow, or change this
     ## conditional logic to be based on cohort_type. Can also be left alone.
     ## Note that return_table for debugging purposes as well.
-    if (return_table || identical(cohort_type, "heme")) {
+    if (return_table) {
       return(res.final)
     }
   }
@@ -1592,7 +1593,7 @@ create_filtered_events <- function(
 #' @param cores Number of cores for parallel processing (default: 1)
 #' @return None
 #' @export
-lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_table = FALSE) {
+lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_table = TRUE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1609,8 +1610,16 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     }
     
     cohort_type = cohort$type
+	
+	# Create a copy of the cohort to modify
+
+	# Add oncotable column if it doesn't exist
+	if (!"string_summary" %in% names(cohort$inputs)) {
+		cohort$inputs[, string_summary := ""]
+	}
+
     # Process each sample in parallel
-    lst_outs = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+    results = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
@@ -1622,6 +1631,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         highlights_out_file <- file.path(pair_dir, "highlights.json")
 
         out = NULL
+		string_output = ""
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
             out <- create_filtered_events(
@@ -1639,14 +1649,32 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 out_file = highlights_out_file
               )
             }
+			string_summary = create_summary(
+				events_tbl = out
+			)
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
             NULL
         })
-        return(out)
+
+        # return(out)
+		return(
+			list(
+				pair = row$pair,
+				string_summary = string_summary
+			)
+		)
     }, mc.cores = cores, mc.preschedule = TRUE)
-    
-    invisible(lst_outs)
+
+	results = results[!sapply(results, is.null)]
+
+	if (NROW(results) > 0) {
+		# Transpose the list
+		results = do.call(Map, c(f = c, results))
+		cohort$inputs[results$pair, string_summary := results$string_summary]
+	}
+
+	return(cohort)
 }
 
 #' Select Heme events from Addy's hemedb

@@ -235,13 +235,13 @@ lift_mvp <- function(
       gencode = gencode
     )
 
-    lift_filtered_events(
+    cohort <- lift_filtered_events(
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores
     )
   } else if (has_required_columns(cohort, required_columns$filtered_events)) {
-    lift_filtered_events(
+    cohort <- lift_filtered_events(
       cohort = cohort,
       output_data_dir = output_data_dir,
       cores = cores

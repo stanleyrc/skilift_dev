@@ -259,3 +259,116 @@ change_names = function(obj, old, new) {
   return(obj)
 }
 
+
+
+
+#' create_summary
+#'
+#' Create high level summary of
+#' mutations that will get passed
+#' to metadata.json.
+#' 
+#' @export
+create_summary = function(
+  events_tbl, ## filtered events R output
+  altered_copies_threshold = 0.9
+) {
+
+
+  small_muts = events_tbl[events_tbl$vartype == "SNV",]
+  criterias = list(
+    is_tier2_or_better = small_muts$Tier <= 2
+   ,
+    is_clonal = small_muts$estimated_altered_copies >= altered_copies_threshold
+  )
+  is_small_mutation_relevant = base::Reduce("&", criterias)
+  ## small_muts_parsed = data.table()
+  small_muts_parsed = ""
+  if (
+    NROW(small_muts) > 0
+    && any(
+      is_small_mutation_relevant
+    )
+  ) {
+    small_muts_out = small_muts[is_small_mutation_relevant]
+
+    small_muts_tally = (
+      base::subset(small_muts_out)[, .(gene, type)]
+      [, table(type, gene)]
+      %>% reshape2::melt()
+      %>% as.data.table()
+    )
+    small_muts_tally = small_muts_tally[value > 0]
+    small_muts_parsed = paste(
+      small_muts_tally[, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]$V1,
+      collapse = "; "
+    )
+    
+  }
+
+
+
+
+  svs = events_tbl[grepl("fusion", events_tbl$type, ignore.case = TRUE)]
+  #   svsForJson = data.table::copy(emptyDfForJson)
+  fg_exon = svs$fusion_genes ## this still works if svs is empty
+  fg_exon = gsub("@.*$", "", fg_exon)
+  fg = gsub("\\([0-9]+\\)", "", fg_exon)
+  #   any_svs_in_guidelines = length(intersect(fg, hemedb_fusions_fr$Gene)) > 0 ## accounts for merge step later
+  criterias = list(
+    is_tier2_or_better = svs$Tier <= 2
+  )
+  is_svs_relevant = Reduce("&", criterias)
+
+  svs_parsed = ""
+  if (
+    NROW(svs) > 0
+    && any(
+      is_svs_relevant
+    )
+  ) {
+    svs_parsed = (
+      base::subset(svs, is_svs_relevant)[, .(gene, type)]
+      [, paste(type, ": ", paste(gene, collapse = ","), sep = "")]
+    )
+  }
+  
+
+  cna = events_tbl[grepl("SCNA", events_tbl$type, ignore.case = TRUE),]
+  cna_parsed = ""
+  criterias = list(
+    # is_cna_in_guidelines = cna$gene %in% hemedb_guideline$GENE,
+    is_tier2_or_better = cna$Tier <= 2
+  )
+  is_cna_relevant = Reduce("&", criterias)
+  if (NROW(cna) > 0 && any(is_cna_relevant)) {
+    cna_out = cna[is_cna_relevant,]
+    cna_out$vartype = tools::toTitleCase(tolower(cna_out$vartype))
+
+
+    cna_tally = (
+      base::subset(cna_out)[, .(gene, vartype)]
+      [, table(vartype, gene)]
+      %>% reshape2::melt()
+      %>% as.data.table()
+    )
+    cna_tally = cna_tally[value > 0]
+    cna_parsed = paste(
+      cna_tally[, paste(vartype, ": ", paste(gene, collapse = ","), sep = ""), by = vartype]$V1,
+      collapse = "; "
+    )
+  }
+
+  summary_string = paste(small_muts_parsed, cna_parsed, svs_parsed, sep = "\n")
+  summary_string = trimws(summary_string)
+  summary_string = gsub("\n{2,}", "\n", summary_string)
+
+  return(summary_string)
+  
+
+}
+
+# results <- Filter(Negate(is.null), results)
+# 	for (result in results) {
+# 	updated_cohort$inputs[result$index, oncotable := result$path][]
+# 	}

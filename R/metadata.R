@@ -1112,12 +1112,13 @@ create_metadata <- function(
     seqnames_loh = c(1:22),
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
     denoised_coverage_field = "foreground",
-    is_visible = TRUE
+    is_visible = TRUE,
+	summary = NULL
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field")
+    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field", "summary")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
@@ -1168,6 +1169,8 @@ create_metadata <- function(
     if (!is_visible) {
         metadata$visible <- FALSE
     }
+
+	metadata$summary = summary
     
     return(metadata)
 }
@@ -1202,7 +1205,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         "estimate_library_complexity", "alignment_summary_metrics",
         "insert_size_metrics", "tumor_wgs_metrics", "normal_wgs_metrics",
         "het_pileups", "activities_sbs_signatures", "activities_indel_signatures",
-        "hrdetect", "onenesstwoness", "msisensorpro"
+        "hrdetect", "onenesstwoness", "msisensorpro", "string_summary"
     )
     
     # Check for required column
@@ -1261,7 +1264,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 msisensorpro = row$msisensorpro,
                 seqnames_genome_width_or_genome_length = genome_length,
                 denoised_coverage_field = row$denoised_coverage_field,
-                is_visible = row$metadata_is_visible
+                is_visible = row$metadata_is_visible,
+				summary = row$string_summary
             )
 
             if (is.null(metadata)) {

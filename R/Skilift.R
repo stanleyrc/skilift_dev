@@ -615,7 +615,6 @@ Skilift <- R6Class("Skilift",
           })
       }
 
-      #browser()
       #debug(create_plot_file)
       
       if (!any(is.null(plot$source))) {
