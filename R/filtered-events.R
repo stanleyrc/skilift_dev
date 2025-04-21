@@ -1050,7 +1050,7 @@ oncotable <- function(
 
   ## collect gene fusions
   # prefer fusions from oncokb
-  if (!is.null(oncokb_fusions) && file.exists(oncokb_fusions)) {
+  if (!is.na(oncokb_fusions) && !is.null(oncokb_fusions) && file.exists(oncokb_fusions)) {
     out <- rbind(
       out,
       collect_oncokb_fusions(oncokb_fusions, pge, cytoband, verbose),
@@ -1076,7 +1076,7 @@ oncotable <- function(
 
   ## collect copy number
   # prefer oncokb cna
-  if (!is.null(oncokb_cna) && file.exists(oncokb_cna)) {
+  if (!is.na(oncokb_cna) && !is.null(oncokb_cna) && file.exists(oncokb_cna)) {
     out <- rbind(
       out,
       collect_oncokb_cna(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh, karyograph, verbose),
@@ -1094,7 +1094,7 @@ oncotable <- function(
 
   ## collect gene mutations
   # prefer oncokb snv
-  if (!is.null(oncokb_snv) && file.exists(oncokb_snv)) {
+  if (!is.na(oncokb_snv) && !is.null(oncokb_snv) && file.exists(oncokb_snv)) {
     out <- rbind(
       out,
       collect_oncokb(oncokb_snv, multiplicity, verbose),
@@ -1351,7 +1351,7 @@ create_filtered_events <- function(
         snvs$is_unique_p = NULL
         snvs$is_unique_g = NULL
         snvs$is_unique_c = NULL
-        if (remove_variant_c) snvs$variant.c = NULL
+        if (remove_variant_c) snvs$variant.c = NA
         variant_concatenated = snvs[, paste(variant.p, "/", variant.c, sep = " ")]
         variant_concatenated = gsub(" / NA", "",
           gsub("NA / ", "",
@@ -1360,6 +1360,7 @@ create_filtered_events <- function(
           ), perl = TRUE
         )
         snvs$variant.p = variant_concatenated
+        snvs$variant.c = NULL
         rm("variant_concatenated")
         
       }

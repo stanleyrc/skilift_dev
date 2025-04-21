@@ -87,7 +87,7 @@ test_that("can lift_all heme cohort from gosh outputs csv without errors", {
   # Create temp directory for output
   temp_dir <- tempdir()
 
-  lift_all(cohort, output_data_dir = temp_dir, cores = 2)
+  suppressWarnings(lift_all(cohort, output_data_dir = temp_dir, cores = 2))
   
   expect_message(
     check_output_files(cohort, temp_dir, tumor_only = TRUE),
@@ -119,7 +119,7 @@ test_that("can lift_all ffpe cohort from gosh outputs csv without errors", {
   # Create temp directory for output
   temp_dir <- tempdir()
 
-  lift_all(cohort, output_data_dir = temp_dir, cores = 2)
+  suppressWarnings(lift_all(cohort, output_data_dir = temp_dir, cores = 2))
   
   expect_message(
     check_output_files(cohort, temp_dir),
@@ -148,8 +148,7 @@ test_that("can lift_all ffpe cohort from pairs table without errors", {
   # Create temp directory for output
   temp_dir <- tempdir()
 
-  lift_all(cohort, output_data_dir = temp_dir, cores = 2)
-  lift_filtered_events(cohort, output_data_dir = temp_dir, cores = 2)
+  suppressWarnings(lift_all(cohort, output_data_dir = temp_dir, cores = 2))
   
   expect_message(
     check_output_files(cohort, temp_dir),

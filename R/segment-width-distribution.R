@@ -331,7 +331,7 @@ lift_multiplicity_fits <- function(cohort,
             tryCatchLog(
                 {
                     if (is.null(row[[col]]) || is.na(row[[col]]) || !file.exists(row[[col]])) {
-                        stop(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
+                        stop(sprintf("Multiplicity file not found for %s: %s is %s", row$pair, col, row[[col]]))
                     }
 
                     mapply(function(out_file, field_to_use) {
