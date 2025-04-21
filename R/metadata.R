@@ -7,6 +7,10 @@ initialize_metadata_columns <- function(pair) {
     if (is.null(pair)) {
         stop("pair must be a character string")
     }
+    if (!is.character(pair) && is.integer(pair)) {
+        warning("pair is an integer, converting to character")
+        pair <- as.character(pair)
+    }
     if (!is.character(pair)) {
         stop("pair must be a character string")
     }
