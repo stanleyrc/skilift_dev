@@ -7,7 +7,7 @@
 create_oncotable(
   cohort,
   amp_thresh_multiplier = 1.5,
-  gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
+  gencode = Skilift::get_default_gencode(),
   cytoband = system.file("extdata", "data", "cytoband.rds", package = "Skilift"),
   outdir,
   cores = 1

@@ -7,16 +7,109 @@
 #' @return gencode_gr GRanges
 #' @author Marcin Imielinski
 process_gencode <- function(gencode = NULL) {
-  if (is.null(gencode)) {
-    stop("gencode file must be provided")
-  } else if (is.character(gencode)) {
-    if (grepl(".rds$", gencode)) {
-      gencode <- readRDS(gencode)
-    } else {
-      gencode <- rtracklayer::import(gencode)
-    }
+  is_null = is.null(gencode)
+  
+  if (is_null) {
+    gencode = get_default_gencode()
+    is_null = is.null(gencode)
+  }
+  
+  if (is_null) stop("No default gencode found, file must be provided")
+
+  is_character = is.character(gencode)
+  is_len_one = NROW(gencode) == 1
+  is_na = is_len_one && (is.na(gencode) || gencode %in% c("NA"))
+  is_possible_path = is_character && is_len_one && !is_na
+  is_existent_path = is_possible_path && file.exists(gencode)
+  is_rds = is_possible_path && grepl(".rds$", gencode)
+  
+  if (is_existent_path && is_rds) {
+    gencode <- readRDS(gencode)
+  } else if (is_existent_path && !is_rds) {
+    gencode <- rtracklayer::import(gencode)
+    GenomeInfoDb::seqlevelsStyle(gencode) = "NCBI"
   }
   return(gencode)
+}
+
+#' Default gencode paths
+#' 
+#' Provided as an exported variable
+#' 
+#' Providing gencode defaults as a variable exposed to user
+#' @export 
+GENCODE_DEFAULTS = list(
+  hg19 = "~/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
+  hg38 = "~/DB/GENCODE/hg38/v29/gencode.v29.annotation.nochr.rds"
+)
+
+#' Get default gencode
+#' 
+#' Function to grab default gencode
+#' 
+#' Use environment variables
+#' GENCODE_PATH
+#' DEFAULT_ASSEMBLY
+#' To get appropriate gencode and
+#' assign it to a package level variable.
+#' @export 
+get_default_gencode = function(gencode_path_defaults = Skilift::GENCODE_DEFAULTS) {
+  gencode_path_env = Sys.getenv("GENCODE_PATH")
+  gencode_dir_env = Sys.getenv("GENCODE_DIR")
+  default_assembly = tolower(Sys.getenv("DEFAULT_ASSEMBLY"))
+  is_assembly_valid = all(default_assembly %in% c("", "hg19", "hg38", "grch37", "grch38"))
+  is_assembly_provided = nzchar(default_assembly)
+  
+  if (!is_assembly_valid) {
+    stop("Assembly must be one of: hg19, hg38, GRCh37, or GRCh38")
+  }
+
+  if (!is_assembly_provided) {
+    message("No default assembly found, using GRCh37/hg19")
+    default_assembly = "hg19"
+  }
+
+  remap_assembly = list(
+    c("grch37", "hg19"),
+    c("grch38", "hg38")
+  )
+
+  for (x in remap_assembly) {
+    default_assembly[default_assembly == x[1]] = x[2]
+  }
+  
+	is_gencode_path_provided = nzchar(gencode_path_env)
+	is_gencode_path_existent = file.exists(gencode_path_env)
+
+  is_gencode_dir_provided = nzchar(gencode_dir_env)
+	is_gencode_dir_existent = dir.exists(gencode_dir_env)
+
+  gencode_paths_to_parse = gencode_path_defaults[[default_assembly]]
+
+	is_gencode_default_existent_locally = file.exists(gencode_paths_to_parse)
+	gencode_paths = gencode_paths_to_parse[is_gencode_default_existent_locally]
+	is_any_gencode_default_existent_locally = NROW(gencode_paths) > 0
+
+	output_gencode_path = NULL
+
+	if (is_gencode_path_provided && is_gencode_path_existent) {
+		output_gencode_path = gencode_path_env
+		message("GENCODE_PATH environment variable found: ", output_gencode_path)
+	} else if (is_gencode_dir_provided && is_gencode_dir_existent) {
+    output_gencode_path = file.path(gencode_dir_env, basename(gencode_paths_to_parse))
+    is_gencode_dir_path_existent = file.exists(output_gencode_path)
+    if (!is_gencode_dir_path_existent) {
+      message("GENCODE_DIR provided, but default gencode path could not be found: ", output_gencode_path)
+      output_gencode_path = NULL
+    } else {
+      message("GENCODE_DIR provided, and default path found: ", output_gencode_path)
+    }
+  } else if (is_any_gencode_default_existent_locally) {
+		output_gencode_path = gencode_paths[1]
+		message("Using gencode path as default: ", output_gencode_path)
+	}
+
+  return(output_gencode_path)
 }
 
 #' @title process_cytoband
@@ -654,16 +747,24 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
     ixA <- match(genes_matrix[, 1], pge$gene_name)
     ixB <- match(genes_matrix[, 2], pge$gene_name)
     # remove NA from ixA and ixB (needed for tests that use subset of gencode genes)
-    na.index <- which(is.na(ixA))
-    ixA <- ixA[!is.na(ixA)]
-    ixB <- ixB[!is.na(ixB)]
-    grA <- pge[ixA]
-    grB <- pge[ixB]
-    coordA <- gUtils::gr.string(grA)
-    coordB <- gUtils::gr.string(grB)
+    is_na_A = is.na(ixA)
+    is_na_B = is.na(ixB)
+    is_either_na = is_na_A | is_na_B
+    na.index <- which(is_either_na)
+    # ixA <- ixA[!is.na(ixA)]
+    # ixB <- ixB[!is.na(ixB)]
+    grA <- pge[ixA[!is_na_A]]
+    grB <- pge[ixB[!is_na_B]]
+    coordB = coordA = character(NROW(non_silent_fusions))
+    coordA[!is_na_A] <- gUtils::gr.string(grA)
+    coordB[!is_na_B] <- gUtils::gr.string(grB)
+
+    # Leaving cytoband query code in for now, because we will want to re-incorporate
+    # at a later date
     grovA <- gUtils::gr.findoverlaps(grA, cytoband, scol = "chromband")
     grovB <- gUtils::gr.findoverlaps(grB, cytoband, scol = "chromband")
 
+    
     if (length(grovA) > 0) {
       grovA <- GenomicRanges::sort(grovA) %Q% (order(query.id, ifelse(grepl("p", chromband), -1, 1) * start))
       non_silent_fusions$cytoA <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
@@ -682,15 +783,61 @@ collect_oncokb_fusions <- function(oncokb_fusions, pge, cytoband, verbose = TRUE
       non_silent_fusions$cytoB <- ""
     }
 
-    non_silent_fusions$fusion_genes <- paste0(genes_matrix[, 1], "(", non_silent_fusions$exonA, ")::", genes_matrix[, 2], "(", non_silent_fusions$exonB, ")@", non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB)
+    # non_silent_fusions$fusion_genes <- paste0(
+    #   genes_matrix[, 1], "(", non_silent_fusions$exonA, ")::", 
+    #   genes_matrix[, 2], "(", non_silent_fusions$exonB, ")@", 
+    #   non_silent_fusions$cytoA, "::", non_silent_fusions$cytoB
+    # )
+
+    non_silent_fusions$fusion_genes <- paste0(
+      genes_matrix[, 1], "::", genes_matrix[, 2]
+    )
     non_silent_fusions$fusion_gene_coords <- ifelse(!1:nrow(non_silent_fusions) %in% na.index,
       paste(coordA, coordB, sep = ","),
       NA
     )
+
+    variant.g.fus = ifelse(!1:nrow(non_silent_fusions) %in% na.index,
+      as.character(glue::glue('{coordA} ({non_silent_fusions$cytoA}), {coordB} ({non_silent_fusions$cytoB})')),
+      NA_character_
+    )
+
+    non_silent_fusions$variant.g = variant.g.fus
+
+
+    get_queries = c("exonA", "aminoA", "exonB", "aminoB")
+    query_variables = base::mget(
+      get_queries,
+      as.environment(as.list(non_silent_fusions)),
+      ifnotfound = rep_len(
+        list(rep_len(NA_character_, NROW(non_silent_fusions))),
+        NROW(get_queries)
+      )
+    )
+    exonA_label = glue::glue('Exon {query_variables$exonA}')
+    aminoA_label = ifelse(is.na(query_variables$aminoA), "", glue::glue(' (p.{query_variables$aminoA})'))
+    exonB_label = glue::glue('Exon {query_variables$exonB}')
+    aminoB_label = ifelse(is.na(query_variables$aminoB), "", glue::glue(' (p.{query_variables$aminoB})'))
+
+    variant.p.parsed = as.character(
+      glue::glue(
+        '{exonA_label}',
+        '{aminoA_label}', # Note space is encoded by aminoA_label
+        '::',
+        '{exonB_label}',
+        '{aminoB_label}' # Note space is encoded by aminoB_label
+      )
+    )
+    variant.p.parsed = trimws(variant.p.parsed)
+    variant.p.parsed = gsub("[[:space:]]{2,}", "", variant.p.parsed, perl = TRUE)
+
+    non_silent_fusions$variant.p = variant.p.parsed
     out <- non_silent_fusions[, .(
       gene = Hugo_Symbol,
       gene_summary = GENE_SUMMARY,
       role = Role,
+      variant.g,
+      variant.p,
       value = min_cn,
       vartype,
       type = "fusion",
@@ -903,7 +1050,7 @@ oncotable <- function(
 
   ## collect gene fusions
   # prefer fusions from oncokb
-  if (!is.null(oncokb_fusions) && file.exists(oncokb_fusions)) {
+  if (!is.na(oncokb_fusions) && !is.null(oncokb_fusions) && file.exists(oncokb_fusions)) {
     out <- rbind(
       out,
       collect_oncokb_fusions(oncokb_fusions, pge, cytoband, verbose),
@@ -929,7 +1076,7 @@ oncotable <- function(
 
   ## collect copy number
   # prefer oncokb cna
-  if (!is.null(oncokb_cna) && file.exists(oncokb_cna)) {
+  if (!is.na(oncokb_cna) && !is.null(oncokb_cna) && file.exists(oncokb_cna)) {
     out <- rbind(
       out,
       collect_oncokb_cna(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh, karyograph, verbose),
@@ -947,7 +1094,7 @@ oncotable <- function(
 
   ## collect gene mutations
   # prefer oncokb snv
-  if (!is.null(oncokb_snv) && file.exists(oncokb_snv)) {
+  if (!is.na(oncokb_snv) && !is.null(oncokb_snv) && file.exists(oncokb_snv)) {
     out <- rbind(
       out,
       collect_oncokb(oncokb_snv, multiplicity, verbose),
@@ -1006,7 +1153,7 @@ oncotable <- function(
 create_oncotable <- function(
     cohort,
     amp_thresh_multiplier = 1.5,
-    gencode = "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds",
+    gencode = Skilift::get_default_gencode(),
     cytoband = system.file("extdata", "data", "cytoband.rds", package = "Skilift"),
     outdir,
     cores = 1) {
@@ -1204,7 +1351,7 @@ create_filtered_events <- function(
         snvs$is_unique_p = NULL
         snvs$is_unique_g = NULL
         snvs$is_unique_c = NULL
-        if (remove_variant_c) snvs$variant.c = NULL
+        if (remove_variant_c) snvs$variant.c = NA
         variant_concatenated = snvs[, paste(variant.p, "/", variant.c, sep = " ")]
         variant_concatenated = gsub(" / NA", "",
           gsub("NA / ", "",
@@ -1213,6 +1360,7 @@ create_filtered_events <- function(
           ), perl = TRUE
         )
         snvs$variant.p = variant_concatenated
+        snvs$variant.c = NULL
         rm("variant_concatenated")
         
       }
@@ -1281,7 +1429,16 @@ create_filtered_events <- function(
       res.fus$gene = res.fus$fusion_genes
       is_inframe = res.fus$vartype == "fusion"
       is_outframe = res.fus$vartype == "outframe_fusion"
-      res.fus$Variant = ifelse(
+      ## If variant.p isn't found
+      ## i.e. OncoKB isn't updated
+      ## then only in frame or out of frame
+      ## will be labeled
+      variant.p.fus = base::get0(
+        "Variant",
+        as.environment(as.list(res.fus)),
+        ifnotfound = rep_len("", NROW(res.fus))
+      )
+      fus_frame_label = ifelse(
         is_inframe,
         "In-Frame Fusion",
         ifelse(
@@ -1290,6 +1447,14 @@ create_filtered_events <- function(
           NA_character_
         )
       )
+      if (any(is.na(fus_frame_label))) stop("A fusion was not labeled as in-frame or out-of-frame")
+      variant_label = paste(
+          fus_frame_label,
+          variant.p.fus
+      )
+      variant_label = trimws(variant_label)
+      variant_label = gsub("[[:space:]]{2,}", "", variant_label)
+      res.fus$Variant = variant_label
 
       res.fus$estimated_altered_copies = res.fus$fusion_cn
 

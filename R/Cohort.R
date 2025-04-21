@@ -66,10 +66,15 @@ Cohort <- R6Class("Cohort",
 
       self$cohort_cols_to_x_cols <- default_col_mapping
 
-
       if (is.character(x) && length(x) == 1) {
-        self$inputs <- private$construct_from_path(x)[]
-        self$nextflow_results_path <- x
+        if (grepl("\\.csv$", x)) {
+          self$inputs <- private$construct_from_datatable(data.table(read.csv(x)))[]
+        } else {
+          self$inputs <- private$construct_from_path(x)[]
+          self$nextflow_results_path <- x
+          warning("Cohort initialized from path: ", x, "\n",
+            "This is deprecated! You should use the gosh-cli to generate an outputs.csv file and then read it in using Cohort$new(path = 'outputs.csv')",)
+        }
       } else if (is.data.table(x)) {
         self$inputs <- private$construct_from_datatable(x)[]
       } else {
@@ -161,6 +166,36 @@ Cohort <- R6Class("Cohort",
 
       # Get sample metadata first - this contains our patient IDs
       sample_metadata <- private$get_pipeline_samples_metadata(pipeline_outdir)
+      sample_metadata$pair_original = sample_metadata$pair
+
+      is_castable = (
+          all(!is.na(sample_metadata$sample_type))
+      )
+      is_paired = is_castable && all(c("normal", "tumor") %in% sample_metadata$sample_type)
+
+
+      id_to_parse = "pair"
+      if (is_castable) {
+          sample_metadata = Skilift::dcastski(sample_metadata, id_columns = c("pair", "tumor_type", "disease", "primary_site", "inferred_sex", "pair_original"), type_columns = "sample_type", cast_columns = c("sample", "bam"), sep = "_")
+      }
+
+      if (is_paired) {
+          sample_metadata$realpair = paste(sample_metadata$tumor_sample, "_vs_", sample_metadata$normal_sample, sep = "")
+          id_to_parse = c("realpair", "tumor_sample", "normal_sample")
+      }
+
+      is_null_tumor_bam = is.null(sample_metadata$tumor_bam)
+      is_all_na_tumor_bam = !is_null_tumor_bam && all(is.na(sample_metadata$tumor_bam))
+      is_null_normal_bam = is.null(sample_metadata$normal_bam)
+      is_all_na_normal_bam = !is_null_normal_bam && all(is.na(sample_metadata$normal_bam))
+      if (is_all_na_tumor_bam) {
+          sample_metadata$tumor_bam = NULL
+      }
+      if (is_all_na_normal_bam) {
+          sample_metadata$normal_bam = NULL
+      }
+      
+      
 
       if (is.null(sample_metadata)) {
         stop("Could not get sample metadata - this is required for patient IDs")
@@ -183,12 +218,36 @@ Cohort <- R6Class("Cohort",
       # Get all file paths recursively
       pipeline_output_paths <- list.files(pipeline_outdir, recursive = TRUE, full.names = TRUE)
 
+      outputs_lst = mclapply(id_to_parse, function(id_name) {
+          sample_metadata$pair = sample_metadata[[id_name]]
+          parse_pipeline_paths(
+              pipeline_output_paths,
+              initial_dt = sample_metadata,
+              path_patterns = self$path_patterns,
+              id_name = id_name
+          )
+      }, mc.cores = length(id_to_parse))
 
-      outputs <- parse_pipeline_paths(
-        pipeline_output_paths,
-        initial_dt = sample_metadata,
-        path_patterns = self$path_patterns
-      )
+      nm = names(sample_metadata)
+
+      remove_cols = nm[!nm %in% c("pair_original")]
+
+      for (i in seq_len(NROW(outputs_lst))) {
+          nm_outputs = names(outputs_lst[[i]])
+          outputs_lst[[i]] = base::subset(outputs_lst[[i]], select = !nm_outputs %in% remove_cols)
+      }
+
+      outputs = outputs_lst[[1]]
+      if (length(outputs_lst) > 1) outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
+
+      # outputs = Reduce(function(x,y) merge(x,y, by = "pair_original", all = TRUE), outputs_lst)
+      outputs = merge(sample_metadata, outputs, by = "pair_original", all = TRUE)
+
+      ## outputs <- parse_pipeline_paths(
+      ##     pipeline_output_paths,
+      ##     initial_dt = sample_metadata,
+      ##     path_patterns = self$path_patterns
+      ## )
 
       if (nrow(outputs) == 0) {
         warning("No data could be extracted from pipeline directory")
@@ -198,15 +257,45 @@ Cohort <- R6Class("Cohort",
     },
     get_pipeline_samples_metadata = function(pipeline_outdir) {
       report_path <- file.path(pipeline_outdir, "pipeline_info/pipeline_report.txt")
+      launch_dir = character(0)
+      samplesheet_path = character(0)
       if (!file.exists(report_path)) {
-        warning("Pipeline report not found: ", report_path)
-        return(NULL)
+        message("Pipeline report not found: ", report_path)
+        message("Attempting to read from nextflow logs")
+        nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow.*\\.log.*", all.files = TRUE, full.names = TRUE)
+        if (NROW(nflogs) == 0) {
+          pipeline_outdir_upone = dirname(normalizePath(pipeline_outdir))
+          nflogs = list.files(
+            pipeline_outdir_upone, 
+            pattern = "\\.nextflow.*\\.log.*", 
+            all.files = TRUE, 
+            full.names = TRUE
+          )
+        }
+        parsed_meta = lapply(nflogs, private$read_nf_log)
+        parsed_meta = do.call(Map, c(f = c, parsed_meta))
+        launch_dir = unique(parsed_meta$launchdir)
+        launch_dir = launch_dir[nzchar(launch_dir)]
+        samplesheet_path = unique(parsed_meta$samplesheet)
+        samplesheet_path = samplesheet_path[nzchar(samplesheet_path)]
+        if (NROW(launch_dir) > 1) stop("More than one launch_dir found - something's wrong")
+        if (NROW(samplesheet_path) > 1) stop("More than one samplesheet_path found in pipeline directory")
+      } else {
+        # Read pipeline report
+        report_lines <- readLines(report_path)
+
+        # Extract launch directory and samplesheet path
+        launch_dir <- grep("launchDir:", report_lines, value = TRUE)
+        samplesheet_path <- grep("input:", report_lines, value = TRUE)
+
       }
+
       #### Edge case: multiple runs (with different samplesheets) point to the same results
       #### this needs to be handled a bit more carefully as the nflogs have a cap
       #### solution: coerce unique results directory per run (with common results directory)
       ####  merge the samplesheets with the same parent
-      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow\\.log.*", all.files = TRUE, full.names = TRUE)
+      
+      # nflogs = list.files(pipeline_outdir, pattern = "\\.nextflow.*\\.log.*", all.files = TRUE, full.names = TRUE)
       # parsed_meta = lapply(nflogs, private$read_nf_log)
       # ## transpose the list
       # parsed_meta = do.call(Map, c(f = c, parsed_meta))
@@ -235,17 +324,13 @@ Cohort <- R6Class("Cohort",
       #
       # return(metadata)
 
-      # Read pipeline report
-      report_lines <- readLines(report_path)
-
-      # Extract launch directory and samplesheet path
-      launch_dir <- grep("launchDir:", report_lines, value = TRUE)
-      samplesheet_path <- grep("input:", report_lines, value = TRUE)
+      
 
       if (length(launch_dir) == 0 || length(samplesheet_path) == 0) {
         warning("Could not find launch directory or samplesheet path in pipeline report")
         return(NULL)
       }
+
 
       # Clean up paths
       launch_dir <- gsub(".*launchDir: ", "", launch_dir)
@@ -262,17 +347,33 @@ Cohort <- R6Class("Cohort",
         return(NULL)
       }
 
+      
+
       # Read samplesheet and extract metadata
       samplesheet <- fread(samplesheet_path)
-      metadata <- data.table(
-        pair = samplesheet$patient,
-        tumor_type = samplesheet$tumor_type,
-        disease = samplesheet$disease,
-        primary_site = samplesheet$primary_site,
-        inferred_sex = samplesheet$sex
+      metacols = c("patient", "sample", "tumor_type", "status", "disease", "primary_site", "sex", "bam")
+      metavars = base::mget(
+        metacols, 
+        as.environment(as.list(samplesheet)),
+        ifnotfound = rep_len(
+          list(rep_len(NA_character_, NROW(samplesheet))),
+          NROW(metacols)
+        )
       )
+      metadata <- data.table(
+        pair = metavars$patient,
+        sample = metavars$sample,
+        tumor_type = metavars$tumor_type,
+        status = metavars$status,
+        disease = metavars$disease,
+        primary_site = metavars$primary_site,
+        inferred_sex = metavars$sex,
+        bam = metavars$bam        
+      )
+      metadata$sample_type = ifelse(metadata$status == 0, "normal", ifelse(metadata$status == 1, "tumor", NA_character_))
 
       # remove duplicates
+     
       metadata <- unique(metadata)
 
       return(metadata)
@@ -359,6 +460,85 @@ Cohort <- R6Class("Cohort",
   active = list()
 )
 
+Cohort$private_methods[["length"]] = function() {
+  return(base::NROW(self$inputs))
+}
+
+Cohort$private_methods[["key"]] = function() {
+  return(data.table::key(self$inputs))
+}
+
+Cohort$active[["length"]] = function() {
+  return(private$length())
+}
+
+Cohort$active[["getkeys"]] = function() {
+  input_key = private$key()
+  return(self$inputs[[input_key]])
+}
+
+Cohort$public_methods[["setkey"]] = function(..., verbose = getOption("datatable.verbose"), physical = TRUE) {
+  Skilift::setkey.Cohort(x = self, ... = ..., verbose = verbose, physical = physical)
+  return(self)
+}
+
+Cohort$active[["key"]] = function() {
+  input_key = private$key()
+  return(input_key)
+}
+
+#' Cohort length
+#' 
+#' Get Cohort length (use inputs)
+#' @export 
+#' @export length.Cohort
+length.Cohort = function(x) {
+  return(x$length)
+}
+
+#' @export 
+setkey <- function(x, ...) {
+  UseMethod("setkey")
+}
+
+#' @export 
+setkey.default = function(x, ..., verbose = getOption("datatable.verbose"), physical = TRUE) {
+  return(
+    data.table::setkey(x, ..., verbose = getOption("datatable.verbose"), physical = TRUE)
+  )
+}
+
+#' Cohort setkey
+#' 
+#' setkey on Cohort inputs
+#' @export 
+#' @export setkey.Cohort
+setkey.Cohort = function(x, ..., verbose = getOption("datatable.verbose"), physical = TRUE) {
+  return(
+    data.table::setkey(x$inputs, ..., verbose = verbose, physical = physical)
+  )
+}
+
+#' @export 
+key <- function(x, ...) {
+  UseMethod("key")
+}
+
+#' @export 
+key.default = function(x) {
+  return(data.table::key(x))
+}
+
+#' Cohort key
+#' 
+#' Get key from Cohort inputs
+#' @export 
+key.Cohort = function(x) {
+  return(
+    data.table::key(x$inputs)
+  )
+}
+
 # Cohort$private_fields = list()
 # Cohort$private_fields[[".inputs"]] = data.table::data.table()
 
@@ -381,16 +561,19 @@ nf_path_patterns <- list(
   jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
   events = "events/.*/complex.rds$",
   fusions = "fusions/.*/fusions.rds$",
+  fragcounter_normal = "fragcounter_normal/.*/.*cov.rds$",
+  fragcounter_tumor = "fragcounter_tumor/.*/.*cov.rds$",
+  segments_cbs = "cbs/.*/.*(?<!n)seg.rds$",
   structural_variants = c("gridss.*/.*/.*high_confidence_somatic.vcf.bgz$", "tumor_only_junction_filter/.*/.*somatic.filtered.sv.rds$"),
   structural_variants_unfiltered = "gridss.*/.*.gridss.filtered.vcf.gz$",
   karyograph = "jabba/.*/karyograph.rds$",
   allelic_jabba_gg = "lp_phased_balance/.*/lp_phased.balanced.gg.rds$",
-  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$"),
+  somatic_snvs = c("sage/somatic/tumor_only_filter/.*/.*.sage.pass_filtered.tumoronly.vcf.gz$", "sage/somatic/.*/.*.sage.pass_filtered.vcf.gz$"),
   somatic_snvs_unfiltered = c("sage/somatic/.*/.*sage.somatic.vcf.gz$"),
   somatic_variant_annotations = "snpeff/somatic/.*/.*ann.bcf$",
   multiplicity = c("snv_multiplicity/.*/.*est_snv_cn_somatic.rds", "snv_multiplicity3/.*/.*est_snv_cn_somatic.rds"),
   germline_multiplicity = c("snv_multiplicity/.*/.*est_snv_cn_germline.rds", "snv_multiplicity3/.*/.*est_snv_cn_germline.rds"), ### TO DO FIX ME
-  hetsnps_multiplicity = c("snv_multiplicity/.*/.*est_snv_cn_hetsnps.rds", "snv_multiplicity3/.*/.*est_snv_cn_hetsnps.rds"), ### TO DO FIX ME
+  hetsnps_multiplicity = c("snv_multiplicity/.*/.*est_snv_cn_hets.rds", "snv_multiplicity3/.*/.*est_snv_cn_hetsnps.rds"), ### TO DO FIX ME
   ## discard for heme/tumor-only
   activities_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/sbs_results/Assignment_Solution/Activities/sbs_Assignment_Solution_Activities.txt",
   matrix_sbs_signatures = "signatures/sigprofilerassignment/somatic/.*/SBS/sigmat_results.SBS96.all",
@@ -404,7 +587,10 @@ nf_path_patterns <- list(
   alignment_summary_metrics = "qc_reports/picard/.*/.*alignment_summary_metrics",
   insert_size_metrics = "qc_reports/picard/.*/.*insert_size_metrics",
   wgs_metrics = "qc_reports/picard/.*/.*coverage_metrics",
-  msisensor_pro = "msisensor_pro/.*/.*msisensor_pro_results.tsv" ## TODO FILL ME
+  msisensor_pro = "msisensorpro/.*/.*msisensor_pro_results.tsv", ## TODO FILL ME
+  oncokb_snv = "oncokb/.*/merged_oncokb.maf",
+  oncokb_cna = "oncokb/.*/merged_oncokb_cna.tsv",
+  oncokb_fusions = "oncokb/.*/merged_oncokb_fusions.tsv"
 )
 
 #' Default column mappings
@@ -417,50 +603,55 @@ nf_path_patterns <- list(
 #' base::dput(Skilift::default_col_mapping)
 #' @export
 default_col_mapping <- list(
-  pair = c("pair", "patient_id", "pair_id", "sample"),
+  pair = c("patient_id", "pair", "pair_id", "sample"),
   tumor_type = c("tumor_type", "status"),
   disease = c("disease"),
   primary_site = c("primary_site"),
-  inferred_sex = c("inferred_sex"),
+  inferred_sex = c("inferred_sex", "sex"),
+  tumor_bam = c("tumor_bam", "bam_tumor"),
+  normal_bam = c("normal_bam", "bam_normal"),
   structural_variants = c("structural_variants", "gridss_somatic", "gridss_sv", "svaba_sv", "sv", "svs", "vcf"),
   structural_variants_unfiltered = "structural_variants_unfiltered",
-  tumor_coverage = c("tumor_coverage", "dryclean_tumor", "tumor_dryclean_cov", "dryclean_cov"),
-  somatic_snvs = c("somatic_snvs", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf", "snv_somatic_vcf"),
-  somatic_snvs_unfiltered = "somatic_snvs_unfiltered",
-  germline_snvs = c("germline_snvs", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
+  tumor_coverage = c("tumor_coverage", "coverage_tumor", "dryclean_tumor", "tumor_dryclean_cov", "dryclean_cov"),
+  somatic_snvs = c("somatic_snvs", "snvs_somatic", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf", "snv_somatic_vcf"),
+  somatic_snvs_unfiltered = c("somatic_snvs_unfiltered", "snvs_somatic_unfiltered"),
+  germline_snvs = c("germline_snvs", "snvs_germline", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
+  fragcounter_normal = c("fragcounter_normal"),
+  fragcounter_tumor = c("fragcounter_tumor"),
+  segments_cbs = c("cbs_seg_rds", "seg_rds", "cbs_seg"),
   het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
   multiplicity = c("multiplicity", "somatic_snv_cn", "snv_multiplicity"),
-  germline_multiplicity = c("germline_multiplicity", "germline_snv_cn"),
-  hetsnps_multiplicity = c("hetsnps_multiplicity", "hets_snv_cn"),
-  somatic_variant_annotations = c("somatic_variant_annotations", "annotated_bcf", "variant_somatic_ann"),
-  germline_variant_annotations = c("germline_variant_annotations", "annotated_vcf_germline"),
+  germline_multiplicity = c("germline_multiplicity", "multiplicity_germline", "germline_snv_cn"),
+  hetsnps_multiplicity = c("hetsnps_multiplicity", "multiplicity_hetsnps", "hets_snv_cn"),
+  somatic_variant_annotations = c("somatic_variant_annotations", "variant_annotations_somatic", "annotated_bcf", "variant_somatic_ann"),
+  germline_variant_annotations = c("germline_variant_annotations",  "variant_annotations_germline","annotated_vcf_germline"),
   oncokb_snv = c("oncokb_snv", "oncokb_maf", "maf"),
   oncokb_cna = c("oncokb_cna", "cna"),
   oncokb_fusions = c("oncokb_fusions", "oncokb_fusion", "fusion_maf"),
   jabba_gg = c("jabba_gg", "jabba_simple", "jabba_rds", "jabba_simple_gg"),
   karyograph = c("karyograph"),
-  balanced_jabba_gg = c("balanced_jabba_gg", "non_integer_balance", "balanced_gg", "ni_balanced_gg"),
+  balanced_jabba_gg = c("balanced_jabba_gg", "jabba_gg_balanced", "non_integer_balance", "balanced_gg", "ni_balanced_gg"),
   events = c("events", "complex"),
   fusions = c("fusions"),
-  allelic_jabba_gg = c("allelic_jabba_gg", "lp_phased_balance", "allelic_gg", "lp_balanced_gg"),
-  activities_sbs_signatures = c("activities_sbs_signatures", "sbs_activities"),
-  matrix_sbs_signatures = c("matrix_sbs_signatures", "sbs_matrix"),
-  decomposed_sbs_signatures = c("decomposed_sbs_signatures", "sbs_decomposed"),
-  activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
-  matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
-  decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
+  allelic_jabba_gg = c("allelic_jabba_gg", "jabba_gg_allelic", "lp_phased_balance", "allelic_gg", "lp_balanced_gg"),
+  activities_sbs_signatures = c("activities_sbs_signatures", "signatures_activities_sbs", "sbs_activities"),
+  matrix_sbs_signatures = c("matrix_sbs_signatures", "signatures_matrix_sbs", "sbs_matrix"),
+  decomposed_sbs_signatures = c("decomposed_sbs_signatures", "signatures_decomposed_sbs", "sbs_decomposed"),
+  activities_indel_signatures = c("activities_indel_signatures", "signatures_activities_indel", "indel_activities"),
+  matrix_indel_signatures = c("matrix_indel_signatures", "signatures_matrix_indel", "indel_matrix"),
+  decomposed_indel_signatures = c("decomposed_indel_signatures", "signatures_decomposed_indel", "indel_decomposed"),
   hrdetect = c("hrdetect", "hrd"),
   onenesstwoness = c("onenesstwoness","oneness_twoness"),
   oncotable = c("oncotable"),
-  estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
-  alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
-  insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
-  wgs_metrics = c("wgs_metrics", "wgs_stats"),
-  tumor_wgs_metrics = c("tumor_wgs_metrics", "tumor_wgs_stats"),
-  normal_wgs_metrics = c("normal_wgs_metrics", "normal_wgs_stats"),
+  estimate_library_complexity = c("estimate_library_complexity", "qc_dup_rate", "library_complexity_metrics", "est_lib_complex"),
+  alignment_summary_metrics = c("alignment_summary_metrics", "qc_alignment_summary", "alignment_metrics"),
+  insert_size_metrics = c("insert_size_metrics", "qc_insert_size", "insert_metrics"),
+  wgs_metrics = c("wgs_metrics", "qc_coverage_metrics", "wgs_stats"),
+  tumor_wgs_metrics = c("tumor_wgs_metrics", "qc_coverage_metrics_tumor", "tumor_wgs_stats"),
+  normal_wgs_metrics = c("normal_wgs_metrics", "qc_coverage_metrics_normal",  "normal_wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
-  purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
-  msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
+  purple_pp_bestFit = c("purple_pp_bestFit", "purple_pp_best_fit", "purple_bestFit", "purple_solution"),
+  msisensorpro = c("msisensorpro", "msisensor_pro", "msisensor_pro_results", "msisensor_results"),
   # Configuration parameters with default values
   metadata_is_visible = structure(c("metadata_is_visible"), default = TRUE),
   copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
@@ -752,8 +943,10 @@ refresh_attributes = list(
 #'
 #' @export
 refresh_cohort <- function(cohort) {
+  former_inputs = data.table::copy(cohort$inputs) # Create a deep copy of the inputs
+  former_inputs_colnames = names(former_inputs)
   obj_out <- Skilift::Cohort$new(
-    x = data.table::copy(cohort$inputs) # Create a deep copy of the inputs
+    x = former_inputs 
   )
   for (attribute in setdiff(Skilift:::cohort_attributes, "inputs")) {
     obj_out[[attribute]] <- cohort[[attribute]]
@@ -762,6 +955,9 @@ refresh_cohort <- function(cohort) {
     if ( !is.null(cohort[[ attribute_lst[[2]] ]]) ) {
       obj_out[[ attribute_lst[[1]] ]] <- cohort[[ attribute_lst[[2]] ]]
     }
+  }
+  for (remaining_col in former_inputs_colnames[! former_inputs_colnames %in% names(obj_out$inputs)]) {
+    obj_out$inputs[[remaining_col]] = former_inputs[[remaining_col]]
   }
   return(obj_out)
 }
@@ -885,7 +1081,7 @@ dcastski = function(
   skeleton = unique.data.frame(
     base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols))
   )
-  reduced_tbl = base::subset(tbl, select = columns_to_process)
+  reduced_tbl = base::subset(tbl, select = names(tbl) %in% columns_to_process)
   reduced_tbl$types = reduced_tbl[[type_columns[1]]]
   types = unique(reduced_tbl$types)
   if (is.factor(reduced_tbl$types) && !identical(drop, TRUE)) {
@@ -893,13 +1089,13 @@ dcastski = function(
   }
   if (length(type_columns) > 1) {
     .NotYetImplemented()
-    lst = as.list(base::subset(reduced_tbl, select = type_columns))
+    lst = as.list(base::subset(reduced_tbl, select = names(reduced_tbl) %in% type_columns))
     types = do.call(interaction, lst)
     skeleton$types = types
   }
   for (type in types) {
     merge_type = reduced_tbl[reduced_tbl$types == type,]
-    merge_type = base::subset(merge_type, select = c(id_columns, cast_columns))
+    merge_type = base::subset(merge_type, select = names(merge_type) %in% c(id_columns, cast_columns))
     colnms = names(merge_type)
     names_to_change = colnms[colnms %in% cast_columns]
 	if (prefix_type) {
