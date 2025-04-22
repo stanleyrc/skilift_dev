@@ -79,7 +79,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   )
   
   mutations.dt <- gr2dt(mutations.gr)
-  if (!is.null(oncokb_snv)) {
+  if (!is.null(oncokb_snv) && !is.na(oncokb_snv)) {
     message("oncokb_snv provided, processing input")
     is_path_character = is.character(oncokb_snv)
     is_length_one = NROW(oncokb_snv) == 1
