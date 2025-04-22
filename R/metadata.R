@@ -7,6 +7,10 @@ initialize_metadata_columns <- function(pair) {
     if (is.null(pair)) {
         stop("pair must be a character string")
     }
+    if (!is.character(pair) && is.integer(pair)) {
+        warning("pair is an integer, converting to character")
+        pair <- as.character(pair)
+    }
     if (!is.character(pair)) {
         stop("pair must be a character string")
     }
@@ -494,7 +498,6 @@ add_variant_counts <- function(
     genome = "hg19"
 ) {
     if (!is.null(somatic_snvs)) {
-        # snv_counts_dt <- sage_count(somatic_snvs, genome = genome)
         is_path_character = is.character(somatic_snvs)
         is_length_one = NROW(somatic_snvs) == 1
         is_snvs_exists = is_path_character && is_length_one && file.exists(somatic_snvs)
@@ -1201,7 +1204,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
     # Define all possible columns
     all_cols <- c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
-        "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage",
+        "jabba_gg", "events", "oncokb_snv", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
         "insert_size_metrics", "tumor_wgs_metrics", "normal_wgs_metrics",
         "het_pileups", "activities_sbs_signatures", "activities_indel_signatures",
@@ -1234,6 +1237,13 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         }
         
         out_file <- file.path(pair_dir, "metadata.json")
+
+        # prefer oncokb_snv over somatic_snvs if available
+        snvs_column <- ifelse(
+            !is.null(row$oncokb_snv) && !is.na(row$oncokb_snv),
+            row$oncokb_snv,
+            row$somatic_snvs
+        )
         
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
@@ -1248,7 +1258,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 inferred_sex = row$inferred_sex,
                 jabba_gg = row$jabba_gg,
                 events = row$events,
-                somatic_snvs = row$somatic_snvs,
+                somatic_snvs = snvs_column,
                 germline_snvs = row$germline_snvs,
                 tumor_coverage = row$tumor_coverage,
                 estimate_library_complexity = row$estimate_library_complexity,

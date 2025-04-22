@@ -66,10 +66,15 @@ Cohort <- R6Class("Cohort",
 
       self$cohort_cols_to_x_cols <- default_col_mapping
 
-
       if (is.character(x) && length(x) == 1) {
-        self$inputs <- private$construct_from_path(x)[]
-        self$nextflow_results_path <- x
+        if (grepl("\\.csv$", x)) {
+          self$inputs <- private$construct_from_datatable(data.table(read.csv(x)))[]
+        } else {
+          self$inputs <- private$construct_from_path(x)[]
+          self$nextflow_results_path <- x
+          warning("Cohort initialized from path: ", x, "\n",
+            "This is deprecated! You should use the gosh-cli to generate an outputs.csv file and then read it in using Cohort$new(path = 'outputs.csv')",)
+        }
       } else if (is.data.table(x)) {
         self$inputs <- private$construct_from_datatable(x)[]
       } else {
@@ -617,55 +622,55 @@ nf_path_patterns <- list(
 #' base::dput(Skilift::default_col_mapping)
 #' @export
 default_col_mapping <- list(
-  pair = c("pair", "patient_id", "pair_id", "sample"),
+  pair = c("patient_id", "pair", "pair_id", "sample"),
   tumor_type = c("tumor_type", "status"),
   disease = c("disease"),
   primary_site = c("primary_site"),
-  inferred_sex = c("inferred_sex"),
-  tumor_bam = c("tumor_bam"),
-  normal_bam = c("normal_bam"),
+  inferred_sex = c("inferred_sex", "sex"),
+  tumor_bam = c("tumor_bam", "bam_tumor"),
+  normal_bam = c("normal_bam", "bam_normal"),
   structural_variants = c("structural_variants", "gridss_somatic", "gridss_sv", "svaba_sv", "sv", "svs", "vcf"),
   structural_variants_unfiltered = "structural_variants_unfiltered",
+  tumor_coverage = c("tumor_coverage", "coverage_tumor", "dryclean_tumor", "tumor_dryclean_cov", "dryclean_cov"),
+  somatic_snvs = c("somatic_snvs", "snvs_somatic", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf", "snv_somatic_vcf"),
+  somatic_snvs_unfiltered = c("somatic_snvs_unfiltered", "snvs_somatic_unfiltered"),
+  germline_snvs = c("germline_snvs", "snvs_germline", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
   fragcounter_normal = c("fragcounter_normal"),
   fragcounter_tumor = c("fragcounter_tumor"),
   segments_cbs = c("cbs_seg_rds", "seg_rds", "cbs_seg"),
-  tumor_coverage = c("tumor_coverage", "dryclean_tumor", "tumor_dryclean_cov", "dryclean_cov"),
-  somatic_snvs = c("somatic_snvs", "sage_somatic_vcf", "strelka_somatic_vcf", "strelka2_somatic_vcf", "somatic_snv", "snv_vcf", "somatic_snv_vcf", "snv_somatic_vcf"),
-  somatic_snvs_unfiltered = "somatic_snvs_unfiltered",
-  germline_snvs = c("germline_snvs", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
   het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
   multiplicity = c("multiplicity", "somatic_snv_cn", "snv_multiplicity"),
-  germline_multiplicity = c("germline_multiplicity", "germline_snv_cn"),
-  hetsnps_multiplicity = c("hetsnps_multiplicity", "hets_snv_cn"),
-  somatic_variant_annotations = c("somatic_variant_annotations", "annotated_bcf", "variant_somatic_ann"),
-  germline_variant_annotations = c("germline_variant_annotations", "annotated_vcf_germline"),
+  germline_multiplicity = c("germline_multiplicity", "multiplicity_germline", "germline_snv_cn"),
+  hetsnps_multiplicity = c("hetsnps_multiplicity", "multiplicity_hetsnps", "hets_snv_cn"),
+  somatic_variant_annotations = c("somatic_variant_annotations", "variant_annotations_somatic", "annotated_bcf", "variant_somatic_ann"),
+  germline_variant_annotations = c("germline_variant_annotations",  "variant_annotations_germline","annotated_vcf_germline"),
   oncokb_snv = c("oncokb_snv", "oncokb_maf", "maf"),
   oncokb_cna = c("oncokb_cna", "cna"),
   oncokb_fusions = c("oncokb_fusions", "oncokb_fusion", "fusion_maf"),
   jabba_gg = c("jabba_gg", "jabba_simple", "jabba_rds", "jabba_simple_gg"),
   karyograph = c("karyograph"),
-  balanced_jabba_gg = c("balanced_jabba_gg", "non_integer_balance", "balanced_gg", "ni_balanced_gg"),
+  balanced_jabba_gg = c("balanced_jabba_gg", "jabba_gg_balanced", "non_integer_balance", "balanced_gg", "ni_balanced_gg"),
   events = c("events", "complex"),
   fusions = c("fusions"),
-  allelic_jabba_gg = c("allelic_jabba_gg", "lp_phased_balance", "allelic_gg", "lp_balanced_gg"),
-  activities_sbs_signatures = c("activities_sbs_signatures", "sbs_activities"),
-  matrix_sbs_signatures = c("matrix_sbs_signatures", "sbs_matrix"),
-  decomposed_sbs_signatures = c("decomposed_sbs_signatures", "sbs_decomposed"),
-  activities_indel_signatures = c("activities_indel_signatures", "indel_activities"),
-  matrix_indel_signatures = c("matrix_indel_signatures", "indel_matrix"),
-  decomposed_indel_signatures = c("decomposed_indel_signatures", "indel_decomposed"),
+  allelic_jabba_gg = c("allelic_jabba_gg", "jabba_gg_allelic", "lp_phased_balance", "allelic_gg", "lp_balanced_gg"),
+  activities_sbs_signatures = c("activities_sbs_signatures", "signatures_activities_sbs", "sbs_activities"),
+  matrix_sbs_signatures = c("matrix_sbs_signatures", "signatures_matrix_sbs", "sbs_matrix"),
+  decomposed_sbs_signatures = c("decomposed_sbs_signatures", "signatures_decomposed_sbs", "sbs_decomposed"),
+  activities_indel_signatures = c("activities_indel_signatures", "signatures_activities_indel", "indel_activities"),
+  matrix_indel_signatures = c("matrix_indel_signatures", "signatures_matrix_indel", "indel_matrix"),
+  decomposed_indel_signatures = c("decomposed_indel_signatures", "signatures_decomposed_indel", "indel_decomposed"),
   hrdetect = c("hrdetect", "hrd"),
   onenesstwoness = c("onenesstwoness","oneness_twoness"),
   oncotable = c("oncotable"),
-  estimate_library_complexity = c("estimate_library_complexity", "library_complexity_metrics", "est_lib_complex"),
-  alignment_summary_metrics = c("alignment_summary_metrics", "alignment_metrics"),
-  insert_size_metrics = c("insert_size_metrics", "insert_metrics"),
-  wgs_metrics = c("wgs_metrics", "wgs_stats"),
-  tumor_wgs_metrics = c("tumor_wgs_metrics", "tumor_wgs_stats"),
-  normal_wgs_metrics = c("normal_wgs_metrics", "normal_wgs_stats"),
+  estimate_library_complexity = c("estimate_library_complexity", "qc_dup_rate", "library_complexity_metrics", "est_lib_complex"),
+  alignment_summary_metrics = c("alignment_summary_metrics", "qc_alignment_summary", "alignment_metrics"),
+  insert_size_metrics = c("insert_size_metrics", "qc_insert_size", "insert_metrics"),
+  wgs_metrics = c("wgs_metrics", "qc_coverage_metrics", "wgs_stats"),
+  tumor_wgs_metrics = c("tumor_wgs_metrics", "qc_coverage_metrics_tumor", "tumor_wgs_stats"),
+  normal_wgs_metrics = c("normal_wgs_metrics", "qc_coverage_metrics_normal",  "normal_wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
-  purple_pp_bestFit = c("purple_pp_bestFit", "purple_bestFit", "purple_solution"),
-  msisensorpro = c("msisensor_pro", "msisensor_pro_results", "msisensor_results", "msisensorpro"),
+  purple_pp_bestFit = c("purple_pp_bestFit", "purple_pp_best_fit", "purple_bestFit", "purple_solution"),
+  msisensorpro = c("msisensorpro", "msisensor_pro", "msisensor_pro_results", "msisensor_results"),
   # Configuration parameters with default values
   metadata_is_visible = structure(c("metadata_is_visible"), default = TRUE),
   copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
