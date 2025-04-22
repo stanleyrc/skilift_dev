@@ -7,11 +7,8 @@ library(testthat)
 setup({
   library(dplyr)
   all_expected_outputs <- c(
-    # "tumor.bam",
-    # "tumor.bam.bai",
     "coverage.arrow",
     "coverage_cn_boxplot.json",
-    # "combined_plot.html",
     "germline_altered_hist.json",
     "purple_sunrise_beta_gamma.png",
     "mutations.json",
@@ -65,6 +62,12 @@ setup({
 
     message("All expected output files are present.")
   }
+
+  check_empty_cols <<- function(dt) {
+    dt %>%
+      select(where(~ all(is.na(.)))) %>%
+      names()
+  }
 })
 
 test_that("can lift_all heme cohort from gosh outputs csv without errors", {
@@ -108,7 +111,6 @@ test_that("can lift_all ffpe cohort from gosh outputs csv without errors", {
   )
 
   csv = data.table(read.csv(output_csv_path, stringsAsFactors = FALSE))
-  csv$msisensorpro
   csv = csv[patient_id == csv$patient_id[11], ]
   
   cohort <- suppressWarnings(Cohort$new(
@@ -164,11 +166,13 @@ test_that("can lift_all ALL cohort from gosh outputs csv without errors", {
   output_csv_path = system.file(
     "extdata",
     "test_data",
-    "ALL_outputs.csv",
+    "caroll_outputs.csv",
     package = "Skilift"
   )
 
   csv = data.table(read.csv(output_csv_path, stringsAsFactors = FALSE))
+  csv = csv[patient_id == csv$patient_id[1], ]
+  
   
   cohort <- suppressWarnings(Cohort$new(
     csv,
@@ -179,9 +183,10 @@ test_that("can lift_all ALL cohort from gosh outputs csv without errors", {
   temp_dir <- tempdir()
 
   lift_all(cohort, output_data_dir = temp_dir, cores = 2)
+  lift_hetsnps(cohort, output_data_dir = temp_dir, cores = 2)
   
   expect_message(
-    check_output_files(cohort, temp_dir),
+    check_output_files(cohort, temp_dir, tumor_only = TRUE),
     "All expected output files are present."
   )
   
