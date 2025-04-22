@@ -1152,8 +1152,26 @@ meltski = function(
     replacement_regex = "",
     replacement = "",
     drop = FALSE,
-    keep_first_variable_col = FALSE
+    keep_first_variable_col = FALSE,
+    return_as_data_table = FALSE
 ) {
+  is_table = is.table(tbl)
+  dimensions = dim(tbl)
+  is_dim_null = is.null(dimensions)
+  dim_NR = NROW(dimensions)
+  is_table_matrix_like = is_table && !is_dim_null && dim_NR == 2
+  is_table_1d = is_table && !is_dim_null && dim_NR == 1
+  is_table_array = is_table && !is_dim_null && dim_NR > 2
+  if (is_table_array) stop("melting more than 2d not supported")
+  if (is_table_1d) {
+    tbl = as.data.frame.matrix(t(as.matrix(tbl)))
+  }
+  if (is_table_matrix_like) {
+    tbl = as.data.frame.matrix(tbl)
+  }
+
+  if (is_table) measure.vars = colnames(tbl)
+    
   if (missing(id.vars)) {
     id.vars = names(tbl)
     id.vars = id.vars[!id.vars %in% measure.vars]
