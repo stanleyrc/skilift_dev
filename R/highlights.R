@@ -27,6 +27,7 @@ create_heme_highlights = function(
   ##     ] | null
   ##   }
   
+  ## TODO: remove everything below except for karyotype_string
   karyotype_string = ""
   if (NROW(jabba_gg) == 1 && is.character(jabba_gg) && file.exists(jabba_gg))
     karyotype_string = annotate_karyotype(readRDS(jabba_gg))
@@ -271,17 +272,28 @@ change_names = function(obj, old, new) {
 #' @export
 create_summary = function(
   events_tbl, ## filtered events R output
-  altered_copies_threshold = 0.9
+  altered_copies_threshold = 0.9,
+  cohort_type
 ) {
 
   small_muts = events_tbl[events_tbl$vartype == "SNV",]
+  hemedb = readRDS(Skilift:::HEMEDB())
+  hemedb_guideline = hemedb[, .(GENE, GUIDELINE, DISEASE)][GUIDELINE==TRUE] %>% unique()
+  hemedb_guideline = hemedb_guideline[, .(GUIDELINE = GUIDELINE[1], DISEASE = list(DISEASE)), by = GENE]
+
   criterias = list(
     is_tier2_or_better = small_muts$Tier <= 2
    ,
     is_clonal = small_muts$estimated_altered_copies >= altered_copies_threshold
+	,
+	is_small_in_guidelines = small_muts$gene %in% hemedb_guideline$GENE, ## heme relevant only
+	is_frequent = small_muts$gene %in% hemedb[hemedb$FREQ >= 5]$GENE ## heme relevant only
+
   )
+  if (!cohort_type == "heme") {
+	criterias = criterias[1:2]
+  }
   is_small_mutation_relevant = base::Reduce("&", criterias)
-  ## small_muts_parsed = data.table()
   small_muts_parsed = ""
   if (
     NROW(small_muts) > 0
@@ -304,19 +316,40 @@ create_summary = function(
     )
     
   }
+  
+  dunc = readRDS(Skilift:::DUNCAVAGEDB())
+  dunc = rbind(
+    dunc,
+    (
+      structure(list(Indication = "MPN", Type = structure(2L, .Label = c("SNV", 
+        "Fusions/SV", "SV"), class = "factor"), Gene = "BCR::ABL1", DISEASE = "MPN"), row.names = c(NA, 
+          -1L), class = c("data.table", "data.frame"))
+      [, DISEASE := "ALL"]
+      [, Indication := "ALL"]
+    ),
+    fill = TRUE
+  )
+  dunc[, DISEASE := gsub("^B-|^T-", "", Indication)]
+  hemedb_fusions = dunc[Type == "Fusions/SV", .(Type = Type[1], DISEASE = list(DISEASE)),  by = .(Gene)]
+  hemedb_fusions_rev = data.table::copy(hemedb_fusions)
+  fg_split = data.table::tstrsplit(hemedb_fusions_rev$Gene, "::")
+  hemedb_fusions_rev$Gene = paste(fg_split[[2]], fg_split[[1]], sep = "::")
 
-
-
+  hemedb_fusions_fr = rbind(hemedb_fusions, hemedb_fusions_rev)
 
   svs = events_tbl[grepl("fusion", events_tbl$type, ignore.case = TRUE)]
   #   svsForJson = data.table::copy(emptyDfForJson)
   fg_exon = svs$fusion_genes ## this still works if svs is empty
   fg_exon = gsub("@.*$", "", fg_exon)
   fg = gsub("\\([0-9]+\\)", "", fg_exon)
-  #   any_svs_in_guidelines = length(intersect(fg, hemedb_fusions_fr$Gene)) > 0 ## accounts for merge step later
+  any_svs_in_guidelines = length(intersect(fg, hemedb_fusions_fr$Gene)) > 0 ## accounts for merge step later
   criterias = list(
-    is_tier2_or_better = svs$Tier <= 2
+    is_tier2_or_better = svs$Tier <= 2,
+	is_svs_in_guidelines = fg %in% hemedb_fusions_fr$Gene
   )
+  if (!cohort_type == "heme") {
+	criterias = criterias[1]
+  }
   is_svs_relevant = Reduce("&", criterias)
 
   svs_parsed = ""
@@ -331,15 +364,19 @@ create_summary = function(
         [, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]
         $V1
     )
+
   }
   
 
   cna = events_tbl[grepl("SCNA", events_tbl$type, ignore.case = TRUE),]
   cna_parsed = ""
   criterias = list(
-    # is_cna_in_guidelines = cna$gene %in% hemedb_guideline$GENE,
-    is_tier2_or_better = cna$Tier <= 2
+    is_tier2_or_better = cna$Tier <= 2,
+	is_cna_in_guidelines = cna$gene %in% hemedb_guideline$GENE
   )
+  if (!cohort_type == "heme") {
+	criterias = criterias[1]
+  }
   is_cna_relevant = Reduce("&", criterias)
   if (NROW(cna) > 0 && any(is_cna_relevant)) {
     cna_out = cna[is_cna_relevant,]
@@ -367,8 +404,3 @@ create_summary = function(
   
 
 }
-
-# results <- Filter(Negate(is.null), results)
-# 	for (result in results) {
-# 	updated_cohort$inputs[result$index, oncotable := result$path][]
-# 	}

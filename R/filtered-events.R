@@ -1632,7 +1632,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
         highlights_out_file <- file.path(pair_dir, "highlights.json")
 
         out = NULL
-		string_output = ""
+		# string_summary = ""
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
             out <- create_filtered_events(
@@ -1651,7 +1651,8 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
               )
             }
 			string_summary = create_summary(
-				events_tbl = out
+				events_tbl = out,
+				cohort_type = cohort_type
 			)
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
