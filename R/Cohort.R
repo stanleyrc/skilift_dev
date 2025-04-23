@@ -1145,7 +1145,7 @@ meltski = function(
     id.vars,
     measure.vars,
     is_measure_regex = FALSE,
-    var.name = "variable",
+    variable.name = "variable",
     value.name = "value",
     group_regex = "",
     group_select = "\\1",
@@ -1153,9 +1153,16 @@ meltski = function(
     replacement = "",
     drop = FALSE,
     keep_first_variable_col = FALSE,
+    keep_remaining_cols = FALSE,
+    keep_original_cols = FALSE,
     return_as_data_table = FALSE
 ) {
+  keep_first_variable_col = identical(keep_first_variable_col, TRUE)
+  keep_remaining_cols = identical(keep_remaining_cols, TRUE)
+  keep_original_cols = identical(keep_original_cols, TRUE)
+  
   is_table = is.table(tbl)
+  
   dimensions = dim(tbl)
   is_dim_null = is.null(dimensions)
   dim_NR = NROW(dimensions)
@@ -1171,13 +1178,22 @@ meltski = function(
   }
 
   if (is_table) measure.vars = colnames(tbl)
+
+  is_data_frame = inherits(tbl, "data.frame")
+
+  if (!is_data_frame) stop("Input tbl must be a data.table/data.frame or coercible to a data.frame-like object")
+
+  all_names = names(tbl)
+
+  is_measure_vars_list = is.list(measure.vars)
+  all_measure_vars = measure.vars
+  if (is_measure_vars_list) all_measure_vars = unlist(measure.vars)
     
   if (missing(id.vars)) {
-    id.vars = names(tbl)
-    id.vars = id.vars[!id.vars %in% measure.vars]
+    id.vars = all_names
+    id.vars = id.vars[!id.vars %in% all_measure_vars]
   }
   skel = NULL
-  all_names = names(tbl)
   collected_var_names = character(0)
   if (is_measure_regex) {
     message("!!WARNING!!: Regex using measure.vars does not guarantee ordered outputs.")
@@ -1192,10 +1208,10 @@ meltski = function(
     if (is.list(var)) var = unlist(var)
     tbl_to_rbind = base::subset(tbl, select = c(id.vars, var))
     if (drop) {
-      is_any_na = base::complete.cases(
+      is_none_na = base::complete.cases(
         base::subset(tbl_to_rbind, select = var)
       )
-      tbl_to_rbind = base::subset(tbl_to_rbind, is_any_na)
+      tbl_to_rbind = base::subset(tbl_to_rbind, is_none_na)
     }
     nm = names(tbl_to_rbind)
     for (i in seq_along(var)) {
@@ -1209,7 +1225,7 @@ meltski = function(
     }
     names(tbl_to_rbind) = nm
     for (i in seq_along(var)) {
-      var.col = paste(var.name, "_", i, sep = "")
+      var.col = paste(variable.name, "_", i, sep = "")
       tbl_to_rbind[[var.col]] = var[i]
       collected_var_names = c(collected_var_names, var.col)
     }    
@@ -1228,9 +1244,20 @@ meltski = function(
   }
   remaining_var_names = collected_var_names[-1]
   remaining_names = names(skel)[!names(skel) %in% remaining_var_names]
-  if (identical(keep_first_variable_col, TRUE) && NROW(remaining_names) > 0) {
+  if (keep_first_variable_col && NROW(remaining_names) > 0) {
     skel = base::subset(skel, select = remaining_names)
     names(skel)[names(skel) == collected_var_names[1]] = gsub("_[0-9]+$", "", collected_var_names[1])
+  }
+  is_keep_remaining_flag_on = keep_remaining_cols || keep_original_cols
+  
+  if (is_keep_remaining_flag_on) {
+    is_id_var = all_names %in% id.vars
+    is_selection = rep_len(TRUE, length(all_names))
+    if (!keep_original_cols) {
+      is_selection = all_names %in% id.vars | (!all_names %in% c(all_measure_vars, value.name))
+    }      
+    remaining_tbl = base::subset(tbl, select = is_selection)
+    skel = merge(skel, remaining_tbl, by = id.vars, all.x = TRUE)
   }
   return(skel)
 }
