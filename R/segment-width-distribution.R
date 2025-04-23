@@ -210,7 +210,9 @@ lift_segment_width_distribution <- function(
 #' @author Johnathan Rafailov
 lift_allelic_pp_fit <- function(cohort, 
                                 output_data_dir,
-                                cores = 1, 
+                                cores = 1,
+                                save_png = TRUE,
+                                save_data = TRUE, 
                                 file.name = "hetsnps_major_minor.png") {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
@@ -243,16 +245,18 @@ lift_allelic_pp_fit <- function(cohort,
                         hets.fname = row$het_pileups,
                         allele = TRUE,
                         scatter = TRUE,
+                        binwidth = 1e4,
                         save = FALSE,
                         field = "count",
-                        height = 6 * 300,
-                        width = 6 * 300,
-                        units = "px",
-                        output.fname = out_file_png,
                         verbose = T) 
 
-                ggsave(file = out_file_png, plot = ppplot, width = 6, height = 6, dpi = 300)
+                if(save_png){
+                    ggsave(file = out_file_png, plot = ppplot$plot, width = 6, height = 6, dpi = 300)
+                }
         
+                if(save_data){
+                    write_json(ppplot$data[seqnames %in% c(1:22, "X", "Y"), .(major.cn, minor.cn, jabba_cn, color)], gsub(".png", ".json", out_file_png), pretty = TRUE)
+                }
                 
             },
             error = function(e) {
@@ -547,8 +551,10 @@ lift_coverage_jabba_cn <- function(
                 }
 
                 if (save_html) {
-                    # Create HTML file
-                    save_coverage_jabba_cn_html(tiles.dt, out_file_html)
+                    # Create HTML file only if Cairo library is available
+                    if (requireNamespace("Cairo", quietly = TRUE)) {
+                        save_coverage_jabba_cn_html(tiles.dt, out_file_html)
+                    }
                 }   
 
             },
@@ -1068,6 +1074,7 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
 pp_plot = function(jabba_rds = NULL,
                    cov.fname = NULL,
                    hets.fname = NULL,
+                   binwidth = 1e5,
                    allele = FALSE,
                    field = NULL,
                    plot.min = -2,
@@ -1147,17 +1154,19 @@ pp_plot = function(jabba_rds = NULL,
       message("Grabbing coverage and converting rel2abs")
     }
     cov$cn = rel2abs(cov, field = field, purity = purity, ploidy = ploidy, allele = FALSE)
+    cov$jabba_cn = gr.val(cov, segstats, val = "cn", mean = TRUE, na.rm = TRUE)$cn %>% round()
     ## get mean CN over JaBbA segments
     if (verbose) {
       message("computing mean over jabba segments")
     }
     segs = gr.stripstrand(segstats %Q% (strand(segstats)=="+"))[, c()]
-    segs = gr.val(segs, cov[, "cn"], val = "cn", mean = TRUE, na.rm = TRUE)
+    segs = gr.val(segs, cov, val = c("cn", "jabba_cn"), mean = TRUE, na.rm = TRUE)
     if (verbose) {
       message("tiling")
     }
-    tiles = gr.tile(gr = segs, width = 1e4)
-    tiles = gr.val(tiles, segs[, "cn"], val = "cn", mean = TRUE, na.rm = TRUE)
+    tiles = gr.tile(gr = segs, width = binwidth)
+    tiles = gr.val(tiles, segs[, "cn"], val = c("cn", "jabba_cn"), mean = TRUE, na.rm = TRUE)
+    tiles$jabba_cn <- round(tiles$jabba_cn)
     if (verbose) {
       message("Grabbing transformation slope and intercept")
     }
@@ -1178,21 +1187,23 @@ pp_plot = function(jabba_rds = NULL,
       message("Grabbing hets and converting rel2abs")
     }
     hets$cn = rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE)
+    hets$jabba_cn = gr.val(hets, segstats, val = "cn", mean = TRUE, na.rm = TRUE)$cn %>% round()
     eqn = rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE, return.params = TRUE)
     if (verbose) {
       message("computing mean over jabba segments")
     }
     segs = gr.stripstrand(segstats %Q% (strand(segstats)=="+"))[, c()]
-    major.segs = gr.val(segs, hets %Q% (allele == "major"), val = "cn", mean = TRUE, na.rm = TRUE)
-    minor.segs = gr.val(segs, hets %Q% (allele == "minor"), val = "cn", mean = TRUE, na.rm = TRUE)
+    major.segs = gr.val(segs, hets %Q% (allele == "major"), val = c("cn", "jabba_cn"), mean = TRUE, na.rm = TRUE)
+    minor.segs = gr.val(segs, hets %Q% (allele == "minor"), val = c("cn", "jabba_cn"), mean = TRUE, na.rm = TRUE)
+    major.segs$jabba_cn <- round(major.segs$jabba_cn); minor.segs$jabba_cn <- round(minor.segs$jabba_cn)
     if (verbose) {
       message("Tiling")
     }
-    tiles = gr.tile(gr = segs, width = 1e4)
-    major.tiles = gr.val(tiles, major.segs, val = "cn", mean = TRUE, na.rm = TRUE)
-    minor.tiles = gr.val(tiles, minor.segs, val = "cn", mean = TRUE, na.rm = TRUE)
-    dt = rbind(as.data.table(major.tiles)[, .(seqnames, start, end, allele = "major", cn)],
-               as.data.table(minor.tiles)[, .(seqnames, start, end, allele = "minor", cn)])
+    tiles = gr.tile(gr = segs, width = binwidth)
+    major.tiles = gr.val(tiles, major.segs, val = c("cn", "jabba_cn"), mean = TRUE, na.rm = TRUE)
+    minor.tiles = gr.val(tiles, minor.segs, val = c("cn", "jabba_cn"), mean = TRUE, na.rm = TRUE)
+    dt = rbind(as.data.table(major.tiles)[, .(seqnames, start, end, allele = "major", cn, jabba_cn)],
+               as.data.table(minor.tiles)[, .(seqnames, start, end, allele = "minor", cn, jabba_cn)])
   }
 
   maxval = plot.max * ploidy # max dosage
@@ -1226,22 +1237,25 @@ pp_plot = function(jabba_rds = NULL,
     if (scatter) {
 
       dt = cbind(as.data.table(major.tiles)[, .(seqnames, start, end, major.cn = cn)],
-                 as.data.table(minor.tiles)[, .(minor.cn = cn)])
+                 as.data.table(minor.tiles)[, .(minor.cn = cn, jabba_cn = jabba_cn)])
       dt = dt[major.cn < maxval & minor.cn < maxval &
               major.cn > minval & minor.cn > minval &
               grepl("[0-9]", seqnames)==TRUE,]
 
-      pt = ggplot(dt, aes(x = major.cn, y = minor.cn)) +
-        geom_point(size = 2, alpha = 0.1, color = "gray") +
+    # Add a 'color' column with hex codes using ggplot2's default hue palette
+    dt[, color := scales::hue_pal()(length(unique(jabba_cn)))[match(jabba_cn, sort(unique(jabba_cn)))]]
+
+      pt = ggplot(dt, aes(x = major.cn, y = minor.cn, color = factor(jabba_cn))) +
+        geom_point(size = 2, alpha = 0.1) +
         scale_x_continuous(breaks = 0:floor(maxval),
-                           labels = 0:floor(maxval) %>% as.character,
+                           labels = as.character(0:floor(maxval)),
                            sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"],
                                                name = paste("Major", field))) +
         scale_y_continuous(breaks = 0:floor(maxval),
-                           labels = 0:floor(maxval) %>% as.character,
+                           labels = as.character(0:floor(maxval)),
                            sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"],
                                                name = paste("Minor", field))) +
-        labs(x = "Major CN", y = "Minor CN") +
+        labs(x = "Major CN", y = "Minor CN", color = "JaBbA CN") +
         theme_bw() +
         theme(legend.position = "none",
               axis.title = element_text(size = 20, family = "sans"),
@@ -1249,8 +1263,8 @@ pp_plot = function(jabba_rds = NULL,
               axis.text.y = element_text(size = 14, family = "sans"))
 
       pt = ggExtra::ggMarginal(pt, type = "histogram",
-                      xparams = list(bins = bins),
-                      yparams = list(bins = bins))
+                               xparams = list(bins = bins),
+                               yparams = list(bins = bins))
       
     } else {
 
@@ -1291,5 +1305,10 @@ pp_plot = function(jabba_rds = NULL,
     #      width = width,
     #      units = units)
   }
-  return(pt) 
+
+    return(list(
+        plot = pt,
+        data = dt,
+        eqn = eqn
+    ))
 }

@@ -48,7 +48,8 @@ Imports:
     pals,
     scico,
     pandoc,
-    ggExtra
+    ggExtra,
+	scales
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8

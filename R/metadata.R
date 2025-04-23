@@ -985,26 +985,29 @@ add_hrd_scores <- function(metadata, hrdetect, onenesstwoness) {
 #' @param msisensor_pro Path to MSIsensor profile file.
 #' @return Updated metadata with MSIsensor score added.
 add_msisensor_score <- function(metadata, msisensorpro) {
-    if (!is.null(msisensorpro)) {
-        msisensorpro <- fread(msisensorpro)
-
-        score <- msisensorpro[,3][[1]]
-        label.msi <- ifelse(score < 10, "MSS",
-            ifelse(score < 20, "MSI-Low", "MSI-High"))
-
-        #add attributes as a list
-        dt <- data.table(
-            score = msisensorpro[,3][[1]] / 100,
-            n_unstable = msisensorpro[,2][[1]],
-            n_evaluated = msisensorpro[,1][[1]],
-            label = label.msi
-        )
-
-        metadata$msisensor <- list(as.list(dt))
-
-    } else {
-        warning("MSIsensor profile not found, skipping MSIsensor score...")
-    }
+    tryCatch({
+        if (!is.null(msisensorpro)) {
+            msisensor_data <- fread(msisensorpro)
+            if (nrow(msisensor_data) != 0) {
+                score <- msisensor_data[[3]][1]
+                label.msi <- ifelse(score < 10, "MSS",
+                                    ifelse(score < 20, "MSI-Low", "MSI-High"))
+                dt <- data.table(
+                    score = score / 100,
+                    n_unstable = msisensor_data[[2]][1],
+                    n_evaluated = msisensor_data[[1]][1],
+                    label = label.msi
+                )
+                metadata$msisensor <- list(as.list(dt))
+            } else {
+                warning("MSIsensor profile is empty, skipping MSIsensor score...")
+            }
+        } else {
+            warning("MSIsensor profile not provided, skipping MSIsensor score...")
+        }
+    }, error = function(e) {
+        warning(sprintf("Error processing MSIsensor score: %s", e$message))
+    })
     return(metadata)
 }
 
