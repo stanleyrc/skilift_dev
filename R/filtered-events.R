@@ -1389,17 +1389,17 @@ create_filtered_events <- function(
         snvs[, is_unique_p := !is.na(variant.p) & !duplicated(cbind(gene, variant.p))]
         snvs[, is_unique_g := !duplicated(cbind(gene, variant.g))]
         # FIXME: variant.c should not be absent..
-        remove_variant_c = FALSE
-        if (is.null(snvs$variant.c)) {
-          snvs$variant.c = 1:NROW(snvs)
-          remove_variant_c = TRUE
-        }
+        ## remove_variant_c = FALSE
+        ## if (is.null(snvs$variant.c)) {
+        ##   snvs$variant.c = 1:NROW(snvs)
+        ##   remove_variant_c = TRUE
+        ## }
         snvs[, is_unique_c := !duplicated(cbind(gene, variant.c))]
         snvs <-  snvs[is_unique_p | (is_unique_g & is_unique_c)]
         snvs$is_unique_p = NULL
         snvs$is_unique_g = NULL
         snvs$is_unique_c = NULL
-        if (remove_variant_c) snvs$variant.c = NA
+        ## if (remove_variant_c) snvs$variant.c = NA
         variant_concatenated = snvs[, paste(variant.p, "/", variant.c, sep = " ")]
         variant_concatenated = gsub(" / NA", "",
           gsub("NA / ", "",
@@ -1408,7 +1408,7 @@ create_filtered_events <- function(
           ), perl = TRUE
         )
         snvs$variant.p = variant_concatenated
-        snvs$variant.c = NULL
+        ## snvs$variant.c = NULL
         rm("variant_concatenated")
         
       }
