@@ -610,8 +610,10 @@ lift_coverage_jabba_cn <- function(
                 }
 
                 if (save_html) {
-                    # Create HTML file
-                    save_coverage_jabba_cn_html(tiles.dt, out_file_html)
+                    # Create HTML file only if Cairo library is available
+                    if (requireNamespace("Cairo", quietly = TRUE)) {
+                        save_coverage_jabba_cn_html(tiles.dt, out_file_html)
+                    }
                 }   
 
             },
