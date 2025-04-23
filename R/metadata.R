@@ -7,6 +7,10 @@ initialize_metadata_columns <- function(pair) {
     if (is.null(pair)) {
         stop("pair must be a character string")
     }
+    if (!is.character(pair) && is.integer(pair)) {
+        warning("pair is an integer, converting to character")
+        pair <- as.character(pair)
+    }
     if (!is.character(pair)) {
         stop("pair must be a character string")
     }
@@ -494,7 +498,6 @@ add_variant_counts <- function(
     genome = "hg19"
 ) {
     if (!is.null(somatic_snvs)) {
-        # snv_counts_dt <- sage_count(somatic_snvs, genome = genome)
         is_path_character = is.character(somatic_snvs)
         is_length_one = NROW(somatic_snvs) == 1
         is_snvs_exists = is_path_character && is_length_one && file.exists(somatic_snvs)
@@ -578,54 +581,6 @@ add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) 
     metadata$ploidy <- ploidy
     metadata$beta = purity / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
     metadata$gamma = 2*(1 - purity) / (purity * ploidy + 2*(1 - purity)) # from Multiplicity
-    
-    # # Get sequence lengths from the gGraph
-    # seq_lengths <- seqlengths(ggraph$nodes$gr)
-    
-    # # Check for required fields
-    # colnames_check <- c("start_ix", "end_ix", "eslack_in", "eslack_out", 
-    #                     "edges_in", "edges_out", "tile_id", "snode_id", 
-    #                     "loose_left", "loose_right", "loose_cn_left", 
-    #                     "loose_cn_right", "node_id", "raw_mean", "raw_var", 
-    #                     "nbins", "nbins_tot", "nbins_nafrac", "wbins_nafrac", 
-    #                     "wbins_ok", "mean", "bad", "max_na", "loess_var", 
-    #                     "tau_sq_post", "post_var", "var", "sd")
-    
-    # if (all(colnames_check %in% names(ggraph$nodes$dt))) {
-    #     gg_w_segstats <- ggraph
-    #     fields.keep <- c(colnames_check, "seqnames", "start", "end", "strand", "width", "loose", "index")
-    # } else {
-    #     # Get segstats information
-    #     segstats.dt <- get_segstats(
-    #         balanced_jabba_gg = row$balanced_jabba_gg,
-    #         tumor_coverage = row$tumor_coverage,
-    #         coverage_field = "foreground"
-    #     )
-    #     segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
-    #     gg_w_segstats <- gGnome::gG(nodes = segstats.gr, edges = ggraph$edges$dt)
-    #     fields.keep <- names(segstats.dt) %>% grep("cn", ., invert = TRUE, value = TRUE)
-    # }
-    
-    # # Check for sequence name overlap
-    # ggraph.reduced <- gg_w_segstats[seqnames %in% names(seq_lengths)]
-
-    # alpha = purity = pp$purity
-    # tau = ploidy = pp$ploidy
-    # ncn = 2
-    # segstats = ggraph.reduced$nodes$gr
-    # mu = segstats$mean
-    # ## mu = mcols(cov)[["foreground"]]
-    # mu[is.infinite(mu)] = NA_real_    
-    # w = as.numeric(width(segstats))
-    # w[is.na(mu)] = NA
-    # sw = sum(w, na.rm = T)
-    # ploidy_normal = sum(w * ncn, na.rm = T) / sw
-    # mutl = sum(mu * w, na.rm = T)
-    # m0 = sum(as.numeric(mutl))/sw
-    # beta = ((1-purity)*ploidy_normal + purity*ploidy) * sw / (purity * mutl) # from JaBbA segstats
-    # gamma = 2*(1 - alpha) / (alpha * tau + 2*(1 - alpha)) ## Johnathan's multiplicity
-    # metadata$beta <- beta
-    # metadata$gamma <- gamma
     
     return(metadata)
 }
@@ -1201,7 +1156,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
     # Define all possible columns
     all_cols <- c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
-        "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage",
+        "jabba_gg", "events", "oncokb_snv", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
         "insert_size_metrics", "tumor_wgs_metrics", "normal_wgs_metrics",
         "het_pileups", "activities_sbs_signatures", "activities_indel_signatures",
@@ -1234,6 +1189,13 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         }
         
         out_file <- file.path(pair_dir, "metadata.json")
+
+        # prefer oncokb_snv over somatic_snvs if available
+        snvs_column <- ifelse(
+            !is.null(row$oncokb_snv) && !is.na(row$oncokb_snv),
+            row$oncokb_snv,
+            row$somatic_snvs
+        )
         
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
@@ -1248,7 +1210,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 inferred_sex = row$inferred_sex,
                 jabba_gg = row$jabba_gg,
                 events = row$events,
-                somatic_snvs = row$somatic_snvs,
+                somatic_snvs = snvs_column,
                 germline_snvs = row$germline_snvs,
                 tumor_coverage = row$tumor_coverage,
                 estimate_library_complexity = row$estimate_library_complexity,
