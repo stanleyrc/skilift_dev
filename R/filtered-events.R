@@ -1416,7 +1416,7 @@ create_filtered_events <- function(
       homdels <- ot[ot$type == "homdel",][, vartype := "HOMDEL"][, type := "SCNA"]
       amps <- ot[ot$type == "amp",][, vartype := "AMP"][, type := "SCNA"]
       fusions <- ot[ot$type == "fusion",] ## fusion vartype is either fusion or outframe_fusion
-      possible_drivers <- rbind(snvs, homdels, amps, fusions)
+      possible_drivers <- rbind(snvs, homdels, amps, fusions, fill = TRUE)
   }
 
   oncotable_col_to_filtered_events_col <- c(
