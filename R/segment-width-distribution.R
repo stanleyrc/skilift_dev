@@ -330,8 +330,8 @@ lift_multiplicity_fits <- function(cohort,
             futile.logger::flog.threshold("ERROR")
             tryCatchLog(
                 {
-                    if (!file.exists(row[[col]])) {
-                        print(sprintf("Multiplicity file not found for %s: %s", row$pair, row[[col]]))
+                    if (is.null(row[[col]]) || is.na(row[[col]]) || !file.exists(row[[col]])) {
+                        stop(sprintf("Multiplicity file not found for %s: %s is %s", row$pair, col, row[[col]]))
                     }
 
                     mapply(function(out_file, field_to_use) {
@@ -355,69 +355,6 @@ lift_multiplicity_fits <- function(cohort,
         }
     }, mc.cores = cores, mc.preschedule = TRUE)
 }
-
-# zi_plot <- function(hist, out_file) {
-#     if (is.character(hist)) {
-#         hist <- readRDS(hist) %>% gr2dt()
-#     }
-
-
-#     integer_lines <- seq(floor(min(hist$cn)),
-#                 ceiling(max(hist$cn)), by = 1)
-#     colors.for.plot <- unlist(lapply(unique(integer_lines %/% 32), function(i) {
-#         pals::glasbey(length(which(integer_lines %/% 32 == i)))
-#     }))
-
-#     hist_top <- ggplot(hist[cn <= 10], aes(x = major_snv_copies, fill = as.factor(cn))) +
-#         geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
-#         scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
-#         theme_minimal() +
-#         labs(x = NULL, y = NULL) +
-#         theme(legend.position = "none") +
-#         scale_x_continuous(breaks = 0:10, limits = c(0, 10)) 
-    
-#     hist_right <- ggplot(hist[cn <= 10], aes(x = minor_snv_copies, fill = as.factor(cn))) +
-#         geom_histogram(position = "identity", bins = 1000, alpha = 0.6) +
-#         scale_fill_manual(values = colors.for.plot, name = "Copy Number") +
-#         theme_minimal() +
-#         labs(x = NULL, y = NULL) +
-#         coord_flip() +
-#         theme(legend.position = "none") +
-#         scale_x_continuous(breaks = 0:10, limits = c(0, 10))
-        
-#     scatter <- ggplot(hist, aes(x = major_snv_copies, y = minor_snv_copies, color = factor(cn))) +
-#     geom_point(alpha = 0.1, size = 0.5) +
-#     scale_color_manual(values = colors.for.plot) +
-#     labs(
-#         x = "Major SNV Copies",
-#         y = "Minor SNV Copies",
-#         color = "JaBbA CN"
-#     ) +
-#     theme_bw() +
-#     coord_equal() +
-#     scale_x_continuous(breaks = 0:10, limits = c(0, 10)) +
-#     scale_y_continuous(breaks = 0:10, limits = c(0, 10))
-
-#     combined_plot <- cowplot::plot_grid(
-#         cowplot::plot_grid(hist_top + theme(axis.title.x = element_blank()), NULL,  ncol = 2, rel_widths = c(1, 0.3)),
-#         cowplot::plot_grid(
-#             scatter + theme(legend.position = "none"),
-#             hist_right + theme(axis.title.y = element_blank()),
-#             ncol = 2,
-#             rel_widths = c(1, 0.3),
-#             align = "hv"
-#         ),
-#         nrow = 2,
-#         rel_heights = c(0.3, 1),
-#         align = "v"
-#     ) +
-#     cowplot::draw_grob(
-#         cowplot::get_legend(scatter + theme(legend.position = "right")),
-#         x = 0.8, y = 0.8, width = 0.2, height = 0.2
-#     )
-
-#     ggsave(file = gsub(".json", ".png", out_file), plot = combined_plot, width = 6, height = 6, dpi = 300, type = "cairo")
-# }
 
 
 #' @name process_multiplicity_fit
