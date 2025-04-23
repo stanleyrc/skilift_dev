@@ -210,7 +210,9 @@ lift_segment_width_distribution <- function(
 #' @author Johnathan Rafailov
 lift_allelic_pp_fit <- function(cohort, 
                                 output_data_dir,
-                                cores = 1, 
+                                cores = 1,
+                                save_png = TRUE,
+                                save_data = TRUE, 
                                 file.name = "hetsnps_major_minor.png") {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
@@ -243,16 +245,18 @@ lift_allelic_pp_fit <- function(cohort,
                         hets.fname = row$het_pileups,
                         allele = TRUE,
                         scatter = TRUE,
+                        binwidth = 1e4,
                         save = FALSE,
                         field = "count",
-                        height = 6 * 300,
-                        width = 6 * 300,
-                        units = "px",
-                        output.fname = out_file_png,
                         verbose = T) 
 
-                ggsave(file = out_file_png, plot = ppplot, width = 6, height = 6, dpi = 300)
+                if(save_png){
+                    ggsave(file = out_file_png, plot = ppplot$plot, width = 6, height = 6, dpi = 300)
+                }
         
+                if(save_data){
+                    write_json(ppplot$data[seqnames %in% c(1:22, "X", "Y"), .(major.cn, minor.cn, jabba_cn, color)], gsub(".png", ".json", out_file_png), pretty = TRUE)
+                }
                 
             },
             error = function(e) {
@@ -1301,26 +1305,29 @@ pp_plot = function(jabba_rds = NULL,
               major.cn > minval & minor.cn > minval &
               grepl("[0-9]", seqnames)==TRUE,]
 
-    pt = ggplot(dt, aes(x = major.cn, y = minor.cn, color = factor(jabba_cn))) +
-      geom_point(size = 2, alpha = 0.1) +
-      scale_x_continuous(breaks = 0:floor(maxval),
-                   labels = as.character(0:floor(maxval)),
-                   sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"],
-                                 name = paste("Major", field))) +
-      scale_y_continuous(breaks = 0:floor(maxval),
-                   labels = as.character(0:floor(maxval)),
-                   sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"],
-                                 name = paste("Minor", field))) +
-      labs(x = "Major CN", y = "Minor CN", color = "JaBbA CN") +
-      theme_bw() +
-      theme(legend.position = "none",
-          axis.title = element_text(size = 20, family = "sans"),
-          axis.text.x = element_text(size = 20, family = "sans"),
-          axis.text.y = element_text(size = 14, family = "sans"))
+    # Add a 'color' column with hex codes using ggplot2's default hue palette
+    dt[, color := scales::hue_pal()(length(unique(jabba_cn)))[match(jabba_cn, sort(unique(jabba_cn)))]]
+
+      pt = ggplot(dt, aes(x = major.cn, y = minor.cn, color = factor(jabba_cn))) +
+        geom_point(size = 2, alpha = 0.1) +
+        scale_x_continuous(breaks = 0:floor(maxval),
+                           labels = as.character(0:floor(maxval)),
+                           sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"],
+                                               name = paste("Major", field))) +
+        scale_y_continuous(breaks = 0:floor(maxval),
+                           labels = as.character(0:floor(maxval)),
+                           sec.axis = sec_axis(trans = ~(. - eqn["intercept"])/eqn["slope"],
+                                               name = paste("Minor", field))) +
+        labs(x = "Major CN", y = "Minor CN", color = "JaBbA CN") +
+        theme_bw() +
+        theme(legend.position = "none",
+              axis.title = element_text(size = 20, family = "sans"),
+              axis.text.x = element_text(size = 20, family = "sans"),
+              axis.text.y = element_text(size = 14, family = "sans"))
 
       pt = ggExtra::ggMarginal(pt, type = "histogram",
-                      xparams = list(bins = bins),
-                      yparams = list(bins = bins))
+                               xparams = list(bins = bins),
+                               yparams = list(bins = bins))
       
     } else {
 
@@ -1361,5 +1368,10 @@ pp_plot = function(jabba_rds = NULL,
     #      width = width,
     #      units = units)
   }
-  return(pt) 
+
+    return(list(
+        plot = pt,
+        data = dt,
+        eqn = eqn
+    ))
 }
