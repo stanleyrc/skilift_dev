@@ -8,6 +8,7 @@ pp_plot(
   jabba_rds = NULL,
   cov.fname = NULL,
   hets.fname = NULL,
+  binwidth = 1e+05,
   allele = FALSE,
   field = NULL,
   plot.min = -2,

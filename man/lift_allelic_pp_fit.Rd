@@ -8,6 +8,8 @@ lift_allelic_pp_fit(
   cohort,
   output_data_dir,
   cores = 1,
+  save_png = TRUE,
+  save_data = TRUE,
   file.name = "hetsnps_major_minor.png"
 )
 }
