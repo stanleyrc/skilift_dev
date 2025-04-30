@@ -4,7 +4,7 @@
 \alias{lift_filtered_events}
 \title{lift_filtered_events}
 \usage{
-lift_filtered_events(cohort, output_data_dir, cores = 1, return_table = FALSE)
+lift_filtered_events(cohort, output_data_dir, cores = 1, return_table = TRUE)
 }
 \arguments{
 \item{cohort}{Cohort object containing sample information}

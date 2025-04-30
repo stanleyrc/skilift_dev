@@ -9,14 +9,17 @@ meltski(
   id.vars,
   measure.vars,
   is_measure_regex = FALSE,
-  var.name = "variable",
+  variable.name = "variable",
   value.name = "value",
   group_regex = "",
   group_select = "\\\\1",
   replacement_regex = "",
   replacement = "",
   drop = FALSE,
-  keep_first_variable_col = FALSE
+  keep_first_variable_col = FALSE,
+  keep_remaining_cols = FALSE,
+  keep_original_cols = FALSE,
+  return_as_data_table = FALSE
 )
 }
 \description{
