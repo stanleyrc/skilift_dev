@@ -4,7 +4,16 @@
 \alias{merge.Cohort}
 \title{Merge Cohort objects}
 \usage{
-\method{merge}{Cohort}(x, y, ..., warn_duplicates = TRUE, rename_duplicates = FALSE)
+\method{merge}{Cohort}(
+  x,
+  y,
+  ...,
+  prefer_x = TRUE,
+  prefer_y = FALSE,
+  prefer_y_na = FALSE,
+  warn_duplicates = TRUE,
+  rename_duplicates = FALSE
+)
 }
 \arguments{
 \item{x}{Cohort object to merge}
