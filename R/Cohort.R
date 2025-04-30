@@ -1284,8 +1284,19 @@ meltski = function(
 #' @param warn_duplicates Logical indicating whether to warn about duplicate pairs (default TRUE)
 #' @param rename_duplicates Logical indicating whether to rename duplicate pairs instead of overwriting (default FALSE)
 #' @return A new Cohort object containing all data from input Cohorts
+#' 
+#' @export merge.Cohort 
 #' @export
-merge.Cohort <- function(x, y, ..., warn_duplicates = TRUE, rename_duplicates = FALSE) {
+merge.Cohort <- function(
+	x, 
+	y, 
+	..., 
+	prefer_x = TRUE, 
+	prefer_y = FALSE, 
+	prefer_y_na = FALSE, 
+	warn_duplicates = TRUE, 
+	rename_duplicates = FALSE
+) {
   cohorts_dots <- list(...)
   is_x_missing = missing(x)
   is_y_missing = missing(y)
@@ -1319,7 +1330,7 @@ merge.Cohort <- function(x, y, ..., warn_duplicates = TRUE, rename_duplicates = 
     duplicate_pairs <- intersect(merged_dt$pair, current_dt$pair)
     if (length(duplicate_pairs) > 0) {
       if (warn_duplicates) {
-        warning(sprintf(
+        message(sprintf(
           "Found %d duplicate pair(s): %s",
           length(duplicate_pairs),
           paste(duplicate_pairs, collapse = ", ")
@@ -1335,19 +1346,23 @@ merge.Cohort <- function(x, y, ..., warn_duplicates = TRUE, rename_duplicates = 
           }
           current_dt[pair == dup_pair, pair := paste0(pair, "_", suffix)]
         }
-      } else {
-        # Remove duplicates from current_dt that would overwrite existing pairs
-        current_dt <- current_dt[!pair %in% duplicate_pairs]
-      }
+	  }
+    #   } else {
+    #     # Remove duplicates from current_dt that would overwrite existing pairs
+	# 	browser()
+    #     current_dt <- current_dt[!pair %in% duplicate_pairs]
+    #   }
     }
 
     # Merge inputs data.tables
-    merged_dt <- merge(
+    merged_dt <- Skilift::merge.repl(
       merged_dt, 
       current_dt,
       by="pair", 
-      all.x = TRUE, ## Need these two on to do outer join, which seems to be expected behavior
-      all.y = TRUE
+      all = TRUE, ## Need these two on to do outer join, which should be expected behavior, you don't want to lose anything,
+	  prefer_x = prefer_x,
+	  prefer_y = prefer_y,
+	  prefer_y_na = prefer_y_na
     )
   }
 
@@ -1430,4 +1445,371 @@ process_jabba = function(jabba) {
     stop("jabba must be a gGraph object or jabba like object")
   }
   return(gg)
+}
+
+
+#' robust name()
+#'
+#' gives back character vector same length of input regardless whether named or not
+#'
+#' @param str a path string
+#' @return a string with multiple parentheses replaced with a single parenthesis
+#' @export
+names2 = function(x) {
+    nm = names(x)
+    if (is.null(nm))
+        return(rep("", length.out = length(x)))
+    else
+        return(nm)
+}
+
+#' convert columns with NA to false
+#'
+#' coerce NA in columns of class "logical" to FALSE
+#'
+#' @param dt data.table
+#' @param these_cols NULL by default, will select columns of class logical, otherwise will be specified
+#' @return A data.table
+#' @export
+dt_na2false = function(dt, these_cols = NULL) {
+    na2false = function(v)
+    {
+        ## v = ifelse(is.na(v), v, FALSE)
+        v[is.na(v)] = FALSE
+        as.logical(v)
+    }
+    if (is.null(these_cols)) {
+        these_cols = which(sapply(dt, class) == "logical")
+    }
+    for (this_col in these_cols) {
+        ## this_val = as.data.frame(dt[, this_col, with = FALSE])[,1]
+        this_val = dt[[this_col]]
+        data.table::set(dt, j = this_col, value = na2false(this_val))
+    }
+    return(dt)
+}
+
+#' Kind of NA
+#' 
+#' Test for NAs of different types
+#' 
+#' NA may not be the only type that we want to test for
+#' 
+#' If it's a character, we may want to loosely test for other "NAs"
+#' @export
+is_loosely_na = function(values, character_nas = c("NA", "na", "N/A", "n/a", "NULL", "Null", "null")) {
+	is_proper_na = is.na(values)
+	is_values_character = is.character(values)
+	is_empty = is_other_na_type = rep_len(FALSE, NROW(values))
+	if (is_values_character) {
+		is_other_na_type = tolower(values) %in% character_nas
+		is_empty = nchar(values) == 0
+	}
+	is_na = is_proper_na | is_other_na_type | is_empty
+	return(is_na)
+}
+
+
+#' merging data tables with collapsing columns with the same name
+#'
+#' Merge two data tables with various replacing strategies
+#' for columns common between x and y that are not used to merge
+#' (i.e. not specified in the "by" argument)
+#'
+#' @param replace_NA logical, only use values in dt.y, any dt.x not in dt.y is clobbered (NA)
+#' @param delete_xiny logical, delete columns in x that intersect with y columns (remove previous columns)
+#' @param force_y logical, should x and y common columns be merged?
+#' @param prefer_y logical, for x and y entries sharing common by keys, prefer y (logic to control whether to ignore na or not encoded by prefer_y_na)
+#' @param prefer_y_na logical, for x and y entries sharing common by keys, prefer y and ignore NAs
+#' @param overwrite_x logical, if force_y = TRUE, should NA values in y replace x?
+#' @return A data.table
+#' @export merge.repl
+merge.repl = function(dt.x,
+                      dt.y,
+                      sep = "_",
+                      replace_NA = TRUE,
+					  delete_xiny = !replace_NA,
+                      force_y = TRUE,
+					  prefer_y = force_y,
+					  prefer_x = !prefer_y,
+                      overwrite_x = FALSE,
+					  prefer_y_na = overwrite_x,
+                      keep_order = FALSE,
+                      keep_colorder = TRUE,
+                      keep_factor = TRUE,
+					  suffixes = c(".x", ".y"),
+                      ...) {
+    arg_lst = as.list(match.call())
+    by.y = eval(arg_lst[['by.y']], parent.frame())
+    by.x = eval(arg_lst[['by.x']], parent.frame())
+    by = eval(arg_lst[['by']], parent.frame())
+    all.x = eval(arg_lst[['all.x']], parent.frame())
+    all.y = eval(arg_lst[['all.y']], parent.frame())
+    all = eval(arg_lst[['all']], parent.frame())
+    allow.cartesian = eval(arg_lst[['allow.cartesian']])
+	
+    key_x = key(dt.x)
+    is_all.x_not_provided = is.null(all.x)
+    is_all.y_not_provided = is.null(all.y)
+    is_all.y_provided = !is.null(all.y)
+    is_all_provided = !is.null(all)
+    if (is_all.x_not_provided && is_all.y_not_provided) {
+        all.x = TRUE
+        all.y = FALSE
+    }
+    if (is_all.x_not_provided && is_all.y_provided) {
+        all.x = FALSE
+    }
+    if (is_all_provided && identical(all, TRUE)) {
+        all.y = TRUE
+        all.x = TRUE
+    }
+    if (is.null(allow.cartesian)) {
+        allow.cartesian = FALSE
+    }
+    if (!inherits(dt.x, "data.table")) {
+        dt.x = as.data.table(dt.x)
+    }
+    if (!inherits(dt.y, "data.table")) {
+        dt.y = as.data.table(dt.y)
+    }
+    if (keep_order == TRUE) {
+        dt.x[['tmp.2345098712340987']] = seq_len(nrow(dt.x))
+    }
+
+	call_replace_NA = eval(arg_lst[['replace_NA']], parent.frame())
+	was_replace_NA_provided = !is.null(call_replace_NA)
+
+	if (was_replace_NA_provided) {
+		message("replace_NA is deprecated, please provide delete_xiny instead next time..")
+		message("using !replace_NA value provided: ", !replace_NA)
+		delete_xiny = !replace_NA
+	}
+
+	call_delete_xiny = eval(arg_lst[['delete_xiny']], parent.frame())
+	was_delete_xiny_provided = !is.null(delete_xiny)
+
+	call_force_y = eval(arg_lst[['force_y']], parent.frame())
+	# call_replace_na_x = eval(arg_lst[['replace_na_x']], parent.frame())
+	was_force_y_provided = !is.null(call_force_y)
+
+	if (was_force_y_provided) {
+		message("force_y is deprecated, please provide prefer_y instead next time..")
+		message("using force_y value provided: ", force_y)
+		prefer_y = force_y
+	}
+
+	call_overwrite_x = eval(arg_lst[['overwrite_x']], parent.frame())
+	was_overwrite_x_provided = !is.null(call_overwrite_x)
+
+	if (was_overwrite_x_provided) {
+		message("overwrite_x is deprecated, please provide prefer_y_na instead next time..")
+		message("using prefer_y_na value provided: ", prefer_y_na)
+		prefer_y_na = overwrite_x
+	}
+
+	call_prefer_x = eval(arg_lst[['prefer_x']], parent.frame())
+	was_prefer_x_provided = !is.null(call_prefer_x)
+
+	call_prefer_y = eval(arg_lst[['prefer_y']], parent.frame())
+	was_prefer_y_provided = !is.null(call_prefer_y)
+
+	call_prefer_y_na = eval(arg_lst[['prefer_y_na']], parent.frame())
+	was_prefer_y_na_provided = !is.null(call_prefer_y_na)
+
+
+    if (was_prefer_x_provided && identical(prefer_x, prefer_y)) {
+        prefer_y = !prefer_x
+        prefer_y_na = !prefer_x
+    }
+
+	is_preference_invalid = identical(prefer_y, prefer_x)
+	if (is_preference_invalid) {
+		stop("prefer_y and prefer_x are mutually exlusive")
+	}
+
+
+	is_only_delete_provided_and_true = was_delete_xiny_provided && !was_prefer_y_provided && identical(delete_xiny, TRUE)
+
+	is_delete_and_prefer_choice_invalid = (
+		identical(delete_xiny, TRUE) 
+		&& (
+			identical(delete_xiny, prefer_y) 
+			|| identical(delete_xiny, prefer_y_na)
+		)
+	)
+	if ( ! is_only_delete_provided_and_true && is_delete_and_prefer_choice_invalid) {
+		message("delete_xiny: ", delete_xiny)
+		message("prefer_y: ", prefer_y)
+		message("prefer_y_na: ", prefer_y_na)
+		stop("delete_x must be mutually exclusive with both prefer_y and prefer_y_na")
+	}
+
+	is_prefer_y_na_invalid = identical(prefer_y_na, TRUE) && !identical(prefer_y_na, prefer_y)
+	if (is_prefer_y_na_invalid) {
+		message("prefer_y_na and prefer_y args are incompatible")
+		message("If prefer_y_na is set to TRUE, specify explicitly that you would prefer y values for joined columns by setting prefer_y to TRUE also")
+		stop("prefer_y_na set to FALSE, but prefer_y set to TRUE")
+	}
+	
+
+	is_suffixes_unique = identical(anyDuplicated(suffixes), 0L)
+	is_suffixes_all_nonempty_string = is.character(suffixes) && all(nzchar(suffixes))
+	is_suffixes_len_2 = NROW(suffixes) == 2
+	if (!is_suffixes_len_2 || !is_suffixes_unique || !is_suffixes_all_nonempty_string) {
+		stop("suffixes argument must be provided as two non empty, unique strings, e.g. suffixes = c('.x', '.y')")
+	}
+
+    dt.x[['in.x.2345098712340987']] = rep(TRUE, length.out = nrow(dt.x))
+    dt.y[['in.y.2345098712340987']] = rep(TRUE, length.out = nrow(dt.y))
+
+    new_ddd_args = list(
+      by = by, by.x = by.x, by.y = by.y,
+      all.x = all.x, all.y = all.y,
+      allow.cartesian = allow.cartesian,
+	  suffixes = suffixes
+    )
+
+    if (is.null(by.y) && is.null(by.x) && is.null(by)) {
+
+        if (
+			length(attributes(dt.x)[['sorted']]) > 0 
+			&& length(attributes(dt.y)[['sorted']]) > 0
+		) {
+            k.x = data.table::key(dt.x)
+            k.y = data.table::key(dt.y)
+        } else {
+            k.y = k.x = intersect(names2(dt.x), names2(dt.y))
+            if (length(k.x) == 0)
+                stop("no common columns to merge by!")
+            message("intersecting by: ", paste(k.x, collapse = ", "))
+            new_ddd_args[['by']] = k.x
+        }
+        if ((!is.null(k.x) && !is.null(k.y)) && !identical(k.x, k.y)) {
+          stop(
+            "neither by.x/by.y nor by are supplied, ",
+            "keys of dt.x and dt.y ",
+            "must be identical and non NULL"
+          )
+        }
+        x.cols = setdiff(names(dt.x), k.x)
+        y.cols = setdiff(names(dt.y), k.y)
+
+    } else if (!is.null(by.x) && !is.null(by.y)) {
+
+        x.cols = setdiff(names(dt.x), by.x)
+        y.cols = setdiff(names(dt.y), by.y)
+        new_ddd_args = new_ddd_args[setdiff(names(new_ddd_args), c("by"))]
+
+    } else if (!is.null(by)) {
+
+      x.cols = setdiff(names(dt.x), by)
+      y.cols = setdiff(names(dt.y), by)
+      if (! all(by %in% colnames(dt.x)) || ! all(by %in% colnames(dt.y))) {
+        stop(
+          "column ",
+          by,
+          " does not exist in one of the tables supplied",
+          "\nCheck the column names"
+        )
+      }
+      new_ddd_args = new_ddd_args[setdiff(names(new_ddd_args), c("by.y", "by.x"))]
+
+    }
+    intersecting_colnames = intersect(x.cols, y.cols)
+    ## if (replace_in_x) {
+    # if (!replace_NA) {
+	dt.x.tomerge = dt.x
+	if (delete_xiny) {
+		dt.x.tomerge = data.table::copy(dt.x.tomerge)
+		for (this_col in intersecting_colnames) {
+			data.table::set(dt.x.tomerge, i = NULL, j = this_col, value = NULL)
+		}
+	}
+	dt.repl = suppressWarnings(
+		do.call(
+			"merge",
+			args = c(list(x = dt.x.tomerge, y = dt.y), new_ddd_args)
+		)
+	)
+	dt_na2false(dt.repl, c("in.x.2345098712340987", "in.y.2345098712340987"))
+	in.x = which(dt.repl[["in.x.2345098712340987"]])
+	in.y = which(dt.repl[["in.y.2345098712340987"]])
+	this_env = environment()
+	
+	for (this_col in intersecting_colnames) {
+		x_cname = paste0(this_col, suffixes[1])
+		y_cname = paste0(this_col, suffixes[2])
+		x_col = dt.repl[[x_cname]]
+		y_col = dt.repl[[y_cname]]
+		is_x_factor = inherits(x_col, "factor")
+		is_y_factor = inherits(y_col, "factor")
+		is_either_xy_factor = is_x_factor || is_y_factor
+		if ( (is_either_xy_factor) && keep_factor) {
+			if (!is_x_factor) { x_col = factor(x_col); is_x_factor = TRUE }
+			if (!is_y_factor) { y_col = factor(y_col); is_y_factor = TRUE }
+		}
+		if (is_x_factor && !keep_factor) { x_col = as.character(x_col); is_x_factor = FALSE } 
+		if (is_y_factor && !keep_factor) { y_col = as.character(y_col); is_y_factor = FALSE }
+		is_either_xy_factor = is_x_factor || is_y_factor
+		
+		if (prefer_y) {
+			## overwrite_x means that y NAs in keys that overlap between the
+			## two x and y tables will be preferred 
+			if (!prefer_y_na) {
+				if (is_either_xy_factor) {
+					new_col = factor(y_col, forcats::lvls_union(list(y_col, x_col)))
+					new_col[is.na(new_col)] = x_col[is.na(new_col)]
+				} else {
+					new_col = ifelse(!is_loosely_na(y_col), y_col, x_col)
+				}
+			} else {
+				if (is_either_xy_factor) {
+					new_col = factor(x_col, forcats::lvls_union(list(y_col, x_col)))
+				} else {
+					new_col = x_col
+				}
+				new_col[in.y] = y_col[in.y]
+			}
+		} else if (prefer_x) {
+			## Only take X column if 
+			if (is_either_xy_factor) {
+				new_col = factor(x_col, forcats::lvls_union(list(x_col, y_col)))
+				new_col[is_loosely_na(new_col) & !is_loosely_na(y_col)] = y_col[is.na(new_col) & !is.na(y_col)]
+			} else {
+				new_col = ifelse(is_loosely_na(x_col) & !is_loosely_na(y_col), y_col, x_col)
+			}
+		} else {
+			stop("How did this happen?")
+		}
+		data.table::set(
+			dt.repl,
+			j = c(x_cname, y_cname, this_col),
+			value = list(NULL, NULL, this_env[["new_col"]])
+		)
+	}
+    if (identical(keep_order, TRUE)) {
+        data.table::setorderv(dt.repl, "tmp.2345098712340987")
+        dt.repl[['tmp.2345098712340987']] = NULL
+    }
+    data.table::set(
+      dt.repl,
+      j = c("in.y.2345098712340987", "in.x.2345098712340987"),
+      value = list(NULL, NULL)
+    )
+    if (keep_colorder) {
+        x_cols = colnames(dt.x)
+        ## get the order of columns in dt.repl in order of X with
+        ## additional columns tacked on end
+        data.table::setcolorder(
+          dt.repl,
+          intersect(
+            union(
+              colnames(dt.x),
+              colnames(dt.repl)),
+            colnames(dt.repl)
+          )
+        )
+    }
+    return(dt.repl)
 }
