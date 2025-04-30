@@ -135,7 +135,7 @@ lift_all <- function(
   message("Uploading in ", cohort$type, " mode")
 
   if (cohort$type == "paired") {
-    lift_paired(
+    cohort_mod = lift_paired(
       cohort = cohort,
       output_data_dir = output_data_dir,
       oncotable_dir = oncotable_dir,
@@ -146,7 +146,7 @@ lift_all <- function(
       ... = ...
     )
   } else if (cohort$type == "heme") {
-    lift_heme(
+    cohort_mod = lift_heme(
       cohort = cohort,
       output_data_dir = output_data_dir,
       oncotable_dir = oncotable_dir,
@@ -157,7 +157,7 @@ lift_all <- function(
       ... = ...
     )
   } else if (cohort$type == "tumor_only") {
-    lift_tumor_only(
+    cohort_mod = lift_tumor_only(
       cohort = cohort,
       output_data_dir = output_data_dir,
       oncotable_dir = oncotable_dir,
@@ -173,6 +173,8 @@ lift_all <- function(
   if (!file.exists(datafiles_json_path)) {
     warning("Creating datafiles.json directory")
   }
+
+  return(cohort_mod)
 }
 
 #' Run MVP (Minimum Viable Product) lift methods
@@ -366,11 +368,15 @@ lift_mvp <- function(
     )
   }
 
+  return(cohort)
+
   
 }
 
 lift_tumor_only <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
   cohort <- lift_mvp(cohort, output_data_dir, oncotable_dir, cores, ...)
+
+  return(cohort)
 }
 
 lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
@@ -383,6 +389,8 @@ lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
   if (has_required_columns(cohort, required_columns$highlighted_events)) {
     warning("not implemented yet")
   }
+
+  return(cohort)
 }
 
 lift_paired <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
@@ -396,6 +404,8 @@ lift_paired <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
       is_germline = TRUE
     )
   }
+
+  return(cohort)
 
 }
 
