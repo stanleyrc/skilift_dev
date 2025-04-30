@@ -73,7 +73,7 @@ Cohort <- R6Class("Cohort",
           self$inputs <- private$construct_from_path(x)[]
           self$nextflow_results_path <- x
           warning("Cohort initialized from path: ", x, "\n",
-            "This is deprecated! You should use the gosh-cli to generate an outputs.csv file and then read it in using Cohort$new(path = 'outputs.csv')",)
+            "This is deprecated! You should use the gosh-cli to generate an outputs.csv file and then read it in using Cohort$new(path = 'outputs.csv')")
         }
       } else if (is.data.table(x)) {
         self$inputs <- private$construct_from_datatable(x)[]
@@ -662,9 +662,15 @@ default_col_mapping <- list(
   hrdetect = c("hrdetect", "hrd"),
   onenesstwoness = c("onenesstwoness","oneness_twoness"),
   oncotable = c("oncotable"),
-  estimate_library_complexity = c("estimate_library_complexity", "qc_dup_rate", "library_complexity_metrics", "est_lib_complex"),
-  alignment_summary_metrics = c("alignment_summary_metrics", "qc_alignment_summary", "alignment_metrics"),
-  insert_size_metrics = c("insert_size_metrics", "qc_insert_size", "insert_metrics"),
+  estimate_library_complexity = c("estimate_library_complexity", "qc_dup_rate", "library_complexity_metrics", "est_lib_complex", "qc_dup_rate_tumor"),
+  estimate_library_complexity_tumor = c("estimate_library_complexity_tumor", "qc_dup_rate_tumor", "library_complexity_metrics_tumor", "est_lib_complex_tumor"),
+  estimate_library_complexity_normal = c("estimate_library_complexity_normal", "qc_dup_rate_normal", "library_complexity_metrics_normal", "est_lib_complex_normal"),
+  alignment_summary_metrics = c("alignment_summary_metrics", "qc_alignment_summary", "alignment_metrics", "qc_alignment_summary_tumor"),
+  alignment_summary_metrics_tumor = c("alignment_summary_metrics_tumor", "qc_alignment_summary_tumor", "alignment_metrics_tumor"),
+  alignment_summary_metrics_normal = c("alignment_summary_metrics_normal", "qc_alignment_summary_normal", "alignment_metrics_normal"),
+  insert_size_metrics = c("insert_size_metrics", "qc_insert_size", "insert_metrics", "insert_size_metrics_tumor"),
+  insert_size_metrics_tumor = c("insert_size_metrics_tumor", "qc_insert_size_tumor", "insert_metrics_tumor"),
+  insert_size_metrics_normal = c("insert_size_metrics_normal", "qc_insert_size_normal", "insert_metrics_normal"),
   wgs_metrics = c("wgs_metrics", "qc_coverage_metrics", "wgs_stats"),
   tumor_wgs_metrics = c("tumor_wgs_metrics", "qc_coverage_metrics_tumor", "tumor_wgs_stats"),
   normal_wgs_metrics = c("normal_wgs_metrics", "qc_coverage_metrics_normal",  "normal_wgs_stats"),
