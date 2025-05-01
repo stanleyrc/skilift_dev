@@ -263,16 +263,21 @@ multiplicity_to_intervals <- function(
         gr_heme = gr[is_heme]
         gr_other = gr[!is_heme]
         remaining = 1e4 - NROW(gr_heme)
-        if (remaining > 0) {
+		is_other_more_than_remaining = NROW(gr_other) > remaining
+		is_other_less_eq_than_remaining = !is_other_more_than_remaining
+		is_subsampling_required_for_other = remaining > 0 && is_other_more_than_remaining
+		is_include_all_other = remaining > 0 && is_other_less_eq_than_remaining
+        if (is_subsampling_required_for_other) {
             otherix = 1:NROW(gr_other)
             set.seed(42)
             sampled_otherix = sample(otherix, size = remaining, replace = FALSE)
             gr_subsampled_other = gr_other[sampled_otherix]
             gr = c(gr_heme, gr_subsampled_other)
+        } else if (is_include_all_other) {
+			gr = c(gr_heme, gr_other)
         } else {
-            gr = gr_heme
-        }
-        
+			gr = gr_heme
+		}   
     }
     
     
