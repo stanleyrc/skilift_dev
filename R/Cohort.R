@@ -19,6 +19,14 @@ priority_columns_jabba = priority_columns_jabba_og
 #' 
 #' @export
 DEFAULT_JABBA = function(object, priority_columns_jabba = getOption("skilift_jabba_columns"), get_object = "cohort", test_mode = all, verbose = TRUE) {
+
+	is_priority_columns_jabba_valid = all(priority_columns_jabba %in% Skilift:::priority_columns_jabba_og)
+	if (! is_priority_columns_jabba_valid) {
+		stop(
+			"Provided jabba column names: ", paste(priority_columns_jabba, collapse = ", "), "\n",
+			"These must be one of: ", paste(Skilift:::priority_columns_jabba_og, collapse = ", ")
+		)
+	}
 	
 	if (!is.function(test_mode)) stop("test_mode must be a function, like all() or any()")
 	is_object_not_provided = missing(object) || is.null(object)
