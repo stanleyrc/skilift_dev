@@ -4,7 +4,7 @@
 \alias{has_required_columns}
 \title{lift wrapper helper function}
 \usage{
-has_required_columns(cohort, columns, any = FALSE)
+has_required_columns(cohort, columns, any = FALSE, verbose = TRUE)
 }
 \description{
 Helper function to check if required columns exist

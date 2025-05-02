@@ -1,7 +1,20 @@
 #' lift wrapper helper function
 #'
 #' Helper function to check if required columns exist
-has_required_columns <- function(cohort, columns, any = FALSE) {
+has_required_columns <- function(cohort, columns, any = FALSE, verbose = TRUE) {
+  is_non_allelic_jabba_column = columns %in% Skilift:::priority_columns_jabba
+  ix_non_allelic_jabba_column = which(is_non_allelic_jabba_column)
+  if (any(is_non_allelic_jabba_column)) {
+	replace_column = Skilift::DEFAULT_JABBA()
+	original_column = columns[ix_non_allelic_jabba_column[1]]
+	if (verbose) {
+		message(
+			"Required jabba column specified: ", original_column, "\n",
+			"Replacement jabba column: ", replace_column
+		)
+	}
+	columns[ix_non_allelic_jabba_column[1]] = replace_column
+  }	
   if (any) {
     return(any(columns %in% names(cohort$inputs)))
   }
@@ -195,6 +208,8 @@ lift_mvp <- function(
 ) {
   list2env(list(...), envir = environment())
 
+  jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
+
   if (has_required_columns(cohort, required_columns$total_copy_number_graph)) {
     lift_copy_number_graph(
       cohort = cohort,
@@ -229,7 +244,7 @@ lift_mvp <- function(
     )
   }
 
-  if (has_required_columns(cohort, required_columns$oncotable, any = TRUE) && 'jabba_gg' %in% names(cohort$inputs)) {
+  if (has_required_columns(cohort, required_columns$oncotable, any = TRUE) && jabba_column %in% names(cohort$inputs)) {
     cohort <- create_oncotable(
       cohort = cohort,
       outdir = oncotable_dir,

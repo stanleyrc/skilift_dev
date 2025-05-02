@@ -1,5 +1,51 @@
 default_settings_path <- system.file("extdata", "test_data", "settings.json", package = "Skilift")
 
+
+#' Jabba priority
+#' 
+#' Non-allelic jabbas
+#' @export
+priority_columns_jabba = c(
+	"events",
+	"balanced_jabba_gg",
+	"jabba_gg"
+)
+
+#' Default Jabba Type 
+#' 
+#' Get correct jabba column to use globally across all methods
+#' 
+#' @export
+DEFAULT_JABBA = function(object, get_object = "cohort", test_mode = all, verbose = TRUE) {
+	if (verbose) message("Pulling Cohort object from environment stack")
+	if (!is.function(test_mode)) stop("test_mode must be a function, like all() or any()")
+	is_object_not_provided = missing(object) || is.null(object)
+	if (is_object_not_provided)
+		cohort_object = base::dynGet(get_object, ifnotfound = NULL)
+	else {
+		cohort_object = object
+	}
+	inp = NULL
+	col = priority_columns_jabba[1]
+	priority_columns_jabba = Skilift:::priority_columns_jabba
+	use_column = TRUE
+	if (!is.null(cohort_object)) {
+		inp = cohort_object$inputs
+	} else {
+		if (verbose) {
+			message("Cohort object not found!")
+			message("Returning: ", col)
+		}
+		return(col)
+	}
+	for (col in priority_columns_jabba) {
+		Skilift::test_paths(inp[[col]], verbose = FALSE)
+		use_column = test_mode(is_existent_path)
+		if (use_column) break
+	}
+	return(col)
+}
+
 #' @export
 Cohort <- R6Class("Cohort",
   public = list(
@@ -1401,7 +1447,7 @@ test_path = function(
   is_character = is.character(object)
   is_len_one = NROW(object) == 1
   is_not_valid = is_character && ! NROW(object) == 1
-  is_na = is_len_one && (is.na(object) || object %in% c("NA", base::nullfile()))
+  is_na = is_len_one && is_loosely_na(object, other_nas = base::nullfile())
   is_possible_path = is_character && is_len_one && !is_na
   is_existent_path = is_possible_path && file.exists(object)
   is_rds = is_possible_path && grepl(rds_regex, object)
@@ -1413,6 +1459,50 @@ test_path = function(
       is_character,
       is_len_one,
       is_not_valid,
+      is_na,
+      is_possible_path,
+      is_existent_path,
+      is_rds,
+      is_vcf,
+      is_bcf,
+      is_gff
+  ))
+  if (verbose) {
+    nms = names(logicals)
+    message("Assigning:")
+    for (nm in nms) {
+      message(nm)
+    }
+  }
+  list2env(logicals, envir = parent.frame())
+  return(logicals)
+}
+
+#' Test path vector
+#' 
+#' Test if paths exist robustly
+#' 
+#' @export
+test_paths = function(
+  objects, 
+  rds_regex = ".rds$",
+  gff_regex = ".gtf(.gz){0,}$|.gff([0-9]){0,}(.gz){0,}$",
+  bcf_regex = ".bcf(.bgz|.gz){0,}$",
+  vcf_regex = ".vcf(.bgz|.gz){0,}$",
+  verbose = TRUE
+) {
+  is_null = is.null(objects)
+  is_character = is.character(objects)
+  is_na = is_loosely_na(objects, other_nas = base::nullfile())
+  is_possible_path = is_character & !is_na
+  is_existent_path = is_possible_path & file.exists(objects)
+  is_rds = is_possible_path & grepl(rds_regex, objects)
+  is_vcf = is_possible_path & grepl(vcf_regex, objects)
+  is_bcf = is_possible_path & grepl(bcf_regex, objects)
+  is_gff = is_possible_path & grepl(gff_regex, objects)
+  logicals = as.list(data.frame(
+      is_null,
+      is_character,
       is_na,
       is_possible_path,
       is_existent_path,
@@ -1509,12 +1599,14 @@ dt_na2false = function(dt, these_cols = NULL) {
 #' 
 #' If it's a character, we may want to loosely test for other "NAs"
 #' @export
-is_loosely_na = function(values, character_nas = c("NA", "na", "N/A", "n/a", "NULL", "Null", "null")) {
+is_loosely_na = function(values, character_nas = c("NA", "na", "N/A", "n/a", "NULL", "Null", "null"), other_nas = NULL) {
 	is_proper_na = is.na(values)
 	is_values_character = is.character(values)
 	is_empty = is_other_na_type = rep_len(FALSE, NROW(values))
+	if (is.null(other_nas) || NROW(other_nas) == 0 || is.na(other_nas)) other_nas = character(0)
+	if (!is.character(other_nas)) other_nas = as.character(other_nas)
 	if (is_values_character) {
-		is_other_na_type = tolower(values) %in% character_nas
+		is_other_na_type = tolower(values) %in% c(character_nas, other_nas)
 		is_empty = nchar(values) == 0
 	}
 	is_na = is_proper_na | is_other_na_type | is_empty

@@ -6,7 +6,8 @@
 \usage{
 is_loosely_na(
   values,
-  character_nas = c("NA", "na", "N/A", "n/a", "NULL", "Null", "null")
+  character_nas = c("NA", "na", "N/A", "n/a", "NULL", "Null", "null"),
+  other_nas = NULL
 )
 }
 \description{
