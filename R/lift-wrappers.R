@@ -2,18 +2,23 @@
 #'
 #' Helper function to check if required columns exist
 has_required_columns <- function(cohort, columns, any = FALSE, verbose = TRUE) {
-  is_non_allelic_jabba_column = columns %in% Skilift:::priority_columns_jabba
+#   is_non_allelic_jabba_column = columns %in% Skilift:::priority_columns_jabba
+  is_non_allelic_jabba_column = columns %in% Skilift:::priority_columns_jabba_og
   ix_non_allelic_jabba_column = which(is_non_allelic_jabba_column)
   if (any(is_non_allelic_jabba_column)) {
 	replace_column = Skilift::DEFAULT_JABBA(object = cohort)
 	original_column = columns[ix_non_allelic_jabba_column[1]]
-	if (verbose) {
-		message(
-			"Required jabba column specified: ", original_column, "\n",
-			"Replacement jabba column: ", replace_column
-		)
+    is_not_same = !identical(replace_column, original_column)
+	if (is_not_same) {
+		if (verbose) {
+            message(
+                "Required jabba column specified: ", original_column, "\n",
+                "Replacement jabba column: ", replace_column
+            )
+        }
+        columns[ix_non_allelic_jabba_column[1]] = replace_column
 	}
-	columns[ix_non_allelic_jabba_column[1]] = replace_column
+	
   }	
   if (any) {
     return(any(columns %in% names(cohort$inputs)))
