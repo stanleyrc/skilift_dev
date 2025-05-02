@@ -16,19 +16,18 @@ priority_columns_jabba = c(
 #' Get correct jabba column to use globally across all methods
 #' 
 #' @export
-DEFAULT_JABBA = function(object, get_object = "cohort", test_mode = all, verbose = TRUE) {
+DEFAULT_JABBA = function(object, priority_columns_jabba = Skilift::priority_columns_jabba, get_object = "cohort", test_mode = all, verbose = TRUE) {
 	
 	if (!is.function(test_mode)) stop("test_mode must be a function, like all() or any()")
 	is_object_not_provided = missing(object) || is.null(object)
-	if (is_object_not_provided)
+	if (is_object_not_provided) {
 		if (verbose) message("Pulling Cohort object from environment stack")
 		cohort_object = base::dynGet(get_object, ifnotfound = NULL)
-	else {
+	} else {
 		cohort_object = object
 	}
 	inp = NULL
 	col = priority_columns_jabba[1]
-	priority_columns_jabba = Skilift:::priority_columns_jabba
 	use_column = TRUE
 	if (!is.null(cohort_object)) {
 		inp = cohort_object$inputs
