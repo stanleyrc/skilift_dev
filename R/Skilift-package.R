@@ -42,6 +42,7 @@ registerS3method(genname = "merge", class = "data.table", method = data.table::m
 	if (is_skilift_jabba_columns_valid_option) {
 		message("option('skilift_jabba_columns') already set to: ", paste(skilift_jabba_columns, collapse = ", "))
 	} else {
+		message("option('skilift_jabba_columns') set to: ", paste(Skilift:::priority_columns_jabba_og, collapse = ", "))
 		options("skilift_jabba_columns" = Skilift:::priority_columns_jabba_og)
 	}
 	
