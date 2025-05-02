@@ -78,6 +78,7 @@ set_jabba_column = function(column) {
 		)
 	} else if (!is_provided_column) {
 		column = Skilift:::priority_columns_jabba_og
+		message("Setting default jabba columns to: ", paste(column, collapse = ", "))
 	}
 	Skilift::assign_in_namespace("priority_columns_jabba", column, ns = asNamespace("Skilift"))
 	options("skilift_jabba_columns" = column)
