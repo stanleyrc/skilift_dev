@@ -1319,6 +1319,15 @@ merge.Cohort <- function(
     }
   }
 
+  cohorts_type = unlist(lapply(cohorts, function(cohort) cohort$type))
+  is_cohort_type_same_in_all = all(cohorts_type == cohorts_type[1])
+  if (!is_cohort_type_same_in_all) {
+	stop(
+		"Cohorts to be merged have different types!\n", 
+		"Cohort type is defined at cohort object level, not at a sample level, currently.\n"
+	)
+  }
+
   # Get first cohort to initialize merged result
   merged_dt <- data.table::copy(cohorts[[1]]$inputs)
 
@@ -1367,7 +1376,10 @@ merge.Cohort <- function(
   }
 
   # Create new Cohort with merged data
-  result <- Cohort$new(merged_dt, cohort_type=cohorts[[1]]$type)
+
+#   result <- Cohort$new(merged_dt, cohort_type=cohorts[[1]]$type)
+  result = Skilift::copy(cohorts[[1]])
+  result$inputs = merged_dt
 
   return(result)
 }
@@ -1812,4 +1824,38 @@ merge.repl = function(dt.x,
         )
     }
     return(dt.repl)
+}
+
+#' make deep copy, recursively
+#'
+#' useful for dev
+#' makes deep copy of R6 object, S4 object, or anything else really
+#'
+#' @name copy
+#' @export copy
+copy = function (x, recurse_list = TRUE) {
+    if (inherits(x, "R6")) {
+        x2 = rlang::duplicate(x$clone(deep = T))
+        for (name in intersect(names(x2$.__enclos_env__), c("private", 
+            "public"))) for (nname in names(x2$.__enclos_env__[[name]])) tryCatch({
+            x2$.__enclos_env__[[name]][[nname]] = Skilift::copy(x2$.__enclos_env__[[name]][[nname]])
+        }, error = function(e) NULL)
+        return(x2)
+    } else if (methods::isS4(x)) {
+        x2 = rlang::duplicate(x)
+        slns = slotNames(x2)
+        for (sln in slns) {
+            tryCatch({
+                slot(x2, sln) = Skilift::copy(slot(x2, sln))
+            }, error = function(e) NULL)
+        }
+        return(x2)
+    } else if (inherits(x, c("list"))) {
+        x2 = rlang::duplicate(x)
+        x2 = rapply(x2, Skilift::copy, how = "replace")
+        return(x2)
+    } else {
+        x2 = rlang::duplicate(x)
+        return(x2)
+    }
 }
