@@ -17,10 +17,11 @@ priority_columns_jabba = c(
 #' 
 #' @export
 DEFAULT_JABBA = function(object, get_object = "cohort", test_mode = all, verbose = TRUE) {
-	if (verbose) message("Pulling Cohort object from environment stack")
+	
 	if (!is.function(test_mode)) stop("test_mode must be a function, like all() or any()")
 	is_object_not_provided = missing(object) || is.null(object)
 	if (is_object_not_provided)
+		if (verbose) message("Pulling Cohort object from environment stack")
 		cohort_object = base::dynGet(get_object, ifnotfound = NULL)
 	else {
 		cohort_object = object
@@ -1933,7 +1934,7 @@ copy = function (x, recurse_list = TRUE) {
             x2$.__enclos_env__[[name]][[nname]] = Skilift::copy(x2$.__enclos_env__[[name]][[nname]])
         }, error = function(e) NULL)
         return(x2)
-    } else if (methods::isS4(x)) {
+    } else if (base::isS4(x)) {
         x2 = rlang::duplicate(x)
         slns = slotNames(x2)
         for (sln in slns) {
