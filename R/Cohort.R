@@ -58,7 +58,7 @@ set_jabba_column = function(column) {
 	is_provided_column = (
 		!missing(column) 
 		&& !is.null(column) 
-		&& !(NROW(column) == 1 && is_loosely_na(column, other_nas = base::nullfile()))
+		&& !(NROW(column) == 1 && Skilift::is_loosely_na(column, other_nas = base::nullfile()))
 	)
 	is_provided_column_valid = is_provided_column && all(column %in% Skilift:::priority_columns_jabba_og)
 	if (is_provided_column && is_provided_column_valid) {
@@ -1477,7 +1477,7 @@ test_path = function(
   is_character = is.character(object)
   is_len_one = NROW(object) == 1
   is_not_valid = is_character && ! NROW(object) == 1
-  is_na = is_len_one && is_loosely_na(object, other_nas = base::nullfile())
+  is_na = is_len_one && Skilift::is_loosely_na(object, other_nas = base::nullfile())
   is_possible_path = is_character && is_len_one && !is_na
   is_existent_path = is_possible_path && file.exists(object)
   is_rds = is_possible_path && grepl(rds_regex, object)
@@ -1523,7 +1523,7 @@ test_paths = function(
 ) {
   is_null = is.null(objects)
   is_character = is.character(objects)
-  is_na = is_loosely_na(objects, other_nas = base::nullfile())
+  is_na = Skilift::is_loosely_na(objects, other_nas = base::nullfile())
   is_possible_path = is_character & !is_na
   is_existent_path = is_possible_path & file.exists(objects)
   is_rds = is_possible_path & grepl(rds_regex, objects)
@@ -1895,7 +1895,7 @@ merge.repl = function(dt.x,
 					new_col = factor(y_col, forcats::lvls_union(list(y_col, x_col)))
 					new_col[is.na(new_col)] = x_col[is.na(new_col)]
 				} else {
-					new_col = ifelse(!is_loosely_na(y_col), y_col, x_col)
+					new_col = ifelse(!Skilift::is_loosely_na(y_col), y_col, x_col)
 				}
 			} else {
 				if (is_either_xy_factor) {
@@ -1909,9 +1909,9 @@ merge.repl = function(dt.x,
 			## Only take X column if 
 			if (is_either_xy_factor) {
 				new_col = factor(x_col, forcats::lvls_union(list(x_col, y_col)))
-				new_col[is_loosely_na(new_col) & !is_loosely_na(y_col)] = y_col[is.na(new_col) & !is.na(y_col)]
+				new_col[Skilift::is_loosely_na(new_col) & !Skilift::is_loosely_na(y_col)] = y_col[is.na(new_col) & !is.na(y_col)]
 			} else {
-				new_col = ifelse(is_loosely_na(x_col) & !is_loosely_na(y_col), y_col, x_col)
+				new_col = ifelse(Skilift::is_loosely_na(x_col) & !Skilift::is_loosely_na(y_col), y_col, x_col)
 			}
 		} else {
 			stop("How did this happen?")
