@@ -181,7 +181,6 @@ Skilift <- R6Class("Skilift",
                                            description = description
                                 )
                                     })
-
       self$metadata <- rbindlist(metadata_list)
       setnames(self$metadata, old = names(self$metadata), new = c("patient.id", "ref", "description")) # Rename columns
 
@@ -529,13 +528,13 @@ Skilift <- R6Class("Skilift",
           x_vector[[i]] <- xval
         }
       } # Break the loop into three pieces to parallize the plot creation
-
       new_plots$source <- source_vector
       new_plots$type <- type_vector
       ## Need to wrap in list due to odd data.table behavior
       ## If new_plots is nrow == 1, directly assigning will unlist x
       ## This will work regardless of list length
-      new_plots$x <- list(x_vector) # 
+      if(class(x_vector[[1]]) != "character")
+          new_plots$x <- list(x_vector) # 
       
       print('new_plots')
       print(new_plots)
@@ -616,15 +615,14 @@ Skilift <- R6Class("Skilift",
       }
 
       #debug(create_plot_file)
-      
       if (!any(is.null(plot$source))) {
                                         # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(
           seq_len(nrow(new_plots)), 
           function(i) {
             plot <- new_plots[i, ]
-            is_x_empty = is.list(plot$x) && base::lengths(x) == 0
-            source_file_path = file.path(self$datadir, plot$patient_id, plot$source)
+            is_x_empty = is.list(plot$x) && base::lengths(plot$x) == 0
+            source_file_path = file.path(self$datadir, plot$patient.id, plot$source)
             # don't do anything if plot already exists
             if (is_x_empty && file.exists(source_file_path)) {
               return(plot)
@@ -647,7 +645,6 @@ Skilift <- R6Class("Skilift",
         # Assign the updated new_plots object
         new_plots <- rbindlist(new_plots, fill=TRUE)
       }
-
       # change allelic & mutations to genome for type to render in pgv
       new_plots[type %in% c("allelic", "mutations", "ppfit"), type := "genome"]
       # Last piece of the loop
