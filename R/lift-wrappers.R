@@ -5,7 +5,7 @@ has_required_columns <- function(cohort, columns, any = FALSE, verbose = TRUE) {
   is_non_allelic_jabba_column = columns %in% Skilift:::priority_columns_jabba
   ix_non_allelic_jabba_column = which(is_non_allelic_jabba_column)
   if (any(is_non_allelic_jabba_column)) {
-	replace_column = Skilift::DEFAULT_JABBA()
+	replace_column = Skilift::DEFAULT_JABBA(object = cohort)
 	original_column = columns[ix_non_allelic_jabba_column[1]]
 	if (verbose) {
 		message(
