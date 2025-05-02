@@ -106,7 +106,8 @@ lift_segment_width_distribution <- function(
     }
 
     # Validate required columns exist
-    required_cols <- c("pair", "balanced_jabba_gg", "tumor_coverage")
+	jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
+    required_cols <- c("pair", jabba_column, "tumor_coverage")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
@@ -128,15 +129,15 @@ lift_segment_width_distribution <- function(
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {
-                if (!file.exists(row$balanced_jabba_gg)) {
-                    print(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$balanced_jabba_gg))
+                if (!file.exists(row[[jabba_column]])) {
+                    print(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row[[jabba_column]]))
                     return(NULL)
                 }
 
                 # Read the gGraph
-                ggraph <- process_jabba(row$balanced_jabba_gg)
+                ggraph <- process_jabba(row[[jabba_column]])
                 if (!any(class(ggraph) == "gGraph")) {
-                    print(sprintf("File is not a gGraph for %s: %s", row$pair, row$balanced_jabba_gg))
+                    print(sprintf("File is not a gGraph for %s: %s", row$pair, row[[jabba_column]]))
                     return(NULL)
                 }
 
@@ -160,7 +161,7 @@ lift_segment_width_distribution <- function(
                 } else {
                     # Get segstats information
                     segstats.dt <- get_segstats(
-                        balanced_jabba_gg = row$balanced_jabba_gg,
+                        balanced_jabba_gg = row[[jabba_column]],
                         tumor_coverage = row$tumor_coverage
                     )
                     segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
@@ -219,7 +220,8 @@ lift_allelic_pp_fit <- function(cohort,
     }
 
     # Validate required columns exist
-    required_cols <- c("pair", "jabba_gg", "het_pileups")
+	jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
+    required_cols <- c("pair", jabba_column, "het_pileups")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
 
     if (length(missing_cols) > 0) {
@@ -241,7 +243,7 @@ lift_allelic_pp_fit <- function(cohort,
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {
-                ppplot <- Skilift::pp_plot(jabba_rds = row$jabba_gg,
+                ppplot <- Skilift::pp_plot(jabba_rds = row[[jabba_column]],
                         hets.fname = row$het_pileups,
                         allele = TRUE,
                         scatter = TRUE,
@@ -473,7 +475,8 @@ lift_coverage_jabba_cn <- function(
     }
 
     # Validate required columns exist
-    required_cols <- c("pair", "jabba_gg", "tumor_coverage")
+	jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
+    required_cols <- c("pair", jabba_column, "tumor_coverage")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
@@ -496,8 +499,8 @@ lift_coverage_jabba_cn <- function(
         futile.logger::flog.threshold("ERROR")
         tryCatchLog(
             {
-                if (!file.exists(row$jabba_gg)) {
-                    print(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row$jabba_gg))
+                if (!file.exists(row[[jabba_column]])) {
+                    print(sprintf("Balanced JaBbA file not found for %s: %s", row$pair, row[[jabba_column]]))
                     return(NULL)
                 }
 
@@ -507,11 +510,11 @@ lift_coverage_jabba_cn <- function(
                 }
 
                 # Read the gGraph and coverage
-                ggraph <- process_jabba(row$jabba_gg)
+                ggraph <- process_jabba(row[[jabba_column]])
                 cov <- readRDS(row$tumor_coverage)
 
                 if (!any(class(ggraph) == "gGraph")) {
-                    print(sprintf("File is not a gGraph for %s: %s", row$pair, row$jabba_gg))
+                    print(sprintf("File is not a gGraph for %s: %s", row$pair, row[[jabba_column]]))
                     return(NULL)
                 }
 
@@ -957,8 +960,10 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
         stop("Input must be a Cohort object")
     }
 
+	jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
+
     # Validate required columns exist
-    required_cols <- c("pair", "jabba_gg", "het_pileups")
+    required_cols <- c("pair", jabba_column, "het_pileups")
 
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
@@ -981,7 +986,7 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
         tryCatchLog(
             {
                 pp_plot_list <- create_pp_plot(
-                    jabba_gg = row$jabba_gg,
+                    jabba_gg = row[[jabba_column]],
                     het_pileups = row$het_pileups
                 )
                 pp_plot_data <- pp_plot_list$pp_plot_data

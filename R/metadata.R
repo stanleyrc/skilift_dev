@@ -1155,11 +1155,13 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
 
     lift_inputs = pairify_cohort_inputs(cohort, tumor_normal_columns = c("wgs_metrics"), keep_remaining = TRUE, sep_cast = "_")
 
-    
+    jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
     # Define all possible columns
     all_cols <- c(
         "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
-        "jabba_gg", "events", "oncokb_snv", "somatic_snvs", "germline_snvs", "tumor_coverage",
+        # "jabba_gg", 
+		jabba_column,
+		"events", "oncokb_snv", "somatic_snvs", "germline_snvs", "tumor_coverage",
         "estimate_library_complexity", "alignment_summary_metrics",
         "insert_size_metrics", "tumor_wgs_metrics", "normal_wgs_metrics",
         "het_pileups", "activities_sbs_signatures", "activities_indel_signatures",
@@ -1211,7 +1213,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 disease = row$disease,
                 primary_site = row$primary_site,
                 inferred_sex = row$inferred_sex,
-                jabba_gg = row$jabba_gg,
+                jabba_gg = row[[jabba_column]],
                 events = row$events,
                 somatic_snvs = snvs_column,
                 germline_snvs = row$germline_snvs,

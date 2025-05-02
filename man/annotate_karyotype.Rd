@@ -9,7 +9,8 @@ annotate_karyotype(
   segment_size_threshold = 5e+06,
   chr_fraction_threshold = 0.9,
   arm_fraction_threshold = 0.9,
-  band_segment_ratio_threshold = 0.1
+  band_segment_ratio_threshold = 0.1,
+  event_count_thresh = 5
 )
 }
 \description{

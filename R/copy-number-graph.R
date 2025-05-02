@@ -31,7 +31,7 @@ lift_copy_number_graph <- function(
         out_filename <- "allelic.json"
     } else {
         message("Processing total copy number")
-        cn_column <- "events"
+        cn_column <- Skilift::DEFAULT_JABBA(object = cohort)
         out_filename <- "complex.json"
     }
     
@@ -41,7 +41,6 @@ lift_copy_number_graph <- function(
     if (length(missing_cols) > 0) {
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
-    
     # Process each sample in parallel
     mclapply(seq_len(nrow(cohort$inputs)), function(i) {
         row <- cohort$inputs[i,]

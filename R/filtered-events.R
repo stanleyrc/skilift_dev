@@ -1241,6 +1241,8 @@ create_oncotable <- function(
   if (!"oncotable" %in% names(updated_cohort$inputs)) {
     updated_cohort$inputs[, oncotable := NA_character_]
   }
+
+  jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
   
   results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
     futile.logger::flog.threshold("ERROR")
@@ -1256,10 +1258,10 @@ create_oncotable <- function(
 
         # Get ploidy from jabba output, default to 2 if missing
         ploidy <- 2 # Default ploidy
-        if (file.exists(row$jabba_gg)) {
+        if (file.exists(row[[jabba_column]])) {
           ploidy_ggraph <- tryCatch(
             {
-              process_jabba(row$jabba_gg)
+              process_jabba(row[[jabba_column]])
             },
             error = function(e) {
               msg <- sprintf("Error reading JaBbA file for %s: %s. Using default ploidy of 2.", row$pair, e$message)
@@ -1287,7 +1289,7 @@ create_oncotable <- function(
               pair = row$pair,
               somatic_variant_annotations = row$somatic_variant_annotations,
               fusions = row$fusions,
-              jabba_gg = row$jabba_gg,
+              jabba_gg = row[[jabba_column]],
               karyograph = row$karyograph,
               events = row$events,
               signature_counts = row$signature_counts,
@@ -1604,7 +1606,9 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     }
     
     # Validate required columns exist
-    required_cols <- c("pair", "oncotable", "jabba_gg")
+    # required_cols <- c("pair", "oncotable", "jabba_gg")
+	jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
+	required_cols <- c("pair", "oncotable", jabba_column)
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]
     if (length(missing_cols) > 0) {
         print("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
@@ -1638,7 +1642,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
             out <- create_filtered_events(
                 pair = row$pair,
                 oncotable = row$oncotable,
-                jabba_gg = row$jabba_gg,
+                jabba_gg = row[[jabba_column]],
                 out_file = out_file,
                 return_table = return_table,
                 cohort_type = cohort_type
@@ -1646,7 +1650,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
             if (identical(cohort_type, "heme")) {
               create_heme_highlights(
                 events_tbl = out,
-                jabba_gg = row$jabba_gg,
+                jabba_gg = row[[jabba_column]],
                 out_file = highlights_out_file
               )
             }
