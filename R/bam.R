@@ -63,8 +63,14 @@ lift_bam <- function(cohort, output_data_dir, cores = 1, overwrite = FALSE) {
         tumor_bam_file <- file.path(pair_dir, "tumor.bam")
         tumor_bai_file <- file.path(pair_dir, "tumor.bam.bai")
 
+		is_tumor_bam_out_exists = file.exists(tumor_bam_file)
+		is_tumor_bai_out_exists = file.exists(tumor_bai_file)
+
         normal_bam_file <- file.path(pair_dir, "normal.bam")
         normal_bai_file <- file.path(pair_dir, "normal.bam.bai")
+
+		is_normal_bam_out_exists = file.exists(normal_bam_file)
+		is_normal_bai_out_exists = file.exists(normal_bai_file)
         
         futile.logger::flog.threshold("ERROR")
         tryCatchLog({
@@ -72,22 +78,30 @@ lift_bam <- function(cohort, output_data_dir, cores = 1, overwrite = FALSE) {
           exit_tbai = 0
           exit_nbam = 0
           exit_nbai = 0
-          if (!is.null(row$tumor_bam)) {
+
+		  is_input_tumor_bam_present = !is.null(row$tumor_bam) && ! any(is.na(row$tumor_bam))
+		  is_input_normal_bam_present = !is.null(row$normal_bam) && ! any(is.na(row$normal_bam))
+
+          if (is_input_tumor_bam_present) {
             cmd_bam = glue::glue('ln -n{force_flag} {row$tumor_bam} {tumor_bam_file}')
             cmd_bai = glue::glue('ln -n{force_flag} {row$tumor_bam_bai} {tumor_bai_file}')
             exit_tbam = system(cmd_bam)
             exit_tbai = system(cmd_bai)
           }
-          stopifnot(exit_tbam == 0)
-          stopifnot(exit_tbai == 0)
-          if (!is.null(row$normal_bam)) {
+        
+          if (is_input_normal_bam_present) {
             cmd_bam = glue::glue('ln -n{force_flag} {row$normal_bam} {normal_bam_file}')
             cmd_bai = glue::glue('ln -n{force_flag} {row$normal_bam_bai} {normal_bai_file}')
             exit_nbam = system(cmd_bam)
             exit_nbai = system(cmd_bai)
           }
-          stopifnot(exit_nbam == 0)
-          stopifnot(exit_nbai == 0)
+          stopifnot(
+			exit_tbam == 0 
+			&& exit_tbai == 0 
+			&& exit_nbam == 0
+			&& exit_nbai == 0
+		)
+
  
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
