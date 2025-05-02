@@ -1,22 +1,24 @@
 default_settings_path <- system.file("extdata", "test_data", "settings.json", package = "Skilift")
 
 
-#' Jabba priority
-#' 
-#' Non-allelic jabbas
-#' @export
-priority_columns_jabba = c(
+priority_columns_jabba_og = c(
 	"events",
 	"balanced_jabba_gg",
 	"jabba_gg"
 )
+
+#' Jabba priority
+#' 
+#' Non-allelic jabbas
+#' @export
+priority_columns_jabba = priority_columns_jabba_og
 
 #' Default Jabba Type 
 #' 
 #' Get correct jabba column to use globally across all methods
 #' 
 #' @export
-DEFAULT_JABBA = function(object, priority_columns_jabba = Skilift::priority_columns_jabba, get_object = "cohort", test_mode = all, verbose = TRUE) {
+DEFAULT_JABBA = function(object, priority_columns_jabba = getOption("skilift_jabba_columns"), get_object = "cohort", test_mode = all, verbose = TRUE) {
 	
 	if (!is.function(test_mode)) stop("test_mode must be a function, like all() or any()")
 	is_object_not_provided = missing(object) || is.null(object)
@@ -44,6 +46,34 @@ DEFAULT_JABBA = function(object, priority_columns_jabba = Skilift::priority_colu
 		if (use_column) break
 	}
 	return(col)
+}
+
+
+#' Default Jabba Type 
+#' 
+#' Get correct jabba column to use globally across all methods
+#' 
+#' @export
+set_jabba_column = function(column) {
+	is_provided_column = (
+		!missing(column) 
+		&& !is.null(column) 
+		&& !(NROW(column) == 1 && is_loosely_na(column, other_nas = base::nullfile()))
+	)
+	is_provided_column_valid = is_provided_column && all(column %in% Skilift:::priority_columns_jabba_og)
+	if (is_provided_column && is_provided_column_valid) {
+		message("Setting jabba column to: ", column)
+	} else if (is_provided_column && !is_provided_column_valid) {
+		stop(
+			"Provided jabba column names: ", column, "\n",
+			"These must be one of: ", paste(Skilift:::priority_columns_jabba_og, collapse = ", ")
+		)
+	} else if (!is_provided_column) {
+		column = Skilift:::priority_columns_jabba_og
+	}
+	Skilift::assign_in_namespace("priority_columns_jabba", column, ns = asNamespace("Skilift"))
+	options("skilift_jabba_columns" = column)
+	return(column)
 }
 
 #' @export
@@ -1950,4 +1980,74 @@ copy = function (x, recurse_list = TRUE) {
         x2 = rlang::duplicate(x)
         return(x2)
     }
+}
+
+
+#' Version of utils::assignInNamespace
+#'
+#' can be used to reassign function into a namespace
+#' USE WITH CAUTION
+#'
+#' @export
+assign_in_namespace = function (x, value, ns, pos = -1, envir = as.environment(pos)) {
+    nf <- sys.nframe()
+    if (missing(ns)) {
+        nm <- attr(envir, "name", exact = TRUE)
+        if (is.null(nm) || substr(nm, 1L, 8L) != "package:")
+            stop("environment specified is not a package")
+        ns <- asNamespace(substring(nm, 9L))
+    }
+    else ns <- asNamespace(ns)
+    ns_name <- getNamespaceName(ns)
+    ## if (nf > 1L) {
+    ##     if (ns_name %in% tools:::.get_standard_package_names()$base)
+    ##         stop("locked binding of ", sQuote(x), " cannot be changed",
+    ##             domain = NA)
+    ## }
+    if (bindingIsLocked(x, ns)) {
+        in_load <- Sys.getenv("_R_NS_LOAD_")
+        if (nzchar(in_load)) {
+            if (in_load != ns_name) {
+                msg <- gettextf("changing locked binding for %s in %s whilst loading %s",
+                  sQuote(x), sQuote(ns_name), sQuote(in_load))
+                if (!in_load %in% c("Matrix", "SparseM"))
+                  warning(msg, call. = FALSE, domain = NA, immediate. = TRUE)
+            }
+        }
+        else if (nzchar(Sys.getenv("_R_WARN_ON_LOCKED_BINDINGS_"))) {
+            warning(gettextf("changing locked binding for %s in %s",
+                sQuote(x), sQuote(ns_name)), call. = FALSE, domain = NA,
+                immediate. = TRUE)
+        }
+        unlockBinding(x, ns)
+        assign(x, value, envir = ns, inherits = FALSE)
+        w <- options("warn")
+        on.exit(options(w))
+        options(warn = -1)
+        lockBinding(x, ns)
+    }
+    else {
+        assign(x, value, envir = ns, inherits = FALSE)
+    }
+    if (!isBaseNamespace(ns)) {
+        S3 <- .getNamespaceInfo(ns, "S3methods")
+        if (!length(S3))
+            return(invisible(NULL))
+        S3names <- S3[, 3L]
+        if (x %in% S3names) {
+            i <- match(x, S3names)
+            genfun <- get(S3[i, 1L], mode = "function", envir = parent.frame())
+            if (.isMethodsDispatchOn() && methods::is(genfun,
+                "genericFunction"))
+                genfun <- methods::slot(genfun, "default")@methods$ANY
+            defenv <- if (typeof(genfun) == "closure")
+                environment(genfun)
+            else .BaseNamespaceEnv
+            S3Table <- get(".__S3MethodsTable__.", envir = defenv)
+            remappedName <- paste(S3[i, 1L], S3[i, 2L], sep = ".")
+            if (exists(remappedName, envir = S3Table, inherits = FALSE))
+                assign(remappedName, value, S3Table)
+        }
+    }
+    invisible(NULL)
 }

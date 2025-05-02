@@ -31,3 +31,18 @@
 #' @useDynLib Skilift, .registration=TRUE
 registerS3method(genname = "merge", class = "data.table", method = data.table::merge.data.table)
 "_PACKAGE"
+
+
+.onLoad = function(libname, pkgname) {
+	skilift_jabba_columns = getOption("skilift_jabba_columns")
+	is_skilift_jabba_columns_option = !is.null(skilift_jabba_columns)
+	is_skilift_jabba_columns_valid_option = (
+		is_skilift_jabba_columns_option && all(skilift_jabba_columns %in% Skilift:::priority_columns_jabba_og)
+	)
+	if (is_skilift_jabba_columns_valid_option) {
+		message("option('skilift_jabba_columns') already set to: ", paste(skilift_jabba_columns, collapse = ", "))
+	} else {
+		options("skilift_jabba_columns" = Skilift:::priority_columns_jabba_og)
+	}
+	
+}
