@@ -54,7 +54,7 @@ annotate_karyotype = function(
 	chr_fraction_threshold = 0.9, 
 	arm_fraction_threshold = 0.9, 
 	band_segment_ratio_threshold = 0.1,
-        event_count_thresh = 5
+    event_count_thresh = 5
 ) {
   cyto = Skilift:::process_cytoband()
   cyto$arm = gsub("^(p|q).*", "\\1", cyto$band)
@@ -211,6 +211,7 @@ annotate_karyotype = function(
     band_events_prefiltered = band_events_prefiltered[stain != "acen"]
     band_events_prefiltered[, band_segment_ratio := sum(width) / band_width[1], by = .(segment_arm_id)]
     band_events_prefiltered[, total_segment_width := sum(width), by = segment_arm_id]
+    ## Original segment overlapping with band must be > segment size threshold, and also must cover > 10% of the coincident cytoband width.
     band_events = band_events_prefiltered[total_segment_width > segment_size_threshold & band_segment_ratio >= band_segment_ratio_threshold]
 
     band_events_collapsed = band_events[, .(
@@ -222,8 +223,8 @@ annotate_karyotype = function(
     ), by = .(segment_arm_id)]
 
    ## Additional logic to collapse adjacent bands that have the same copy states 
-   band_events_collapsed[, diff_next := abs(segment_arm_id - shift(segment_arm_id, type = "lag"))]
-   band_events_collapsed[, diff_prev := abs(segment_arm_id - shift(segment_arm_id, type = "lead"))]
+   band_events_collapsed[, diff_next := abs(segment_arm_id - data.table::shift(segment_arm_id, type = "lag"))]
+   band_events_collapsed[, diff_prev := abs(segment_arm_id - data.table::shift(segment_arm_id, type = "lead"))]
    band_events_collapsed[, diff := min(diff_next, diff_prev, na.rm = T), by = segment_arm_id]
    band_events_collapsed[, group_adj := paste0(seqnames, "_", arm, "_", label, "_", diff)]
 
@@ -262,7 +263,7 @@ annotate_karyotype = function(
     annotated_band_cna
   ), collapse = ",")
 
-  karyotype_string = gsub(",,", ",", karyotype_string)
+  karyotype_string = gsub(",{2,}", ",", karyotype_string)
   karyotype_string = gsub("^,|,$", "", karyotype_string)
   
   
