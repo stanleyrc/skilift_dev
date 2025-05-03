@@ -1642,7 +1642,7 @@ is_loosely_na = function(values, character_nas = c("NA", "na", "N/A", "n/a", "NU
 	is_proper_na = is.na(values)
 	is_values_character = is.character(values)
 	is_empty = is_other_na_type = rep_len(FALSE, NROW(values))
-	if (is.null(other_nas) || NROW(other_nas) == 0 || any(is.na(other_nas))) other_nas = character(0)
+	if (is.null(other_nas) || NROW(other_nas) == 0 || all(is.na(other_nas))) other_nas = character(0)
 	if (!is.character(other_nas)) other_nas = as.character(other_nas)
 	if (is_values_character) {
 		is_other_na_type = tolower(values) %in% c(character_nas, other_nas)
