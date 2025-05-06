@@ -893,3 +893,35 @@ assign_in_namespace = function (x, value, ns, pos = -1, envir = as.environment(p
     }
     invisible(NULL)
 }
+
+#' Test coverage values
+#' 
+#' Test for mean normalized coverage values
+#' 
+#' Dryclean, fragcounter, cobalt, or some other
+#' binned coverage counter may emit coverage values in  
+#' units of reads or mean normalized, gc- and/or mappability-bias
+#' corrected coverage units.
+#'
+#' @export
+test_coverage_mean_normalized = function(coverage_values, tolerance = 0.1, fraction_above_1 = 0.5) {
+	is_all_equal = identical(all.equal(
+		target = 1, 
+		current = mean(coverage_values, na.rm = TRUE), 
+		tolerance = tolerance
+	), TRUE)
+	is_cov_na = is.na(coverage_values)
+	ix_cov_na = which(is_cov_na)
+	if (NROW(ix_cov_na)) {
+		coverage_values[ix_cov_na] = -3e9
+	}
+	fraction = sum(coverage_values > 1) / NROW(coverage_values)
+	is_cov_greater_than_one = fraction > fraction_above_1
+	is_cov_likely_mean_normalized = is_all_equal && !is_cov_greater_than_one
+	return(
+		list(
+			is_cov_likely_mean_normalized = is_cov_likely_mean_normalized,
+			is_cov_greater_than_one = is_cov_greater_than_one
+		)
+	)
+}
