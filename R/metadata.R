@@ -724,7 +724,17 @@ add_coverage_parameters <- function(metadata, tumor_coverage, field = "foregroun
             warning("Purity and ploidy not found in metadata, cov_slope and cov_intercept will not be calculated")
         }
         cov <- tumor_coverage %>% readRDS()
-        mcols(cov)[[field]] <- mcols(cov)[, field] * 2 * 151 / width(cov)
+		coverage_values = base::get0(field, as.environment(as.list(mcols(cov))), ifnotfound = NULL)
+		lst_cov_bool = Skilift::test_coverage_mean_normalized(coverage_values)
+		is_cov_likely_mean_normalized = lst_cov_bool$is_cov_likely_mean_normalized
+		is_cov_greater_than_one = lst_cov_bool$is_cov_greater_than_one
+		if (!is_cov_likely_mean_normalized && is_cov_greater_than_one) {
+			message("Assuming coverage is in read coverage per bin and paired end, 151 bp reads, rescaling")
+			mcols(cov)[[field]] = coverage_values * 2 * 151 / width(cov)
+		} else {
+			message("Assuming coverage is mean-normalized, ignoring rescaling to base coverage")
+		}
+        # mcols(cov)[[field]] <- mcols(cov)[, field] * 2 * 151 / width(cov)
         rel2abs.cov <- skitools::rel2abs(cov,
             field = field,
             purity = metadata$purity,
