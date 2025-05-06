@@ -295,29 +295,29 @@ lift_mvp <- function(
   }
 
 
-  if (has_required_columns(cohort, required_columns$multiplicity_fits)) {
-    lift_multiplicity_fits(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
+#   if (has_required_columns(cohort, required_columns$multiplicity_fits)) {
+#     lift_multiplicity_fits(
+#       cohort = cohort,
+#       output_data_dir = output_data_dir,
+#       cores = cores
+#     )
+#   }
 
-  if (has_required_columns(cohort, required_columns$coverage_jabba_cn)) {
-    lift_coverage_jabba_cn(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
+#   if (has_required_columns(cohort, required_columns$coverage_jabba_cn)) {
+#     lift_coverage_jabba_cn(
+#       cohort = cohort,
+#       output_data_dir = output_data_dir,
+#       cores = cores
+#     )
+#   }
 
-  if (has_required_columns(cohort, required_columns$purple_sunrise_plot)) {
-    lift_purple_sunrise_plot(
-      cohort = cohort,
-      output_data_dir = output_data_dir,
-      cores = cores
-    )
-  }
+#   if (has_required_columns(cohort, required_columns$purple_sunrise_plot)) {
+#     lift_purple_sunrise_plot(
+#       cohort = cohort,
+#       output_data_dir = output_data_dir,
+#       cores = cores
+#     )
+#   }
 
   if (has_required_columns(cohort, required_columns$variant_qc)) {
     lift_variant_qc(
