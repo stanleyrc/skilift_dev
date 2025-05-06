@@ -904,10 +904,15 @@ assign_in_namespace = function (x, value, ns, pos = -1, envir = as.environment(p
 #' corrected coverage units.
 #'
 #' @export
-test_coverage_mean_normalized = function(coverage_values, tolerance = 0.1, fraction_above_1 = 0.5) {
-	is_all_equal = identical(all.equal(
+test_coverage_normalized = function(coverage_values, tolerance = 0.1, fraction_near_1 = 0.9) {
+	is_mean_all_equal = identical(all.equal(
 		target = 1, 
 		current = mean(coverage_values, na.rm = TRUE), 
+		tolerance = tolerance
+	), TRUE)
+	is_median_all_equal = identical(all.equal(
+		target = 1, 
+		current = median(coverage_values, na.rm = TRUE), 
 		tolerance = tolerance
 	), TRUE)
 	is_cov_na = is.na(coverage_values)
@@ -915,13 +920,54 @@ test_coverage_mean_normalized = function(coverage_values, tolerance = 0.1, fract
 	if (NROW(ix_cov_na)) {
 		coverage_values[ix_cov_na] = -3e9
 	}
-	fraction = sum(coverage_values > 1) / NROW(coverage_values)
-	is_cov_greater_than_one = fraction > fraction_above_1
-	is_cov_likely_mean_normalized = is_all_equal && !is_cov_greater_than_one
+	histdt = Skilift::test_hist(coverage_values, integer_breaks = -1:5)
+	fraction_of_values_inside_integer_breaks = histdt[histdt$is_in_integer_breaks == TRUE, max(cfrac, na.rm = TRUE)]
+	is_cov_near_one = fraction_of_values_inside_integer_breaks > fraction_near_1
+	is_cov_likely_normalized = is_median_all_equal || is_mean_all_equal
 	return(
 		list(
-			is_cov_likely_mean_normalized = is_cov_likely_mean_normalized,
-			is_cov_greater_than_one = is_cov_greater_than_one
+			is_cov_likely_normalized = is_cov_likely_normalized,
+			is_cov_near_one = is_cov_near_one
 		)
 	)
+}
+
+
+#' Test histogram
+#' 
+#' Get histogram of values + custom integer breaks
+#' 
+#' @export
+test_hist = function(values, integer_breaks = -1:5, tolerance = 1e-6) {
+	is_integer_breaks_empty = is.null(integer_breaks) || NROW(integer_breaks) == 0
+	is_integer_breaks_na = any(is.na(integer_breaks)) 
+	# (NROW(integer_breaks == 1) && is.na(integer_breaks)) || any(is.na(integer_breaks))
+	if (is_integer_breaks_empty || is_integer_breaks_na) {
+		integer_breaks = integer(0)
+	}
+	hist_breaks = c(
+		integer_breaks, 
+		min(values, na.rm = TRUE),
+		max(values, na.rm = TRUE)
+	)
+	hist_breaks = unique(hist_breaks)
+	histobj = graphics::hist(
+		values, 
+		breaks = hist_breaks
+	)
+	histdt = data.table(from = histobj$breaks[-NROW(histobj$breaks)], to = histobj$breaks[-1])
+	histdt$counts = histobj$counts
+	is_min_integer_break = abs(integer_breaks - min(integer_breaks, na.rm = TRUE)) <= tolerance
+	integer_breaks_no_min = integer_breaks[!is_min_integer_break]
+	is_break_min_int = abs(histdt$from - min(integer_breaks_no_min, na.rm = TRUE)) <= tolerance
+	is_break_max_int = abs(histdt$to - max(integer_breaks, na.rm = TRUE)) <= tolerance
+	ix_is_break_min_int = which(is_break_min_int)
+	ix_is_break_max_int = which(is_break_max_int)
+	ix_histdt_select = seq(from = ix_is_break_min_int, to = ix_is_break_max_int, by = 1)
+	histdt[, csum := cumsum(counts)]
+	histdt[, total := sum(counts)]
+	histdt[, cfrac := csum / total]
+	histdt[, is_in_integer_breaks := FALSE]
+	histdt[ix_histdt_select, is_in_integer_breaks := TRUE]
+	return(histdt)
 }

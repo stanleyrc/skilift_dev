@@ -725,10 +725,10 @@ add_coverage_parameters <- function(metadata, tumor_coverage, field = "foregroun
         }
         cov <- tumor_coverage %>% readRDS()
 		coverage_values = base::get0(field, as.environment(as.list(mcols(cov))), ifnotfound = NULL)
-		lst_cov_bool = Skilift::test_coverage_mean_normalized(coverage_values)
-		is_cov_likely_mean_normalized = lst_cov_bool$is_cov_likely_mean_normalized
-		is_cov_greater_than_one = lst_cov_bool$is_cov_greater_than_one
-		if (!is_cov_likely_mean_normalized && is_cov_greater_than_one) {
+		lst_cov_bool = Skilift::test_coverage_normalized(coverage_values)
+		is_cov_likely_normalized = lst_cov_bool$is_cov_likely_normalized
+		is_cov_near_one = lst_cov_bool$is_cov_near_one
+		if (!is_cov_likely_normalized && !is_cov_near_one) {
 			message("Assuming coverage is in read coverage per bin and paired end, 151 bp reads, rescaling")
 			mcols(cov)[[field]] = coverage_values * 2 * 151 / width(cov)
 		} else {
