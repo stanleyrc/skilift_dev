@@ -1,6 +1,6 @@
 Package: Skilift
 Title: An R interface to load and modify PGV and Case Reports datafiles
-Version: 0.2.0
+Version: 0.3.0.0000
 Maintainer: Shihab Dider <sdider@nygenome.org>
 Authors@R: c(person(given = "Shihab", family = "Dider", role = c("aut"), email = "sdider@nygenome.org"),
 	person(given = "Max", family = "Chao", role = c("aut", "cre"), email = "mchao@nygenome.org"))
