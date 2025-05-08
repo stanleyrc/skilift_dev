@@ -1284,7 +1284,7 @@ lift_datafiles_json <- function(output_data_dir) {
   # Recursively look for all files named "metadata.json"
   metadata_files <- list.files(
     path = output_data_dir,
-    pattern = "^metadata\\.json$",
+    pattern = "metadata\\.json$",
     recursive = TRUE,
     full.names = TRUE
   )
