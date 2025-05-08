@@ -11,7 +11,9 @@ collect_oncokb_cna(
   amp.thresh,
   del.thresh,
   karyograph = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  min_cn_quantile_threshold = 0.1,
+  max_cn_quantile_threshold = 0.9
 )
 }
 \arguments{

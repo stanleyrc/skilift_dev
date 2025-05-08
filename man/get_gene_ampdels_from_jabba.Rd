@@ -9,7 +9,9 @@ get_gene_ampdels_from_jabba(
   pge,
   amp.thresh = 4,
   del.thresh = 0.5,
-  nseg = NULL
+  nseg = NULL,
+  min_cn_quantile_threshold = 0.1,
+  max_cn_quantile_threshold = 0.9
 )
 }
 \arguments{
