@@ -10,7 +10,9 @@ collect_copy_number_jabba(
   amp.thresh,
   del.thresh,
   verbose = TRUE,
-  karyograph = NULL
+  karyograph = NULL,
+  min_cn_quantile_threshold = 0.1,
+  max_cn_quantile_threshold = 0.9
 )
 }
 \arguments{

@@ -737,7 +737,7 @@ collect_gene_mutations <- function(
 #' @param oncokb_cna Path to the oncokb CNA file.
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed OncoKB CNA information.
-collect_oncokb_cna <- function(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh, karyograph = NULL, verbose = TRUE) {
+collect_oncokb_cna <- function(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh, karyograph = NULL, verbose = TRUE, min_cn_quantile_threshold = 0.1, max_cn_quantile_threshold = 0.9) {
   if (is.null(oncokb_cna) || !file.exists(oncokb_cna)) {
     if (verbose) message("OncoKB CNA file is missing or does not exist.")
     return(data.table(type = NA, source = "oncokb_cna"))
@@ -755,7 +755,9 @@ collect_oncokb_cna <- function(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh
       amp.thresh = amp.thresh,
       del.thresh = del.thresh,
       pge = pge,
-      nseg = nseg
+      nseg = nseg,
+	  min_cn_quantile_threshold = 0.1, 
+	  max_cn_quantile_threshold = 0.9
   ) 
 
   matches = list(
