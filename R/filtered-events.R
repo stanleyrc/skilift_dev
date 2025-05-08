@@ -369,7 +369,9 @@ get_gene_copy_numbers <- function(
   simplify_seqnames = FALSE, 
   mfields = c("gene_name", "source", "gene_id", "gene_type", "level", "hgnc_id", "havana_gene"), 
   output_type = "data.table",
-  min_width = 1e3
+  min_width = 1e3,
+  min_cn_quantile_threshold = 0.1,
+  max_cn_quantile_threshold = 0.9
 ) {
     if (is.character(gg)) {
         gg = readRDS(gg)
@@ -418,11 +420,47 @@ get_gene_copy_numbers <- function(
     #   ## gene_width = gene_width[1]
     # ), by = gene_name]
 
+    gene_cn_segments[, ix := seq_len(.N)]
+
+	# Order by copy number 
+	reord_gene_cn_segments = data.table::copy(gene_cn_segments[order(cn)])
+	reord_gene_cn_segments[
+		,
+		c("weight", "total_weight", "cweight", "from_cfrac", "to_cfrac", "is_at_min_quantile_threshold", "is_at_max_quantile_threshold") := {
+			weight = width * (cn + 1e-9) # take care of 0's with a fudge factor
+			total_weight = sum(weight)
+			cweight = cumsum(weight)
+			to_cfrac = cweight / total_weight
+			from_cfrac = c(0, to_cfrac[-.N])
+			## interval is (from_cfrac, to_cfrac] (inclusive of to_cfrac, but not from_cfrac)
+			## so any interval included where from_cfrac is greater than or equal to threshold should be excluded
+			is_at_min_quantile_threshold = data.table::between(min_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= min_cn_quantile_threshold
+			is_at_max_quantile_threshold = data.table::between(max_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= max_cn_quantile_threshold
+			list(weight, total_weight, cweight, from_cfrac, to_cfrac, is_at_min_quantile_threshold, is_at_max_quantile_threshold)
+		}
+		,
+		by = gene_name
+	]
+    
+	gene_cn_segments = reord_gene_cn_segments[order(ix)]
+
+	null_out_columns = c("ix")
+	for (col in null_out_columns) {
+		gene_cn_segments[[col]] = NULL
+	}
+
+
+
+
     gene_cn_table = gene_cn_segments[, `:=`(
       max_normalized_cn = max(normalized_cn, na.rm = TRUE),
       max_cn = max(cn, na.rm = TRUE),
+	  max_quantile_cn = cn[is_at_max_quantile_threshold],
+	  max_quantile_normalized_cn = normalized_cn[is_at_max_quantile_threshold],
       min_normalized_cn = min(normalized_cn, na.rm = TRUE),
       min_cn = min(cn, na.rm = TRUE),
+	  min_quantile_cn = cn[is_at_min_quantile_threshold],
+	  min_quantile_normalized_cn = normalized_cn[is_at_min_quantile_threshold],
       avg_normalized_cn = sum(normalized_cn * width, na.rm = TRUE) / sum(width),
       avg_cn = sum(cn * width, na.rm = TRUE) / sum(width),
       # total_node_width = sum(width, na.rm = TRUE),
@@ -475,15 +513,22 @@ get_gene_copy_numbers <- function(
 #' amplifications and deletions
 #'
 #' @param jab character path to jabba file or gGraph object
-get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0.5, nseg = NULL) {
+get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0.5, nseg = NULL, min_cn_quantile_threshold = 0.1, max_cn_quantile_threshold = 0.9) {
   gg <- jab
   if (!inherits(gg, "gGraph")) {
     gg <- gG(jabba = jab)
   }
-  gene_CN <- Skilift:::get_gene_copy_numbers(gg, gene_ranges = pge, nseg = nseg)
+  gene_CN <- Skilift:::get_gene_copy_numbers(
+	gg, 
+	gene_ranges = pge, 
+	nseg = nseg, 
+	min_cn_quantile_threshold = min_cn_quantile_threshold, 
+	max_cn_quantile_threshold = min_cn_quantile_threshold
+)
   gene_CN[, `:=`(type, NA_character_)]
 
-  gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
+#   gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
+  gene_CN[min_quantile_normalized_cn >= amp.thresh, `:=`(type, "amp")]
   gene_CN[min_cn > 1 & min_normalized_cn < del.thresh, `:=`(
     type,
     "del"
@@ -491,14 +536,20 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
   gene_CN[min_cn == 1 & min_cn < ncn, `:=`(type, "hetdel")]
   gene_CN[min_cn == 0, `:=`(type, "homdel")]
 
+  gene_CN[type == "amp", min_cn := min_quantile_cn]
+
   # scna_result = gene_CN[!is.na(type)]
   scna_result = (
       gene_CN[, 
       .(
         max_normalized_cn = max_normalized_cn[1],
         max_cn = max_cn[1],
+		max_quantile_cn = max_quantile_cn[1],
+		max_quantile_normalized_cn = max_quantile_normalized_cn[1],
         min_normalized_cn = min_normalized_cn[1],
         min_cn = min_cn[1],
+		min_quantile_cn = min_quantile_cn[1],
+		min_quantile_normalized_cn = min_quantile_normalized_cn[1],
         avg_normalized_cn = avg_normalized_cn[1],
         avg_cn = avg_cn[1],
         number_of_cn_segments = number_of_cn_segments[1],
@@ -533,7 +584,9 @@ collect_copy_number_jabba <- function(
     amp.thresh,
     del.thresh,
     verbose = TRUE,
-    karyograph = NULL) {
+    karyograph = NULL,
+	min_cn_quantile_threshold = 0.1,
+	max_cn_quantile_threshold = 0.9) {
   if (is.null(jabba_rds) || !file.exists(jabba_rds)) {
     if (verbose) message("Jabba RDS file is missing or does not exist.")
     return(data.table(type = NA, source = "jabba_rds"))
@@ -567,7 +620,9 @@ collect_copy_number_jabba <- function(
     amp.thresh = amp.thresh,
     del.thresh = del.thresh,
     pge = pge,
-    nseg = nseg
+    nseg = nseg,
+	min_cn_quantile_threshold = min_cn_quantile_threshold,
+	max_cn_quantile_threshold = max_cn_quantile_threshold
   )
 
   if (nrow(scna)) {
