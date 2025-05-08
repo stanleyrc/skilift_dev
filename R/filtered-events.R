@@ -427,12 +427,13 @@ get_gene_copy_numbers <- function(
 	reord_gene_cn_segments[
 		,
 		c("weight", "total_weight", "cweight", "from_cfrac", "to_cfrac", "is_at_min_quantile_threshold", "is_at_max_quantile_threshold") := {
-			weight = width * (cn + 1e-9) # take care of 0's with a fudge factor
+			weight = width # Should the weight just be width? This would make it a true quantile
+			# weight = width * (cn + 1e-9) # take care of 0's with a fudge factor
 			total_weight = sum(weight)
 			cweight = cumsum(weight)
 			to_cfrac = cweight / total_weight
 			from_cfrac = c(0, to_cfrac[-.N])
-			## interval is (from_cfrac, to_cfrac] (inclusive of to_cfrac, but not from_cfrac)
+			## interval is semi-closed - (from_cfrac, to_cfrac] (inclusive of to_cfrac, but not from_cfrac)
 			## so any interval included where from_cfrac is greater than or equal to threshold should be excluded
 			is_at_min_quantile_threshold = data.table::between(min_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= min_cn_quantile_threshold
 			is_at_max_quantile_threshold = data.table::between(max_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= max_cn_quantile_threshold
