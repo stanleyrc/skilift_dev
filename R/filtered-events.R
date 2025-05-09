@@ -432,7 +432,10 @@ get_gene_copy_numbers <- function(
 			total_weight = sum(weight)
 			cweight = cumsum(weight)
 			to_cfrac = cweight / total_weight
-			from_cfrac = c(0, to_cfrac[-.N])
+            ## setting lowest to something ridiculous to make sure argument of 0 works
+			from_cfrac = c(-1e9, to_cfrac[-.N])
+            ## setting highest to something ridiculous to make sure argument of 1 works
+            to_cfrac[.N] = 1e9
 			## interval is semi-closed - (from_cfrac, to_cfrac] (inclusive of to_cfrac, but not from_cfrac)
 			## so any interval included where from_cfrac is greater than or equal to threshold should be excluded
 			is_at_min_quantile_threshold = data.table::between(min_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= min_cn_quantile_threshold
@@ -524,7 +527,7 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
 	gene_ranges = pge, 
 	nseg = nseg, 
 	min_cn_quantile_threshold = min_cn_quantile_threshold, 
-	max_cn_quantile_threshold = min_cn_quantile_threshold
+	max_cn_quantile_threshold = max_cn_quantile_threshold
 )
   gene_CN[, `:=`(type, NA_character_)]
 
