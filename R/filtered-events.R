@@ -438,8 +438,14 @@ get_gene_copy_numbers <- function(
             to_cfrac[.N] = 1e9
 			## interval is semi-closed - (from_cfrac, to_cfrac] (inclusive of to_cfrac, but not from_cfrac)
 			## so any interval included where from_cfrac is greater than or equal to threshold should be excluded
-			is_at_min_quantile_threshold = data.table::between(min_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= min_cn_quantile_threshold
-			is_at_max_quantile_threshold = data.table::between(max_cn_quantile_threshold, from_cfrac, to_cfrac) & !from_cfrac >= max_cn_quantile_threshold
+			is_at_min_quantile_threshold = (
+				data.table::between(min_cn_quantile_threshold, from_cfrac, to_cfrac) 
+				& !from_cfrac >= min_cn_quantile_threshold
+			)
+			is_at_max_quantile_threshold = (
+				data.table::between(max_cn_quantile_threshold, from_cfrac, to_cfrac) 
+				& !from_cfrac >= max_cn_quantile_threshold
+			)
 			list(weight, total_weight, cweight, from_cfrac, to_cfrac, is_at_min_quantile_threshold, is_at_max_quantile_threshold)
 		}
 		,

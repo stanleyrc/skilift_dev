@@ -304,7 +304,7 @@ lift_denoised_coverage <- function(
 					is_cov_near_one = lst_cov_bool$is_cov_near_one
 					if (!is_cov_likely_normalized && !is_cov_near_one) {
 						message("Assuming coverage is in read coverage per bin and paired end, 151 bp reads, rescaling")
-						mcols(cov)[[row$denoised_coverage_field]] = coverage_values * 2 * 151 / width(cov)
+						mcols(cov)[[row$denoised_coverage_field]] = coverage_values * PAIRED_READS_FACTOR * READ_LENGTH / width(cov)
 					} else {
 						message("Assuming coverage is mean-normalized, ignoring rescaling to base coverage")
 					}
