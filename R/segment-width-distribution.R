@@ -300,12 +300,6 @@ lift_multiplicity_fits <- function(cohort,
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
 
-    # lift_allelic_pp_fit(
-    #     cohort,
-    #     output_data_dir,
-    #     cores,
-    #     file.name = "purple_sunrise_beta_gamma.png"
-    # ) 
     ## TODO: update me once new plot is ready; right now using Zi plot from skitools
     ## also hacking and just getting rid of the purple sunrise plot to make it work for now
     ## eventually tell CX to update the png we are using on the frontend

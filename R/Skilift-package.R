@@ -47,3 +47,21 @@ registerS3method(genname = "merge", class = "data.table", method = data.table::m
 	}
 	
 }
+
+## Global Variables
+
+#' Paired reads factor 
+#' 
+#' Multiply paired reads by this number for coverage
+#' 
+#' To get binned coverage into base level coverage,
+#' multiply by paired reads factor (2)
+PAIRED_READS_FACTOR = 2
+
+#' Read length
+#' 
+#' Multiply paired reads by this number for read length
+#' 
+#' To get binned coverage into read length level coverage,
+#' multiply by read length (151)
+READ_LENGTH = 151
