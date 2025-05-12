@@ -1276,7 +1276,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
 #' @param data_dir Directory containing data files
 #' @return None
 #' @export
-lift_datafiles_json <- function(output_data_dir) {
+lift_datafiles_json <- function(output_data_dir, cores = 1) {
   if (!dir.exists(output_data_dir)) {
     stop("Data directory does not exist.")
   }
@@ -1294,9 +1294,9 @@ lift_datafiles_json <- function(output_data_dir) {
   }
   
   # Read each JSON file and combine them into a list
-  combined_data <- lapply(metadata_files, function(file) {
+  combined_data <- mclapply(metadata_files, function(file) {
     unbox(jsonlite::fromJSON(file))
-  })
+  }, mc.cores = cores)
 
   # Write the combined JSON list to "datafiles.json" in the data directory
   output_file <- file.path(output_data_dir, "datafiles.json")

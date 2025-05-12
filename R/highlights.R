@@ -282,7 +282,7 @@ create_summary = function(
   hemedb_guideline = hemedb_guideline[, .(GUIDELINE = GUIDELINE[1], DISEASE = list(DISEASE)), by = GENE]
 
   criterias = list(
-    is_tier2_or_better = small_muts$Tier <= 2
+    is_tier_or_better = small_muts$Tier <= 1
    ,
     is_clonal = small_muts$estimated_altered_copies >= altered_copies_threshold
 	,
@@ -310,10 +310,12 @@ create_summary = function(
       %>% as.data.table()
     )
     small_muts_tally = small_muts_tally[value > 0]
-    small_muts_parsed = paste(
-      small_muts_tally[, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]$V1,
-      collapse = "; "
-    )
+    # small_muts_parsed = paste(
+    #   small_muts_tally[, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]$V1,
+    #   collapse = "; "
+    # )
+
+	small_muts_parsed = small_muts_tally[, paste(type, ": ", gene, sep = ""), by = type]$V1
     
   }
   
@@ -359,9 +361,15 @@ create_summary = function(
       is_svs_relevant
     )
   ) {
-    svs_parsed = (
+    # svs_parsed = (
+    #   base::subset(svs, is_svs_relevant)[, .(gene, type)]
+    #     [, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]
+    #     $V1
+    # )
+
+	svs_parsed = (
       base::subset(svs, is_svs_relevant)[, .(gene, type)]
-        [, paste(type, ": ", paste(gene, collapse = ","), sep = ""), by = type]
+        [, paste(type, ": ", gene, sep = ""), by = type]
         $V1
     )
 
@@ -371,7 +379,7 @@ create_summary = function(
   cna = events_tbl[grepl("SCNA", events_tbl$type, ignore.case = TRUE),]
   cna_parsed = ""
   criterias = list(
-    is_tier2_or_better = cna$Tier <= 2,
+    is_tier_or_better = cna$Tier <= 1,
 	is_cna_in_guidelines = cna$gene %in% hemedb_guideline$GENE
   )
   if (!cohort_type == "heme") {
@@ -390,13 +398,22 @@ create_summary = function(
       %>% as.data.table()
     )
     cna_tally = cna_tally[value > 0]
-    cna_parsed = paste(
-      cna_tally[, paste(vartype, ": ", paste(gene, collapse = ","), sep = ""), by = vartype]$V1,
-      collapse = "; "
+    # cna_parsed = paste(
+    #   cna_tally[, paste(vartype, ": ", paste(gene, collapse = ","), sep = ""), by = vartype]$V1,
+    #   collapse = "; "
+    # )
+	cna_parsed = (
+      cna_tally[, paste(vartype, ": ", gene, sep = ""), by = vartype]$V1
     )
   }
 
-  summary_string = paste(small_muts_parsed, cna_parsed, svs_parsed, sep = "\n")
+  summary_string = paste(
+    paste(small_muts_parsed, collapse = "\n"),
+    paste(cna_parsed, collapse = "\n"),
+    paste(svs_parsed, collapse = "\n"),
+    sep = "\n"
+  )
+  ## summary_string = paste(small_muts_parsed, cna_parsed, svs_parsed, sep = "\n")
   summary_string = trimws(summary_string)
   summary_string = gsub("\n{2,}", "\n", summary_string)
 
