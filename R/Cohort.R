@@ -760,6 +760,7 @@ default_col_mapping <- list(
   tumor_wgs_metrics = c("tumor_wgs_metrics", "qc_coverage_metrics_tumor", "tumor_wgs_stats"),
   normal_wgs_metrics = c("normal_wgs_metrics", "qc_coverage_metrics_normal",  "normal_wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
+  purple_qc = c("purple_qc"),
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_pp_best_fit", "purple_bestFit", "purple_solution"),
   msisensorpro = c("msisensorpro", "msisensor_pro", "msisensor_pro_results", "msisensor_results"),
   # Configuration parameters with default values
