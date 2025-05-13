@@ -1036,24 +1036,35 @@ parse_oncokb_tier <- function(
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed OncoKB mutation information.
 collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = TRUE) {
-  if (is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
+  
+  empty_output_oncokb = data.table(type = NA, source = "oncokb_maf")
+  if (missing(oncokb_maf) || is.null(oncokb_maf) || !file.exists(oncokb_maf)) {
     if (verbose) message("OncoKB MAF file is missing or does not exist.")
-    return(data.table(type = NA, source = "oncokb_maf"))
+    return(empty_output_oncokb)
   }
 
   # snpeff_ontology = readRDS(system.file("extdata", "data", "snpeff_ontology.rds", package = "Skilift"))
   oncokb <- data.table::fread(oncokb_maf)
-  if (
-    is.character(multiplicity) &&
-      NROW(multiplicity) == 1 &&
-      file.exists(multiplicity)
-  ) {
+  is_multiplicity_present = is.character(multiplicity) && NROW(multiplicity) == 1 && !is_loosely_na(multiplicity) && file.exists(multiplicity)
+  is_oncokb_populated = NROW(oncokb) > 0
+  
+  is_multiplicity_populated = FALSE
+  if (is_multiplicity_present) {
     multiplicity <- readRDS(multiplicity)
-    oncokb <- merge_oncokb_multiplicity(oncokb, multiplicity, overwrite = TRUE)
+	is_multiplicity_populated = NROW(multiplicity) > 0
   }
 
-  if (NROW(oncokb) > 0) {
+  if (is_oncokb_populated && !is_multiplicity_populated) {
+  	stop("Something's off - oncokb is populated with variants, but not multiplicity.")
+  }
+  
+  if (is_oncokb_populated && is_multiplicity_populated) {
+  	oncokb <- merge_oncokb_multiplicity(oncokb, multiplicity, overwrite = TRUE)
+  }
+
+  if (is_oncokb_populated) {
     ## oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+	
     oncokb$short <- dplyr::case_when(
       grepl("frameshift", oncokb$Consequence) & grepl("fs$", oncokb$HGVSp) ~ "trunc",
       grepl("stop", oncokb$Consequence) & grepl("^p\\.", oncokb$HGVSp) ~ "trunc",
@@ -1116,7 +1127,7 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
       source = "oncokb_maf"
     )])
   }
-  return(data.table(type = NA, source = "oncokb_maf"))
+  return(empty_output_oncokb)
 }
 
 
@@ -1868,9 +1879,9 @@ merge_oncokb_multiplicity <- function(
   }
   S4Vectors::mcols(gr_multiplicity) <- mc
   is_oncokb_empty = NROW(gr_oncokb) == 0
-  is_multipicity_empty = NROW(gr_multiplicity) == 0
+  is_multiplicity_empty = NROW(gr_multiplicity) == 0
   if (is_oncokb_empty || is_multiplicity_empty)  return(data.table())
-  
+
   ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = c("gene", "ALT"), type = "equal")
   ovQuery <- data.table(query.id = integer(0), subject.id = integer(0))
   if (NROW(ov) > 0) {
