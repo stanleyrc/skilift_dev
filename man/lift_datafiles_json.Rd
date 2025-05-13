@@ -4,7 +4,7 @@
 \alias{lift_datafiles_json}
 \title{lift_datafiles_json}
 \usage{
-lift_datafiles_json(output_data_dir)
+lift_datafiles_json(output_data_dir, cores = 1)
 }
 \arguments{
 \item{data_dir}{Directory containing data files}
