@@ -1880,7 +1880,7 @@ merge_oncokb_multiplicity <- function(
   S4Vectors::mcols(gr_multiplicity) <- mc
   is_oncokb_empty = NROW(gr_oncokb) == 0
   is_multiplicity_empty = NROW(gr_multiplicity) == 0
-  if (is_oncokb_empty || is_multiplicity_empty)  return(data.table())
+  if (is_oncokb_empty || is_multiplicity_empty)  return(oncokb) ## Should be returned as original empty data.table
 
   ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = c("gene", "ALT"), type = "equal")
   ovQuery <- data.table(query.id = integer(0), subject.id = integer(0))
