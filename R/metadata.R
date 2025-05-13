@@ -1224,7 +1224,9 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
 		if (is_purple_qc_null && NROW(extracted_purple_qc_path) > 0) {
 			purple_qc_path_for_fread = extracted_purple_qc_path[1]
 		}
-		if (file.exists(purple_qc_path_for_fread)) {
+		
+		is_purple_qc_path_valid = NROW(purple_qc_path_for_fread) == 1 && is.character(purple_qc_path_for_fread) && file.exists(purple_qc_path_for_fread)
+		if (is_purple_qc_path_valid) {
 			inferred_sex_field = fread(purple_qc_path_for_fread, header = FALSE)[V1 == "AmberGender"]$V2
 			inferred_sex_field = tools::toTitleCase(tolower(inferred_sex_field))
 		}
