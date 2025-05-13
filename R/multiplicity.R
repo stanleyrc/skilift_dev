@@ -113,17 +113,53 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
       stop("final oncokb_snv not a GRanges object")
     }
 
-    mutations.gr.annotated = merge_oncokb_multiplicity(
-      oncokb_snv,
-      mutations.gr,
-      overwrite = TRUE
-      ## other.cols.keep = c("snpeff_annotation")
-    )
-    mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
+	nrows_oncokb_snv = NROW(oncokb_snv)
+	is_oncokb_snv_empty = nrows_oncokb_snv == 0
+
+	mutations.gr.annotated = mutations.gr
+
+	## FIXME: merge_oncokb_multiplicity is a left join, so if
+	## oncokb_snv is empty, mutations.gr.annotated will be empty
+	## and here, we need multiplicity to be populated.
+	## ideally should be an outer join
+	if (!is_oncokb_snv_empty) {
+		mutations.gr.annotated = merge_oncokb_multiplicity(
+		oncokb_snv,
+		mutations.gr,
+		overwrite = TRUE
+		## other.cols.keep = c("snpeff_annotation")
+		)
+		mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
+	}
     mutations.dt = gr2dt(mutations.gr.annotated)
     ## Overwrite with SnpEff annotations pulled out from OncoKB
     ## Held in Consequence column.
-    annotationsplit = strsplit(mutations.dt$Consequence, ",")
+	
+	test_column_valid = function(dt, column) {
+		colvals = dt
+		is_column_missing = missing(column)
+		is_column_null = !is_column_missing && (is.null(column) || NROW(column) == 0)
+		is_column_present = !is_column_missing && !is_column_null
+		is_dt_scalar = is.null(dim(dt))
+		if (!is_dt_scalar && is_column_present) {
+			colvals = get0(column, as.environment(as.list(dt)), default = NULL)
+		} else if (!is_dt_scalar && !is_column_present) {
+			stop("A tabular object was provided to dt, please provide column")
+		}
+		is_null = is.null(colvals)
+		is_empty = NROW(colvals) == 0
+		is_all_na = !is_null && !is_empty && all(is.na(colvals))
+		is_column_valid = !is_null && !is_empty && !is_all_na
+		return(is_column_valid)
+	}
+	snpeff_annotations = mutations.dt$Consequence ## parsed by oncokb
+	snpeff_annotations_delim = "," ## parsed by oncokb
+	is_snpeff_from_oncokb = test_column_valid(snpeff_annotations)
+	if (!is_snpeff_from_oncokb) {
+		snpeff_annotations = mutations.dt$annotations
+		snpeff_annotations_delim = "&"
+	}
+    annotationsplit = strsplit(snpeff_annotations, snpeff_annotations_delim)
     annotationsplit = gGnome::dunlist(annotationsplit)
     annotationsplit[, ix := seq_len(.N), by = listid]
     annotationsplit[, num := .N, by = listid]
@@ -135,6 +171,17 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
     mutations.dt <- mutations.dt[!is.na(get(field)), ]
     mutations.dt[start == end, end := end + 1]
     mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
+
+	## FIXME: dealing with the left join issue from merge_oncokb_multiplicity.
+	## ideally should be an outer join
+	columns_from_oncokb = c("ONCOGENIC", "MUTATION_EFFECT", "HIGHEST_LEVEL")
+	for (col in columns_from_oncokb) {
+		is_column_valid = test_column_valid(mutations.dt, col)
+		colassign = NA
+		if (!is_column_valid) mutations.dt[[col]] = colassign
+	}
+	
+	if (is_column_valid)
     mutations.dt[, ONCOGENIC := fcase(
       is.na(ONCOGENIC), "",
       grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
