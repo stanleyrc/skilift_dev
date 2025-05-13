@@ -1880,7 +1880,16 @@ merge_oncokb_multiplicity <- function(
   S4Vectors::mcols(gr_multiplicity) <- mc
   is_oncokb_empty = NROW(gr_oncokb) == 0
   is_multiplicity_empty = NROW(gr_multiplicity) == 0
-  if (is_oncokb_empty || is_multiplicity_empty)  return(oncokb) ## Should be returned as original empty data.table
+
+  # oncokb should always be a data.table at this point, regardless whether empty or not 
+  # (columns are always there)
+  columns_to_assign_na_in_oncokb = cols.keep[!cols.keep %in% names(oncokb)] 
+  if (is_oncokb_empty || is_multiplicity_empty)  {
+	for (col in columns_to_assign_na_in_oncokb) {
+		oncokb[[col]] = NA
+	}
+	return(oncokb) ## Should be returned as original empty data.table + multiplicity columns (na'd for downstream robustness)
+  }
 
   ov <- gUtils::gr.findoverlaps(gr_oncokb, gr_multiplicity, by = c("gene", "ALT"), type = "equal")
   ovQuery <- data.table(query.id = integer(0), subject.id = integer(0))
