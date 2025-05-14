@@ -1886,7 +1886,7 @@ merge_oncokb_multiplicity <- function(
   columns_to_assign_na_in_oncokb = cols.keep[!cols.keep %in% names(oncokb)] 
   if (is_oncokb_empty || is_multiplicity_empty)  {
 	for (col in columns_to_assign_na_in_oncokb) {
-		oncokb[[col]] = NA
+		oncokb[[col]] = rep_len(NA, NROW(oncokb))
 	}
 	return(oncokb) ## Should be returned as original empty data.table + multiplicity columns (na'd for downstream robustness)
   }
