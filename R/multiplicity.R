@@ -8,229 +8,258 @@
 #' @return data.table containing processed mutation data
 #' @export
 create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, field = "altered_copies") {
-  mutations.gr <- tryCatch({
-    if (!grepl("\\.rds$", snv_cn)) {
-      message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
-    }
-    readRDS(snv_cn)
-  }, error = function(e) {
-    message(paste0("Input was not .rds; failed with '", e$message, "'\nAssuming input is .maf"))
-    return(fread(snv_cn) %>% dt2gr())
-  }, finally = {
-    message("Finished attempting to load input.")
-  })
+	is_character_snv = is.character(snv_cn)
+	nrows_snv = NROW(snv_cn)
+	is_empty_snv = nrows_snv == 0
+	is_populated_snv = nrows_snv > 0
+	is_lenone_snv = nrows_snv == 1
+	is_possible_path_snv = is_character_snv && is_lenone_snv
+    is_possible_path_non_na = is_possible_path_snv && !is_loosely_na(snv_cn, other_nas = base::nullfile())
+	is_exists_snv = is_possible_path_non_na && file.exists(snv_cn)
+	is_notexists_snv = is_possible_path_non_na && !file.exists(snv_cn)
+	is_rds_snv = is_exists_snv && grepl("\\.rds$", snv_cn)
+	is_other_snv = is_exists_snv && !grepl("\\.rds$", snv_cn)
 
-  if (!inherits(mutations.gr, "GRanges")) {
-    mutations.gr.tmp = tryCatch(
-      {
-        dt2gr(mutations.gr)
-      }, error = function(e) tryCatch(
-      {
-        as(mutations.gr, "GRanges")
-      }, error = function(e) NULL)
-    )
-    if (is.null(mutations.gr.tmp)) {
-      stop("input snv_cn must be a maf/snv file coercible into GRanges")
-    }
-    mutations.gr = mutations.gr.tmp
-    rm(mutations.gr.tmp)
-  }
+	mutations.gr = snv_cn
+	if (is_rds_snv) {
+		mutations.gr = readRDS(snv_cn)
+	} else if (is_other_snv) {
+		mutations.gr = fread(snv_cn)
+	} else if (is_notexists_snv) {
+		stop("Please provide a valid path to snv_cn (multiplicity output)")
+	}
 
-  if (is.null(mutations.gr)) {
-    stop("Failed to assign a valid value to mutations.gr.")
-  } else {
-    message("Successfully loaded input snv_cn.")
-  }
+
+	#   mutations.gr <- tryCatch({
+	#     if (!grepl("\\.rds$", snv_cn)) {
+	#       message("Expected .rds ending for mutations. Attempting to read anyway: ", snv_cn)
+	#     }
+	#     readRDS(snv_cn)
+	#   }, error = function(e) {
+	#     message(paste0("Input was not .rds; failed with '", e$message, "'\nAssuming input is .maf"))
+	#     return(fread(snv_cn) %>% dt2gr())
+	#   }, finally = {
+	#     message("Finished attempting to load input.")
+	#   })
+
+	if (!inherits(mutations.gr, "GRanges")) {
+		mutations.gr.tmp = tryCatch(
+		{
+			dt2gr(mutations.gr)
+		}, error = function(e) tryCatch(
+		{
+			as(mutations.gr, "GRanges")
+		}, error = function(e) NULL)
+		)
+		if (is.null(mutations.gr.tmp)) {
+		stop("input snv_cn must be a maf/snv file coercible into GRanges")
+		}
+		mutations.gr = mutations.gr.tmp
+		rm(mutations.gr.tmp)
+	}
+
+	if (is.null(mutations.gr)) {
+		stop("Failed to assign a valid value to mutations.gr.")
+	} else {
+		message("Successfully loaded input snv_cn.")
+	}
+
+
+	mcols(mutations.gr)$snpeff_annotation = mutations.gr$annotation
+	annotationsplit = strsplit(mcols(mutations.gr)$snpeff_annotation, "&")
+	annotationsplit = gGnome::dunlist(annotationsplit)
+	annotationsplit[, ix := seq_len(.N), by = listid]
+	annotationsplit[, num := .N, by = listid]
+
+	# Normalize everything to just the 1st variant
+	# type that appears if we get
+	# splice&intron_variant nonsense.
+	mcols(mutations.gr)$snpeff_annotation = annotationsplit[ix == 1]$V1
+	rm("annotationsplit")
+
+	mut_ann <- ""
+
+	# Annotation fields that should always be present
+	# We're using 
+	annotation_fields <- list(
+		# Variant_Classification = "Type"
+		# Let's just use the snpeff annotations here because
+		# it should still be possible to populate with just SnpEff/Multiplicity.
+		snpeff_annotation = "Type",
+		Gene = "Gene",
+		# HGVSc = "Variant",
+		variant.c = "Variant",
+		# HGVSp = "Protein_variant",
+		variant.p = "Protein_variant",
+		variant.g = "Genomic_variant",
+		vaf = "VAF",
+		alt = "Alt_count",
+		ref = "Ref_count",
+		normal.alt = "Normal_alt_count",
+		normal.ref = "Normal_ref_count",
+		FILTER = "Filter"
+	)
+
+	mutations.dt <- gr2dt(mutations.gr)
+    
+	is_null_oncokb_snv = is.null(oncokb_snv)
+	is_path_character = is.character(oncokb_snv)
+	is_length_one = NROW(oncokb_snv) == 1
+	is_possible_path = is_path_character && is_length_one
+	is_file_exists = is_possible_path && file.exists(oncokb_snv)
+	is_rds = is_file_exists && grepl("rds$", oncokb_snv)
+	is_txt = is_file_exists && grepl("maf$|(c|t)sv$|txt$", oncokb_snv)
+	is_oncokb_snv_empty = TRUE
+
+	if (!is_null_oncokb_snv) {
+		message("oncokb_snv provided, processing input")
+		if (is_rds) {
+		oncokb_snv = readRDS(oncokb_snv)
+		} else if (is_txt) {
+		oncokb_snv = fread(oncokb_snv)
+		} else if (is_file_exists) {
+		stop("Provided oncokb_snv file extension not supported")
+		}
+
+		is_data_frame = inherits(oncokb_snv, "data.frame")
+		if (is_data_frame) {
+		oncokb_snv_tmp = tryCatch(
+			{
+			dt2gr(oncokb_snv)
+			}, error = function(e) tryCatch(
+			{
+			as(oncokb_snv, "GRanges")
+			}, error = function(e) NULL)
+		)
+		if (is.null(oncokb_snv_tmp)) {
+			stop("oncokb_snv must be coercible to GRanges")
+		}
+		oncokb_snv = oncokb_snv_tmp
+		}
+		if (!inherits(oncokb_snv, "GRanges")) {
+		stop("final oncokb_snv not a GRanges object")
+		}
+
+		nrows_oncokb_snv = NROW(oncokb_snv)
+		is_oncokb_snv_empty = nrows_oncokb_snv == 0
+	}
+  
+
 
   
-  mcols(mutations.gr)$snpeff_annotation = mutations.gr$annotation
-  annotationsplit = strsplit(mcols(mutations.gr)$snpeff_annotation, "&")
-  annotationsplit = gGnome::dunlist(annotationsplit)
-  annotationsplit[, ix := seq_len(.N), by = listid]
-  annotationsplit[, num := .N, by = listid]
-
-  # Normalize everything to just the 1st variant
-  # type that appears if we get
-  # splice&intron_variant nonsense.
-  mcols(mutations.gr)$snpeff_annotation = annotationsplit[ix == 1]$V1
-  rm("annotationsplit")
-
-  mut_ann <- ""
-
-  # Annotation fields that should always be present
-  # We're using 
-  annotation_fields <- list(
-    # Variant_Classification = "Type"
-    # Let's just use the snpeff annotations here because
-    # it should still be possible to populate with just SnpEff/Multiplicity.
-    snpeff_annotation = "Type",
-    Gene = "Gene",
-    # HGVSc = "Variant",
-    variant.c = "Variant",
-    # HGVSp = "Protein_variant",
-    variant.p = "Protein_variant",
-    variant.g = "Genomic_variant",
-    vaf = "VAF",
-    alt = "Alt_count",
-    ref = "Ref_count",
-    normal.alt = "Normal_alt_count",
-    normal.ref = "Normal_ref_count",
-    FILTER = "Filter"
-  )
-  
-  mutations.dt <- gr2dt(mutations.gr)
-  if (!is.null(oncokb_snv) && !is.na(oncokb_snv)) {
-    message("oncokb_snv provided, processing input")
-    is_path_character = is.character(oncokb_snv)
-    is_length_one = NROW(oncokb_snv) == 1
-    is_file_exists = is_path_character && is_length_one && file.exists(oncokb_snv)
-    is_rds = is_file_exists && grepl("rds$", oncokb_snv)
-    is_txt = is_file_exists && grepl("maf$|(c|t)sv$|txt$", oncokb_snv)
-    if (is_rds) {
-      oncokb_snv = readRDS(oncokb_snv)
-    } else if (is_txt) {
-      oncokb_snv = fread(oncokb_snv)
-    } else {
-      stop("Provided oncokb_snv file extension not supported")
-    }
-
-    is_data_frame = inherits(oncokb_snv, "data.frame")
-    if (is_data_frame) {
-      oncokb_snv_tmp = tryCatch(
-        {
-          dt2gr(oncokb_snv)
-        }, error = function(e) tryCatch(
-        {
-          as(oncokb_snv, "GRanges")
-        }, error = function(e) NULL)
-      )
-      if (is.null(oncokb_snv_tmp)) {
-        stop("oncokb_snv must be coercible to GRanges")
-      }
-      oncokb_snv = oncokb_snv_tmp
-    }
-    if (!inherits(oncokb_snv, "GRanges")) {
-      stop("final oncokb_snv not a GRanges object")
-    }
-
-	nrows_oncokb_snv = NROW(oncokb_snv)
-	is_oncokb_snv_empty = nrows_oncokb_snv == 0
-
-	mutations.gr.annotated = mutations.gr
 
 	## FIXME: merge_oncokb_multiplicity is a left join, so if
 	## oncokb_snv is empty, mutations.gr.annotated will be empty
 	## and here, we need multiplicity to be populated.
 	## ideally should be an outer join
-	if (!is_oncokb_snv_empty) {
+	is_oncokb_present_and_populated = !is_null_oncokb_snv && !is_oncokb_snv_empty
+	if (is_oncokb_present_and_populated) {
 		mutations.gr.annotated = merge_oncokb_multiplicity(
 		oncokb_snv,
 		mutations.gr,
-		overwrite = TRUE
-		## other.cols.keep = c("snpeff_annotation")
+		overwrite = TRUE,
+		other.cols.keep = c("snpeff_annotation")
 		)
 		mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
-	}
-    mutations.dt = gr2dt(mutations.gr.annotated)
-    ## Overwrite with SnpEff annotations pulled out from OncoKB
-    ## Held in Consequence column.
 	
-	test_column_valid = function(dt, column) {
-		colvals = dt
-		is_column_missing = missing(column)
-		is_column_null = !is_column_missing && (is.null(column) || NROW(column) == 0)
-		is_column_present = !is_column_missing && !is_column_null
-		is_dt_scalar = is.null(dim(dt))
-		if (!is_dt_scalar && is_column_present) {
-			colvals = get0(column, as.environment(as.list(dt)), default = NULL)
-		} else if (!is_dt_scalar && !is_column_present) {
-			stop("A tabular object was provided to dt, please provide column")
+		mutations.dt = gr2dt(mutations.gr.annotated)
+		## Overwrite with SnpEff annotations pulled out from OncoKB
+		## Held in Consequence column.
+		
+		test_column_valid = function(dt, column) {
+			colvals = dt
+			is_column_missing = missing(column)
+			is_column_null = !is_column_missing && (is.null(column) || NROW(column) == 0)
+			is_column_present = !is_column_missing && !is_column_null
+			is_dt_scalar = is.null(dim(dt))
+			if (!is_dt_scalar && is_column_present) {
+				colvals = get0(column, as.environment(as.list(dt)), ifnotfound = NULL)
+			} else if (!is_dt_scalar && !is_column_present) {
+				stop("A tabular object was provided to dt, please provide column")
+			}
+			is_null = is.null(colvals)
+			is_empty = NROW(colvals) == 0
+			is_all_na = !is_null && !is_empty && all(is.na(colvals))
+			is_column_valid = !is_null && !is_empty && !is_all_na
+			return(is_column_valid)
 		}
-		is_null = is.null(colvals)
-		is_empty = NROW(colvals) == 0
-		is_all_na = !is_null && !is_empty && all(is.na(colvals))
-		is_column_valid = !is_null && !is_empty && !is_all_na
-		return(is_column_valid)
-	}
-	snpeff_annotations = mutations.dt$Consequence ## parsed by oncokb
-	snpeff_annotations_delim = "," ## parsed by oncokb
-	is_snpeff_from_oncokb = test_column_valid(snpeff_annotations)
-	if (!is_snpeff_from_oncokb) {
-		snpeff_annotations = mutations.dt$annotations
-		snpeff_annotations_delim = "&"
-	}
-    annotationsplit = strsplit(snpeff_annotations, snpeff_annotations_delim)
-    annotationsplit = gGnome::dunlist(annotationsplit)
-    annotationsplit[, ix := seq_len(.N), by = listid]
-    annotationsplit[, num := .N, by = listid]
-    mutations.dt$snpeff_annotation = annotationsplit[ix == 1]$V1
-    rm("annotationsplit")
+		snpeff_annotations = mutations.dt$Consequence ## parsed by oncokb
+		snpeff_annotations_delim = "," ## parsed by oncokb
+		annotationsplit = strsplit(snpeff_annotations, snpeff_annotations_delim)
+		annotationsplit = gGnome::dunlist(annotationsplit)
+		annotationsplit[, ix := seq_len(.N), by = listid]
+		annotationsplit[, num := .N, by = listid]
+		first_annotation = annotationsplit[ix == 1]
+		mutations.dt.ix = first_annotation$listid
+		mutations.dt[mutations.dt.ix]$snpeff_annotation = ifelse(
+            is.na(first_annotation$V1),
+            mutations.dt[mutations.dt.ix]$snpeff_annotation, ## use the original snpeff annotation, not the oncokb parsed snpeff annotation which could map to a different transcript/annotation combo
+            first_annotation$V1
+        )
+		rm("annotationsplit")
 
-    ## Process mutations
-    setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
-    mutations.dt <- mutations.dt[!is.na(get(field)), ]
-    mutations.dt[start == end, end := end + 1]
-    mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
+		## Process mutations
+		setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
+		mutations.dt <- mutations.dt[!is.na(get(field)), ]
+		mutations.dt[start == end, end := end + 1]
+		mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
 
-	## FIXME: dealing with the left join issue from merge_oncokb_multiplicity.
-	## ideally should be an outer join
-	columns_from_oncokb = c("ONCOGENIC", "MUTATION_EFFECT", "HIGHEST_LEVEL")
-	for (col in columns_from_oncokb) {
-		is_column_valid = test_column_valid(mutations.dt, col)
-		colassign = NA
-		if (!is_column_valid) mutations.dt[[col]] = colassign
-	}
-	
-	if (is_column_valid)
-    mutations.dt[, ONCOGENIC := fcase(
-      is.na(ONCOGENIC), "",
-      grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
-      default = ONCOGENIC
-    )]
-    mutations.dt[, MUTATION_EFFECT := fcase(
-      is.na(MUTATION_EFFECT), "",
-      grepl("Unknown", MUTATION_EFFECT), "", ## extraneous string
-      default = MUTATION_EFFECT
-    )]
-    mutations.dt[, HIGHEST_LEVEL := fcase(
-      HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
-      default = gsub("LEVEL_", "", HIGHEST_LEVEL) ## extraneous string
-    )]
+		## FIXME: dealing with the left join issue from merge_oncokb_multiplicity.
+		## ideally should be an outer join
+		columns_from_oncokb = c("ONCOGENIC", "MUTATION_EFFECT", "HIGHEST_LEVEL")
+		for (col in columns_from_oncokb) {
+			is_column_valid = test_column_valid(mutations.dt, col)
+			colassign = NA
+			if (!is_column_valid) mutations.dt[[col]] = colassign
+		}
+		
+		mutations.dt[, ONCOGENIC := fcase(
+		is.na(ONCOGENIC), "",
+		grepl("Unknown", ONCOGENIC), "", ## necessitated by frontend implementation
+		default = ONCOGENIC
+		)]
+		mutations.dt[, MUTATION_EFFECT := fcase(
+		is.na(MUTATION_EFFECT), "",
+		grepl("Unknown", MUTATION_EFFECT), "", ## extraneous string
+		default = MUTATION_EFFECT
+		)]
+		mutations.dt[, HIGHEST_LEVEL := fcase(
+		HIGHEST_LEVEL == "" | is.na(HIGHEST_LEVEL), "",
+		default = gsub("LEVEL_", "", HIGHEST_LEVEL) ## extraneous string
+		)]
 
-    mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
+		mutations.dt <- mutations.dt[FILTER == "PASS"] #### TEMPORARY before implementation of fast coverage
 
-    if ("strand" %in% colnames(mutations.dt)) {
-      mutations.dt[, strand := NULL]
-    }
+		if ("strand" %in% colnames(mutations.dt)) {
+			mutations.dt[, strand := NULL]
+		}
 
-    ## Add OncoKB specific annotation fields
-    annotation_fields = c(
-      annotation_fields,
-      list(
-        ONCOGENIC = "Oncogenicity",
-        MUTATION_EFFECT = "Effect",
-        HIGHEST_LEVEL = "Level"
-      )
-    )
+		## Add OncoKB specific annotation fields
+		annotation_fields = c(
+		annotation_fields,
+		list(
+			ONCOGENIC = "Oncogenicity",
+			MUTATION_EFFECT = "Effect",
+			HIGHEST_LEVEL = "Level"
+		)
+		)
 
-    # Converting Gene annotation Hugo_Symbol
-    # Meaning don't use ENSG* ids.
-    names(annotation_fields)[
-      names(annotation_fields) == "Gene"
-    ] = "Hugo_Symbol"
+		# Converting Gene annotation Hugo_Symbol
+		# Meaning don't use ENSG* ids.
+		names(annotation_fields)[
+		names(annotation_fields) == "Gene"
+		] = "Hugo_Symbol"
 
-    # Converting to the OncoKB HGVSc and p variants.
-    # for internal consistency
-    names(annotation_fields)[
-      names(annotation_fields) == "variant.c"
-    ] = "HGVSc"
+		# Converting to the OncoKB HGVSc and p variants.
+		# for internal consistency
+		names(annotation_fields)[
+		names(annotation_fields) == "variant.c"
+		] = "HGVSc"
 
-    names(annotation_fields)[
-      names(annotation_fields) == "variant.p"
-    ] = "HGVSp"
-
-    
-  } 
+		names(annotation_fields)[
+		names(annotation_fields) == "variant.p"
+		] = "HGVSp"
+	} 
 
   if (!any(class(mutations.dt) == "data.table")) {
     stop("Input must be a data.table.")
@@ -244,7 +273,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
   }
 
   mutations.dt[, annotation := mut_ann]
-  return(mutations.dt)
+  return(mutations.dt[])
 }
 
 #' @title Convert Multiplicity Data to Intervals
