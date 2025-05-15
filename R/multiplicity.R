@@ -154,15 +154,30 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 	## ideally should be an outer join
 	is_oncokb_present_and_populated = !is_null_oncokb_snv && !is_oncokb_snv_empty
 	if (is_oncokb_present_and_populated) {
-		mutations.gr.annotated = merge_oncokb_multiplicity(
+		oncokb.mutations.gr.annotated = merge_oncokb_multiplicity(
 		oncokb_snv,
 		mutations.gr,
 		overwrite = TRUE,
 		other.cols.keep = c("snpeff_annotation")
 		)
-		mutations.gr.annotated$gene = mutations.gr.annotated$Hugo_Symbol
+
+		
+		oncokb.mutations.gr.annotated$gene = oncokb.mutations.gr.annotated$Hugo_Symbol
+		nms_oncokb = names(oncokb.mutations.gr.annotated)
+		nms_mult = names(mutations.dt)
+		cols_to_overwrite = c(
+			nms_oncokb[!nms_oncokb %in% nms_mult]
+		)
+		multiplicity_id_match___ = oncokb.mutations.gr.annotated$multiplicity_id_match
+		for (col in cols_to_overwrite) {
+			col_class = class(oncokb.mutations.gr.annotated[[col]])
+			mutations.dt[[col]] = rep_len(as(NA, col_class), NROW(mutations.dt))
+			mutations.dt[multiplicity_id_match___,][[col]] = oncokb.mutations.gr.annotated[[col]]
+		}
 	
-		mutations.dt = gr2dt(mutations.gr.annotated)
+		# mutations.dt = gr2dt(oncokb.mutations.gr.annotated)
+
+
 		## Overwrite with SnpEff annotations pulled out from OncoKB
 		## Held in Consequence column.
 		
