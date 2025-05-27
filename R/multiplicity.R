@@ -7,7 +7,7 @@
 #'
 #' @return data.table containing processed mutation data
 #' @export
-create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, field = "altered_copies") {
+create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, field = "altered_copies", show_only_oncokb = FALSE) {
 	is_character_snv = is.character(snv_cn)
 	nrows_snv = NROW(snv_cn)
 	is_empty_snv = nrows_snv == 0
@@ -143,6 +143,12 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 		nrows_oncokb_snv = NROW(oncokb_snv)
 		is_oncokb_snv_empty = nrows_oncokb_snv == 0
 	}
+
+	is_show_only_oncokb_irrelevant = is_null_oncokb_snv && identical(show_only_oncokb, TRUE)
+
+	if (is_show_only_oncokb_irrelevant) {
+		message("WARNING: show_only_oncokb set to TRUE, but no oncokb provided to show")
+	}
   
 
 
@@ -163,19 +169,28 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 
 		
 		oncokb.mutations.gr.annotated$gene = oncokb.mutations.gr.annotated$Hugo_Symbol
-		nms_oncokb = names(oncokb.mutations.gr.annotated)
-		nms_mult = names(mutations.dt)
-		cols_to_overwrite = c(
-			nms_oncokb[!nms_oncokb %in% nms_mult]
-		)
-		multiplicity_id_match___ = oncokb.mutations.gr.annotated$multiplicity_id_match
-		for (col in cols_to_overwrite) {
-			col_class = class(oncokb.mutations.gr.annotated[[col]])
-			mutations.dt[[col]] = rep_len(as(NA, col_class), NROW(mutations.dt))
-			mutations.dt[multiplicity_id_match___,][[col]] = oncokb.mutations.gr.annotated[[col]]
-		}
-	
-		# mutations.dt = gr2dt(oncokb.mutations.gr.annotated)
+
+		## If show_only_oncokb is FALSE,
+		## Use all multiplicity values, but match oncokb
+        
+		if (show_only_oncokb) {
+			mutations.dt = gr2dt(oncokb.mutations.gr.annotated)
+		} else {
+			
+			nms_oncokb = names(oncokb.mutations.gr.annotated)
+			nms_mult = names(mutations.dt)
+			cols_to_overwrite = c(
+				nms_oncokb[!nms_oncokb %in% nms_mult]
+			)
+			multiplicity_id_match___ = oncokb.mutations.gr.annotated$multiplicity_id_match
+			for (col in cols_to_overwrite) {
+				col_class = class(oncokb.mutations.gr.annotated[[col]])
+				mutations.dt[[col]] = rep_len(as(NA, col_class), NROW(mutations.dt))
+				mutations.dt[multiplicity_id_match___,][[col]] = oncokb.mutations.gr.annotated[[col]]
+			}
+		} 
+
+		
 
 
 		## Overwrite with SnpEff annotations pulled out from OncoKB
@@ -427,6 +442,7 @@ lift_multiplicity <- function(
     is_germline = FALSE,
     node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c", "variant.p", "vaf", "transcript_type", "impact", "rank"),
     field = "altered_copies",
+	show_only_oncokb = TRUE,
     cores = 1
 ) {
     if (!inherits(cohort, "Cohort")) {
@@ -478,7 +494,8 @@ lift_multiplicity <- function(
                 snv_cn = snv_cn_path,
                 oncokb_snv = oncokb_snv_path,
                 is_germline = is_germline,
-                field = field
+                field = field,
+				show_only_oncokb = show_only_oncokb
             )
             
             # Convert to intervals

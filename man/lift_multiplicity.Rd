@@ -11,6 +11,7 @@ lift_multiplicity(
   node_metadata = c("gene", "feature_type", "annotation", "REF", "ALT", "variant.c",
     "variant.p", "vaf", "transcript_type", "impact", "rank"),
   field = "altered_copies",
+  show_only_oncokb = TRUE,
   cores = 1
 )
 }
