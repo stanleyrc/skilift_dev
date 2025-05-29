@@ -142,10 +142,10 @@ meltski = function(
     var = measure.vars[var_i]
     if (is_measure_regex) var = grep(var, all_names, value = TRUE)
     if (is.list(var)) var = unlist(var)
-    tbl_to_rbind = base::subset(tbl, select = c(id.vars, var))
+    tbl_to_rbind = base::subset(tbl, select = names(tbl) %in% c(id.vars, var))
     if (drop) {
       is_none_na = base::complete.cases(
-        base::subset(tbl_to_rbind, select = var)
+        base::subset(tbl_to_rbind, select = names(tbl_to_rbind) %in% var)
       )
       tbl_to_rbind = base::subset(tbl_to_rbind, is_none_na)
     }
@@ -165,7 +165,7 @@ meltski = function(
       tbl_to_rbind[[var.col]] = var[i]
       collected_var_names = c(collected_var_names, var.col)
     }    
-    skel = rbind(skel, tbl_to_rbind)
+    skel = data.table:::rbind.data.table(skel, tbl_to_rbind, fill = TRUE)
   }
   collected_var_names = unique(collected_var_names)
   if (nzchar(group_regex)) {
@@ -181,7 +181,7 @@ meltski = function(
   remaining_var_names = collected_var_names[-1]
   remaining_names = names(skel)[!names(skel) %in% remaining_var_names]
   if (keep_first_variable_col && NROW(remaining_names) > 0) {
-    skel = base::subset(skel, select = remaining_names)
+    skel = base::subset(skel, select = names(skel) %in% remaining_names)
     names(skel)[names(skel) == collected_var_names[1]] = gsub("_[0-9]+$", "", collected_var_names[1])
   }
   is_keep_remaining_flag_on = keep_remaining_cols || keep_original_cols
@@ -367,7 +367,11 @@ test_paths = function(
   is_character = is.character(objects)
   is_na = Skilift::is_loosely_na(objects, other_nas = base::nullfile())
   is_possible_path = is_character & !is_na
-  is_existent_path = is_possible_path & file.exists(objects)
+  if (!is_character) {
+	objects = as.character(objects)
+  }
+  is_robust_file_exists = tryCatch(file.exists(objects), error = function(e) rep_len(FALSE, NROW(objects)))
+  is_existent_path = is_possible_path & is_robust_file_exists
   is_rds = is_possible_path & grepl(rds_regex, objects)
   is_vcf = is_possible_path & grepl(vcf_regex, objects)
   is_bcf = is_possible_path & grepl(bcf_regex, objects)
@@ -938,7 +942,7 @@ test_coverage_normalized = function(coverage_values, tolerance = 0.1, fraction_n
 #' Get histogram of values + custom integer breaks
 #' 
 #' @export
-test_hist = function(values, integer_breaks = -1:5, tolerance = 1e-6) {
+test_hist = function(values, integer_breaks = -1:5, tolerance = 1e-12) {
 	is_integer_breaks_empty = is.null(integer_breaks) || NROW(integer_breaks) == 0
 	is_integer_breaks_na = any(is.na(integer_breaks)) 
 	# (NROW(integer_breaks == 1) && is.na(integer_breaks)) || any(is.na(integer_breaks))
