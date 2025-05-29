@@ -239,7 +239,8 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 		columns_from_oncokb = c("ONCOGENIC", "MUTATION_EFFECT", "HIGHEST_LEVEL")
 		for (col in columns_from_oncokb) {
 			is_column_valid = test_column_valid(mutations.dt, col)
-			colassign = NA
+			col_class = class(oncokb.mutations.gr.annotated[[col]])
+			colassign = rep_len(as(NA, col_class), NROW(mutations.dt))
 			if (!is_column_valid) mutations.dt[[col]] = colassign
 		}
 		
@@ -395,21 +396,24 @@ multiplicity_to_intervals <- function(
   }
 
   # Create graph object and convert to data.table
-  jab <- gG(nodes = gr)
-  node_cols <- c("snode.id", "y_value", "annotation") ### node_metadata)
-  node_dt <- gr2dt(jab$nodes$gr[, node_cols])
+  intervals = data.table()
+  if (NROW(gr) > 0) {
+	jab <- gG(nodes = gr)
+	node_cols <- c("snode.id", "y_value", "annotation") ### node_metadata)
+	node_dt <- gr2dt(jab$nodes$gr[, node_cols])
 
-  # Create final node data
-  intervals <- node_dt[, .(
-    chromosome = seqnames,
-    startPoint = start,
-    endPoint = end,
-    iid = snode.id,
-    title = snode.id,
-    type = "interval",
-    y = y_value,
-    annotation = node_dt$annotation
-  )]
+	# Create final node data
+	intervals <- node_dt[, .(
+		chromosome = seqnames,
+		startPoint = start,
+		endPoint = end,
+		iid = snode.id,
+		title = snode.id,
+		type = "interval",
+		y = y_value,
+		annotation = node_dt$annotation
+	)]
+  }
 
   # Construct return list
   list(
