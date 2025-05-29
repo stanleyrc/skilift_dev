@@ -1134,7 +1134,7 @@ create_metadata <- function(
     # Add MSIsensor score
     metadata <- add_msisensor_score(metadata, msisensorpro)    
 
-    if (!is_visible) {
+    if (!as.logical(is_visible)) {
         metadata$visible <- FALSE
     }
 
