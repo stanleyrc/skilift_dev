@@ -379,7 +379,7 @@ create_summary = function(
   cna = events_tbl[grepl("SCNA", events_tbl$type, ignore.case = TRUE),]
   cna_parsed = ""
   criterias = list(
-    is_tier_or_better = cna$Tier <= 1,
+    is_tier_or_better = cna$Tier <= 2,
 	is_cna_in_guidelines = cna$gene %in% hemedb_guideline$GENE
   )
   if (!cohort_type == "heme") {
