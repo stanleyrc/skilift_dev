@@ -4,7 +4,7 @@
 \alias{test_hist}
 \title{Test histogram}
 \usage{
-test_hist(values, integer_breaks = -1:5, tolerance = 1e-06)
+test_hist(values, integer_breaks = -1:5, tolerance = 1e-12)
 }
 \description{
 Get histogram of values + custom integer breaks
