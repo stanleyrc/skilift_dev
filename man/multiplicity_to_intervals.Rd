@@ -10,7 +10,8 @@ multiplicity_to_intervals(
   settings = Skilift:::default_settings_path,
   node_metadata = NULL,
   reference_name = "hg19",
-  cohort_type
+  cohort_type,
+  subsample_size = 10000
 )
 }
 \arguments{
