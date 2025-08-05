@@ -267,9 +267,22 @@ create_heme_highlights = function(
     svsForJson
   )
 
+  risk_json_array = list()
+
+  is_eln_risk_populated = !is.null(risk_level_eln) && !any(is.na(risk_level_eln)) && NROW(risk_level_eln) > 0
+  if (is_eln_risk_populated) {
+    risk_json_array = c(
+      risk_json_array,
+      ## below syntax is to ensure that the key:value pair gets added as a json record
+      list(list("ELN" = jsonlite::unbox(risk_level_eln)))
+    )
+  }
+  
+
   highlights_output = list(
     karyotype = jsonlite::unbox(karyotype_string),
-    risk_level_eln = jsonlite::unbox(risk_level_eln),
+    ## risk_level_eln = jsonlite::unbox(risk_level_eln),
+    risk_score = risk_json_array,
     gene_mutations = allOutputsForJson
   )
 
