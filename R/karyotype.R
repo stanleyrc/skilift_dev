@@ -122,6 +122,7 @@ annotate_karyotype = function(
       annotated_tra_inv = glue::glue('{k_type}({k_chrom})({k_bands})')[isBig]
 
     ## If the length is too big, don't show. Set to 5 for now
+    annotated_tra_inv_raw = annotated_tra_inv
     if(length(annotated_tra_inv) > event_count_thresh){
       annotated_tra_inv = "multiple tra/inv events"  
     }
@@ -251,10 +252,18 @@ annotate_karyotype = function(
     })
 
     ## If the length is too big, don't show. Set to 5 for now
+    annotated_band_cna_raw = annotated_band_cna
     if(length(annotated_band_cna) > event_count_thresh){
       annotated_band_cna = "multiple band events"  
     }
   }
+
+  karyotype_list = list(
+    annotated_chr_cna = annotated_chr_cna,
+    annotated_tra_inv = annotated_tra_inv_raw,
+    annotated_arm_cna = annotated_arm_cna,
+    annotated_band_cna = annotated_band_cna_raw
+  )
   
   karyotype_string = paste(c(
     annotated_chr_cna,
@@ -266,8 +275,8 @@ annotate_karyotype = function(
   karyotype_string = gsub(",{2,}", ",", karyotype_string)
   karyotype_string = gsub("^,|,$", "", karyotype_string)
   
-  
-  return(karyotype_string)
+  karyotype_out = list(karyotype_string = karyotype_string, karyotype_list = karyotype_list)
+  return(karyotype_out)
 }
 
 
