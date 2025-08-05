@@ -153,7 +153,7 @@ Cohort <- R6Class("Cohort",
 
       if (is.character(x) && length(x) == 1) {
         if (grepl("\\.csv$", x)) {
-          self$inputs <- private$construct_from_datatable(data.table(read.csv(x)))[]
+          self$inputs <- private$construct_from_datatable(data.table(read.csv(x, colClasses = c("patient_id" = "character", "pair" = "character", "patient" = "character"))))[]
         } else {
           self$inputs <- private$construct_from_path(x)[]
           self$nextflow_results_path <- x
@@ -164,6 +164,19 @@ Cohort <- R6Class("Cohort",
         self$inputs <- private$construct_from_datatable(x)[]
       } else {
         stop("Input must be either a path (character) or data.table")
+      }
+
+      inp = self$inputs
+      dm = dim(inp)
+      has_dimensions = !is.null(dm)
+      jx = integer()
+      if (has_dimensions) jx = seq_len(NCOL(inp))
+      for (j in jx) {
+        v = inp[[j]]
+        is_character = is.character(v)
+        if (!is_character) next
+        trimmedv = trimws(v)
+        self$inputs[[j]] = ifelse(Skilift::is_loosely_na(trimmedv) | !nzchar(trimmedv), NA_character_, v)
       }
     },
 
@@ -454,7 +467,7 @@ Cohort <- R6Class("Cohort",
       
 
       # Read samplesheet and extract metadata
-      samplesheet <- fread(samplesheet_path)
+      samplesheet <- fread(samplesheet_path, colClasses = c("patient" = "character"))
       metacols = c("patient", "sample", "tumor_type", "status", "disease", "primary_site", "sex", "bam")
       metavars = base::mget(
         metacols, 
@@ -665,6 +678,7 @@ nf_path_patterns <- list(
   jabba_gg = "jabba/.*/jabba.simple.gg.rds$",
   events = "events/.*/complex.rds$",
   fusions = "fusions/.*/fusions.rds$",
+  fusions_junctions = "fusions/.*altedge.annotations.tsv$",
   fragcounter_normal = "fragcounter_normal/.*/.*cov.rds$",
   fragcounter_tumor = "fragcounter_tumor/.*/.*cov.rds$",
   segments_cbs = "cbs/.*/.*(?<!n)seg.rds$",
@@ -737,6 +751,7 @@ default_col_mapping <- list(
   balanced_jabba_gg = c("balanced_jabba_gg", "jabba_gg_balanced", "non_integer_balance", "balanced_gg", "ni_balanced_gg"),
   events = c("events", "complex"),
   fusions = c("fusions"),
+  fusions_junctions = c("fusions_junctions"),
   allelic_jabba_gg = c("allelic_jabba_gg", "jabba_gg_allelic", "lp_phased_balance", "allelic_gg", "lp_balanced_gg"),
   activities_sbs_signatures = c("activities_sbs_signatures", "signatures_activities_sbs", "sbs_activities"),
   matrix_sbs_signatures = c("matrix_sbs_signatures", "signatures_matrix_sbs", "sbs_matrix"),
@@ -752,16 +767,16 @@ default_col_mapping <- list(
   onenesstwoness = c("onenesstwoness","oneness_twoness"),
   oncotable = c("oncotable"),
   estimate_library_complexity = c("estimate_library_complexity", "qc_dup_rate", "library_complexity_metrics", "est_lib_complex", "qc_dup_rate_tumor"),
-  estimate_library_complexity_tumor = c("estimate_library_complexity_tumor", "qc_dup_rate_tumor", "library_complexity_metrics_tumor", "est_lib_complex_tumor"),
+  estimate_library_complexity_tumor = c("estimate_library_complexity", "estimate_library_complexity_tumor", "qc_dup_rate", "qc_dup_rate_tumor", "library_complexity_metrics_tumor", "est_lib_complex_tumor"),
   estimate_library_complexity_normal = c("estimate_library_complexity_normal", "qc_dup_rate_normal", "library_complexity_metrics_normal", "est_lib_complex_normal"),
-  alignment_summary_metrics = c("alignment_summary_metrics", "qc_alignment_summary", "alignment_metrics", "qc_alignment_summary_tumor"),
-  alignment_summary_metrics_tumor = c("alignment_summary_metrics_tumor", "qc_alignment_summary_tumor", "alignment_metrics_tumor"),
+  alignment_summary_metrics = c("alignment_summary_metrics", "alignment_summary_metrics_tumor",  "qc_alignment_summary", "alignment_metrics", "qc_alignment_summary_tumor"),
+  alignment_summary_metrics_tumor = c("alignment_summary_metrics", "alignment_summary_metrics_tumor", "qc_alignment_summary_tumor", "alignment_metrics_tumor"),
   alignment_summary_metrics_normal = c("alignment_summary_metrics_normal", "qc_alignment_summary_normal", "alignment_metrics_normal"),
-  insert_size_metrics = c("insert_size_metrics", "qc_insert_size", "insert_metrics", "insert_size_metrics_tumor"),
-  insert_size_metrics_tumor = c("insert_size_metrics_tumor", "qc_insert_size_tumor", "insert_metrics_tumor"),
+  insert_size_metrics = c("insert_size_metrics", "qc_insert_size", "qc_insert_size_tumor", "insert_metrics", "insert_size_metrics_tumor"),
+  insert_size_metrics_tumor = c("insert_size_metrics_tumor", "qc_insert_size_tumor", "insert_metrics_tumor", "insert_metrics"),
   insert_size_metrics_normal = c("insert_size_metrics_normal", "qc_insert_size_normal", "insert_metrics_normal"),
-  wgs_metrics = c("wgs_metrics", "qc_coverage_metrics", "wgs_stats"),
-  tumor_wgs_metrics = c("tumor_wgs_metrics", "qc_coverage_metrics_tumor", "tumor_wgs_stats"),
+  tumor_wgs_metrics = c("tumor_wgs_metrics", "qc_coverage_metrics", "wgs_metrics", "qc_coverage_metrics_tumor", "tumor_wgs_stats"),
+  wgs_metrics = c("wgs_metrics", "qc_coverage_metrics", "tumor_wgs_metrics", "qc_coverage_metrics_tumor","wgs_stats"),
   normal_wgs_metrics = c("normal_wgs_metrics", "qc_coverage_metrics_normal",  "normal_wgs_stats"),
   purple_pp_range = c("purple_pp_range", "purple_range"),
   purple_qc = c("purple_qc"),

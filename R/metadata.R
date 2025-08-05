@@ -625,6 +625,35 @@ add_loh <- function(
     return(metadata)
 }
 
+#' @name add_fga
+#' @title Add Fraction Genome Altered (FGA)
+#' @param metadata A data.table containing metadata
+#' @param jabba_gg Path to JaBbA graph RDS file
+#' @param seqnames Vector of sequence names to consider
+#' @return Updated metadata with LOH metrics
+add_fga <- function(
+    metadata,
+    jabba_gg = NULL,
+    seqnames = c(1:22)
+) {
+    if (is.null(jabba_gg) || is.null(seqnames)) {
+        return(metadata)
+    }
+    
+    gg <- process_jabba(jabba_gg)
+    nodes.dt <- gg$nodes$dt
+    nodes.dt[, seqnames := gsub("chr", "", seqnames)]
+    nodes.dt <- base::subset(nodes.dt, subset = nodes.dt$seqnames %in% seqnames)
+    totalseglen <- nodes.dt$width %>% sum()
+
+    
+    fga_width = sum(nodes.dt[cn != 2]$width)
+    fga <- fga_width / totalseglen
+    metadata$loh_fraction = fga ## FIXME: This is FGA, this is to maintain compatibility with gOS frontend
+    
+    return(metadata)
+}
+
 #' @name add_genome_length
 #' @title Add Total Genome Length
 #' @description Adds total genome length from JaBbA graph
@@ -1078,6 +1107,7 @@ create_metadata <- function(
     msisensorpro = NULL,
     genome = "hg19",
     seqnames_loh = c(1:22),
+    seqnames_autosomes = c(1:22),
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
     denoised_coverage_field = "foreground",
     is_visible = TRUE,
@@ -1112,7 +1142,8 @@ create_metadata <- function(
     # New SV-related function calls
     metadata <- add_sv_counts(metadata, jabba_gg)
     metadata <- add_purity_ploidy(metadata, jabba_gg, tumor_coverage = tumor_coverage)
-    metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
+    # metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
+    metadata <- add_fga(metadata, jabba_gg, seqnames_autosomes)
     metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
     metadata <- add_sv_types(metadata, jabba_gg, events)
     metadata <- add_coverage_parameters(metadata, tumor_coverage, denoised_coverage_field)
@@ -1154,7 +1185,7 @@ create_metadata <- function(
 #' @param genome_length Genome length for the samples (for targeted panels or WES data)
 #' @return None
 #' @export
-lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(1:22, "X", "Y")) {
+lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(1:22, "X", "Y"), do_lift_datafiles_json = TRUE) {
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -1287,9 +1318,15 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
     }, mc.cores = cores, mc.preschedule = TRUE)
 
 	metadata_tbls = rbindlist(list_metadata)
-	cohort$inputs = merge(cohort$inputs, metadata_tbls, by = "pair")
+	cohort$inputs = Skilift::merge.repl(cohort$inputs, metadata_tbls, by = "pair", prefer_x = TRUE, prefer_y = FALSE)
 
     # invisible(NULL)
+
+    do_lift_datafiles_json = identical(do_lift_datafiles_json, TRUE)
+
+    if (do_lift_datafiles_json && TRUE) ## excessive checking to make sure nothing dumb happens
+        Skilift::lift_datafiles_json(output_data_dir = output_data_dir, cores = cores)
+    
 	return(cohort)
 }
 

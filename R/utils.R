@@ -38,19 +38,20 @@ dcastski = function(
     base::subset(tbl, select = names(tbl) %in% c(id_columns, remaining_cols))
   )
   reduced_tbl = base::subset(tbl, select = names(tbl) %in% columns_to_process)
-  reduced_tbl$types = reduced_tbl[[type_columns[1]]]
-  types = unique(reduced_tbl$types)
-  if (is.factor(reduced_tbl$types) && !identical(drop, TRUE)) {
-    types = base::levels(reduced_tbl$types)
+  reduced_tbl$types___reduced___l9vuK2F6lw = reduced_tbl[[type_columns[1]]]
+  types = unique(reduced_tbl$types___reduced___l9vuK2F6lw)
+  if (is.factor(reduced_tbl$types___reduced___l9vuK2F6lw) && !identical(drop, TRUE)) {
+    types = base::levels(reduced_tbl$types___reduced___l9vuK2F6lw)
   }
   if (length(type_columns) > 1) {
     .NotYetImplemented()
     lst = as.list(base::subset(reduced_tbl, select = names(reduced_tbl) %in% type_columns))
     types = do.call(interaction, lst)
-    skeleton$types = types
+    skeleton$types___reduced___l9vuK2F6lw = types
   }
   for (type in types) {
-    merge_type = reduced_tbl[reduced_tbl$types == type,]
+    type___l9vuK2F6lw = type
+    merge_type = reduced_tbl[reduced_tbl$types___reduced___l9vuK2F6lw == type___l9vuK2F6lw,]
     merge_type = base::subset(merge_type, select = names(merge_type) %in% c(id_columns, cast_columns))
     colnms = names(merge_type)
     names_to_change = colnms[colnms %in% cast_columns]
@@ -508,17 +509,18 @@ merge.repl = function(dt.x,
                       dt.y,
                       sep = "_",
                       replace_NA = TRUE,
-					  delete_xiny = !replace_NA,
+					  delete_xiny,
                       force_y = TRUE,
-					  prefer_y = force_y,
-					  prefer_x = !prefer_y,
+					  prefer_y,
+					  prefer_x,
                       overwrite_x = FALSE,
-					  prefer_y_na = overwrite_x,
+					  prefer_y_na,
                       keep_order = FALSE,
                       keep_colorder = TRUE,
                       keep_factor = TRUE,
 					  suffixes = c(".x", ".y"),
                       ...) {
+    
     arg_lst = as.list(match.call())
     by.y = eval(arg_lst[['by.y']], parent.frame())
     by.x = eval(arg_lst[['by.x']], parent.frame())
@@ -560,48 +562,66 @@ merge.repl = function(dt.x,
 	call_replace_NA = eval(arg_lst[['replace_NA']], parent.frame())
 	was_replace_NA_provided = !is.null(call_replace_NA)
 
-	if (was_replace_NA_provided) {
+
+	call_delete_xiny = eval(arg_lst[['delete_xiny']], parent.frame())
+	was_delete_xiny_provided = !is.null(call_delete_xiny)
+
+	if (was_replace_NA_provided || !was_delete_xiny_provided) {
 		message("replace_NA is deprecated, please provide delete_xiny instead next time..")
 		message("using !replace_NA value provided: ", !replace_NA)
 		delete_xiny = !replace_NA
 	}
 
-	call_delete_xiny = eval(arg_lst[['delete_xiny']], parent.frame())
-	was_delete_xiny_provided = !is.null(delete_xiny)
 
 	call_force_y = eval(arg_lst[['force_y']], parent.frame())
 	# call_replace_na_x = eval(arg_lst[['replace_na_x']], parent.frame())
 	was_force_y_provided = !is.null(call_force_y)
 
-	if (was_force_y_provided) {
+    call_prefer_y = eval(arg_lst[['prefer_y']], parent.frame())
+	was_prefer_y_provided = !is.null(call_prefer_y)
+
+    
+	if (was_force_y_provided || !was_prefer_y_provided) {
 		message("force_y is deprecated, please provide prefer_y instead next time..")
 		message("using force_y value provided: ", force_y)
 		prefer_y = force_y
 	}
 
+
 	call_overwrite_x = eval(arg_lst[['overwrite_x']], parent.frame())
 	was_overwrite_x_provided = !is.null(call_overwrite_x)
 
-	if (was_overwrite_x_provided) {
+    call_prefer_y_na = eval(arg_lst[['prefer_y_na']], parent.frame())
+	was_prefer_y_na_provided = !is.null(call_prefer_y_na)
+
+    
+	if (was_overwrite_x_provided || !was_prefer_y_na_provided) {
 		message("overwrite_x is deprecated, please provide prefer_y_na instead next time..")
-		message("using prefer_y_na value provided: ", prefer_y_na)
+		message("using prefer_y_na value provided: ", overwrite_x)
 		prefer_y_na = overwrite_x
 	}
 
 	call_prefer_x = eval(arg_lst[['prefer_x']], parent.frame())
 	was_prefer_x_provided = !is.null(call_prefer_x)
 
-	call_prefer_y = eval(arg_lst[['prefer_y']], parent.frame())
-	was_prefer_y_provided = !is.null(call_prefer_y)
-
-	call_prefer_y_na = eval(arg_lst[['prefer_y_na']], parent.frame())
-	was_prefer_y_na_provided = !is.null(call_prefer_y_na)
-
 
     if (was_prefer_x_provided && identical(prefer_x, prefer_y)) {
         prefer_y = !prefer_x
         prefer_y_na = !prefer_x
     }
+
+  # was_prefer_y_and_not_prefer_x_provided = was_prefer_y_provided && !was_prefer_x_provided
+  # if (was_prefer_y_provided && !was_prefer_x_provided) {
+  #   prefer_x = !prefer_y
+  # }
+
+  if (!was_prefer_x_provided) {
+    prefer_x = !prefer_y
+  }
+
+  if (was_prefer_y_na_provided && !was_prefer_x_provided) {
+    prefer_x = !prefer_y_na
+  }
 
 	is_preference_invalid = identical(prefer_y, prefer_x)
 	if (is_preference_invalid) {
@@ -805,9 +825,13 @@ copy = function (x, recurse_list = TRUE) {
     if (inherits(x, "R6")) {
         x2 = rlang::duplicate(x$clone(deep = T))
         for (name in intersect(names(x2$.__enclos_env__), c("private", 
-            "public"))) for (nname in names(x2$.__enclos_env__[[name]])) tryCatch({
-            x2$.__enclos_env__[[name]][[nname]] = Skilift::copy(x2$.__enclos_env__[[name]][[nname]])
-        }, error = function(e) NULL)
+                                                            "public", "self"))) {
+            for (nname in names(x2$.__enclos_env__[[name]])) {
+                tryCatch({
+                    x2$.__enclos_env__[[name]][[nname]] = Skilift::copy(x2$.__enclos_env__[[name]][[nname]])
+                }, error = function(e) NULL)
+            }
+        }
         return(x2)
     } else if (base::isS4(x)) {
         x2 = rlang::duplicate(x)

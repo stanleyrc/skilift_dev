@@ -460,8 +460,6 @@ get_gene_copy_numbers <- function(
 	}
 
 
-
-
     gene_cn_table = gene_cn_segments[, `:=`(
       max_normalized_cn = max(normalized_cn, na.rm = TRUE),
       max_cn = max(cn, na.rm = TRUE),
@@ -536,15 +534,16 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
 	max_cn_quantile_threshold = max_cn_quantile_threshold
 )
   gene_CN[, `:=`(type, NA_character_)]
-
+  
 #   gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
-  gene_CN[min_quantile_normalized_cn >= amp.thresh, `:=`(type, "amp")]
-  gene_CN[min_cn > 1 & min_normalized_cn < del.thresh, `:=`(
+  gene_CN[min_quantile_normalized_cn >= amp.thresh & cn >= amp.thresh, `:=`(type, "amp")]
+  gene_CN[min_cn > 1 & cn > 1 & min_normalized_cn < del.thresh, `:=`(
     type,
     "del"
-  )]
-  gene_CN[min_cn == 1 & min_cn < ncn, `:=`(type, "hetdel")]
-  gene_CN[min_cn == 0, `:=`(type, "homdel")]
+    )]
+
+  gene_CN[min_cn == 1 & cn == min_cn & min_cn < ncn, `:=`(type, "hetdel")]
+  gene_CN[min_cn == 0 & cn == min_cn, `:=`(type, "homdel")]
 
   gene_CN[type == "amp", min_cn := min_quantile_cn]
 
@@ -1060,6 +1059,7 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
   
   if (is_oncokb_populated && is_multiplicity_populated) {
   	oncokb <- merge_oncokb_multiplicity(oncokb, multiplicity, overwrite = TRUE)
+    oncokb = Skilift:::annotate_multihit(oncokb)
   }
 
   if (is_oncokb_populated) {
@@ -1124,7 +1124,8 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
       VAF,
       vartype = "SNV",
       track = "variants",
-      source = "oncokb_maf"
+      source = "oncokb_maf",
+      is_multi_hit_per_gene
     )])
   }
   return(empty_output_oncokb)
@@ -1359,6 +1360,7 @@ create_oncotable <- function(
         amp_thresh <- amp_thresh_multiplier * ploidy
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
 
+
         # Run oncotable for this pair
         futile.logger::flog.threshold("ERROR")
         oncotable_result <- tryCatchLog(
@@ -1524,7 +1526,8 @@ create_filtered_events <- function(
     "therapeutics" = "therapeutics",
     "resistances" = "resistances",
     "diagnoses" = "diagnoses",
-    "prognoses" = "prognoses"
+    "prognoses" = "prognoses",
+    "is_multi_hit_per_gene" = "is_multi_hit_per_gene"
   )
   filtered_events_columns <- names(possible_drivers)[names(possible_drivers) %in% names(oncotable_col_to_filtered_events_col)]
 

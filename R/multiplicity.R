@@ -1,3 +1,96 @@
+pick_first_snpeff = function(
+    mutations.dt) {
+  snpeff_annotations = mutations.dt$Consequence ## parsed by oncokb
+  snpeff_annotations_delim = "," ## parsed by oncokb
+  annotationsplit = strsplit(snpeff_annotations, snpeff_annotations_delim)
+  annotationsplit = gGnome::dunlist(annotationsplit)
+  annotationsplit[, ix := seq_len(.N), by = listid]
+  annotationsplit[, num := .N, by = listid]
+  first_annotation = annotationsplit[ix == 1]
+  mutations.dt.ix = first_annotation$listid
+  mutations.dt$snpeff_annotation = NA_character_
+  mutations.dt[mutations.dt.ix]$snpeff_annotation = ifelse(
+    is.na(first_annotation$V1),
+    mutations.dt[mutations.dt.ix]$snpeff_annotation, ## use the original snpeff annotation, not the oncokb parsed snpeff annotation which could map to a different transcript/annotation combo
+    first_annotation$V1
+  )
+  return(mutations.dt)
+}
+
+annotate_multihit = function(oncokb_mult) { ## oncokb multiplicity merged output from Skilift::merge_oncokb_multiplicity(oncokb, multiplicity)
+  oncokb_mult = Skilift:::pick_first_snpeff(oncokb_mult)
+	## Parse Multi-hit status
+  is_protein_coding = (
+	oncokb_mult$snpeff_annotation %in%
+		Skilift:::snpeff_protein_coding_annotations
+		# c("frameshift_variant", "stop_lost", "start_lost", "stop_gained", 
+		# "chromosome", "exon_loss_variant", "feature_ablation", "duplication", 
+		# "splice_acceptor_variant", "splice_donor_variant", "splice_region_variant", 
+		# "inframe_insertion", "disruptive_inframe_insertion", "inframe_deletion", 
+		# "disruptive_inframe_deletion", "coding_sequence_variant", "missense_variant", 
+		# "protein_protein_contact", "structural_interaction_variant", 
+		# "rare_amino_acid_variant")
+	)
+
+	oncokb_mult$is_protein_coding = is_protein_coding
+
+	oncokb_pc_hits = (
+		oncokb_mult[, .(
+			num_protein_coding_hits_per_gene =
+			sum(
+			(
+				(altered_copies > 0.25 & !is.na(altered_copies))
+				| is.na(altered_copies) ## allowing a bit of lenience in case there's edge cases, e.g. PACT data sometimes provides no purity.
+			)
+			& is_protein_coding
+			,
+			na.rm = TRUE
+			),
+			.I
+		),
+		by = Hugo_Symbol
+		]
+	)
+
+	oncokb_mult$num_protein_coding_hits_per_gene = oncokb_pc_hits$num_protein_coding_hits
+
+
+
+	## 
+	is_vaf_gr65 = oncokb_mult[, VAF > 0.65 & !is.na(VAF)]
+	is_loh = oncokb_mult[, segment_cn_low == 0 & !is.na(segment_cn_low)]
+	is_hetdel = oncokb_mult[, segment_cn == 1 & !is.na(segment_cn)]
+
+	oncokb_mult$is_vaf_gr65 = is_vaf_gr65
+	oncokb_mult$is_loh = is_loh
+	oncokb_mult$is_hetdel = is_hetdel
+
+
+	## || does short-circuit so each element should only be length 1..
+	## if this errors out you have a problem.
+	oncokb_multi_hits = (
+		oncokb_mult
+		[, .(
+			is_multi_hit_per_gene = (
+			any(is_vaf_gr65 & is_protein_coding)
+			|| num_protein_coding_hits_per_gene[1] > 1
+			|| any(is_hetdel & is_protein_coding)
+			|| any(
+				(altered_copies[is_protein_coding] / segment_cn[is_protein_coding]) > 0.8
+				& !is.na(altered_copies[is_protein_coding])
+			)
+			),
+			.I ## expands query back out to the per variant level
+		),
+		by = Hugo_Symbol]
+	)
+
+
+	oncokb_mult$is_multi_hit_per_gene = oncokb_multi_hits$is_multi_hit_per_gene
+
+	return(oncokb_mult)
+}
+
 #' @description
 #' Creates a multiplicity data table from SNV copy number data, handling both somatic and germline cases.
 #'
