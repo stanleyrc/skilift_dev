@@ -478,36 +478,6 @@ get_gene_copy_numbers <- function(
       gene_width = gene_width[1]
     ), by = gene_name]
     
-    # gene_cn_table = data.table::merge.data.table(
-    #   gr2dt(gene_ranges),
-    #   gene_cn_stats,
-    #   by = "gene_name",
-    #   suffixes = c("", "__DUPED")
-    # )
-    
-    ## split_genes = gene_cn_segments[duplicated(get(gene_id_col)), 
-    ##     get(gene_id_col)]
-    ## gene_cn_non_split_genes = gene_cn_segments[!(get(gene_id_col) %in% 
-    ##     split_genes)]
-    ## gene_cn_non_split_genes[, `:=`(max_normalized_cn = normalized_cn, 
-    ##     min_normalized_cn = normalized_cn, max_cn = cn, min_cn = cn, 
-    ##     number_of_cn_segments = 1, cn = NULL, normalized_cn = NULL)]
-    ## gene_cn_split_genes_min = gene_cn_segments[get(gene_id_col) %in% 
-    ##     split_genes, .SD[which.min(cn)], by = gene_id_col]
-    ## gene_cn_split_genes_min[, `:=`(min_normalized_cn = normalized_cn, 
-    ##     min_cn = cn, cn = NULL, normalized_cn = NULL)]
-    ## gene_cn_split_genes_max = gene_cn_segments[get(gene_id_col) %in% 
-    ##     split_genes, .SD[which.max(cn)], by = gene_id_col][, 
-    ##     .(get(gene_id_col), max_normalized_cn = normalized_cn, 
-    ##         max_cn = cn)]
-    ## setnames(gene_cn_split_genes_max, "V1", gene_id_col)
-    ## number_of_segments_per_split_gene = gene_cn_segments[get(gene_id_col) %in% 
-    ##     split_genes, .(number_of_cn_segments = .N), by = gene_id_col]
-    ## gene_cn_split_genes = merge(gene_cn_split_genes_min, gene_cn_split_genes_max, 
-    ##     by = gene_id_col)
-    ## gene_cn_split_genes = merge(gene_cn_split_genes, number_of_segments_per_split_gene, 
-    ##     by = gene_id_col)
-    ## gene_cn_table = rbind(gene_cn_split_genes, gene_cn_non_split_genes)
     if (output_type == "data.table") {
         return(gene_cn_table)
     }
@@ -534,8 +504,23 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
 	max_cn_quantile_threshold = max_cn_quantile_threshold
 )
   gene_CN[, `:=`(type, NA_character_)]
+  gencode = dynGet("gencode")
+  exons_merged = GenomicRanges::reduce(gUtils::gr_construct_by(gencode[gencode$type == "exon"], by = "gene_name"))
+  ## exons_merged = gUtils::gr_deconstruct_by(exons_merged, meta = TRUE, "gene_name")
+  exons_merged$exon_width = width(exons_merged)
+  gr_gene_cn = dt2gr(gene_CN)
+  gr_gene_cn = gUtils::gr_construct_by(gr_gene_cn, by = "gene_name")
+  exons_merged = dt2gr(gr2dt(exons_merged)[, total_exon_width := sum(exon_width), by = seqnames])
+  ## gr_gene_cn = gUtils::gr.val(gr_gene_cn, exons_merged, val = c("exon_width"), mean = FALSE)
+  exon_cn = gr2dt(gr_gene_cn %*% exons_merged)
+  exon_cn_map = exon_cn[, .(overlapped_exon_width = sum(width), total_exon_width = total_exon_width[1]), keyby = query.id]
+  exon_cn_map = exon_cn_map[list(seq_len(NROW(gene_CN)))]
+  #   gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
+
+  gene_CN$overlapped_exon_width = exon_cn_map$overlapped_exon_width
+  gene_CN$total_exon_width = exon_cn_map$total_exon_width
+
   
-#   gene_CN[min_normalized_cn >= amp.thresh, `:=`(type, "amp")]
   gene_CN[min_quantile_normalized_cn >= amp.thresh & cn >= amp.thresh, `:=`(type, "amp")]
   gene_CN[min_cn > 1 & cn > 1 & min_normalized_cn < del.thresh, `:=`(
     type,
@@ -563,7 +548,8 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
         avg_cn = avg_cn[1],
         number_of_cn_segments = number_of_cn_segments[1],
         gene_width = gene_width[1],
-        total_node_width = sum(width) # This must be calculated after nominating SCNA type, not before.,
+        total_node_width = sum(width), # This must be calculated after nominating SCNA type, not before.,
+        exon_frac = sum(overlapped_exon_width / total_exon_width, na.rm = TRUE)
       ), 
       by = .(gene_name, type)]
   )
@@ -776,7 +762,8 @@ collect_oncokb_cna <- function(oncokb_cna, jabba_gg, pge, amp.thresh, del.thresh
   is_valid_oncokb_cna = rep(FALSE, NROW(oncokb_cna))
   for (match_lst in matches) {
       valid_gene = scna[
-          scna$total_node_width > 1e3
+          ## scna$total_node_width > 1e3
+          scna$exon_frac > 0.9
           & scna$type == match_lst[2],
 
       ]$gene_name

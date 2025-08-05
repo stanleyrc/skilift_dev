@@ -1111,7 +1111,8 @@ create_metadata <- function(
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y"),
     denoised_coverage_field = "foreground",
     is_visible = TRUE,
-	summary = NULL
+	summary = NULL,
+    cohort_type = NULL
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
@@ -1150,7 +1151,8 @@ create_metadata <- function(
     metadata <- add_het_pileups_parameters(metadata, het_pileups)
     
     # Add TMB calculation
-    metadata <- add_tmb(metadata, somatic_snvs, jabba_gg, genome, seqnames_genome_width_or_genome_length)
+    if (!cohort_type == "heme")
+        metadata <- add_tmb(metadata, somatic_snvs, jabba_gg, genome, seqnames_genome_width_or_genome_length)
     
     metadata <- add_signatures(
         metadata,
@@ -1225,6 +1227,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         genome_length <- c(1:22, "X", "Y")
     }
     
+    cohort_type = cohort$type
     # Process each sample in parallel
     list_metadata = mclapply(seq_len(nrow(lift_inputs)), function(i) {
         row <- lift_inputs[i,]
@@ -1292,7 +1295,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 seqnames_genome_width_or_genome_length = genome_length,
                 denoised_coverage_field = row$denoised_coverage_field,
                 is_visible = row$metadata_is_visible,
-				summary = row$string_summary
+				summary = row$string_summary,
+                cohort_type = cohort_type
             )
 
             if (is.null(metadata)) {
