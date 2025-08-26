@@ -286,12 +286,12 @@ process_qc_metrics <- function(
     insert_data = data.table(pair = character(0))
     if (test_file_is_present(insert_size_metrics)) {
         insert_data <- extract_metrics(
-            fread(insert_size_metrics),
+            fread(insert_size_metrics)[PAIR_ORIENTATION == "FR"],
             insert_metrics_cols,
             pair
         )
     }
-    
+
     tumor_wgs_data = data.table(pair = character(0))
     if (test_file_is_present(tumor_wgs_metrics)) {
         tumor_wgs_data <- extract_metrics(
@@ -567,15 +567,25 @@ add_sv_counts <- function(metadata, jabba_gg = NULL) {
 #' @param metadata A data.table containing metadata
 #' @param jabba_gg Path to JaBbA graph RDS file
 #' @return Updated metadata with purity and ploidy information
-add_purity_ploidy <- function(metadata, jabba_gg = NULL, tumor_coverage = NULL) {
-    if (is.null(jabba_gg)) {
+add_purity_ploidy <- function(metadata, purple_pp_bestFit = NULL, jabba_gg = NULL, tumor_coverage = NULL) {
+    is_null_or_na_jabba_gg = is.null(jabba_gg) || any(is.na(jabba_gg))
+    is_null_or_na_purple = is.null(purple_pp_bestFit) || any(is.na(purple_pp_bestFit))
+    is_jabba_gg_and_purple_absent = is_null_or_na_jabba_gg && is_null_or_na_purple
+
+    if (is_jabba_gg_and_purple_absent) {
         return(metadata)
     }
     
-    gg <- process_jabba(jabba_gg)
+    if (!is_null_or_na_jabba_gg) {
+        gg <- process_jabba(jabba_gg)
 
-    purity = base::get("purity", gg$meta) # Errors out if not found
-    ploidy = base::get("ploidy", gg$meta) # Errors out if not found
+        purity = base::get("purity", gg$meta) # Errors out if not found
+        ploidy = base::get("ploidy", gg$meta) # Errors out if not found
+    } else if (!is_null_or_na_purple) {
+        purple_best_fit = fread(purple_pp_bestFit)
+        purity = purple_best_fit$purity
+        ploidy = purple_best_fit$ploidy
+    }
 
     metadata$purity <- purity
     metadata$ploidy <- ploidy
@@ -666,17 +676,31 @@ add_genome_length <- function(
     jabba_gg = NULL,
     seqnames_genome_width_or_genome_length = c(1:22, "X", "Y")
 ) {
+
+    is_null_jabba = is.null(jabba_gg)
+
+    is_genome_length_already_provided = is.numeric(seqnames_genome_width_or_genome_length) && NROW(seqnames_genome_width_or_genome_length) == 1
+
     # handle targeted panels/whole exome
-    if (is.numeric(seqnames_genome_width_or_genome_length) && NROW(seqnames_genome_width_or_genome_length) == 1) {
+    if (is_genome_length_already_provided) {
         metadata$total_genome_length <- seqnames_genome_width_or_genome_length
         return(metadata)
     }
 
     # otherwise, handle genome-wide
-    if (is.null(jabba_gg) && is.null(seqnames_genome_width_or_genome_length)) {
+    is_no_jabba_or_genome_length_provided = is_null_jabba && is.null(seqnames_genome_width_or_genome_length)
+    if (is_no_jabba_or_genome_length_provided) {
         return(metadata)
     }
-    
+
+    if (is_null_jabba) {
+         ## FIXME: hardcoding to hg19!!
+        genome_length_hg19 = 3095677412
+        message("NO JABBA OR GENOME LENGTH PROVIDED, hardcoding to hg19: ", genome_length_hg19)
+        metadata$total_genome_length = genome_length_hg19
+        return(metadata)
+    }
+
     gg <- process_jabba(jabba_gg)
     nodes.gr <- gg$nodes$gr
     seqlengths.dt <- suppressWarnings(
@@ -1087,6 +1111,7 @@ create_metadata <- function(
     disease = NULL, 
     primary_site = NULL,
     inferred_sex = NULL,
+    purple_pp_bestFit = NULL,
     jabba_gg = NULL,
     events = NULL,
     somatic_snvs = NULL,
@@ -1142,7 +1167,7 @@ create_metadata <- function(
     
     # New SV-related function calls
     metadata <- add_sv_counts(metadata, jabba_gg)
-    metadata <- add_purity_ploidy(metadata, jabba_gg, tumor_coverage = tumor_coverage)
+    metadata <- add_purity_ploidy(metadata, purple_pp_bestFit = purple_pp_bestFit, jabba_gg = jabba_gg, tumor_coverage = tumor_coverage)
     # metadata <- add_loh(metadata, jabba_gg, seqnames_loh)
     metadata <- add_fga(metadata, jabba_gg, seqnames_autosomes)
     metadata <- add_genome_length(metadata, jabba_gg, seqnames_genome_width_or_genome_length)
@@ -1240,11 +1265,11 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         out_file <- file.path(pair_dir, "metadata.json")
 
         # prefer oncokb_snv over somatic_snvs if available
-        snvs_column <- ifelse(
-            !is.null(row$oncokb_snv) && !is.na(row$oncokb_snv),
-            row$oncokb_snv,
-            row$somatic_snvs
-        )
+        is_oncokb_present = !is.null(row$oncokb_snv) && !is.na(row$oncokb_snv)
+        snvs_column = row$somatic_snvs
+        if (is_oncokb_present) {
+            snvs_column = row$oncokb_snv
+        }
 		
 		inferred_sex_field = row$inferred_sex
 
@@ -1276,6 +1301,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 disease = row$disease,
                 primary_site = row$primary_site,
                 inferred_sex = inferred_sex_field,
+                purple_pp_bestFit = row$purple_pp_bestFit,
                 jabba_gg = row[[jabba_column]],
                 events = row$events,
                 somatic_snvs = snvs_column,

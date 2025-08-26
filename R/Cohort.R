@@ -723,6 +723,8 @@ nf_path_patterns <- list(
 default_col_mapping <- list(
   pair = c("patient_id", "pair", "pair_id", "sample"),
   tumor_type = c("tumor_type", "status"),
+  tumor_sample = c("tumor_sample"),
+  normal_sample = c("normal_sample"),
   disease = c("disease"),
   primary_site = c("primary_site"),
   inferred_sex = c("inferred_sex", "sex"),
@@ -736,7 +738,7 @@ default_col_mapping <- list(
   germline_snvs = c("germline_snvs", "snvs_germline", "sage_germline_vcf", "germline_snv", "germline_snv_vcf"),
   fragcounter_normal = c("fragcounter_normal", "frag_cov_normal"),
   fragcounter_tumor = c("fragcounter_tumor", "frag_cov_tumor"),
-  segments_cbs = c("cbs_seg_rds", "seg_rds", "cbs_seg"),
+  segments_cbs = c("cbs_seg_rds", "seg_rds", "cbs_seg", "seg"),
   het_pileups = c("het_pileups", "hets", "sites_txt", "hets_sites"),
   multiplicity = c("multiplicity", "somatic_snv_cn", "snv_multiplicity"),
   germline_multiplicity = c("germline_multiplicity", "multiplicity_germline", "germline_snv_cn"),
@@ -782,6 +784,8 @@ default_col_mapping <- list(
   purple_qc = c("purple_qc"),
   purple_pp_bestFit = c("purple_pp_bestFit", "purple_pp_best_fit", "purple_bestFit", "purple_solution"),
   msisensorpro = c("msisensorpro", "msisensor_pro", "msisensor_pro_results", "msisensor_results"),
+  conpair_concordance = c("conpair_concordance"),
+  conpair_contamination = c("conpair_contamination"),
   # Configuration parameters with default values
   metadata_is_visible = structure(c("metadata_is_visible"), default = TRUE),
   copy_number_graph_max_cn = structure(c("copy_number_graph_max_cn"), default = 100),
