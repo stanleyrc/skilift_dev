@@ -9,7 +9,8 @@ create_heme_highlights(
   jabba_gg,
   out_file,
   hemedb_path = Skilift:::HEMEDB(),
-  duncavage_path = Skilift:::DUNCAVAGEDB()
+  duncavage_path = Skilift:::DUNCAVAGEDB(),
+  tumor_type = NULL
 )
 }
 \description{

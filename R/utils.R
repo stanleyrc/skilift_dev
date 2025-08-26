@@ -320,7 +320,7 @@ test_path = function(
   is_character = is.character(object)
   is_len_one = NROW(object) == 1
   is_not_valid = is_character && ! NROW(object) == 1
-  is_na = is_len_one && Skilift::is_loosely_na(object, other_nas = base::nullfile())
+  is_na = is_len_one && all(Skilift::is_loosely_na(object, other_nas = base::nullfile()))
   is_possible_path = is_character && is_len_one && !is_na
   is_existent_path = is_possible_path && file.exists(object)
   is_rds = is_possible_path && grepl(rds_regex, object)
@@ -377,17 +377,17 @@ test_paths = function(
   is_vcf = is_possible_path & grepl(vcf_regex, objects)
   is_bcf = is_possible_path & grepl(bcf_regex, objects)
   is_gff = is_possible_path & grepl(gff_regex, objects)
-  logicals = as.list(data.frame(
-      is_null,
-      is_character,
-      is_na,
-      is_possible_path,
-      is_existent_path,
-      is_rds,
-      is_vcf,
-      is_bcf,
-      is_gff
-  ))
+  logicals = list(
+      is_null = is_null,
+      is_character = is_character,
+      is_na = is_na,
+      is_possible_path = is_possible_path,
+      is_existent_path = is_existent_path,
+      is_rds = is_rds,
+      is_vcf = is_vcf,
+      is_bcf = is_bcf,
+      is_gff = is_gff
+  )
   if (verbose) {
     nms = names(logicals)
     message("Assigning:")
@@ -404,17 +404,30 @@ test_paths = function(
 #' Function to flexibly read in jabba files whether providing raw jabba list or ggraph
 #' 
 #' @export
-process_jabba = function(jabba) {
+process_jabba = function(jabba, allow_return_null = FALSE) {
   logicals = test_path(jabba, verbose = FALSE)
+  do_stop = FALSE
   if (is_existent_path && is_rds) {
     jabba <- readRDS(jabba)
   } else if (is_existent_path) {
-    stop("Path exists but is not rds": jabba)
-  } else if (is_character && is_len_one) {
-    stop("Path provided does not exist": jabba)
+    msg = sprintf("Path exists but is not rds: %s", jabba)
+    do_stop = TRUE
+  } else if (is_character && (is_len_one || is_na)) {
+    msg = sprintf("Path provided does not exist %s", jabba)
+    do_stop = TRUE
   } else if (is_not_valid) {
-    stop("Path provided must be a length one string")
+    msg = sprintf("Path provided must be a length one string %s", jabba)
+    do_stop = TRUE
+  } else if (is_null) {
+    msg = sprintf("Path provided is NULL")
+    do_stop = TRUE
   }
+
+  do_return_null = do_stop && allow_return_null
+  do_error = do_stop && !allow_return_null
+  if (do_return_null) return(NULL)
+  if (do_error) stop(msg)
+
   is_jabba_list = is.list(jabba) && all(c("segstats", "purity", "ploidy", "junctions") %in% names(jabba))
   
   gg = jabba
@@ -981,7 +994,8 @@ test_hist = function(values, integer_breaks = -1:5, tolerance = 1e-12) {
 	hist_breaks = unique(hist_breaks)
 	histobj = graphics::hist(
 		values, 
-		breaks = hist_breaks
+		breaks = hist_breaks,
+    plot = FALSE
 	)
 	histdt = data.table(from = histobj$breaks[-NROW(histobj$breaks)], to = histobj$breaks[-1])
 	histdt$counts = histobj$counts
