@@ -1,4 +1,47 @@
 
+#' Print useful messages to console
+#' 
+#' For skilift lift-wrappers.R.
+#' 
+#' @export
+skimessage = function(..., pre = 'Skilift'){
+    message(pre, ' ', paste0(as.character(Sys.time()), ': '), ...)
+}
+
+#' Silence outputs.
+#' 
+#' Capture error messages
+#' but silence superfluous intermediate messages
+#' printed from lift_all().
+#' 
+#' @export
+shutup = function(top_level_expr, capture_output_type = c("message", "output")) {
+  nr = NROW(capture_output_type)
+  do_capture_output = nr == 1 && identical("output", capture_output_type)
+  do_capture_message = nr == 1 && identical("message", capture_output_type)
+  do_capture_both = nr > 1 && all(c("message", "output") %in% capture_output_type)
+  tryCatch(
+    expr = {
+      if (do_capture_output)
+        capture.output(... = top_level_expr, type = "output")
+      
+      if (do_capture_message)
+        capture.output(... = top_level_expr, type = "message")
+      
+      if (do_capture_both) {
+        capture.output(
+          ... = capture.output(... = top_level_expr, type = "message"),
+          type = "output"
+        )
+      }
+    },
+    error = function(e) {
+      stop(e)
+    }
+  )
+}
+
+
 #' Cast table
 #' 
 #' Cast using base R.
