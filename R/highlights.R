@@ -256,10 +256,12 @@ create_heme_highlights = function(
   risk_level_eln = NULL
 
   is_aml = (
-    (grepl("AML", tumor_type, ignore.case = TRUE)
-    || grepl("acute myeloid", tumor_type, ignore.case = TRUE))
+    !is.null(tumor_type)
+    && (grepl("AML", tumor_type, ignore.case = TRUE)
+    || grepl("acute myeloid", tumor_type, ignore.case = TRUE)) 
     && TRUE ## this ensures that this is length one boolean, otherwise errors
-  ) 
+  )
+
   if (is_aml) {
     risk_level_eln = create_heme_highlights_eln_risk_score(
       small_muts = small_muts,
