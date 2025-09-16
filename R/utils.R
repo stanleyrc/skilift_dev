@@ -15,7 +15,7 @@ skimessage = function(..., pre = 'Skilift'){
 #' printed from lift_all().
 #' 
 #' @export
-shutup = function(top_level_expr, capture_output_type = c("message", "output")) {
+shutup = function(top_level_expr, capture_output_type = "message") {
   nr = NROW(capture_output_type)
   do_capture_output = identical("output", capture_output_type)
   do_capture_message =identical("message", capture_output_type)
