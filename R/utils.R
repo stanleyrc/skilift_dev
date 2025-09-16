@@ -17,9 +17,9 @@ skimessage = function(..., pre = 'Skilift'){
 #' @export
 shutup = function(top_level_expr, capture_output_type = c("message", "output")) {
   nr = NROW(capture_output_type)
-  do_capture_output = nr == 1 && identical("output", capture_output_type)
-  do_capture_message = nr == 1 && identical("message", capture_output_type)
-  do_capture_both = nr > 1 && all(c("message", "output") %in% capture_output_type)
+  do_capture_output = identical("output", capture_output_type)
+  do_capture_message =identical("message", capture_output_type)
+  do_capture_both = all(c("message", "output") %in% capture_output_type)
   tryCatch(
     expr = {
       if (do_capture_output)
