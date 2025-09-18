@@ -4,8 +4,10 @@
 \alias{shutup}
 \title{Silence outputs.}
 \usage{
-shutup(expr)
+shutup(top_level_expr, capture_output_type = "message")
 }
 \description{
-Get rid of random messages.
+Capture error messages
+but silence superfluous intermediate messages
+printed from lift_all().
 }

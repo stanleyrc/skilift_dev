@@ -750,6 +750,8 @@ default_col_mapping <- list(
   oncokb_snv = c("oncokb_snv", "oncokb_maf", "maf"),
   oncokb_cna = c("oncokb_cna", "cna"),
   oncokb_fusions = c("oncokb_fusions", "oncokb_fusion", "fusion_maf"),
+  itdseek_vcf = c("itdseek_vcf"),
+  itdseek_rds = c("itdseek_rds"),
   jabba_gg = c("jabba_gg", "jabba_simple", "jabba_rds", "jabba_simple_gg"),
   karyograph = c("karyograph"),
   balanced_jabba_gg = c("balanced_jabba_gg", "jabba_gg_balanced", "non_integer_balance", "balanced_gg", "ni_balanced_gg"),

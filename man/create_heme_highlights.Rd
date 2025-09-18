@@ -10,7 +10,8 @@ create_heme_highlights(
   out_file,
   hemedb_path = Skilift:::HEMEDB(),
   duncavage_path = Skilift:::DUNCAVAGEDB(),
-  tumor_type = NULL
+  tumor_type = NULL,
+  cohorttuple
 )
 }
 \description{
