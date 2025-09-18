@@ -1924,7 +1924,8 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
                 events_tbl = out,
                 jabba_gg = row[[jabba_column]],
                 out_file = highlights_out_file,
-                tumor_type = row$tumor_type
+                tumor_type = row$tumor_type,
+                cohorttuple = row
               )
             }
 			string_summary = create_summary(

@@ -11,7 +11,8 @@ create_heme_highlights = function(
   out_file,
   hemedb_path = Skilift:::HEMEDB(),
   duncavage_path = Skilift:::DUNCAVAGEDB(),
-  tumor_type = NULL
+  tumor_type = NULL,
+  cohorttuple
 ) {
   ## {
   ##   "karotype": <string> | null,
@@ -27,6 +28,8 @@ create_heme_highlights = function(
   ##     }
   ##     ] | null
   ##   }
+  
+  
   
   ## TODO: remove everything below except for karyotype_string
   karyotype_string = ""
@@ -121,6 +124,48 @@ create_heme_highlights = function(
       select = changemap
       )
   }
+
+  ## FLT3-ITD special annotation
+  is_flt3itd = identical(tolower(readRDS(cohorttuple$itdseek_rds)), "positive")
+
+  flt3ForJson = data.table::copy(emptyDfForJson)
+  if (is_flt3itd) {
+    dt_flt3 = data.table(
+        gene = "FLT3",
+        variant = NA_character_,
+        VAF = NA_real_,
+        Tier = NA_real_,
+        estimated_altered_copies = NA_integer_,
+        segment_cn = NA_real_,
+        alteration_type = "ITD",
+        aggregate_label = NA_character_,
+        DISEASE = NA
+    )
+
+
+    changemap = c(
+      "gene" = "gene_name",
+      "variant" = "variant",
+      "VAF" = "vaf",
+      "Tier" = "tier",
+      "estimated_altered_copies" = "altered_copies",
+      "segment_cn" = "total_copies",
+      "alteration_type" = "alteration_type",
+      "aggregate_label" = "aggregate_label",
+      "DISEASE" = "indication"
+    )
+
+
+    flt3ForJson = base::subset(
+      Skilift:::change_names(
+          dt_flt3,
+          changemap
+      ),
+      select = changemap
+    )
+  }
+
+
 
 
 
@@ -275,7 +320,8 @@ create_heme_highlights = function(
   allOutputsForJson = rbind(
     smallForJson,
     cnaForJson,
-    svsForJson
+    svsForJson,
+    flt3ForJson
   )
 
   risk_json_array = list()
