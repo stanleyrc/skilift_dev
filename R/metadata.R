@@ -873,6 +873,7 @@ add_coverage_metrics <- function(
     tumor_wgs_metrics = NULL,
     normal_wgs_metrics = NULL
 ) {
+
     coverage_variance <- NULL
     if (!is.null(tumor_coverage)) {
         foreground = as.data.table(readRDS(tumor_coverage))[[foreground_col_name]]

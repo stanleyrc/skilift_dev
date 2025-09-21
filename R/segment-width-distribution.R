@@ -110,7 +110,6 @@ lift_segment_width_distribution <- function(
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-
     # Validate required columns exist
     jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
     required_cols <- c("pair", jabba_column, "tumor_coverage")
@@ -483,7 +482,6 @@ lift_coverage_jabba_cn <- function(
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-
     # Validate required columns exist
     jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
     required_cols <- c("pair", jabba_column, "tumor_coverage")
@@ -533,7 +531,6 @@ lift_coverage_jabba_cn <- function(
 
                 # Prepare data for plotting
                 tiles.gr <- gUtils::gr.tile(gUtils::si2gr(si = seq_lengths), width = width)
-                
                 if("input.read.counts" %in% colnames(mcols(cov))) { #temp fix for hmf- this was hardcoded before
                   tiles.gr <- tiles.gr %$% cov[, c("foreground", "input.read.counts")] %$% ggraph$nodes$gr[, c("cn")] #hard coded line
                 } else {
@@ -545,7 +542,6 @@ lift_coverage_jabba_cn <- function(
                   tiles.gr$foreground = mcols(tiles.gr)[[row$denoised_coverage_field]]
                   tiles.gr$input.read.counts = tiles.gr$reads
                 }
-
                 if (mask) {
                     suppressWarnings({
                         mask_gr <- readRDS(mask_path)
@@ -1053,7 +1049,8 @@ lift_pp_plot <- function(cohort, output_data_dir, cores = 1) {
                     geom_point(size = 2, shape = 4, alpha = 0.3) +
                     ggtitle(paste0("Purity: ", signif(purity, 2), " Ploidy: ", signif(ploidy, 2)))
                 grDevices::png(png_path, units = "in", height = 5, width = 5, res = 600)
-                print(pt)
+                ## print(pt)
+                plot(pt)
                 grDevices::dev.off()
             },
             error = function(e) {
