@@ -226,6 +226,7 @@ lift_mvp <- function(
   list2env(list(...), envir = environment())
   jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
 
+  
   if (has_required_columns(cohort, required_columns$total_copy_number_graph)) {
     Skilift::skimessage("Uploading total copy number segment gGraph via Skilift::lift_copy_number_graph()")
     Skilift::shutup({
@@ -466,6 +467,7 @@ lift_heme <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
 }
 
 lift_paired <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
+
   cohort <- lift_mvp(cohort, output_data_dir, oncotable_dir, cores, ...)
 
   if (has_required_columns(cohort, required_columns$germline_multiplicity)) {
