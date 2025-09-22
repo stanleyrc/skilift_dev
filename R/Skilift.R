@@ -537,13 +537,16 @@ Skilift <- R6Class("Skilift",
           new_plots$x <- list(x_vector) # 
       
       print('new_plots')
-      print(new_plots)
+      ## print(new_plots) #this takes too long for objects with granges-commenting out for now
 
       # Define the function to create plot files
       create_plot_file <- function(plot, plot_index) {
         tryCatch({
           if (!is.null(plot$source)) {
             plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
+            is_json = inherits(plot$x, "character")
+            if(is_json)
+                is_json = grepl("\\.json$", plot$x)
 
             if (plot$type == "bigwig") {
 
@@ -589,7 +592,8 @@ Skilift <- R6Class("Skilift",
                 file.remove(plot_file)
               }
               return(uuid)
-            } else if (grepl("\\.json$", plot$x)) {
+            ## } else if (grepl("\\.json$", plot$x)) { ## really slow for granges!
+            } else if (is_json) {
                 file.copy(plot$x, plot_file)
             } else {
                 # Use the plot type to determine the conversion function to use
@@ -616,6 +620,7 @@ Skilift <- R6Class("Skilift",
 
       #debug(create_plot_file)
       if (!any(is.null(plot$source))) {
+        message("Starting to make plots for pgv.")
                                         # Use mclapply to create the plot files in parallel
         new_plots <- parallel::mclapply(
           seq_len(nrow(new_plots)), 
@@ -853,7 +858,9 @@ Skilift <- R6Class("Skilift",
         tryCatch({
           if (!is.null(plot$source)) {
             plot_file <- file.path(self$datadir, plot$patient.id, plot$source)
-
+            is_json = inherits(plot$x, "character")
+            if(is_json)
+                is_json = grepl("\\.json$", plot$x)
             if (plot$type == "bigwig") {
 
               # field contains the column name in GRanges that corresponds to bigwig scores
@@ -898,7 +905,8 @@ Skilift <- R6Class("Skilift",
                 file.remove(plot_file)
               }
               return(uuid)
-            } else if (grepl("\\.json$", plot$x)) {
+                ## } else if (grepl("\\.json$", plot$x)) {#super slow if granges
+            } else if (is_json) { 
                 file.copy(plot$x, plot_file)
             } else {
                 # Use the plot type to determine the conversion function to use
