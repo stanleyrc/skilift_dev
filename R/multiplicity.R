@@ -62,7 +62,11 @@ annotate_multihit = function(oncokb_mult) { ## oncokb multiplicity merged output
 
 	## 
 	is_vaf_gr65 = oncokb_mult[, VAF > 0.65 & !is.na(VAF)]
-	is_loh = oncokb_mult[, segment_cn_low == 0 & !is.na(segment_cn_low)]
+  if("segment_cn_low" %in% names(oncokb_mult)) {
+      is_loh = oncokb_mult[, segment_cn_low == 0 & !is.na(segment_cn_low)]
+  } else {
+      is_loh = FALSE
+  }
 	is_hetdel = oncokb_mult[, segment_cn == 1 & !is.na(segment_cn)]
 
 	oncokb_mult$is_vaf_gr65 = is_vaf_gr65
