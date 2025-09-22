@@ -2034,7 +2034,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     }
     
     cohort_type = cohort$type
-	
+
 	# Create a copy of the cohort to modify
 
 	# Add oncotable column if it doesn't exist
