@@ -36,14 +36,18 @@ cov2arrowPGV <- function(cov,
             ref = ref, cov.color.field = cov.color.field, ...
         )
         message("Done converting coverage format")
-
         if (!is.null(cov.color.field)) {
             dat[, color := gGnome:::color2numeric(get(cov.color.field))]
         } else {
             if (!is.null(meta.js)) {
                 ref_meta <- gGnome:::get_ref_metadata_from_PGV_json(meta.js, ref)
                 setkey(ref_meta, "chromosome")
-                dat$color <- gGnome:::color2numeric(ref_meta[dat$seqnames]$color)
+                ## adjusting color function - short term fix gGnome:::color2numeric is super slow
+                seqnames_vec = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "X", "Y")
+                col_vec = c(2062260, 16744206, 2924588, 14034728, 9725885, 9197131, 14907330, 8355711, 12369186, 1556175, 3750777, 5395619, 7040719, 10264286, 6519097, 9216594, 11915115, 13556636, 9202993, 12426809, 15186514, 15190932, 8666169, 4236122)
+                col.dt = data.table(seqnames = seqnames_vec, color = as.integer(col_vec))
+                dat = merge.data.table(dat, col.dt, all.x = TRUE, by = "seqnames")
+                ## dat$color <- gGnome:::color2numeric(ref_meta[dat$seqnames]$color) #this line is really slow-look into ways to speed up
             } else {
                 # no cov.color.field and no meta.js so set all colors to black
                 dat$color <- 0
