@@ -329,7 +329,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 		## Process mutations
 		setnames(mutations.dt, old = "VAF", new = "vaf", skip_absent = TRUE)
 		mutations.dt <- mutations.dt[!is.na(get(field)), ]
-		mutations.dt[start == end, end := end + 1]
+		# mutations.dt[start == end, end := end + 1]
 		mutations.dt[, vaf := round(vaf, 3)] ## round for frontend legibility
 
 		## FIXME: dealing with the left join issue from merge_oncokb_multiplicity.

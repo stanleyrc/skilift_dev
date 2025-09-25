@@ -554,7 +554,7 @@ change_names = function(obj, old, new) {
 #' @export
 create_summary = function(
   events_tbl, ## filtered events R output
-  altered_copies_threshold = 0.9,
+  altered_copies_threshold = 0.1,
   cohort_type
 ) {
 
@@ -564,10 +564,10 @@ create_summary = function(
   hemedb_guideline = hemedb_guideline[, .(GUIDELINE = GUIDELINE[1], DISEASE = list(DISEASE)), by = GENE]
 
   criterias = list(
-    is_tier_or_better = small_muts$Tier <= 1
+    is_tier_or_better = small_muts$Tier <= 2
    ,
     is_clonal = is.na(small_muts$estimated_altered_copies) | small_muts$estimated_altered_copies >= altered_copies_threshold
-	, # allow NA's through
+  , # allow NA's through
 	is_small_in_guidelines = small_muts$gene %in% hemedb_guideline$GENE, ## heme relevant only
 	is_frequent = small_muts$gene %in% hemedb[hemedb$FREQ >= 5]$GENE ## heme relevant only
 
