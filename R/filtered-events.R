@@ -556,7 +556,7 @@ check_GRanges_compatibility = function (gr1, gr2, name1 = "first", name2 = "seco
     message("The following seqnames are only in the ", name2, 
         " GRanges, but not in the ", name1, " GRanges: ", paste(non_overlapping_seqnames2, 
             collapse = ", "))
-    message("The follosing seqnames are in both GRanges objects: ", 
+    message("The following seqnames are in both GRanges objects: ", 
         paste(overlap, collapse = ", "))
     if (length(non_overlapping_seqnames1) > 0 | length(non_overlapping_seqnames2) > 
         0) {

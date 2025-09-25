@@ -9,6 +9,7 @@
 #' @import httr
 #' @import futile.logger
 #' @importFrom pals glasbey
+#' @importFrom googlesheets4 read_sheet gs4_auth
 #' @importFrom tryCatchLog tryCatchLog
 #' @importFrom VariantAnnotation readVcf geno ref alt
 #' @importFrom arrow Table write_feather schema float32

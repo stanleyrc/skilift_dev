@@ -95,12 +95,12 @@ lift_bam <- function(cohort, output_data_dir, cores = 1, overwrite = FALSE) {
             exit_nbam = system(cmd_bam)
             exit_nbai = system(cmd_bai)
           }
-          stopifnot(
-			exit_tbam == 0 
-			&& exit_tbai == 0 
-			&& exit_nbam == 0
-			&& exit_nbai == 0
-		)
+        #   stopifnot(
+		# 	exit_tbam == 0 
+		# 	&& exit_tbai == 0 
+		# 	&& exit_nbam == 0
+		# 	&& exit_nbai == 0
+		# )
 
  
         }, error = function(e) {

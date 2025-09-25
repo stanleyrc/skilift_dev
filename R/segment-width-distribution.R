@@ -367,6 +367,8 @@ lift_multiplicity_fits <- function(cohort,
             )
         }
     }, mc.cores = cores, mc.preschedule = TRUE)
+
+    return(invisible(NULL))
 }
 
 
