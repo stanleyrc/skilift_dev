@@ -524,25 +524,32 @@ collect_gene_fusions <- function(fusions, pge, verbose = TRUE) {
 #' @param verbose Logical flag to indicate if messages should be printed.
 #' @return A data.table containing processed complex event information.
 collect_complex_events <- function(complex, verbose = TRUE) {
+  empty_dt = data.table(type = NA, source = "complex")
   if (is.null(complex) || !file.exists(complex)) {
     if (verbose) message("Complex events file is missing or does not exist.")
-    return(data.table(type = NA, source = "complex"))
+    return(empty_dt)
   }
 
   if (verbose) message("pulling complex events")
   sv <- readRDS(complex)$meta$events
 
-  if (nrow(sv) == 0) {
+  if (NROW(sv) == 0) {
     if (verbose) message("No complex events found in the file.")
-    return(data.table(type = NA, source = "complex"))
+    return(empty_dt)
   }
-
-  sv_summary <- sv[, .(value = .N), by = type]
   simple_sv_types <- c("del", "dup", "invdup", "tra", "inv")
-  sv_summary[, track := ifelse(type %in% simple_sv_types, "simple sv", "complex sv")]
-  sv_summary[, source := "complex"]
+  ## sv_summary <- sv[, .(value = .N), by = type]
+  ## sv_summary[, track := ifelse(type %in% simple_sv_types, "simple sv", "complex sv")]
+  ## sv_summary[, source := "complex"]
+  svs = sv[, .(type, footprint)]
+  svs[, track := ifelse(type %in% simple_sv_types, "simple sv", "complex sv")]
+  svs[, source := "complex"]
+  svs = svs[track == "complex sv"]
+  nr = NROW(svs)
+  is_no_complex_sv = nr == 0
+  if (is_no_complex_sv) return(empty_dt)
 
-  return(sv_summary)
+  return(svs)
 }
 
 check_GRanges_compatibility = function (gr1, gr2, name1 = "first", name2 = "second") 
