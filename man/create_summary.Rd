@@ -4,7 +4,12 @@
 \alias{create_summary}
 \title{create_summary}
 \usage{
-create_summary(events_tbl, altered_copies_threshold = 0.9, cohort_type)
+create_summary(
+  events_tbl,
+  altered_copies_threshold = 0.1,
+  cohort_type,
+  cohorttuple
+)
 }
 \description{
 Create high level summary of
