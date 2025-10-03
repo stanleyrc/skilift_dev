@@ -206,36 +206,42 @@ collapse_allelic_ggraph = function(gg) {
 
     dt_collapsed_melted[, variable := gsub("nodeid_", "", variable)][]
 
-    alledges = (
-        gg$edges$dt[
-            (type == "ALT" & class != "REF")
-            | (type == "REF")
-        ]
-    )
+    dtedges = gg$edges$dt
+    nr_edges = NROW(dtedges)
+    is_any_edges = nr_edges > 0
+    edges_collapsed = NULL
+    if (is_any_edges) {
+        alledges = (
+            dtedges[
+                (type == "ALT" & class != "REF")
+                | (type == "REF")
+            ]
+        )
+        edges_n1 = merge(
+            alledges,
+            dt_collapsed_melted[, .(allele, variable, value, n1_collapsed = nodeid_collapsed)],
+            by.x = c("n1.allele", "n1.side", "n1"), by.y = c("allele", "variable", "value"), 
+            all.x = TRUE
+        )
+
+        edges_n12 = merge(
+            edges_n1,
+            dt_collapsed_melted[, .(allele, variable, value, n2_collapsed = nodeid_collapsed)],
+            by.x = c("n2.allele", "n2.side", "n2"), by.y = c("allele", "variable", "value"), all.x = TRUE
+        )
+
+        edges_collapsed = edges_n12[!is.na(n1_collapsed) & !is.na(n2_collapsed)]
+
+        edges_collapsed$n1___parent = edges_collapsed$n1
+        edges_collapsed$n2___parent = edges_collapsed$n2
+
+        edges_collapsed$n1 = edges_collapsed$n1_collapsed
+        edges_collapsed$n2 = edges_collapsed$n2_collapsed
+
+    }
 
     gr_collapsed$col = ifelse(gr_collapsed$allele == "major", "#FF000080", "#0000FF80")
     gr_collapsed$ywid = 0.8
-
-    edges_n1 = merge(
-        alledges,
-        dt_collapsed_melted[, .(allele, variable, value, n1_collapsed = nodeid_collapsed)],
-        by.x = c("n1.allele", "n1.side", "n1"), by.y = c("allele", "variable", "value"), 
-        all.x = TRUE
-    )
-
-    edges_n12 = merge(
-        edges_n1,
-        dt_collapsed_melted[, .(allele, variable, value, n2_collapsed = nodeid_collapsed)],
-        by.x = c("n2.allele", "n2.side", "n2"), by.y = c("allele", "variable", "value"), all.x = TRUE
-    )
-
-    edges_collapsed = edges_n12[!is.na(n1_collapsed) & !is.na(n2_collapsed)]
-
-    edges_collapsed$n1___parent = edges_collapsed$n1
-    edges_collapsed$n2___parent = edges_collapsed$n2
-
-    edges_collapsed$n1 = edges_collapsed$n1_collapsed
-    edges_collapsed$n2 = edges_collapsed$n2_collapsed
 
     gr_collapsed$cn = ifelse(gr_collapsed$allele == "major", gr_collapsed$cn_major, gr_collapsed$cn_minor)
     gg_collapsed = gG(nodes = gr_collapsed, edges = edges_collapsed)

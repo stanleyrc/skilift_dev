@@ -504,15 +504,31 @@ multiplicity_to_intervals <- function(
 		# transcripts_plus_prom = GenomicRanges::resize(transcripts, width = width(transcripts) + 1000, fix = "end")
 		prom = GenomicRanges::flank(transcripts, width = 1000, start = TRUE)
 		is_in_query = (gr %^% prom | gr$snpeff_annotation %in% snpeff_protein_coding_annotations)
+		ix_in_query = which(is_in_query)
+		nr_in_query = NROW(ix_in_query)
+		any_in_query = nr_in_query > 0
 		if (is_cohort_heme) {
 			message("Filtering multiplicity to heme relevant genes")
 			hemedb = readRDS(Skilift:::HEMEDB())
 			gene_query = hemedb$GENE
 			is_in_query = is_in_query & gr$gene %in% gene_query
+			ix_in_query = which(is_in_query)
+			nr_in_query = NROW(ix_in_query)
 		}
 
-        gr_in_query = gr[is_in_query]
-        gr_other = gr[!is_in_query]
+		if (nr_in_query > subsample_size) {
+			set.seed(42)
+			ix_in_query = sample(ix_in_query, size = subsample_size, replace = FALSE)
+			ix_in_query = sort(ix_in_query)
+		}
+
+        # gr_in_query = gr[is_in_query]
+		gr_in_query = gr[ix_in_query]
+		gr_other = gr
+		if (any_in_query) {
+			gr_other = gr[-ix_in_query]
+		}
+        
 		
         remaining = subsample_size - NROW(gr_in_query)
 		is_other_more_than_remaining = NROW(gr_other) > remaining

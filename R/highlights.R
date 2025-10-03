@@ -126,7 +126,11 @@ create_heme_highlights = function(
   }
 
   ## FLT3-ITD special annotation
-  is_flt3itd = identical(tolower(readRDS(cohorttuple$itdseek_rds)), "positive")
+  path = cohorttuple$itdseek_rds
+  is_itdseek_res_present = !is.null(path) && is.character(path) && NROW(path) == 1 && file.exists(path)
+  is_flt3itd = FALSE
+  if (is_itdseek_res_present) is_flt3itd = identical(tolower(readRDS(path)), "positive")
+  
 
   flt3ForJson = data.table::copy(emptyDfForJson)
   if (is_flt3itd) {
@@ -302,8 +306,10 @@ create_heme_highlights = function(
 
   is_aml = (
     !is.null(tumor_type)
-    && (grepl("AML", tumor_type, ignore.case = TRUE)
-    || grepl("acute myeloid", tumor_type, ignore.case = TRUE)) 
+    && (
+      grepl("AML", tumor_type, ignore.case = TRUE)
+      || grepl("acute myeloid", tumor_type, ignore.case = TRUE)
+    ) 
     && TRUE ## this ensures that this is length one boolean, otherwise errors
   )
 
@@ -555,7 +561,8 @@ change_names = function(obj, old, new) {
 create_summary = function(
   events_tbl, ## filtered events R output
   altered_copies_threshold = 0.1,
-  cohort_type
+  cohort_type,
+  cohorttuple
 ) {
 
   small_muts = events_tbl[events_tbl$vartype == "SNV",]
@@ -711,15 +718,27 @@ create_summary = function(
     )
   }
 
+  
+
+  flt3_parsed = ""
+  path = cohorttuple$itdseek_rds
+  is_itdseek_res_present = !is.null(path) && is.character(path) && NROW(path) == 1 && file.exists(path)
+  is_flt3itd = FALSE
+  if (is_itdseek_res_present) is_flt3itd = identical(tolower(readRDS(path)), "positive")
+  if (is_flt3itd) {
+    flt3_parsed = "ITD: FLT3"
+  }
+
   summary_string = paste(
     paste(small_muts_parsed, collapse = "\n"),
     paste(cna_parsed, collapse = "\n"),
     paste(svs_parsed, collapse = "\n"),
+    paste(flt3_parsed, collapse = "\n"),
     sep = "\n"
   )
   ## summary_string = paste(small_muts_parsed, cna_parsed, svs_parsed, sep = "\n")
   summary_string = trimws(summary_string)
-  summary_string = gsub("\n{2,}", "\n", summary_string)
+  summary_string = gsub("\n{2,}", "\n", summary_string, perl = TRUE)
 
   return(summary_string)
   

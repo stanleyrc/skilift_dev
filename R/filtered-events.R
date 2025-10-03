@@ -1930,7 +1930,8 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
             }
 			string_summary = create_summary(
 				events_tbl = out,
-				cohort_type = cohort_type
+				cohort_type = cohort_type,
+        cohorttuple = row
 			)
         }, error = function(e) {
             print(sprintf("Error processing %s: %s", row$pair, e$message))
@@ -1951,6 +1952,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
 	if (NROW(results) > 0) {
 		# Transpose the list
 		results = do.call(Map, c(f = c, results))
+        setkey(cohort, pair)
 		cohort$inputs[results$pair, string_summary := results$string_summary]
 	}
 

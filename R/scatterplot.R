@@ -132,6 +132,7 @@ granges_to_arrow_scatterplot <- function(
     # sort according to x values (that is what front-end expects)
     outdt <- outdt[order(x)]
 
+    ## outdt$x = bit64::as.integer64(outdt$x)
     arrow_table <- arrow::Table$create(
         outdt,
         schema = arrow::schema(
