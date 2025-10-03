@@ -270,12 +270,24 @@ Cohort <- R6Class("Cohort",
       # googlesheets4::gs4_auth(path = "~/.secrets/solar-semiotics-469520-b8-ae032496e3f0.json")
 
         if (!is.null(tumor_type_db)) {
+          tumor_type_db$tumor_sample = tumor_type_db$Tumor_WG_Number
+          otumor_sample = gsub(
+            "___.*", "", 
+            self$inputs$tumor_sample
+          )
+          otumor_sample = gsub("(WG-[0-9]+-[0-9]+)[[:punct:]]+.*", "\\1", otumor_sample, perl = TRUE)
+          self$inputs$otumor_sample = otumor_sample
           self$inputs = Skilift::merge.repl(
             self$inputs,
-            tumor_type_db[, .(tumor_sample = Tumor_WG_Number, tumor_type = Tumor_Type)],
+            # tumor_type_db[, .(tumor_sample = Tumor_WG_Number, tumor_type = Tumor_Type, tumor_group = Tumor_Group)]
+            tumor_type_db
+            ,
             prefer_y = TRUE,
-            by = "tumor_sample"
+            by.x = "otumor_sample",
+            by.y = "tumor_sample",
+            allow.cartesian = TRUE
           )
+          self$inputs$tumor_type = self$inputs$Tumor_Type
       }
       return(self)
     }

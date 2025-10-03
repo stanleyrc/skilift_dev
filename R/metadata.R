@@ -189,15 +189,27 @@ extract_metrics <- function(qc_data, metrics, pair) {
     # Verify all metrics exist in data
     missing_cols <- setdiff(metrics, names(qc_data))
     if (length(missing_cols) > 0) {
-        stop(sprintf("Missing columns in QC data: %s", paste(missing_cols, collapse = ", ")))
+        message(sprintf("Missing columns in QC data: %s", paste(missing_cols, collapse = ", ")), "\nSetting to NA")
     }
-    
+
     # Select and rename columns
-    result <- qc_data[, metrics, with = FALSE]
-    setnames(result, old = metrics, new = names(metrics))
-    
+    # result <- qc_data[, metrics, with = FALSE]
+    # setnames(result, old = metrics, new = names(metrics))
+
+    qc_data = as.list(qc_data)
+    result = data.table(pair = pair)
+
+    for (metric in metrics) {   
+        is_metric_present = exists(metric, qc_data)
+        if (!is_metric_present) {
+            result[[names(metrics)[metrics == metric]]] = NA_real_
+            next
+        }
+        result[[names(metrics)[metrics == metric]]] = qc_data[[metric]]
+    }
+        
     # Add pair identifier
-    result[, pair := pair]
+    # result[, pair := pair]
     
     return(result)
 }
