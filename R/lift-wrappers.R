@@ -87,9 +87,15 @@ has_required_columns <- function(cohort, columns, any = FALSE, verbose = TRUE) {
       "normal_bam",
       "bam"
     ),
+    
     multiplicity_fits = c(
        "multiplicity", 
        "germline_multiplicity", 
+       "hetsnps_multiplicity"
+    ),
+
+    twod_purity_ploidy = c(
+       "multiplicity", 
        "hetsnps_multiplicity"
     ),
 
@@ -400,6 +406,17 @@ lift_mvp <- function(
         output_data_dir = output_data_dir,
         cores = cores,
         width = width
+      )
+    })
+  }
+
+  if (has_required_columns(cohort, required_columns$twod_purity_ploidy)) {
+    Skilift::skimessage("Uploading 2D purity ploidy plot via Skilift::lift_2d_purity_ploidy_plot()")
+    Skilift::shutup({
+      lift_2d_purity_ploidy_plot(
+        cohort = cohort,
+        output_data_dir = output_data_dir,
+        cores = cores
       )
     })
   }
