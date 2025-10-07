@@ -1405,4 +1405,79 @@ lift_datafiles_json <- function(output_data_dir, cores = 1) {
   # Write the combined JSON list to "datafiles.json" in the data directory
   output_file <- file.path(output_data_dir, "datafiles.json")
   jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")
+
+  convert_json_to_arrow(output_file)
+}
+
+
+#' Convert a JSON file to an Arrow file.
+#'
+#' @param json_file_path Path to the input JSON file.
+#' @param arrow_file_path Optional. Path to the output Arrow file.
+#'   If NULL, the output path will be the same as the input JSON file,
+#'   but with the .arrow extension.
+#'
+#' @return Invisibly returns the path to the created Arrow file.
+#' @author Shihab Dider
+#' @export
+convert_json_to_arrow <- function(json_file_path, arrow_file_path = NULL) {
+  # Validate input file path
+  if (!file.exists(json_file_path)) {
+    stop("JSON file not found: ", json_file_path)
+  }
+
+  # Determine output file path if not provided
+  if (is.null(arrow_file_path)) {
+    arrow_file_path <- sub("\\.json$", ".arrow", json_file_path, ignore.case = TRUE)
+    if (arrow_file_path == json_file_path) {
+      # In case the extension wasn't .json or sub failed
+      arrow_file_path <- paste0(json_file_path, ".arrow")
+    }
+  }
+
+  # Read JSON data
+  tryCatch({
+    data <- jsonlite::read_json(json_file_path, simplifyDataFrame = TRUE)
+  }, error = function(e) {
+    stop("Error reading JSON file: ", e$message)
+  })
+  
+  # Ensure data is a data.frame
+  if (!is.data.frame(data)) {
+    tryCatch({
+      data <- as.data.frame(data)
+    }, error = function(e) {
+      stop("Could not convert JSON content to a data.frame: ", e$message)
+    })
+  }
+
+  # Pre-process list columns that might cause issues with Arrow type inference
+  for (col_name in names(data)) {
+    # Only process actual list-columns, not columns that are themselves data.frames
+    if (is.list(data[[col_name]]) && !is.data.frame(data[[col_name]])) {
+      is_simple_empty <- function(el) {
+        is.null(el) ||
+        (is.atomic(el) && length(el) == 0) ||
+        (is.list(el) && !is.data.frame(el) && length(el) == 0)
+      }
+      
+      all_elements_empty <- all(sapply(data[[col_name]], is_simple_empty))
+      
+      if (all_elements_empty) {
+        cat(paste("Transforming column:", col_name, "to a vector of NA_character_ because all its elements were simple_empty.\n"))
+        # Convert to a simple vector of NA_character_ of the correct length
+        data[[col_name]] <- rep(NA_character_, length(data[[col_name]]))
+      }
+    }
+  }
+
+  # Write Arrow file
+  tryCatch({
+    arrow::write_feather(data, arrow_file_path)
+  }, error = function(e) {
+    stop("Error writing Arrow file: ", e$message)
+  })
+
+  message("Successfully converted ", json_file_path, " to ", arrow_file_path)
+  return(data)
 }
