@@ -1874,29 +1874,83 @@ create_filtered_events <- function(
     if (NROW(res.complex) > 0) {
       loc_complex = res.complex[["Genome_Location"]]
       loc_complex = gsub(";", ",", loc_complex)
-      grlfp = gUtils::grl.unlist(
-        GenomicRanges::reduce(
-          gUtils::parse.grl(loc_complex) + 1e6
-        )
-      )
-      grlfp = data.table::setDT(BiocGenerics::as.data.frame(grlfp))[]
-      grlfp_subset = grlfp[, {
-        byfun = function() {
-          nr = NROW(.SD)
-          has_three_or_more = nr >= 3
-          if (!has_three_or_more) {
-            return(.SD)
+      grl_footprint = gUtils::parse.grl(loc_complex)
+      grlfp_1mb = GenomicRanges::reduce(grl_footprint + 0.5e6)
+      grlfp_5mb = GenomicRanges::reduce(grl_footprint + 2.5e6)
+      grlfp_10mb = GenomicRanges::reduce(grl_footprint + 5e6)
+      
+      get_arbitrary_loc = function(grl, return_string = TRUE) {
+        grlfp = grl.unlist(grl)
+        grlfp = data.table::setDT(BiocGenerics::as.data.frame(grlfp))[]
+        grlfp_subset = grlfp[, {
+          byfun = function() {
+            nr = NROW(.SD)
+            has_three_or_more = nr >= 3
+            if (!has_three_or_more) {
+              return(.SD)
+            }
+            set.seed(10)
+            gr_rank = rank(-width, ties.method = "random")
+            out = .SD[order(gr_rank)][1:3]
+            return(out)
           }
-          set.seed(10)
-          gr_rank = rank(-width, ties.method = "random")
-          out = .SD[order(gr_rank)][1:3]
-          return(out)
+          byfun()
+        }, keyby = grl.ix]
+        grlfp_subset$strand = rep_len("*", NROW(grlfp_subset))
+        grfp_subset = GenomicRanges::trim(dt2gr(grlfp_subset))
+        out = split(grfp_subset, grlfp_subset$grl.ix)
+        if (return_string) {
+          loc_complex = gUtils::grl.string(out)
+          return(loc_complex)
         }
-        byfun()
-      }, keyby = grl.ix]
-      grlfp_subset$strand = rep_len("*", NROW(grlfp_subset))
-      grfp_subset = GenomicRanges::trim(dt2gr(grlfp_subset))
-      loc_complex = gUtils::grl.string(split(grfp_subset, grlfp_subset$grl.ix))
+        return(out)
+      }
+      
+      loc_complex_1mb = get_arbitrary_loc(grlfp_1mb)
+      loc_complex_5mb = get_arbitrary_loc(grlfp_5mb)
+      loc_complex_10mb = get_arbitrary_loc(grlfp_10mb)
+
+      enr_orig = S4Vectors::elementNROWS(grl_footprint)
+      enr_1mb = S4Vectors::elementNROWS(grlfp_1mb)
+      wid_1mb = sum(BiocGenerics::width(grlfp_1mb))
+      enr_5mb = S4Vectors::elementNROWS(grlfp_5mb)
+      wid_5mb = sum(BiocGenerics::width(grlfp_5mb))
+      enr_10mb = S4Vectors::elementNROWS(grlfp_10mb)
+      wid_10mb = sum(BiocGenerics::width(grlfp_10mb))
+      use_1mb = (
+        (enr_1mb == enr_5mb) & (enr_5mb == enr_10mb) 
+      )
+      use_5mb = (
+        (enr_1mb > enr_5mb) & (enr_5mb == enr_10mb)
+      )
+      use_10mb = (
+        (enr_5mb > enr_10mb)
+      )
+      loc_complex = data.table::fcase(
+        use_1mb, loc_complex_1mb,
+        use_5mb, loc_complex_5mb,
+        use_10mb, loc_complex_10mb,
+        default = NA_character_
+      )
+      if (anyNA(loc_complex)) {
+        stop("Error determining complex event location")
+      }
+      # enrs = c(enr_1mb, enr_5mb, enr_10mb)
+      # delta_numwindows = c(0, diff(enrs))
+      # is_biggest_change = delta_numwindows == min(delta_numwindows, na.rm = TRUE)
+      # choices = list(
+      #   loc_complex_1mb,
+      #   loc_complex_5mb,
+      #   loc_complex_10mb
+      # )
+      
+      # loc_complex = choices[[which(is_biggest_change & enrs > 1)[1]]]
+      # pick_first_anyways = NROW(loc_complex) == 0
+      # if (pick_first_anyways) {
+      #   loc_complex = loc_complex_1mb
+      # }
+      
+
       res.complex[["Genome_Location"]] = loc_complex
       res.complex$Variant = res.complex$vartype
     }
