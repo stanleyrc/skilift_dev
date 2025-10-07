@@ -5,7 +5,7 @@
 \alias{required_columns}
 \title{Define required columns for each lifter}
 \format{
-An object of class \code{list} of length 24.
+An object of class \code{list} of length 25.
 }
 \usage{
 required_columns
