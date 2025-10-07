@@ -549,6 +549,28 @@ collect_complex_events <- function(complex, verbose = TRUE) {
   is_no_complex_sv = nr == 0
   if (is_no_complex_sv) return(empty_dt)
 
+  ## Finalizing the naming
+  svs$type = data.table::fcase(
+    svs$type %in% "qrppos", "rDup",
+    svs$type %in% "qrpmin", "rDel",
+    svs$type %in% "qrpmix", "rDelDup",
+    svs$type == "tic", "TIC",
+    svs$type == "dm", "DM",
+    svs$type == "bfb", "BFB",
+    default = tools::toTitleCase(svs$type)
+  )
+
+  svs[, type_ix := {
+    byfun = function() {
+      nr = NROW(.SD)
+      if (nr == 1) return(type)
+      return(paste(type, seq_len(nr), sep = ": "))
+    }
+    byfun()
+  }, by = type]
+  svs$type = svs$type_ix
+  
+  
   return(svs)
 }
 
@@ -1644,7 +1666,7 @@ create_filtered_events <- function(
     variant_summary = character(0), therapeutics = character(0), 
     resistances = logical(0), diagnoses = character(0), prognoses = character(0), 
     effect = character(0), effect_description = character(0), 
-    fusion_genes = character(0), fusion_gene_coords = character(0), 
+    fusion_genes = character(0), footprint = character(0), fusion_gene_coords = character(0), 
     track = character(0), source = character(0), variant.g = character(0), 
     variant.c = character(0), variant.p = character(0), annotation = character(0), 
     distance = logical(0), major_count = numeric(0), minor_count = numeric(0), 
@@ -1696,7 +1718,12 @@ create_filtered_events <- function(
       homdels <- ot[ot$type == "homdel",][, vartype := "HOMDEL"][, type := "SCNA"]
       amps <- ot[ot$type == "amp",][, vartype := "AMP"][, type := "SCNA"]
       fusions <- ot[ot$type == "fusion",] ## fusion vartype is either fusion or outframe_fusion
-      possible_drivers <- rbind(snvs, homdels, amps, fusions, fill = TRUE)
+      complex_events = ot[ot$source == "complex",][, vartype := type][, type := "Complex SV"]
+      fp = get0("footprint", as.environment(as.list(complex_events)), ifnotfound = rep_len(NA_character_, NROW(complex_events)))
+      complex_events$gene_location = fp
+    
+      possible_drivers <- rbind(snvs, homdels, amps, fusions, complex_events, fill = TRUE)
+      
   }
 
   oncotable_col_to_filtered_events_col <- c(
@@ -1843,7 +1870,37 @@ create_filtered_events <- function(
       
       res.cn.dt[, c("min_cn", "cn", "cn.high", "cn.low", "width", "strand") := NULL]
     }
-    res.final <- rbind(res.mut, res.cn.dt, res.fus, fill = TRUE)
+    res.complex = res[type == "Complex SV"]
+    if (NROW(res.complex) > 0) {
+      loc_complex = res.complex[["Genome_Location"]]
+      loc_complex = gsub(";", ",", loc_complex)
+      grlfp = gUtils::grl.unlist(
+        GenomicRanges::reduce(
+          gUtils::parse.grl(loc_complex) + 1e6
+        )
+      )
+      grlfp = data.table::setDT(BiocGenerics::as.data.frame(grlfp))[]
+      grlfp_subset = grlfp[, {
+        byfun = function() {
+          nr = NROW(.SD)
+          has_three_or_more = nr >= 3
+          if (!has_three_or_more) {
+            return(.SD)
+          }
+          set.seed(10)
+          gr_rank = rank(-width, ties.method = "random")
+          out = .SD[order(gr_rank)][1:3]
+          return(out)
+        }
+        byfun()
+      }, keyby = grl.ix]
+      grlfp_subset$strand = rep_len("*", NROW(grlfp_subset))
+      loc_complex = gUtils::grl.string(split(dt2gr(grlfp_subset), grlfp_subset$grl.ix))
+      res.complex[["Genome_Location"]] = loc_complex
+      res.complex$Variant = res.complex$vartype
+    }
+      
+    res.final <- rbind(res.mut, res.cn.dt, res.fus, res.complex, fill = TRUE)
     res.final[, sample := pair]
     if (identical(cohort_type, "heme")) {
       res.final <- select_heme_events(res.final)
@@ -1903,7 +1960,7 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
 	}
 
     # Process each sample in parallel
-    results = mclapply(seq_len(nrow(cohort$inputs)), function(i) {
+    iterate_fun = function(i) {
         row <- cohort$inputs[i,]
         pair_dir <- file.path(output_data_dir, row$pair)
         
@@ -1952,7 +2009,8 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
 				string_summary = string_summary
 			)
 		)
-    }, mc.cores = cores, mc.preschedule = TRUE)
+    }
+    results = mclapply(seq_len(nrow(cohort$inputs)), iterate_fun, mc.cores = cores, mc.preschedule = TRUE)
 
 	results = results[!sapply(results, is.null)]
 
