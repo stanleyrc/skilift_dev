@@ -1895,7 +1895,8 @@ create_filtered_events <- function(
         byfun()
       }, keyby = grl.ix]
       grlfp_subset$strand = rep_len("*", NROW(grlfp_subset))
-      loc_complex = gUtils::grl.string(split(dt2gr(grlfp_subset), grlfp_subset$grl.ix))
+      grfp_subset = GenomicRanges::trim(dt2gr(grlfp_subset))
+      loc_complex = gUtils::grl.string(split(grfp_subset, grlfp_subset$grl.ix))
       res.complex[["Genome_Location"]] = loc_complex
       res.complex$Variant = res.complex$vartype
     }
