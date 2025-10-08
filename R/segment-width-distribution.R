@@ -1358,6 +1358,7 @@ create_2d_purity_ploidy = function(
     variants <- variants[(!is.na(cn))]
     variants$cn <- round(variants$cn, 0)
     if (mask) {
+        mask_gr = readRDS(mask_gr)
         variants$masked = dt2gr(variants) %^% mask_gr
         variants = variants[!variants$masked %in% TRUE]
     }
