@@ -729,11 +729,20 @@ create_summary = function(
     flt3_parsed = "ITD: FLT3"
   }
 
+  complex_sv = events_tbl[type == "Complex SV"]
+  if (NROW(complex_sv) > 0) {
+    string_complex = unique(gsub(": [0-9]+", "", complex_sv$Variant))
+    complex_parsed = paste("Complex SV: ", string_complex, sep = "")
+    complex_parsed = naturalsort::naturalsort(complex_parsed)    
+  }
+
+
   summary_string = paste(
     paste(small_muts_parsed, collapse = "\n"),
     paste(cna_parsed, collapse = "\n"),
     paste(svs_parsed, collapse = "\n"),
     paste(flt3_parsed, collapse = "\n"),
+    paste(complex_parsed, collapse = "\n"),
     sep = "\n"
   )
   ## summary_string = paste(small_muts_parsed, cna_parsed, svs_parsed, sep = "\n")

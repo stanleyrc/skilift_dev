@@ -1880,7 +1880,7 @@ create_filtered_events <- function(
       grlfp_10mb = GenomicRanges::reduce(grl_footprint + 5e6)
       
       get_arbitrary_loc = function(grl, return_string = TRUE) {
-        grlfp = grl.unlist(grl)
+        grlfp = gUtils::grl.unlist(grl)
         grlfp = data.table::setDT(BiocGenerics::as.data.frame(grlfp))[]
         grlfp_subset = grlfp[, {
           byfun = function() {
