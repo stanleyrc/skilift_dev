@@ -7,6 +7,7 @@
 add_basic_metadata(
   metadata,
   input_tumor_type,
+  input_tumor_details,
   input_disease,
   input_primary_site
 )
@@ -16,6 +17,8 @@ add_basic_metadata(
 
 \item{tumor_type}{The type of tumor.}
 
+\item{tumor_details}{Additional details of the tumor.}
+
 \item{disease}{The disease associated with the sample.}
 
 \item{primary_site}{The primary site of the tumor.}
@@ -24,5 +27,5 @@ add_basic_metadata(
 Updated metadata with basic information added.
 }
 \description{
-Adds basic metadata information such as tumor type, disease, and primary site.
+Adds basic metadata information such as tumor type, tumor details, disease, and primary site.
 }

@@ -34,6 +34,7 @@ test_that("Cohort constructor handles various data.table inputs correctly", {
   complete_dt <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("tumor1", "tumor2"),
+    tumor_details = c("TNBC", "empty"),
     disease = c("Breast", "Lung"),
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M"),
@@ -301,6 +302,7 @@ test_that("Cohort constructor handles pipeline directory inputs correctly", {
     samplesheet <- data.table(
       patient = c("SAMPLE1", "SAMPLE2"),
       tumor_type = c("BRCA", "LUAD"),
+      tumor_details = c("TNBC", "empty"),
       disease = c("Breast", "Lung"),
       primary_site = c("Breast", "Lung"),
       sex = c("F", "M")
