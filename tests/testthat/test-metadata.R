@@ -111,6 +111,7 @@ setup({
         if (include_optional) {
             inputs[, `:=`(
                 tumor_type = "BRCA",
+                tumor_details = "TNBC",
                 disease = "Breast Cancer", 
                 primary_site = "Breast",
                 jabba_gg = sapply(sample_files, function(x) x$jabba_gg),
@@ -296,6 +297,7 @@ setup({
     create_mock_metadata_files <<- function(
         pair = "TEST001",
         tumor_type = "BRCA",
+        tumor_details = "TNBC",
         disease = "Breast Cancer",
         primary_site = "Breast",
         inferred_sex = "female",
@@ -513,7 +515,7 @@ test_that("initialize_metadata_columns creates correct structure", {
     expect_equal(nrow(result), 1)
     
     expected_columns <- c(
-        "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
+        "pair", "tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex",
         "coverage_qc", 
         "snv_count", "snv_count_normal_vaf_greater0",
         "cov_slope", "cov_intercept",
@@ -550,11 +552,13 @@ test_that("add_basic_metadata correctly updates metadata", {
     result <- add_basic_metadata(
         metadata,
         input_tumor_type = "BRCA",
+        input_tumor_details = "TNBC",
         input_disease = "Breast Cancer",
         input_primary_site = "Breast"
     )
     
     expect_equal(result$tumor_type, "BRCA")
+    expect_equal(result$tumor_details, "TNBC")
     expect_equal(result$disease, "Breast Cancer")
     expect_equal(result$primary_site, "Breast")
     
@@ -563,11 +567,13 @@ test_that("add_basic_metadata correctly updates metadata", {
     result <- add_basic_metadata(
         metadata,
         input_tumor_type = "BRCA",
+        input_tumor_details = "TNBC",
         input_disease = NULL,
         input_primary_site = "Breast"
     )
     
     expect_equal(result$tumor_type, "BRCA")
+    expect_equal(result$tumor_details, "TNBC")
     expect_true(is.na(result$disease))
     expect_equal(result$primary_site, "Breast")
     
@@ -576,11 +582,13 @@ test_that("add_basic_metadata correctly updates metadata", {
     result <- add_basic_metadata(
         metadata,
         input_tumor_type = NULL,
+        input_tumor_details = NULL,
         input_disease = NULL,
         input_primary_site = NULL
     )
     
     expect_true(is.na(result$tumor_type))
+    expect_true(is.na(result$tumor_details))
     expect_true(is.na(result$disease))
     expect_true(is.na(result$primary_site))
 })
@@ -595,6 +603,7 @@ test_that("add_basic_metadata handles invalid inputs", {
         add_basic_metadata(
             metadata = NULL,
             input_tumor_type = "BRCA",
+            input_tumor_details = "TNBC",
             input_disease = "Breast Cancer",
             input_primary_site = "Breast"
         ),
@@ -606,6 +615,7 @@ test_that("add_basic_metadata handles invalid inputs", {
         add_basic_metadata(
             metadata = list(),
             input_tumor_type = "BRCA",
+            input_tumor_details = "TNBC",
             input_disease = "Breast Cancer",
             input_primary_site = "Breast"
         ),
@@ -617,6 +627,7 @@ test_that("add_basic_metadata handles invalid inputs", {
         add_basic_metadata(
             metadata,
             input_tumor_type = 123,
+            input_tumor_details = "TNBC",
             input_disease = "Breast Cancer",
             input_primary_site = "Breast"
         ),
@@ -2446,6 +2457,7 @@ test_that("create_metadata creates complete metadata object", {
     result <- suppressWarnings(create_metadata(
         pair = "TEST001",
         tumor_type = "BRCA",
+        tumor_details = "TNBC",
         disease = "Breast Cancer",
         primary_site = "Breast",
         inferred_sex = "female",
@@ -2495,6 +2507,7 @@ test_that("create_metadata handles minimal inputs", {
     
     # Check that optional fields are NA/NULL
     expect_true(is.na(result$tumor_type))
+    expect_true(is.na(result$tumor_details))
     expect_true(is.na(result$disease))
     expect_true(is.na(result$primary_site))
     expect_true(is.na(result$inferred_sex))
@@ -2519,6 +2532,7 @@ test_that("create_metadata handles partial inputs", {
     expect_false(is.na(result$snv_count))
     
     # Check that unprovided inputs are NA/NULL
+    expect_true(is.na(result$tumor_details))
     expect_true(is.na(result$disease))
     expect_true(is.na(result$primary_site))
     expect_null(result$coverage_qc[[1]])
@@ -2571,6 +2585,7 @@ test_that("create_metadata handles invalid inputs gracefully", {
     expect_error(create_metadata(
         pair = "TEST001",
         tumor_type = 123,  # Should be character
+        tumor_details = 123,  # Should be character
         disease = TRUE     # Should be character
     ))
 })
@@ -2653,7 +2668,7 @@ test_that("lift_metadata handles missing optional columns", {
     # Should run with warning but not error
     expect_warning(
         lift_metadata(cohort, temp_dir),
-        "Missing optional columns in cohort: tumor_type, disease, primary_site, inferred_sex, jabba_gg, events, germline_snvs, het_pileups, activities_sbs_signatures, activities_indel_signatures, hrdetect, onenesstwoness, msisensorpro"
+        "Missing optional columns in cohort: tumor_type, tumor_details, disease, primary_site, inferred_sex, jabba_gg, events, germline_snvs, het_pileups, activities_sbs_signatures, activities_indel_signatures, hrdetect, onenesstwoness, msisensorpro"
     )
     
     # Check that output was still created
@@ -2792,6 +2807,7 @@ test_that("lift_metadata works on real cohort", {
     metadata <- suppressWarnings(create_metadata(
         pair = row$pair,
         tumor_type = row$tumor_type,
+        tumor_details = row$tumor_details,
         disease = row$disease,
         primary_site = row$primary_site,
         inferred_sex = row$inferred_sex,
@@ -2858,6 +2874,7 @@ devtools::load_all()
 metadata <- suppressWarnings(create_metadata(
     pair = row$pair,
     tumor_type = row$tumor_type,
+    tumor_details = row$tumor_details,
     disease = row$disease,
     primary_site = row$primary_site,
     inferred_sex = row$inferred_sex,

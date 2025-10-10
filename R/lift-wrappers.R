@@ -64,6 +64,7 @@ has_required_columns <- function(cohort, columns, any = FALSE, verbose = TRUE) {
     variant_qc = c("somatic_snvs"),
     metadata = c(
       "tumor_type",
+      "tumor_details",
       "disease",
       "primary_site",
       "inferred_sex",
