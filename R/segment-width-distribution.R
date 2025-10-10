@@ -172,7 +172,8 @@ lift_segment_width_distribution <- function(
                     # Get segstats information
                     segstats.dt <- get_segstats(
                         balanced_jabba_gg = row[[jabba_column]],
-                        tumor_coverage = row$tumor_coverage
+                        tumor_coverage = row$tumor_coverage,
+                        coverage_field = row$denoised_coverage_field
                     )
                     segstats.gr <- GRanges(segstats.dt, seqlengths = seq_lengths) %>% trim()
                     gg_w_segstats <- gG(nodes = segstats.gr, edges = ggraph$edges$dt)
@@ -532,7 +533,18 @@ lift_coverage_jabba_cn <- function(
 
                 # Prepare data for plotting
                 tiles.gr <- gUtils::gr.tile(gUtils::si2gr(si = seq_lengths), width = width)
-                tiles.gr <- tiles.gr %$% cov[, c("foreground", "input.read.counts")] %$% ggraph$nodes$gr[, c("cn")]
+                
+                if("input.read.counts" %in% colnames(mcols(cov))) { #temp fix for hmf- this was hardcoded before
+                  tiles.gr <- tiles.gr %$% cov[, c("foreground", "input.read.counts")] %$% ggraph$nodes$gr[, c("cn")] #hard coded line
+                } else {
+                  tiles.gr <- tiles.gr %$% cov[, c(row$denoised_coverage_field, "reads")] %$% ggraph$nodes$gr[, c("cn")]
+                }
+                
+                if(row$denoised_coverage_field != "foreground") {
+                  ##just rename as temporary fix - we need the raw field to cohort$inputs so we're not hardcoding these fields
+                  tiles.gr$foreground = mcols(tiles.gr)[[row$denoised_coverage_field]]
+                  tiles.gr$input.read.counts = tiles.gr$reads
+                }
 
                 if (mask) {
                     suppressWarnings({
@@ -687,6 +699,7 @@ lift_purple_sunrise_plot <- function(
     # Validate required columns exist
     required_cols <- c("pair", "purple_pp_range", "purple_pp_bestFit")
     if (!all(required_cols %in% names(cohort$inputs))) {
+        missing_cols = required_cols[!required_cols %in% names(cohort$inputs)]
         stop("Missing required columns in cohort: ", paste(missing_cols, collapse = ", "))
     }
 

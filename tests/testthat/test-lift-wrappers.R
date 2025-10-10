@@ -14,6 +14,7 @@ test_that("lift_all handles basic case correctly", {
   dt <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("BRCA", "LUAD"),
+    tumor_details = c("TNBC", "empty"),
     disease = c("Breast", "Lung"),
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M")
@@ -42,6 +43,7 @@ test_that("lift_all passes parameters correctly to individual lifters", {
   dt <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("BRCA", "LUAD"),
+    tumor_details = c("TNBC", "empty"),
     disease = c("Breast", "Lung"),
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M"),
@@ -128,6 +130,7 @@ test_that("lift_all handles different cohort_types correctly", {
   dt <- data.table(
     pair = c("sample1", "sample2"),
     tumor_type = c("BRCA", "LUAD"),
+    tumor_details = c("TNBC", "empty"),
     disease = c("Breast", "Lung"),
     primary_site = c("Breast", "Lung"),
     inferred_sex = c("F", "M")

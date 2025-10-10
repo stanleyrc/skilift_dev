@@ -37,6 +37,7 @@ library(Skilift)
 pairs_table <- data.table(
   pair = c("0124", "0125", "0128"),
   tumor_type = c("BRCA", "LUAD", "PRAD"),
+  tumor_details = c("TNBC", "empty", "empty"),
   disease = c("Breast Cancer", "Lung Cancer", "Prostate Cancer"),
   primary_site = c("Breast", "Lung", "Prostate"),
   inferred_sex = c("F", "M", "M"),
@@ -78,6 +79,7 @@ cat(sprintf("launchDir: %s\ninput: ./samplesheet.csv", pipeline_dir),
 samplesheet <- data.table(
   patient = c("0124"),
   tumor_type = c("BRCA"),
+  tumor_details = c("TNBC"),
   disease = c("Breast Cancer"), 
   primary_site = c("Breast"),
   sex = c("F")
