@@ -1338,6 +1338,7 @@ create_mutations_catalog_json <- function(
 #' @param strelka2_vcf path to strelka vcf to get snv count (need either this or sage_vcf)
 #' @param sage_vcf path to SAGE vcf to get snv count (sage preferred over strelka2)
 #' @param tumor_type_final tumor type abbreviation of the sample
+#' @param tumor_details tumor details of the sample
 #' @param disease full length tumor type
 #' @param primary_site primary site of tumor
 #' @param inferred_sex sex of the patient
@@ -1370,6 +1371,7 @@ meta_data_json <- function(
     strelka2_vcf = NULL,
     sage_vcf = NULL,
     tumor_type = NULL,
+    tumor_details = NULL,
     disease = NULL,
     primary_site = NULL,
     inferred_sex = NULL,
@@ -1412,6 +1414,9 @@ meta_data_json <- function(
 
     if (!is.null(tumor_type)) {
         meta.dt[, tumor_type := tumor_type]
+    }
+    if (!is.null(tumor_details)) {
+        meta.dt[, tumor_details := tumor_details]
     }
     if (!is.null(disease)) {
         meta.dt[, disease := disease]

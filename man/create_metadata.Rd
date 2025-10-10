@@ -7,6 +7,7 @@
 create_metadata(
   pair,
   tumor_type = NULL,
+  tumor_details = NULL,
   disease = NULL,
   primary_site = NULL,
   inferred_sex = NULL,
@@ -43,6 +44,8 @@ create_metadata(
 \item{pair}{The sample pair identifier.}
 
 \item{tumor_type}{The type of tumor.}
+
+\item{tumor_details}{Additional details about the tumor.}
 
 \item{disease}{The disease associated with the sample.}
 

@@ -29,6 +29,7 @@ The Cohort does a prefix search on the column names of the pairs table to extrac
 default_col_mapping <- list(
     pair = c("pair", "patient_id", "pair_id", "sample"),
     tumor_type = c("tumor_type"),
+    tumor_details = c("tumor_details"),
     disease = c("disease"),
     primary_site = c("primary_site"),
     inferred_sex = c("inferred_sex"),

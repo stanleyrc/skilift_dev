@@ -22,6 +22,7 @@ initialize_metadata_columns <- function(pair) {
         # Basic metadata
         pair = pair,
         tumor_type = NA_character_,
+        tumor_details = NA_character_,
         disease = NA_character_,
         primary_site = NA_character_,
         inferred_sex = NA_character_,
@@ -57,16 +58,18 @@ initialize_metadata_columns <- function(pair) {
 #' @name add_basic_metadata
 #' @title Add Basic Metadata
 #' @description
-#' Adds basic metadata information such as tumor type, disease, and primary site.
+#' Adds basic metadata information such as tumor type, tumor details, disease, and primary site.
 #'
 #' @param metadata A data.table containing metadata.
 #' @param tumor_type The type of tumor.
+#' @param tumor_details Details about the tumor.
 #' @param disease The disease associated with the sample.
 #' @param primary_site The primary site of the tumor.
 #' @return Updated metadata with basic information added.
 add_basic_metadata <- function(
     metadata,
     input_tumor_type,
+    input_tumor_details,
     input_disease,
     input_primary_site
 ) {
@@ -85,7 +88,15 @@ add_basic_metadata <- function(
         }
         metadata[, tumor_type := input_tumor_type]
     }
-    
+
+    # Validate tumor_details if provided
+    if (!is.null(input_tumor_details)) {
+        if (!is.character(input_tumor_details)) {
+            stop("tumor_details must be NULL or a character string")
+        }
+        metadata[, tumor_details := input_tumor_details]
+    }
+
     # Validate disease if provided
     if (!is.null(input_disease)) {
         if (!is.character(input_disease)) {
@@ -1092,6 +1103,7 @@ add_msisensor_score <- function(metadata, msisensorpro) {
 #'
 #' @param pair The sample pair identifier.
 #' @param tumor_type The type of tumor.
+#' @param tumor_details Details about the tumor.
 #' @param disease The disease associated with the sample.
 #' @param primary_site The primary site of the tumor.
 #' @param inferred_sex The inferred sex of the sample.
@@ -1120,6 +1132,7 @@ add_msisensor_score <- function(metadata, msisensorpro) {
 create_metadata <- function(
     pair,
     tumor_type = NULL,
+    tumor_details = NULL,
     disease = NULL, 
     primary_site = NULL,
     inferred_sex = NULL,
@@ -1154,7 +1167,7 @@ create_metadata <- function(
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field", "summary")
+    fix_entries = c("tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field", "summary")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
@@ -1162,7 +1175,7 @@ create_metadata <- function(
     }    
 
     # Add each component sequentially
-    metadata <- add_basic_metadata(metadata, tumor_type, disease, primary_site)
+    metadata <- add_basic_metadata(metadata, tumor_type, tumor_details, disease, primary_site)
     metadata <- add_sex_information(metadata, inferred_sex, jabba_gg, tumor_coverage)
     # Add coverage metrics
     metadata <- add_coverage_metrics(
@@ -1238,7 +1251,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
     jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
     # Define all possible columns
     all_cols <- c(
-        "pair", "tumor_type", "disease", "primary_site", "inferred_sex",
+        "pair", "tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex",
         # "jabba_gg", 
 		jabba_column,
 		"events", "oncokb_snv", "somatic_snvs", "germline_snvs", "tumor_coverage",
@@ -1310,6 +1323,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
             metadata <- create_metadata(
                 pair = row$pair,
                 tumor_type = row$tumor_type,
+                tumor_details = row$tumor_details,
                 disease = row$disease,
                 primary_site = row$primary_site,
                 inferred_sex = inferred_sex_field,
@@ -1318,6 +1332,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 events = row$events,
                 somatic_snvs = snvs_column,
                 germline_snvs = row$germline_snvs,
+                foreground_col_name = row$denoised_coverage_field,
                 tumor_coverage = row$tumor_coverage,
                 estimate_library_complexity = row$estimate_library_complexity,
                 alignment_summary_metrics = row$alignment_summary_metrics,
@@ -1359,7 +1374,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
         })
     }, mc.cores = cores, mc.preschedule = TRUE)
 
-	metadata_tbls = rbindlist(list_metadata)
+	metadata_tbls = rbindlist(list_metadata, fill = TRUE)
 	cohort$inputs = Skilift::merge.repl(cohort$inputs, metadata_tbls, by = "pair", prefer_x = TRUE, prefer_y = FALSE)
 
     # invisible(NULL)

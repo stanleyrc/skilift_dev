@@ -349,7 +349,7 @@ Cohort <- R6Class("Cohort",
       )
 
       # Define metadata fields and configuration parameter fields that should only check for NA/NULL
-      metadata_fields <- c("tumor_type", "disease", "primary_site", "inferred_sex", "metadata_is_visible")
+      metadata_fields <- c("tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex", "metadata_is_visible")
       config_fields <- Skilift:::config_parameter_names # Use the existing config parameter names
 
       # Combine metadata and config fields
@@ -420,7 +420,7 @@ Cohort <- R6Class("Cohort",
 
       id_to_parse = "pair"
       if (is_castable) {
-          sample_metadata = Skilift::dcastski(sample_metadata, id_columns = c("pair", "tumor_type", "disease", "primary_site", "inferred_sex", "pair_original"), type_columns = "sample_type", cast_columns = c("sample", "bam"), sep = "_")
+          sample_metadata = Skilift::dcastski(sample_metadata, id_columns = c("pair", "tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex", "pair_original"), type_columns = "sample_type", cast_columns = c("sample", "bam"), sep = "_")
       }
 
       if (is_paired) {
@@ -578,6 +578,7 @@ Cohort <- R6Class("Cohort",
       #   status = samplesheet$status,
       #   sex = samplesheet$sex,
       #   tumor_type = samplesheet$tumor_type,
+      #   tumor_details = samplesheet$tumor_details,
       #   disease = samplesheet$disease,
       #   primary_site = samplesheet$primary_site
       # )
@@ -614,7 +615,7 @@ Cohort <- R6Class("Cohort",
 
       # Read samplesheet and extract metadata
       samplesheet <- fread(samplesheet_path, colClasses = c("patient" = "character"))
-      metacols = c("patient", "sample", "tumor_type", "status", "disease", "primary_site", "sex", "bam")
+      metacols = c("patient", "sample", "tumor_type", "status", "tumor_details", "disease", "primary_site", "sex", "bam")
       metavars = base::mget(
         metacols, 
         as.environment(as.list(samplesheet)),
@@ -628,6 +629,7 @@ Cohort <- R6Class("Cohort",
         sample = metavars$sample,
         tumor_type = metavars$tumor_type,
         status = metavars$status,
+        tumor_details = metavars$tumor_details,
         disease = metavars$disease,
         primary_site = metavars$primary_site,
         inferred_sex = metavars$sex,
@@ -871,6 +873,7 @@ default_col_mapping <- list(
   tumor_type = c("tumor_type", "status"),
   tumor_sample = c("tumor_sample"),
   normal_sample = c("normal_sample"),
+  tumor_details = c("tumor_details"),
   disease = c("disease"),
   primary_site = c("primary_site"),
   inferred_sex = c("inferred_sex", "sex"),
