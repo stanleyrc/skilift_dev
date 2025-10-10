@@ -50,7 +50,10 @@ initialize_metadata_columns <- function(pair) {
         b1_2 = NA_real_,
         b1 = NA_real_,
         b2 = NA_real_,
-        tmb = NA_real_  # Add this line
+        tmb = NA_real_,  # Add this line
+
+        conpair_contamination = NA_real_,
+        conpair_concordance = NA_real_
     )
     return(dt)
 }
@@ -210,13 +213,20 @@ extract_metrics <- function(qc_data, metrics, pair) {
     qc_data = as.list(qc_data)
     result = data.table(pair = pair)
 
-    for (metric in metrics) {   
+    ix = seq_along(metrics)
+    for (i in ix) {
+        metric = metrics[i]
         is_metric_present = exists(metric, qc_data)
+        val = NA_real_
         if (!is_metric_present) {
-            result[[names(metrics)[metrics == metric]]] = NA_real_
-            next
+            ## result[[names(metrics)[metrics == metric]]] = NA_real_
+            result = cbind(result, "rename___col___" = val)
+            ## next
         }
-        result[[names(metrics)[metrics == metric]]] = qc_data[[metric]]
+        val = qc_data[[metric]]
+        result = cbind(result, "rename___col___" = val)
+        names(result)[names(result) == "rename___col___"] = names(metric)
+        ## result[[names(metrics)[metrics == metric]]] = qc_data[[metric]]
     }
         
     # Add pair identifier
@@ -402,6 +412,300 @@ process_qc_metrics <- function(
     return(as.list(qc_metrics))
 }
 
+
+list_of_qc = list(
+    dup_rate = "estimate_library_complexity",
+    tumor_cov = "tumor_wgs_metrics",
+    normal_cov = "normal_wgs_metrics",
+    insert_size = "insert_size_metrics",
+    alignment_summary = "alignment_summary_metrics"
+)
+
+#' QC Metrics
+#' 
+#' Process QC metrics
+#'
+#' @param estimate_library_complexity Path to the estimate_library_complexity_metrics file
+#' @param alignment_summary_metrics Path to the alignment_summary_metrics file
+#' @param insert_size_metrics Path to the insert_size_metrics file
+#' @param wgs_metrics Path to the wgs_metrics file
+#' @param pair Sample pair identifier
+#' @return A list containing processed QC metrics
+process_qc_metrics2 <- function(
+    estimate_library_complexity,
+    alignment_summary_metrics,
+    insert_size_metrics,
+    tumor_wgs_metrics,
+    normal_wgs_metrics,
+    pair
+) {
+
+    # coalesce_cols = function(cohorttuple, cols) {
+    #     lst = list()
+    #     for (col in cols) {
+    #         if (!exists(col, as.list(cohorttuple))) next
+    #         lst = c(lst, list(cohorttuple[[col]]))
+    #     }
+    #     coalesced = do.call(
+    #         Skilift:::coalesce,
+    #         lst            
+    #     )
+    #     return(coalesced)
+    # }
+
+    # dup_path = coalesce_cols(cohorttuple, c(list_of_qc$dup_rate))
+    # cov_tumor_path = coalesce_cols(cohorttuple, c(list_of_qc$tumor_cov))
+    # cov_normal_path = coalesce_cols(cohorttuple, c(list_of_qc$normal_cov))
+    # insert_path = coalesce_cols(cohorttuple, c(list_of_qc$insert_size))
+    # aln_path = coalesce_cols(cohorttuple, c(list_of_qc$alignment_summary))
+    # pair = cohorttuple$pair
+
+    test_file_is_present = function(x) {
+        (
+            !is.null(x)
+            && is.character(x)
+            && NROW(x) == 1
+            && file.exists(x)
+        )
+    }
+
+    get_metrics = function(path, cols, pair = "pair") {
+        nr = NROW(path)
+        is_character = is.character(path)
+        is_any_na = any(is.na(path))
+        is_invalid = is_character && (! nr == 1 || is_any_na)
+        if (is_invalid) stop(path, ": invalid path!")
+        if (!test_file_is_present(path)) return(data.table::data.table(pair = pair))
+        fcon = file(path, "r")
+        txt = character(0)
+        l = readLines(fcon, 1)
+        is_comment = startsWith(l, "#")
+        nr = NROW(l)
+        is_empty = nr == 0 || !nzchar(l)
+        while (is_comment && !is_empty) {
+            l = readLines(fcon, 1)
+            nr = NROW(l)
+            is_empty = nr == 0 || !nzchar(l)
+            is_comment = startsWith(l, "#")
+        }
+        txt = c(txt, l)
+        while (!is_comment && !is_empty) {
+            l = readLines(fcon, 1)
+            txt = c(txt, l)
+            nr = NROW(l)
+            is_empty = nr == 0 || !nzchar(l)
+            is_comment = startsWith(l, "#")
+        }
+        tbl = setDT(read.table(text = txt, header = TRUE, sep = "\t"))
+        extract_metrics(qc_data = tbl, metrics = cols, pair = pair)
+    }
+
+    subset_which = function(obj, ix) {
+        nr = NROW(ix)
+        if (nr == 0) return(obj) else return(obj[ix])
+    }
+
+
+    # Define metric mappings for each file type
+    complexity_metrics_cols <- c(
+        read_pairs_examined = "READ_PAIRS_EXAMINED",
+        read_pair_duplicates = "READ_PAIR_DUPLICATES",
+        read_pair_optical_duplicates = "READ_PAIR_OPTICAL_DUPLICATES",
+        percent_duplication = "PERCENT_DUPLICATION"
+    )
+    
+    alignment_metrics_cols <- c(
+        CATEGORY = "CATEGORY",
+        total_reads = "TOTAL_READS",
+        pf_reads_aligned = "PF_READS_ALIGNED",
+        pf_aligned_bases = "PF_ALIGNED_BASES",
+        mean_read_length = "MEAN_READ_LENGTH"
+    )
+    
+    insert_metrics_cols <- c(
+        PAIR_ORIENTATION = "PAIR_ORIENTATION",
+        # median_insert_size = "MEDIAN_INSERT_SIZE"
+        insert_size = "MEDIAN_INSERT_SIZE"
+    )
+    
+    tumor_wgs_metrics_cols <- c(
+        # median_coverage = "MEAN_COVERAGE"
+        tumor_median_coverage = "MEDIAN_COVERAGE",
+        # pct_30x = "PCT_30X",
+        greater_than_or_equal_to_30x = "PCT_30X",
+        # pct_50x = "PCT_50X"
+        greater_than_or_equal_to_50x = "PCT_50X",
+        fraction_excluded = "PCT_EXC_TOTAL"
+    )
+
+    normal_wgs_metrics_cols <- c(
+        normal_median_coverage = "MEDIAN_COVERAGE",
+        fraction_excluded = "PCT_EXC_TOTAL"
+    )
+    
+    qc_dup = get_metrics(estimate_library_complexity, complexity_metrics_cols, pair)
+
+    qc_aln = get_metrics(alignment_summary_metrics, alignment_metrics_cols, pair)
+    ix = which(!qc_aln$CATEGORY=="PAIR")
+    qc_aln = subset_which(qc_aln, -ix)
+    qc_aln$fraction_of_reads_aligned = qc_aln$pf_reads_aligned / qc_aln$total_reads
+    qc_aln$CATEGORY = NULL
+
+    qc_insert = get_metrics(insert_size_metrics, insert_metrics_cols, pair)
+    ix = which(!qc_insert$PAIR_ORIENTATION=="FR")
+    qc_insert = subset_which(qc_insert, -ix)
+
+    qc_cov_tumor = get_metrics(tumor_wgs_metrics, tumor_wgs_metrics_cols, pair)
+    qc_cov_tumor$tumor_median_coverage = round(
+        qc_cov_tumor$tumor_median_coverage / (1 - qc_cov_tumor$fraction_excluded)
+    )
+    qc_cov_tumor$fraction_excluded = NULL
+
+    qc_cov_normal = get_metrics(normal_wgs_metrics, normal_wgs_metrics_cols, pair)
+    qc_cov_normal$normal_median_coverage = round(
+        qc_cov_normal$normal_median_coverage / (1 - qc_cov_normal$fraction_excluded)
+    )
+    qc_cov_normal$fraction_excluded = NULL
+
+    # Read and extract metrics from each file
+    
+    # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
+    # "mean_read_length", "median_insert_size", "median_coverage", 
+    # "pct_30x", "pct_50x", "percent_optical_duplication", 
+    # "percent_aligned", "percent_optical_dups_of_dups")
+    # Merge all metrics on pair
+    lst_to_merge = list(
+        qc_dup, 
+        qc_aln, 
+        qc_insert, 
+        qc_cov_tumor,
+        qc_cov_normal
+    )
+    qc_metrics <- Reduce(function(x, y) {
+        data.table::merge.data.table(
+            x, y, by = "pair", 
+            all.x = TRUE, 
+            all.y = TRUE,
+            suffixes = c("_x", "_y")
+        )
+    }, lst_to_merge)
+    
+    # Calculate derivative metrics
+    # Separating out and writing long way for robustness to
+    # missing data.
+    qc_metrics$m_reads = qc_metrics$total_reads / 1e6
+    qc_metrics$m_reads_mapped = qc_metrics$pf_reads_aligned / 1e6
+    qc_metrics$percent_optical_duplication = (
+        qc_metrics$read_pair_optical_duplicates /
+        qc_metrics$read_pairs_examined
+    )
+    qc_metrics$percent_aligned = (
+        qc_metrics$pf_aligned_bases / 
+        ( qc_metrics$total_reads * qc_metrics$mean_read_length )
+    )
+    qc_metrics$percent_optical_dups_of_dups = (
+        qc_metrics$read_pair_optical_duplicates / 
+        qc_metrics$read_pair_duplicates
+    )
+    # # FIXME, need to account for tumor and normal
+    # qc_metrics$normal_median_coverage = NA_integer_
+
+    # Remove any metrics that are NA
+    # This can happen if any derivative metrics
+    # are calculated from qc inputs not provided
+    # in above lines.
+    for (colnm in names(qc_metrics)) {
+        is_all_na = all(is.na(qc_metrics[[colnm]]))
+        if (is_all_na) qc_metrics[[colnm]] = NULL
+    }
+
+    # qc_metrics[, `:=`(
+    #     m_reads = total_reads / 1e6,
+    #     m_reads_mapped = pf_reads_aligned / 1e6,
+    #     percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
+    #     percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
+    #     percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
+    # )]
+    
+    return(as.list(qc_metrics))
+}
+
+qc_flag_thresholds = list(
+    list("FAIL", "greater_than_or_equal_to_50x", `<=`, 0.99, "Fraction of genome covered at 50X","< 99%"),
+    list("WARN", "purity", `<`, 0.2, "Purity", "less than 20%"),
+    list("WARN", "insert_size", `<`, 300, "Insert Size", "less than 300 bp"),
+    list("WARN", "percent_duplication", `>`, 0.3, "Duplicate percent", "greater than than 30%"),
+    list("FAIL", "fraction_of_reads_aligned", `<`, 0.9, "Percent of reads aligned", "less than 90%"),
+    list("FAIL", "conpair_concordance_metric", `<`, 0.9, "Tumor/Normal SNP concordance", "less than 90%")
+)
+
+#' QC Flags
+#'
+#' Parse QC flags into strings
+#'
+#' QC metrics from picard need to be parsed based on coverage, insert size
+#' total number of reads, duplicate rate.
+#' The strings should be parsable into a form
+#' digested in gOS and shown as a single "PASS"/Checkmark", "Warning", or "Fail". 
+#' The actual metrics should show up on hover.
+process_qc_flag = function(
+    metadata,
+    qc_flag_thresholds = Skilift:::qc_flag_thresholds
+) {
+
+    check_field = function(list_like, field) {
+        val1 = list_like[[field]]
+        val2 = list_like$coverage_qc[[field]]
+        val3 = list_like$coverage_qc[[1]][[field]]
+        val = val1
+        if (is.null(val)) val = val2
+        if (is.null(val)) val = val3
+        if (is.null(val)) return(NA)
+        return(val)
+    }
+
+    flags_lst = list()
+
+    for (tuple in qc_flag_thresholds) {
+        flag_title = tuple[[1]]
+        field = tuple[[2]]
+        fun_comparator = tuple[[3]]
+        value = tuple[[4]]
+        transformed_name = tuple[[5]]
+        flag_message = tuple[[6]]
+        data_value = check_field(metadata, field)
+        is_na = any(is.na(data_value))
+        if (is_na) {
+            flags_lst = c(flags_lst, list(paste("Unknown:", transformed_name)))
+            next
+        }
+        is_flagged = fun_comparator(data_value, value)
+        if (!is_flagged) {
+            flag_title = "PASS"
+            flag_message = ""
+        }
+        flags_lst = c(
+            flags_lst, 
+            list(
+                paste(
+                    flag_title, 
+                    ": ", 
+                    transformed_name, 
+                    " (", 
+                    signif(data_value, 3), 
+                    ")", " ",
+                    flag_message,
+                    sep = ""
+                )
+            )
+        )
+    }
+
+    ## do.call(function(...) paste(..., collapse = "\n"), flags_lst)
+    metadata$qc_flag = paste(trimws(unlist(flags_lst)), collapse = "\n")
+    return(metadata)
+}
+
 #' @name add_coverage_metrics
 #' @title Add Coverage Metrics
 #' @description
@@ -442,7 +746,15 @@ add_coverage_metrics <- function(
         !is.null(normal_wgs_metrics)
         ) {
         
-        processed_metrics <- process_qc_metrics(
+        # processed_metrics <- process_qc_metrics2(
+        #     estimate_library_complexity,
+        #     alignment_summary_metrics,
+        #     insert_size_metrics,
+        #     tumor_wgs_metrics,
+        #     normal_wgs_metrics,
+        #     metadata$pair
+        # )
+        processed_metrics <- process_qc_metrics2(
             estimate_library_complexity,
             alignment_summary_metrics,
             insert_size_metrics,
@@ -458,6 +770,49 @@ add_coverage_metrics <- function(
         metadata$normal_median_coverage = processed_metrics$normal_median_coverage
     }
 
+    return(metadata)
+}
+
+#' @name add_coverage_metrics
+#' @title Add Coverage Metrics
+#' @description
+#' Adds coverage metrics to the metadata based on tumor coverage and QC metrics.
+#'
+#' @param metadata A data.table containing metadata.
+#' @param tumor_coverage Coverage data for the tumor.
+#' @param foreground_col_name Name of the column in the coverage data to use for foreground coverage
+#' @param estimate_library_complexity Path to library complexity metrics file
+#' @param alignment_summary_metrics Path to alignment summary metrics file
+#' @param insert_size_metrics Path to insert size metrics file
+#' @param wgs_metrics Path to WGS metrics file
+#' @return Updated metadata with coverage metrics added.
+add_conpair <- function(
+    metadata,
+    conpair_contamination = NULL,
+    conpair_concordance = NULL
+    ) {
+
+    normal_conpair_contamination_value = NA_real_
+    tumor_conpair_contamination_value = NA_real_
+    if (!is.null(conpair_contamination)) {
+        conpair_metrics = readLines(conpair_contamination)
+        tumor_conpair_contamination_value = gsub(".*: ", "", conpair_metrics[2])
+        tumor_conpair_contamination_value = as.numeric(gsub("%", "", tumor_conpair_contamination_value)) / 100
+        normal_conpair_contamination_value = gsub(".*: ", "", conpair_metrics[1])
+        normal_conpair_contamination_value = as.numeric(gsub("%", "", normal_conpair_contamination_value)) / 100
+    }
+
+
+
+    conpair_concordance_metric = NA_real_
+    if (!is.null(conpair_concordance)) {
+        conpair_metrics = readLines(conpair_concordance)
+        conpair_concordance_metric = as.numeric(conpair_metrics[1])
+    }
+
+    metadata$tumor_conpair_contamination_metric = tumor_conpair_contamination_value
+    metadata$normal_conpair_contamination_metric = normal_conpair_contamination_value
+    metadata$conpair_concordance_metric = conpair_concordance_metric
     return(metadata)
 }
 
@@ -1162,12 +1517,14 @@ create_metadata <- function(
     denoised_coverage_field = "foreground",
     is_visible = TRUE,
 	summary = NULL,
+    conpair_contamination = NULL,
+    conpair_concordance = NULL,
     cohort_type = NULL
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
     # change NA to NULL
-    fix_entries = c("tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field", "summary")
+    fix_entries = c("tumor_type", "tumor_details", "disease", "primary_site", "inferred_sex", "jabba_gg", "events", "somatic_snvs", "germline_snvs", "tumor_coverage", "estimate_library_complexity", "alignment_summary_metrics", "insert_size_metrics", "wgs_metrics", "het_pileups", "activities_indel_signatures", "deconstructsigs_sbs_signatures", "activities_sbs_signatures", "hrdetect", "onenesstwoness", "msisensorpro", "denoised_coverage_field", "summary", "conpair_contamination")
     for (x in fix_entries) {
         if (!exists(x) || is.null(get(x)) || is.na(get(x))) {
             assign(x, NULL)
@@ -1215,11 +1572,14 @@ create_metadata <- function(
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
 
     # Add MSIsensor score
-    metadata <- add_msisensor_score(metadata, msisensorpro)    
+    metadata <- add_msisensor_score(metadata, msisensorpro)
+    metadata <- add_conpair(metadata = metadata, conpair_contamination = conpair_contamination, conpair_concordance = conpair_concordance)
 
     if (!as.logical(is_visible)) {
         metadata$visible <- FALSE
     }
+
+    metadata = process_qc_flag(metadata, Skilift:::qc_flag_thresholds)
 
 	metadata$summary = summary
     
@@ -1348,6 +1708,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 seqnames_genome_width_or_genome_length = genome_length,
                 denoised_coverage_field = row$denoised_coverage_field,
                 is_visible = row$metadata_is_visible,
+                conpair_contamination = row$conpair_contamination,
+                conpair_concordance = row$conpair_concordance,
 				summary = row$string_summary,
                 cohort_type = cohort_type
             )
@@ -1375,7 +1737,7 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
     }, mc.cores = cores, mc.preschedule = TRUE)
 
 	metadata_tbls = rbindlist(list_metadata, fill = TRUE)
-	cohort$inputs = Skilift::merge.repl(cohort$inputs, metadata_tbls, by = "pair", prefer_x = TRUE, prefer_y = FALSE)
+	cohort$inputs = Skilift::merge.repl(cohort$inputs, metadata_tbls, by = "pair", prefer_x = FALSE, prefer_y = TRUE)
 
     # invisible(NULL)
 
