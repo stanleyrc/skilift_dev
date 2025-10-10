@@ -1406,7 +1406,8 @@ lift_datafiles_json <- function(output_data_dir, cores = 1) {
   output_file <- file.path(output_data_dir, "datafiles.json")
   jsonlite::write_json(combined_data, output_file, auto_unbox = TRUE, pretty = TRUE, null = "null")
 
-  convert_json_to_arrow(output_file)
+  invisible(convert_json_to_arrow(output_file))
+  
 }
 
 
@@ -1479,5 +1480,5 @@ convert_json_to_arrow <- function(json_file_path, arrow_file_path = NULL) {
   })
 
   message("Successfully converted ", json_file_path, " to ", arrow_file_path)
-  return(data)
+  return(invisible(data))
 }
