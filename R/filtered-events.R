@@ -1674,7 +1674,38 @@ create_filtered_events <- function(
     altered_copies = numeric(0), segment_cn = integer(0), ref = integer(0), 
     alt = integer(0), VAF = numeric(0), gene_location = character(0), 
     id = character(0)), row.names = c(NA, 0L), class = c("data.table", 
-"data.frame"))
+                                                         "data.frame"))
+
+    oncotable_col_to_filtered_events_col <- c(
+        "id" = "id",
+        "gene" = "gene",
+        "fusion_genes" = "fusion_genes",
+        "fusion_gene_coords" = "fusion_gene_coords",
+        "value" = "fusion_cn",
+        "vartype" = "vartype",
+        "type" = "type",
+        "variant.g" = "Variant_g",
+        "variant.p" = "Variant",
+        "altered_copies" = "estimated_altered_copies",
+        "segment_cn" = "segment_cn",
+        "ref" = "ref",
+        "alt" = "alt",
+        "VAF" = "VAF",
+        "gene_location" = "Genome_Location",
+        "tier" = "Tier",
+        "role" = "role",
+        "gene_summary" = "gene_summary",
+        "variant_summary" = "variant_summary",
+        "effect" = "effect",
+        "effect_description" = "effect_description",
+        "therapeutics" = "therapeutics",
+        "resistances" = "resistances",
+        "diagnoses" = "diagnoses",
+        "prognoses" = "prognoses",
+        "is_multi_hit_per_gene" = "is_multi_hit_per_gene"
+    )
+
+  res.final = Skilift:::change_names(possible_drivers, oncotable_col_to_filtered_events_col)
 
   if (NROW(ot) > 0) {
       # add a fusion_gene_coords column of NAs if no fusions
@@ -1726,41 +1757,24 @@ create_filtered_events <- function(
       
   }
 
-  oncotable_col_to_filtered_events_col <- c(
-    "id" = "id",
-    "gene" = "gene",
-    "fusion_genes" = "fusion_genes",
-    "fusion_gene_coords" = "fusion_gene_coords",
-    "value" = "fusion_cn",
-    "vartype" = "vartype",
-    "type" = "type",
-    "variant.g" = "Variant_g",
-    "variant.p" = "Variant",
-    "altered_copies" = "estimated_altered_copies",
-    "segment_cn" = "segment_cn",
-    "ref" = "ref",
-    "alt" = "alt",
-    "VAF" = "VAF",
-    "gene_location" = "Genome_Location",
-    "tier" = "Tier",
-    "role" = "role",
-    "gene_summary" = "gene_summary",
-    "variant_summary" = "variant_summary",
-    "effect" = "effect",
-    "effect_description" = "effect_description",
-    "therapeutics" = "therapeutics",
-    "resistances" = "resistances",
-    "diagnoses" = "diagnoses",
-    "prognoses" = "prognoses",
-    "is_multi_hit_per_gene" = "is_multi_hit_per_gene"
-  )
+
   filtered_events_columns <- names(possible_drivers)[names(possible_drivers) %in% names(oncotable_col_to_filtered_events_col)]
 
   res <- possible_drivers[, ..filtered_events_columns]
   intersected_columns <- intersect(filtered_events_columns, names(res))
   setnames(res, old = intersected_columns, new = oncotable_col_to_filtered_events_col[intersected_columns])
 
-  res <- res %>% unique(., by = c("gene", "vartype", "Variant"))
+  dedup_field = c("gene", "vartype", "Variant")
+  dedup_df = list()
+  for (f in dedup_field) {
+      dedup_df[[f]] = res[[f]]
+  }
+  dedup_df = as.data.frame(dedup_df)
+  ix_duplicated = which(base::duplicated.data.frame(dedup_df))
+  if (NROW(ix_duplicated) > 0) {
+      res = res[-ix_duplicated]
+  }
+  ## res <- res %>% unique(., by = c("gene", "vartype", "Variant"))
   if (nrow(res) > 0) {
     res[, seqnames := tstrsplit(Genome_Location, ":", fixed = TRUE, keep = 1)]
     res[, start := tstrsplit(Genome_Location, "-", fixed = TRUE, keep = 1)]
@@ -1954,7 +1968,6 @@ create_filtered_events <- function(
       res.complex[["Genome_Location"]] = loc_complex
       res.complex$Variant = res.complex$vartype
     }
-      
     res.final <- rbind(res.mut, res.cn.dt, res.fus, res.complex, fill = TRUE)
     res.final[, sample := pair]
     if (identical(cohort_type, "heme")) {
@@ -1964,16 +1977,17 @@ create_filtered_events <- function(
     ### FIXME: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
     res.final <- res.final[res.final$seqnames != "Y"]
     ### FIXME ^^^: REMOVING Y CHROMOSOME UNTIL WE UPDATE DRYCLEAN
-    write_json(res.final, out_file, pretty = TRUE)
+    
     
     ## FIXME: Decide whether to either propagate return_table to lift_mvp in lift_heme somehow, or change this
     ## conditional logic to be based on cohort_type. Can also be left alone.
     ## Note that return_table for debugging purposes as well.
-    if (return_table) {
-      return(res.final)
-    }
+
   }
-  NULL
+  write_json(res.final, out_file, pretty = TRUE)
+  if (return_table) {
+      return(res.final)
+  }
 }
 
 

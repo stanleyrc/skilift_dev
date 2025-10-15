@@ -235,191 +235,191 @@ extract_metrics <- function(qc_data, metrics, pair) {
     return(result)
 }
 
-#' @name process_qc_metrics
-#' @title Process Quality Control Metrics
-#' @description Processes quality control metrics from multiple QC files and combines them
-#' @param estimate_library_complexity Path to the estimate_library_complexity_metrics file
-#' @param alignment_summary_metrics Path to the alignment_summary_metrics file
-#' @param insert_size_metrics Path to the insert_size_metrics file
-#' @param wgs_metrics Path to the wgs_metrics file
-#' @param pair Sample pair identifier
-#' @return A list containing processed QC metrics
-process_qc_metrics <- function(
-    estimate_library_complexity,
-    alignment_summary_metrics,
-    insert_size_metrics,
-    tumor_wgs_metrics,
-    normal_wgs_metrics,
-    pair
-) {
+# #' @name process_qc_metrics
+# #' @title Process Quality Control Metrics
+# #' @description Processes quality control metrics from multiple QC files and combines them
+# #' @param estimate_library_complexity Path to the estimate_library_complexity_metrics file
+# #' @param alignment_summary_metrics Path to the alignment_summary_metrics file
+# #' @param insert_size_metrics Path to the insert_size_metrics file
+# #' @param wgs_metrics Path to the wgs_metrics file
+# #' @param pair Sample pair identifier
+# #' @return A list containing processed QC metrics
+# process_qc_metrics <- function(
+#     estimate_library_complexity,
+#     alignment_summary_metrics,
+#     insert_size_metrics,
+#     tumor_wgs_metrics,
+#     normal_wgs_metrics,
+#     pair
+# ) {
 
-    # Define metric mappings for each file type
-    complexity_metrics_cols <- c(
-        read_pairs_examined = "READ_PAIRS_EXAMINED",
-        read_pair_duplicates = "READ_PAIR_DUPLICATES",
-        read_pair_optical_duplicates = "READ_PAIR_OPTICAL_DUPLICATES",
-        percent_duplication = "PERCENT_DUPLICATION"
-    )
+#     # Define metric mappings for each file type
+#     complexity_metrics_cols <- c(
+#         read_pairs_examined = "READ_PAIRS_EXAMINED",
+#         read_pair_duplicates = "READ_PAIR_DUPLICATES",
+#         read_pair_optical_duplicates = "READ_PAIR_OPTICAL_DUPLICATES",
+#         percent_duplication = "PERCENT_DUPLICATION"
+#     )
     
-    alignment_metrics_cols <- c(
-        total_reads = "TOTAL_READS",
-        pf_reads_aligned = "PF_READS_ALIGNED",
-        pf_aligned_bases = "PF_ALIGNED_BASES",
-        mean_read_length = "MEAN_READ_LENGTH"
-    )
+#     alignment_metrics_cols <- c(
+#         total_reads = "TOTAL_READS",
+#         pf_reads_aligned = "PF_READS_ALIGNED",
+#         pf_aligned_bases = "PF_ALIGNED_BASES",
+#         mean_read_length = "MEAN_READ_LENGTH"
+#     )
     
-    insert_metrics_cols <- c(
-        # median_insert_size = "MEDIAN_INSERT_SIZE"
-        insert_size = "MEDIAN_INSERT_SIZE"
-    )
+#     insert_metrics_cols <- c(
+#         # median_insert_size = "MEDIAN_INSERT_SIZE"
+#         insert_size = "MEDIAN_INSERT_SIZE"
+#     )
     
-    tumor_wgs_metrics_cols <- c(
-        # median_coverage = "MEAN_COVERAGE"
-        tumor_median_coverage = "MEDIAN_COVERAGE",
-        # pct_30x = "PCT_30X",
-        greater_than_or_equal_to_30x = "PCT_30X",
-        # pct_50x = "PCT_50X"
-        greater_than_or_equal_to_50x = "PCT_50X",
-        fraction_excluded = "PCT_EXC_TOTAL"
-    )
+#     tumor_wgs_metrics_cols <- c(
+#         # median_coverage = "MEAN_COVERAGE"
+#         tumor_median_coverage = "MEDIAN_COVERAGE",
+#         # pct_30x = "PCT_30X",
+#         greater_than_or_equal_to_30x = "PCT_30X",
+#         # pct_50x = "PCT_50X"
+#         greater_than_or_equal_to_50x = "PCT_50X",
+#         fraction_excluded = "PCT_EXC_TOTAL"
+#     )
 
-    normal_wgs_metrics_cols <- c(
-        normal_median_coverage = "MEDIAN_COVERAGE",
-        fraction_excluded = "PCT_EXC_TOTAL"
-    )
+#     normal_wgs_metrics_cols <- c(
+#         normal_median_coverage = "MEDIAN_COVERAGE",
+#         fraction_excluded = "PCT_EXC_TOTAL"
+#     )
     
-    test_file_is_present = function(x) {
-        (
-            !is.null(x)
-            && is.character(x)
-            && NROW(x) == 1
-            && file.exists(x)
-        )
-    }
+#     test_file_is_present = function(x) {
+#         (
+#             !is.null(x)
+#             && is.character(x)
+#             && NROW(x) == 1
+#             && file.exists(x)
+#         )
+#     }
 
-    # Read and extract metrics from each file
-    complexity_data = data.table(pair = character(0))
-    if (test_file_is_present(estimate_library_complexity)) {
-        complexity_data <- extract_metrics(
-            fread(estimate_library_complexity),
-            complexity_metrics_cols,
-            pair
-        )
-    }
+#     # Read and extract metrics from each file
+#     complexity_data = data.table(pair = character(0))
+#     if (test_file_is_present(estimate_library_complexity)) {
+#         complexity_data <- extract_metrics(
+#             fread(estimate_library_complexity),
+#             complexity_metrics_cols,
+#             pair
+#         )
+#     }
     
-    alignment_data = data.table(pair = character(0))
-    if (test_file_is_present(alignment_summary_metrics)) {
-        alignment_data <- extract_metrics(
-            fread(alignment_summary_metrics)[CATEGORY=="PAIR"],
-            alignment_metrics_cols,
-            pair
-        )
-    }
+#     alignment_data = data.table(pair = character(0))
+#     if (test_file_is_present(alignment_summary_metrics)) {
+#         alignment_data <- extract_metrics(
+#             fread(alignment_summary_metrics)[CATEGORY=="PAIR"],
+#             alignment_metrics_cols,
+#             pair
+#         )
+#     }
     
-    insert_data = data.table(pair = character(0))
-    if (test_file_is_present(insert_size_metrics)) {
-        insert_data <- extract_metrics(
-            fread(insert_size_metrics)[PAIR_ORIENTATION == "FR"],
-            insert_metrics_cols,
-            pair
-        )
-    }
+#     insert_data = data.table(pair = character(0))
+#     if (test_file_is_present(insert_size_metrics)) {
+#         insert_data <- extract_metrics(
+#             fread(insert_size_metrics)[PAIR_ORIENTATION == "FR"],
+#             insert_metrics_cols,
+#             pair
+#         )
+#     }
 
-    tumor_wgs_data = data.table(pair = character(0))
-    if (test_file_is_present(tumor_wgs_metrics)) {
-        tumor_wgs_data <- extract_metrics(
-            fread(tumor_wgs_metrics),
-            tumor_wgs_metrics_cols,
-            pair
-        )
-        tumor_wgs_data$tumor_median_coverage = round(
-            tumor_wgs_data$tumor_median_coverage / (1 - tumor_wgs_data$fraction_excluded)
-        )
-        tumor_wgs_data$fraction_excluded = NULL
-    }
+#     tumor_wgs_data = data.table(pair = character(0))
+#     if (test_file_is_present(tumor_wgs_metrics)) {
+#         tumor_wgs_data <- extract_metrics(
+#             fread(tumor_wgs_metrics),
+#             tumor_wgs_metrics_cols,
+#             pair
+#         )
+#         tumor_wgs_data$tumor_median_coverage = round(
+#             tumor_wgs_data$tumor_median_coverage / (1 - tumor_wgs_data$fraction_excluded)
+#         )
+#         tumor_wgs_data$fraction_excluded = NULL
+#     }
 
-    normal_wgs_data = data.table(pair = character(0))
-    if (test_file_is_present(normal_wgs_metrics)) {
-        normal_wgs_data <- extract_metrics(
-            fread(normal_wgs_metrics),
-            normal_wgs_metrics_cols,
-            pair
-        )
-        normal_wgs_data$normal_median_coverage = round(
-            normal_wgs_data$normal_median_coverage / (1 - normal_wgs_data$fraction_excluded)
-        )
-        normal_wgs_data$fraction_excluded = NULL
-    }
+#     normal_wgs_data = data.table(pair = character(0))
+#     if (test_file_is_present(normal_wgs_metrics)) {
+#         normal_wgs_data <- extract_metrics(
+#             fread(normal_wgs_metrics),
+#             normal_wgs_metrics_cols,
+#             pair
+#         )
+#         normal_wgs_data$normal_median_coverage = round(
+#             normal_wgs_data$normal_median_coverage / (1 - normal_wgs_data$fraction_excluded)
+#         )
+#         normal_wgs_data$fraction_excluded = NULL
+#     }
     
-    # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
-    # "mean_read_length", "median_insert_size", "median_coverage", 
-    # "pct_30x", "pct_50x", "percent_optical_duplication", 
-    # "percent_aligned", "percent_optical_dups_of_dups")
-    # Merge all metrics on pair
-    lst_to_merge = list(
-        complexity_data, 
-        alignment_data, 
-        insert_data, 
-        tumor_wgs_data,
-        normal_wgs_data
-    )
-    qc_metrics <- Reduce(function(x, y) {
-        data.table::merge.data.table(
-            x, y, by = "pair", 
-            all.x = TRUE, 
-            all.y = TRUE,
-            suffixes = c("_x", "_y")
-        )
-    }   , lst_to_merge)
+#     # c("pair", "total_reads", "pf_reads_aligned", "pf_aligned_bases", 
+#     # "mean_read_length", "median_insert_size", "median_coverage", 
+#     # "pct_30x", "pct_50x", "percent_optical_duplication", 
+#     # "percent_aligned", "percent_optical_dups_of_dups")
+#     # Merge all metrics on pair
+#     lst_to_merge = list(
+#         complexity_data, 
+#         alignment_data, 
+#         insert_data, 
+#         tumor_wgs_data,
+#         normal_wgs_data
+#     )
+#     qc_metrics <- Reduce(function(x, y) {
+#         data.table::merge.data.table(
+#             x, y, by = "pair", 
+#             all.x = TRUE, 
+#             all.y = TRUE,
+#             suffixes = c("_x", "_y")
+#         )
+#     }   , lst_to_merge)
     
-    # Calculate derivative metrics
-    # Separating out and writing long way for robustness to
-    # missing data.
-    qc_metrics$m_reads = qc_metrics$total_reads / 1e6
-    qc_metrics$m_reads_mapped = qc_metrics$pf_reads_aligned / 1e6
-    qc_metrics$percent_optical_duplication = (
-        qc_metrics$read_pair_optical_duplicates /
-        qc_metrics$read_pairs_examined
-    )
-    qc_metrics$percent_aligned = (
-        qc_metrics$pf_aligned_bases / 
-        ( qc_metrics$total_reads * qc_metrics$mean_read_length )
-    )
-    qc_metrics$percent_optical_dups_of_dups = (
-        qc_metrics$read_pair_optical_duplicates / 
-        qc_metrics$read_pair_duplicates
-    )
-    # # FIXME, need to account for tumor and normal
-    # qc_metrics$normal_median_coverage = NA_integer_
+#     # Calculate derivative metrics
+#     # Separating out and writing long way for robustness to
+#     # missing data.
+#     qc_metrics$m_reads = qc_metrics$total_reads / 1e6
+#     qc_metrics$m_reads_mapped = qc_metrics$pf_reads_aligned / 1e6
+#     qc_metrics$percent_optical_duplication = (
+#         qc_metrics$read_pair_optical_duplicates /
+#         qc_metrics$read_pairs_examined
+#     )
+#     qc_metrics$percent_aligned = (
+#         qc_metrics$pf_aligned_bases / 
+#         ( qc_metrics$total_reads * qc_metrics$mean_read_length )
+#     )
+#     qc_metrics$percent_optical_dups_of_dups = (
+#         qc_metrics$read_pair_optical_duplicates / 
+#         qc_metrics$read_pair_duplicates
+#     )
+#     # # FIXME, need to account for tumor and normal
+#     # qc_metrics$normal_median_coverage = NA_integer_
 
-    # Remove any metrics that are NA
-    # This can happen if any derivative metrics
-    # are calculated from qc inputs not provided
-    # in above lines.
-    for (colnm in names(qc_metrics)) {
-        is_all_na = all(is.na(qc_metrics[[colnm]]))
-        if (is_all_na) qc_metrics[[colnm]] = NULL
-    }
+#     # Remove any metrics that are NA
+#     # This can happen if any derivative metrics
+#     # are calculated from qc inputs not provided
+#     # in above lines.
+#     for (colnm in names(qc_metrics)) {
+#         is_all_na = all(is.na(qc_metrics[[colnm]]))
+#         if (is_all_na) qc_metrics[[colnm]] = NULL
+#     }
 
-    # qc_metrics[, `:=`(
-    #     m_reads = total_reads / 1e6,
-    #     m_reads_mapped = pf_reads_aligned / 1e6,
-    #     percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
-    #     percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
-    #     percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
-    # )]
+#     # qc_metrics[, `:=`(
+#     #     m_reads = total_reads / 1e6,
+#     #     m_reads_mapped = pf_reads_aligned / 1e6,
+#     #     percent_optical_duplication = read_pair_optical_duplicates / read_pairs_examined,
+#     #     percent_aligned = pf_aligned_bases / (total_reads * mean_read_length),
+#     #     percent_optical_dups_of_dups = read_pair_optical_duplicates / read_pair_duplicates
+#     # )]
     
-    return(as.list(qc_metrics))
-}
+#     return(as.list(qc_metrics))
+# }
 
 
-list_of_qc = list(
-    dup_rate = "estimate_library_complexity",
-    tumor_cov = "tumor_wgs_metrics",
-    normal_cov = "normal_wgs_metrics",
-    insert_size = "insert_size_metrics",
-    alignment_summary = "alignment_summary_metrics"
-)
+# list_of_qc = list(
+#     dup_rate = "estimate_library_complexity",
+#     tumor_cov = "tumor_wgs_metrics",
+#     normal_cov = "normal_wgs_metrics",
+#     insert_size = "insert_size_metrics",
+#     alignment_summary = "alignment_summary_metrics"
+# )
 
 #' QC Metrics
 #' 
@@ -431,7 +431,7 @@ list_of_qc = list(
 #' @param wgs_metrics Path to the wgs_metrics file
 #' @param pair Sample pair identifier
 #' @return A list containing processed QC metrics
-process_qc_metrics2 <- function(
+process_qc_metrics <- function(
     estimate_library_complexity,
     alignment_summary_metrics,
     insert_size_metrics,
@@ -630,14 +630,7 @@ process_qc_metrics2 <- function(
     return(as.list(qc_metrics))
 }
 
-qc_flag_thresholds = list(
-    list("FAIL", "greater_than_or_equal_to_50x", `<=`, 0.99, "Fraction of genome covered at 50X","< 99%"),
-    list("WARN", "purity", `<`, 0.2, "Purity", "less than 20%"),
-    list("WARN", "insert_size", `<`, 300, "Insert Size", "less than 300 bp"),
-    list("WARN", "percent_duplication", `>`, 0.3, "Duplicate percent", "greater than than 30%"),
-    list("FAIL", "fraction_of_reads_aligned", `<`, 0.9, "Percent of reads aligned", "less than 90%"),
-    list("FAIL", "conpair_concordance_metric", `<`, 0.9, "Tumor/Normal SNP concordance", "less than 90%")
-)
+
 
 #' QC Flags
 #'
@@ -648,10 +641,15 @@ qc_flag_thresholds = list(
 #' The strings should be parsable into a form
 #' digested in gOS and shown as a single "PASS"/Checkmark", "Warning", or "Fail". 
 #' The actual metrics should show up on hover.
+#' @export
 process_qc_flag = function(
     metadata,
-    qc_flag_thresholds = Skilift:::qc_flag_thresholds
+    qc_flag_thresholds
 ) {
+
+    if (is.null(qc_flag_thresholds)) {
+        qc_flag_thresholds = Skilift:::qc_flag_thresholds
+    }
 
     check_field = function(list_like, field) {
         val1 = list_like[[field]]
@@ -665,44 +663,86 @@ process_qc_flag = function(
     }
 
     flags_lst = list()
+    ops_oppo = c(
+        ">=" = "<",
+        "<=" = ">",
+        ">" = "<=",
+        "<" = ">=",
+        "==" = "!=",
+        "!=" = "=="
+    )
 
     for (tuple in qc_flag_thresholds) {
         flag_title = tuple[[1]]
         field = tuple[[2]]
         fun_comparator = tuple[[3]]
+        fun_comparator_string = gsub("\"", "", as.character(substitute(quote(fun_comparator))))
+        fun_comparator_string = gsub(".Primitive", "", fun_comparator_string, perl = TRUE)
+        fun_comparator_string = gsub("[\\(\\)]", "", fun_comparator_string, perl = TRUE)
+        fun_comparator_string = fun_comparator_string[!fun_comparator_string %in% c("quote", ".Primitive")]
+        if (NROW(fun_comparator_string) != 1) stop("wtf is going on with the comparator string")
         value = tuple[[4]]
         transformed_name = tuple[[5]]
         flag_message = tuple[[6]]
         data_value = check_field(metadata, field)
         is_na = any(is.na(data_value))
         if (is_na) {
-            flags_lst = c(flags_lst, list(paste("Unknown:", transformed_name)))
-            next
+            flag_title = "UNKNOWN"
+            # flags_lst = c(flags_lst, list(paste("UNKNOWN:", transformed_name)))
+            # next
         }
-        is_flagged = fun_comparator(data_value, value)
+        is_flagged = all(fun_comparator(data_value, value))
+        is_flagged = is_flagged && all(!is.na(is_flagged))
+        op_to_show = fun_comparator_string
         if (!is_flagged) {
             flag_title = "PASS"
-            flag_message = ""
+            op_to_show = ops_oppo[fun_comparator_string]
         }
+        flag_shown_value = paste(
+            op_to_show,
+            " ",
+            flag_message,
+            sep = ""
+        )
+        key_json = flag_title
+        value_json = paste(
+            transformed_name, 
+            " (", 
+            signif(data_value, 3), 
+            ")", " ",
+            # flag_message,
+            flag_shown_value,
+            sep = ""
+        )
+        if (identical(flag_title, "UNKNOWN")) {
+            value_json = transformed_name
+        }
+        value_json = trimws(value_json)
+        ## record_json = list(
+        ##     paste(
+        ##         flag_title, 
+        ##         ": ", 
+        ##         transformed_name, 
+        ##         " (", 
+        ##         signif(data_value, 3), 
+        ##         ")", " ",
+        ##         flag_message,
+        ##         sep = ""
+        ##     )
+        ## )
+        record_json = list(list("code" = key_json, "title" = value_json))
+        ## names(record_json)[names(record_json) == "key_field___rename"] = key_json
+        ## names(record_json)[names(record_json) == "value_field___rename"] = value_json
         flags_lst = c(
             flags_lst, 
-            list(
-                paste(
-                    flag_title, 
-                    ": ", 
-                    transformed_name, 
-                    " (", 
-                    signif(data_value, 3), 
-                    ")", " ",
-                    flag_message,
-                    sep = ""
-                )
-            )
+            record_json
         )
     }
 
     ## do.call(function(...) paste(..., collapse = "\n"), flags_lst)
-    metadata$qc_flag = paste(trimws(unlist(flags_lst)), collapse = "\n")
+    # metadata$qc_flag = paste(trimws(unlist(flags_lst)), collapse = "\n")
+    # browser()
+    metadata$qcMetrics = list(flags_lst)
     return(metadata)
 }
 
@@ -754,7 +794,7 @@ add_coverage_metrics <- function(
         #     normal_wgs_metrics,
         #     metadata$pair
         # )
-        processed_metrics <- process_qc_metrics2(
+        processed_metrics <- process_qc_metrics(
             estimate_library_complexity,
             alignment_summary_metrics,
             insert_size_metrics,
@@ -1519,7 +1559,8 @@ create_metadata <- function(
 	summary = NULL,
     conpair_contamination = NULL,
     conpair_concordance = NULL,
-    cohort_type = NULL
+    cohort_type = NULL,
+    qc_flags_config = NULL
 ) {
     # Initialize metadata with all possible columns
     metadata <- initialize_metadata_columns(pair)
@@ -1579,7 +1620,7 @@ create_metadata <- function(
         metadata$visible <- FALSE
     }
 
-    metadata = process_qc_flag(metadata, Skilift:::qc_flag_thresholds)
+    metadata = process_qc_flag(metadata, qc_flags_config)
 
 	metadata$summary = summary
     
@@ -1711,7 +1752,8 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 conpair_contamination = row$conpair_contamination,
                 conpair_concordance = row$conpair_concordance,
 				summary = row$string_summary,
-                cohort_type = cohort_type
+                cohort_type = cohort_type,
+                qc_flags_config = row$qc_flags[[1]]
             )
 
             if (is.null(metadata)) {
@@ -1851,11 +1893,11 @@ convert_json_to_arrow <- function(json_file_path, arrow_file_path = NULL) {
 
   # Write Arrow file
   tryCatch({
-    arrow::write_feather(data, arrow_file_path)
+    arrow::write_feather(data, arrow_file_path, compression = "uncompressed")
+    message("Successfully converted ", json_file_path, " to ", arrow_file_path)
   }, error = function(e) {
-    stop("Error writing Arrow file: ", e$message)
+    message("Error writing Arrow file: ", e$message)
   })
 
-  message("Successfully converted ", json_file_path, " to ", arrow_file_path)
   return(invisible(data))
 }

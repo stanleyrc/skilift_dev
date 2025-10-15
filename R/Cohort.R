@@ -696,7 +696,13 @@ Cohort <- R6Class("Cohort",
         } else if (!is.null(default_value) && nrow(dt) > 0) {
           # Only add default values if the input data.table is not empty
           if (is.list(default_value) || length(default_value) > 1) {
-            result_dt[, (cohort_col) := list(replicate(nrow(dt), list(default_value), simplify = FALSE))]
+            ## value_to_add = replicate(nrow(dt), list(default_value), simplify = FALSE)
+            value_to_add = replicate(nrow(dt), list(default_value), simplify = TRUE)
+            result_dt[["PLACEHOLDER___COLUMN"]] = value_to_add
+            names(result_dt)[
+              names(result_dt) == "PLACEHOLDER___COLUMN"
+            ] = cohort_col
+            ## result_dt[, (cohort_col) := list(replicate(nrow(dt), list(default_value), simplify = FALSE))]
           } else {
             result_dt[, (cohort_col) := default_value]
           }
@@ -859,6 +865,7 @@ nf_path_patterns <- list(
   oncokb_fusions = "oncokb/.*/merged_oncokb_fusions.tsv"
 )
 
+
 #' Default column mappings
 #'
 #' Defines naming convention cohort inputs table
@@ -957,8 +964,10 @@ default_col_mapping <- list(
   hetsnps_subsample_size = structure(c("hetsnps_subsample_size"), default = 100000),
   hetsnps_min_normal_freq = structure(c("hetsnps_min_normal_freq"), default = 0.2),
   hetsnps_max_normal_freq = structure(c("hetsnps_max_normal_freq"), default = 0.8),
-  segment_width_distribution_annotations = structure(c("segment_width_distribution_annotations"), default = NULL)
+  segment_width_distribution_annotations = structure(c("segment_width_distribution_annotations"), default = NULL),
+  qc_flags = structure("qc_flags", default = Skilift:::qc_flag_thresholds)
 )
+
 
 #' Configuration parameter names
 #'
@@ -983,7 +992,8 @@ config_parameter_names <- c(
   "hetsnps_subsample_size",
   "hetsnps_min_normal_freq",
   "hetsnps_max_normal_freq",
-  "segment_width_distribution_annotations"
+  "segment_width_distribution_annotations",
+  "qc_flag_thresholds"
 )
 
 #' Create unified column and nf casereports map
