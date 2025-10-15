@@ -37,7 +37,10 @@ create_metadata(
   denoised_coverage_field = "foreground",
   is_visible = TRUE,
   summary = NULL,
-  cohort_type = NULL
+  conpair_contamination = NULL,
+  conpair_concordance = NULL,
+  cohort_type = NULL,
+  qc_flags_config = NULL
 )
 }
 \arguments{
@@ -45,7 +48,7 @@ create_metadata(
 
 \item{tumor_type}{The type of tumor.}
 
-\item{tumor_details}{Additional details about the tumor.}
+\item{tumor_details}{Details about the tumor.}
 
 \item{disease}{The disease associated with the sample.}
 

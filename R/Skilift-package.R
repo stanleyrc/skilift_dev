@@ -48,34 +48,3 @@ registerS3method(genname = "merge", class = "data.table", method = data.table::m
 	}
 	
 }
-
-## Global Variables
-
-#' Paired reads factor 
-#' 
-#' Multiply paired reads by this number for coverage
-#' 
-#' To get binned coverage into base level coverage,
-#' multiply by paired reads factor (2)
-PAIRED_READS_FACTOR = 2
-
-#' Read length
-#' 
-#' Multiply paired reads by this number for read length
-#' 
-#' To get binned coverage into read length level coverage,
-#' multiply by read length (151)
-READ_LENGTH = 151
-
-#' Snpeff Protein Coding Annotations
-#' 
-#' Nuff said.
-#' 
-#' 
-snpeff_protein_coding_annotations = c("frameshift_variant", "stop_lost", "start_lost", "stop_gained", 
-"chromosome", "exon_loss_variant", "feature_ablation", "duplication", 
-"splice_acceptor_variant", "splice_donor_variant", "splice_region_variant", 
-"inframe_insertion", "disruptive_inframe_insertion", "inframe_deletion", 
-"disruptive_inframe_deletion", "coding_sequence_variant", "missense_variant", 
-"protein_protein_contact", "structural_interaction_variant", 
-"rare_amino_acid_variant")
