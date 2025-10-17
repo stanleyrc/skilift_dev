@@ -3,7 +3,7 @@ pick_first_snpeff = function(
   snpeff_annotations = mutations.dt$Consequence ## parsed by oncokb
   snpeff_annotations_delim = "," ## parsed by oncokb
   annotationsplit = strsplit(snpeff_annotations, snpeff_annotations_delim)
-  annotationsplit = gGnome::dunlist(annotationsplit)
+  annotationsplit = Skilift:::dunlist(annotationsplit)
   annotationsplit[, ix := seq_len(.N), by = listid]
   annotationsplit[, num := .N, by = listid]
   first_annotation = annotationsplit[ix == 1]
@@ -165,7 +165,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 
 	mcols(mutations.gr)$snpeff_annotation = mutations.gr$annotation
 	annotationsplit = strsplit(mcols(mutations.gr)$snpeff_annotation, "&")
-	annotationsplit = gGnome::dunlist(annotationsplit)
+	annotationsplit = Skilift:::dunlist(annotationsplit)
 	annotationsplit[, ix := seq_len(.N), by = listid]
 	annotationsplit[, num := .N, by = listid]
 
@@ -314,7 +314,7 @@ create_multiplicity <- function(snv_cn, oncokb_snv=NULL, is_germline = FALSE, fi
 		snpeff_annotations = mutations.dt$Consequence ## parsed by oncokb
 		snpeff_annotations_delim = "," ## parsed by oncokb
 		annotationsplit = strsplit(snpeff_annotations, snpeff_annotations_delim)
-		annotationsplit = gGnome::dunlist(annotationsplit)
+		annotationsplit = Skilift:::dunlist(annotationsplit)
 		annotationsplit[, ix := seq_len(.N), by = listid]
 		annotationsplit[, num := .N, by = listid]
 		first_annotation = annotationsplit[ix == 1]
