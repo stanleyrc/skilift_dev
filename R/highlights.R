@@ -493,7 +493,7 @@ create_heme_highlights_eln_risk_score = function(small_muts, svs, cna, karyotype
 
   variantp = regmatches(small_muts$Variant, gregexpr("(p\\.[a-zA-Z0-9_]+)", small_muts$Variant))
   variantp[base::lengths(variantp) == 0] = ""
-  variantp = dunlist(variantp)
+  variantp = Skilift:::dunlist(variantp)
 
   variantp_coord = regmatches(variantp$V1, gregexpr("[0-9]+", variantp$V1))
   variantp_coord[base::lengths(variantp_coord) == 0] = ""

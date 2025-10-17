@@ -1803,18 +1803,29 @@ lift_datafiles_json <- function(output_data_dir, cores = 1) {
   if (!dir.exists(output_data_dir)) {
     stop("Data directory does not exist.")
   }
-  
-  # Recursively look for all files named "metadata.json"
-  metadata_files <- list.files(
-    path = output_data_dir,
-    pattern = "metadata\\.json$",
-    recursive = TRUE,
-    full.names = TRUE
-  )
+
+  ## Just expect that the right data directory and structure is provided
+  direcs = list.dirs(output_data_dir, recursive = FALSE)
+  metadata_files = file.path(direcs, "metadata.json")
+  is_present = file.exists(metadata_files)
+  all_absent = !any(is_present)
+  metadata_files = metadata_files[is_present]
+  if (all_absent) {
+    # Recursively look for all files named "metadata.json"
+    message("No metadata.json files found in the specified directory. Attempting recursive search")
+    metadata_files <- list.files(
+        path = output_data_dir,
+        pattern = "metadata\\.json$",
+        recursive = TRUE,
+        full.names = TRUE
+    )
+  }
   
   if (length(metadata_files) == 0) {
     stop("No metadata.json files found in the specified directory.")
   }
+
+  
   
   # Read each JSON file and combine them into a list
   combined_data <- mclapply(metadata_files, function(file) {
@@ -1828,6 +1839,72 @@ lift_datafiles_json <- function(output_data_dir, cores = 1) {
   invisible(convert_json_to_arrow(output_file))
   
 }
+
+
+test_list_attributes = function(x) {
+  ## x = data[["sv_types_count"]]
+  is_list = inherits(x, c("list", "List"))
+  if (!is_list) {
+    return(list(
+      is_simple_list = FALSE,
+      is_ragged_list_depth1 = FALSE,
+      is_deeply_nested = FALSE,
+      is_list_of_dataframes = FALSE
+    ))
+  }
+  test_element_data_frame = function(listObj) {
+    any(
+      vapply(
+        X = listObj,
+        FUN = function(x) inherits(x, c("data.frame", "DataFrame")),
+        FUN.VALUE = logical(1)
+      )
+    )
+  }
+  nr = NROW(x)
+  lens = S4Vectors::elementNROWS(x)
+  nr_lens = NROW(lens)
+  is_all_same_len = all(diff(lens) == 0)
+  is_deeply_nested = ! identical(sum(lens), length(unlist(x)))
+  is_list_of_dataframes = FALSE
+  if (is_list) {
+    is_list_of_dataframes = test_element_data_frame(x)
+  }
+  if (is_list_of_dataframes) is_deeply_nested = FALSE
+  is_simple_list = is_list && !is_list_of_dataframes
+  is_empty = is_list && (nr == 0 || nr_lens == 0)
+  is_ragged_list_depth1 = is_simple_list && !is_all_same_len ## doesn't guarantee that nested list is ragged, but whatever.. deal with if nested list is ragged case if it arises later
+  return(
+    list(
+      is_simple_list = is_simple_list,
+      is_ragged_list_depth1 = is_ragged_list_depth1,
+      is_deeply_nested = is_deeply_nested,
+      is_list_of_dataframes = is_list_of_dataframes,
+      is_empty = is_empty
+    )
+  )
+}
+
+dunlist = function (x) {
+  listid = rep(seq_len(NROW(x)), S4Vectors::elementNROWS(x))
+  emptydt = data.table::data.table(listid = integer(0), V1 = integer(0))
+  data.table::setkey(emptydt, listid)
+  if (NROW(x) == 0) {
+    return(emptydt)
+  }
+  if (!is.null(names(x))) 
+    listid = names(x)[listid]
+  xu = unlist(x, use.names = FALSE)
+  if (is.null(xu)) {
+    return(emptydt)
+  }
+  if (!(inherits(xu, "data.frame")) | inherits(xu, "data.table")) 
+    xu = data.table(V1 = xu)
+  out = cbind(data.table(listid = listid), xu)
+  data.table::setkey(out, listid)
+  return(out)
+}
+
 
 
 #' Convert a JSON file to an Arrow file.
@@ -1872,22 +1949,58 @@ convert_json_to_arrow <- function(json_file_path, arrow_file_path = NULL) {
   }
 
   # Pre-process list columns that might cause issues with Arrow type inference
+  is_simple_empty <- function(el) {
+    is.null(el) ||
+    (is.atomic(el) && length(el) == 0) ||
+    (is.list(el) && !is.data.frame(el) && length(el) == 0)
+  }
   for (col_name in names(data)) {
+
     # Only process actual list-columns, not columns that are themselves data.frames
-    if (is.list(data[[col_name]]) && !is.data.frame(data[[col_name]])) {
-      is_simple_empty <- function(el) {
-        is.null(el) ||
-        (is.atomic(el) && length(el) == 0) ||
-        (is.list(el) && !is.data.frame(el) && length(el) == 0)
-      }
+    val = data[[col_name]]    
+    lst_attributes = test_list_attributes(val)
+    is_simple_list = lst_attributes$is_simple_list
+    is_ragged_list_depth1 = lst_attributes$is_ragged_list_depth1
+    is_list_of_dataframes = lst_attributes$is_list_of_dataframes
+    is_list = is_simple_list || is_list_of_dataframes
+
+    if (is_list) {
+
+      len = length(val)
+      val_revise = rep_len(NA_character_, len)    
       
       all_elements_empty <- all(sapply(data[[col_name]], is_simple_empty))
+
+      do_revise_values = all_elements_empty || is_ragged_list_depth1
       
+      if (! do_revise_values) {
+        next
+      }
+
+      ## If json -> data.frame conversion has edge cases
+      ## that need to be dealt with
+      ## all empty values and ragged lists
+      ## i.e. list( list(1, 2, 3), list(1, 2) )
+      ## need to be converted to convert to arrow 
+
       if (all_elements_empty) {
         cat(paste("Transforming column:", col_name, "to a vector of NA_character_ because all its elements were simple_empty.\n"))
         # Convert to a simple vector of NA_character_ of the correct length
-        data[[col_name]] <- rep(NA_character_, length(data[[col_name]]))
       }
+
+      if (is_ragged_list_depth1) {
+        val_unlisted = Skilift:::dunlist(val)
+        val_unlisted$names = names(unlist(val))
+        df = data.frame(key = val_unlisted$names, value = val_unlisted$V1)
+        rownames(df) = NULL
+        val_revise = split(
+            df,
+            val_unlisted$listid
+        )[as.character(seq_len(NROW(val)))]
+        names(val_revise) = rep_len(col_name, NROW(val_revise))
+      }
+
+      data[[col_name]] <- val_revise
     }
   }
 
