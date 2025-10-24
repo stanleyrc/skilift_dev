@@ -465,6 +465,7 @@ process_qc_metrics <- function(
             !is.null(x)
             && is.character(x)
             && NROW(x) == 1
+            && !any(is.na(x))
             && file.exists(x)
         )
     }
@@ -473,7 +474,7 @@ process_qc_metrics <- function(
         nr = NROW(path)
         is_character = is.character(path)
         is_any_na = any(is.na(path))
-        is_invalid = is_character && (! nr == 1 || is_any_na)
+        is_invalid = is_character && (! nr == 1 )
         if (is_invalid) stop(path, ": invalid path!")
         if (!test_file_is_present(path)) return(data.table::data.table(pair = pair))
         fcon = file(path, "r")
@@ -692,7 +693,7 @@ process_qc_flag = function(
             # next
         }
         is_flagged = all(fun_comparator(data_value, value))
-        is_flagged = is_flagged && all(!is.na(is_flagged))
+        is_flagged = is_flagged && !is_na
         op_to_show = fun_comparator_string
         if (!is_flagged) {
             flag_title = "PASS"
@@ -745,6 +746,108 @@ process_qc_flag = function(
     metadata$qcMetrics = list(flags_lst)
     return(metadata)
 }
+
+calculate_cosine_similarity = function(A, B) {
+  is_allzero_A = all(A < 1e-8 & A > -1e-8)
+  is_allzero_B = all(B < 1e-8 & B > -1e-8)
+  is_allzero = is_allzero_A || is_allzero_B
+  if (is_allzero) {
+    return(NA_real_)
+  }
+  numerator = sum( A * B )
+  denominator = (
+    sqrt( sum( A^2 ) ) * sqrt( sum( B^2 ) )
+  )
+  return(numerator / denominator)
+}
+
+#' Signature Cosine Similarity
+#'
+#' Add Cosine Similarity to Metadata
+#'
+#' Calculates and adds cosine similarity metrics for mutational signatures to the metadata.
+#' Cosine similarity is computed between the decomposed signature matrix and the reference signature matrix.
+#' @param metadata A data.table containing metadata.
+#' @param channel_counts Channel mutation counts
+#' @param decomposed_signature_matrix Posterior signature probability per nucleotide (Summing across channels should add up to 1)
+#' @param signature_reference_matrix Signature channel emission probabilities (Summing across signature should add up to 1)
+#' @return Updated metadata with coverage metrics added.
+add_signature_cosine_similarity <- function(
+    metadata,
+    channel_counts = NULL,
+    decomposed_signature_matrix = NULL,
+    signature_reference_matrix = NULL,
+    field_name
+) {
+
+    test_file_presence = function(x) {
+        (
+            !is.null(x)
+            && is.character(x)
+            && NROW(x) == 1
+            && file.exists(x)
+        )
+    }
+
+    are_all_required_paths_found = (
+        test_file_presence(channel_counts)
+        && test_file_presence(decomposed_signature_matrix)
+        && test_file_presence(signature_reference_matrix)
+    )
+    if (!are_all_required_paths_found) {
+        return(metadata)
+    }
+    
+    ## FIXME: this path should be explicitly provided from gOSh onwards, but for now, hardcoding path resolution.
+    resolved_path = file.path(dirname(dirname(signature_reference_matrix)), "Signatures", "Assignment_Solution_Signatures.txt")
+    if (file.exists(resolved_path)) {
+        signature_reference_matrix = resolved_path
+    }
+
+    decomposed = fread(decomposed_signature_matrix)
+
+    channel_counts = fread(channel_counts)
+
+    refsig = fread(signature_reference_matrix)
+
+    normalized_channel = decomposed$MutationType
+    norm_channel_counts = channel_counts[match(normalized_channel, channel_counts$MutationType),]
+
+    nm = names(decomposed)
+    norm_sigs = nm[!nm %in% c("Sample Names", "MutationType")]
+
+    norm_decomposed_frac = decomposed[match(normalized_channel, decomposed$MutationType),]
+    norm_decomposed_frac = base::subset(norm_decomposed_frac, select = norm_sigs)
+    mat_decomposed_frac = as.matrix(norm_decomposed_frac)
+    rownames(mat_decomposed_frac) = normalized_channel
+
+    channel_count_col = names(norm_channel_counts)[!names(norm_channel_counts) %in% c("Sample Names", "MutationType")]
+
+    mat_channel_counts = as.matrix(base::subset(norm_channel_counts, select = channel_count_col))
+    rownames(mat_channel_counts) = normalized_channel
+
+    mat_decomposed_counts = sweep(x = mat_decomposed_frac, MARGIN = 1, STATS = mat_channel_counts, FUN = "*")
+
+    norm_ref = refsig[match(normalized_channel, refsig$MutationType)]
+    norm_ref = base::subset(norm_ref, select = norm_sigs)
+    mat_ref = as.matrix(norm_ref)
+    rownames(mat_ref) = normalized_channel
+
+    itersig = function(sig) {
+        vecA = mat_decomposed_counts[normalized_channel,sig]
+        vecB = mat_ref[normalized_channel,sig]
+        calculate_cosine_similarity(vecA, vecB)
+    }
+    
+    cosine_similarities = lapply(norm_sigs, itersig)
+    names(cosine_similarities) = norm_sigs
+
+    metadata[[field_name]] = list(as.list(cosine_similarities))
+
+    return(metadata)
+}
+
+
 
 #' @name add_coverage_metrics
 #' @title Add Coverage Metrics
@@ -1544,9 +1647,13 @@ create_metadata <- function(
     tumor_wgs_metrics = NULL,
     normal_wgs_metrics = NULL,
     het_pileups = NULL,
+    decomposed_indel_signatures = NULL,
     activities_indel_signatures = NULL,
+    matrix_indel_signatures = NULL,
     deconstructsigs_sbs_signatures = NULL,
+    decomposed_sbs_signatures = NULL,
     activities_sbs_signatures = NULL,
+    matrix_sbs_signatures = NULL,
     hrdetect = NULL,
     onenesstwoness = NULL,
     msisensorpro = NULL,
@@ -1608,7 +1715,23 @@ create_metadata <- function(
         activities_indel_signatures,
         deconstructsigs_sbs_signatures
     )
-    
+
+    metadata = add_signature_cosine_similarity(
+        metadata,
+        channel_counts = matrix_sbs_signatures,
+        decomposed_signature_matrix = decomposed_sbs_signatures,
+        signature_reference_matrix = activities_sbs_signatures, ## FIXME: path is found through dirname search.. should be able to provide just a matrix to get the reference signatures
+        field = "sigprofiler_sbs_cosine_similarity"
+    )
+
+    metadata = add_signature_cosine_similarity(
+        metadata,
+        channel_counts = matrix_indel_signatures,
+        decomposed_signature_matrix = decomposed_indel_signatures,
+        signature_reference_matrix = activities_indel_signatures, ## FIXME: path is found through dirname search.. should be able to provide just a matrix to get the reference signatures
+        field = "sigprofiler_indel_cosine_similarity"
+    )
+
     # Add HRD scores
     metadata <- add_hrd_scores(metadata, hrdetect, onenesstwoness)
 
@@ -1741,6 +1864,10 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
                 tumor_wgs_metrics = row$tumor_wgs_metrics,
                 normal_wgs_metrics = row$normal_wgs_metrics,
                 het_pileups = row$het_pileups,
+                decomposed_sbs_signatures = row$decomposed_sbs_signatures,
+                decomposed_indel_signatures = row$decomposed_indel_signatures,
+                matrix_sbs_signatures = row$matrix_sbs_signatures,
+                matrix_indel_signatures = row$matrix_indel_signatures,
                 activities_sbs_signatures = row$activities_sbs_signatures,
                 activities_indel_signatures = row$activities_indel_signatures,
                 hrdetect = row$hrdetect,
