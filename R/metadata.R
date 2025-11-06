@@ -937,7 +937,7 @@ add_conpair <- function(
 
     normal_conpair_contamination_value = NA_real_
     tumor_conpair_contamination_value = NA_real_
-    if (!is.null(conpair_contamination)) {
+    if (!is.null(conpair_contamination) && !any(is.na(conpair_contamination))) {
         conpair_metrics = readLines(conpair_contamination)
         tumor_conpair_contamination_value = gsub(".*: ", "", conpair_metrics[2])
         tumor_conpair_contamination_value = as.numeric(gsub("%", "", tumor_conpair_contamination_value)) / 100
@@ -948,7 +948,7 @@ add_conpair <- function(
 
 
     conpair_concordance_metric = NA_real_
-    if (!is.null(conpair_concordance)) {
+    if (!is.null(conpair_concordance) && !any(is.na(conpair_concordance))) {
         conpair_metrics = readLines(conpair_concordance)
         conpair_concordance_metric = as.numeric(conpair_metrics[1])
     }
@@ -1025,17 +1025,24 @@ add_variant_counts <- function(
         is_rds = is_snvs_exists && grepl("rds$", somatic_snvs)
         is_vcf = is_snvs_exists && grepl("(v|b)cf(.gz|.bgz)?$", somatic_snvs)
         is_txt = is_snvs_exists && grepl("(txt|maf|(t|c)sv)(.gz|.bgz)?$", somatic_snvs)
-        is_other = is_txt || is_rds
+        is_numeric = is_length_one && is.numeric(somatic_snvs)
+        is_other = !is_numeric && (is_txt || is_rds)
+        is_numeric_or_other = is_numeric || is_other
         snv_counts_dt = data.table()
         if (is_vcf) {
             snv_counts_dt <- vcf_count(somatic_snvs, genome = genome)
         }
         if (is_rds) snvs = readRDS(somatic_snvs)
         if (is_txt) snvs = fread(somatic_snvs)
-        if (is_other) {
+        if (is_numeric) {
+            snv_count = somatic_snvs
+        } else if (is_other) {
+            snv_count = NROW(snvs)
+        }
+        if (is_numeric_or_other) {
             snv_counts_dt = data.table(
                 category = c("snv_count", "snv_count_normal_vaf_greater0"),
-                counts = c(NROW(snvs), NA_integer_)
+                counts = c(snv_count, NA_integer_)
             )
         }
         
@@ -1845,42 +1852,42 @@ lift_metadata <- function(cohort, output_data_dir, cores = 1, genome_length = c(
             # Create metadata object
 
             metadata <- create_metadata(
-                pair = row$pair,
-                tumor_type = row$tumor_type,
-                tumor_details = row$tumor_details,
-                disease = row$disease,
-                primary_site = row$primary_site,
+                pair = row[["pair"]],
+                tumor_type = row[["tumor_type"]],
+                tumor_details = row[["tumor_details"]],
+                disease = row[["disease"]],
+                primary_site = row[["primary_site"]],
                 inferred_sex = inferred_sex_field,
-                purple_pp_bestFit = row$purple_pp_bestFit,
+                purple_pp_bestFit = row[["purple_pp_bestFit"]],
                 jabba_gg = row[[jabba_column]],
-                events = row$events,
+                events = row[["events"]],
                 somatic_snvs = snvs_column,
-                germline_snvs = row$germline_snvs,
-                foreground_col_name = row$denoised_coverage_field,
-                tumor_coverage = row$tumor_coverage,
-                estimate_library_complexity = row$estimate_library_complexity,
-                alignment_summary_metrics = row$alignment_summary_metrics,
-                insert_size_metrics = row$insert_size_metrics,
-                tumor_wgs_metrics = row$tumor_wgs_metrics,
-                normal_wgs_metrics = row$normal_wgs_metrics,
-                het_pileups = row$het_pileups,
-                decomposed_sbs_signatures = row$decomposed_sbs_signatures,
-                decomposed_indel_signatures = row$decomposed_indel_signatures,
-                matrix_sbs_signatures = row$matrix_sbs_signatures,
-                matrix_indel_signatures = row$matrix_indel_signatures,
-                activities_sbs_signatures = row$activities_sbs_signatures,
-                activities_indel_signatures = row$activities_indel_signatures,
-                hrdetect = row$hrdetect,
-                onenesstwoness = row$onenesstwoness,
-                msisensorpro = row$msisensorpro,
+                germline_snvs = row[["germline_snvs"]],
+                foreground_col_name = row[["denoised_coverage_field"]],
+                tumor_coverage = row[["tumor_coverage"]],
+                estimate_library_complexity = row[["estimate_library_complexity"]],
+                alignment_summary_metrics = row[["alignment_summary_metrics"]],
+                insert_size_metrics = row[["insert_size_metrics"]],
+                tumor_wgs_metrics = row[["tumor_wgs_metrics"]],
+                normal_wgs_metrics = row[["normal_wgs_metrics"]],
+                het_pileups = row[["het_pileups"]],
+                decomposed_sbs_signatures = row[["decomposed_sbs_signatures"]],
+                decomposed_indel_signatures = row[["decomposed_indel_signatures"]],
+                matrix_sbs_signatures = row[["matrix_sbs_signatures"]],
+                matrix_indel_signatures = row[["matrix_indel_signatures"]],
+                activities_sbs_signatures = row[["activities_sbs_signatures"]],
+                activities_indel_signatures = row[["activities_indel_signatures"]],
+                hrdetect = row[["hrdetect"]],
+                onenesstwoness = row[["onenesstwoness"]],
+                msisensorpro = row[["msisensorpro"]],
                 seqnames_genome_width_or_genome_length = genome_length,
-                denoised_coverage_field = row$denoised_coverage_field,
-                is_visible = row$metadata_is_visible,
-                conpair_contamination = row$conpair_contamination,
-                conpair_concordance = row$conpair_concordance,
-				summary = row$string_summary,
+                denoised_coverage_field = row[["denoised_coverage_field"]],
+                is_visible = row[["metadata_is_visible"]],
+                conpair_contamination = row[["conpair_contamination"]],
+                conpair_concordance = row[["conpair_concordance"]],
+                summary = row[["string_summary"]],
                 cohort_type = cohort_type,
-                qc_flags_config = row$qc_flags[[1]]
+                qc_flags_config = row[["qc_flags"]][[1]]
             )
 
             if (is.null(metadata)) {

@@ -188,7 +188,7 @@ meltski = function(
     if (is.list(var)) var = unlist(var)
     tbl_to_rbind = base::subset(tbl, select = names(tbl) %in% c(id.vars, var))
     if (drop) {
-      is_none_na = base::complete.cases(
+      is_none_na = stats::complete.cases(
         base::subset(tbl_to_rbind, select = names(tbl_to_rbind) %in% var)
       )
       tbl_to_rbind = base::subset(tbl_to_rbind, is_none_na)
@@ -239,6 +239,7 @@ meltski = function(
     remaining_tbl = base::subset(tbl, select = is_selection)
     skel = merge(skel, remaining_tbl, by = id.vars, all.x = TRUE)
   }
+  
   return(skel)
 }
 
