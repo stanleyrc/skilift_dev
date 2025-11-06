@@ -276,6 +276,18 @@ Cohort <- R6Class("Cohort",
             self$inputs$tumor_sample
           )
           otumor_sample = gsub("(WG-[0-9]+-[0-9]+)[[:punct:]]+.*", "\\1", otumor_sample, perl = TRUE)
+          ## Taking care of the frickin wetlab suffixes
+          otumor_sample = (
+            gsub("-[0-9]+m", "", otumor_sample)
+            %>% gsub("-PCR_Free", "", .)
+            %>% gsub("-NEB", "", .)
+            %>% gsub("_HB", "", .)
+            %>% gsub("-HB", "", .)
+            %>% gsub("_sonicated", "", .)
+            %>% gsub("(F|S)$", "", .)
+            %>% gsub("(_plus.*MBN.*)$", "", .)
+            %>% gsub("(-(mid|after))$", "", .)    
+          )
           self$inputs$otumor_sample = otumor_sample
           self$inputs = Skilift::merge.repl(
             self$inputs,

@@ -730,14 +730,14 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
     gg <- gG(jabba = jab)
   }
   gene_CN <- Skilift:::get_gene_copy_numbers(
-	gg, 
-	gene_ranges = pge, 
-	nseg = nseg, 
-	min_cn_quantile_threshold = min_cn_quantile_threshold, 
-	max_cn_quantile_threshold = max_cn_quantile_threshold
-)
+    gg, 
+    gene_ranges = pge, 
+    nseg = nseg, 
+    min_cn_quantile_threshold = min_cn_quantile_threshold, 
+    max_cn_quantile_threshold = max_cn_quantile_threshold
+  )
   gene_CN[, `:=`(type, NA_character_)]
-  gencode = dynGet("gencode")
+  gencode = dynGet("gencode") ## FIXME: kind of dangerous to get the variable from a parent environment.
   exons_merged = GenomicRanges::reduce(gUtils::gr_construct_by(gencode[gencode$type == "exon"], by = "gene_name"))
   ## exons_merged = gUtils::gr_deconstruct_by(exons_merged, meta = TRUE, "gene_name")
   exons_merged$exon_width = width(exons_merged)
@@ -753,8 +753,7 @@ get_gene_ampdels_from_jabba <- function(jab, pge, amp.thresh = 4, del.thresh = 0
   gene_CN$overlapped_exon_width = exon_cn_map$overlapped_exon_width
   gene_CN$total_exon_width = exon_cn_map$total_exon_width
 
-  
-  gene_CN[min_quantile_normalized_cn >= amp.thresh & cn >= amp.thresh, `:=`(type, "amp")]
+  gene_CN[min_quantile_normalized_cn >= amp.thresh & cn >= min_quantile_normalized_cn, `:=`(type, "amp")]
   gene_CN[min_cn > 1 & cn > 1 & min_normalized_cn < del.thresh, `:=`(
     type,
     "del"
@@ -1283,7 +1282,7 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
   }
 
   if (is_oncokb_populated) {
-    ## oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
+      ## oncokb$snpeff_ontology <- snpeff_ontology$short[match(oncokb$Consequence, snpeff_ontology$eff)]
 	
     oncokb$short <- dplyr::case_when(
       grepl("frameshift", oncokb$Consequence) & grepl("fs$", oncokb$HGVSp) ~ "trunc",
@@ -1291,6 +1290,8 @@ collect_oncokb <- function(oncokb_maf, multiplicity = NA_character_, verbose = T
       grepl("lost", oncokb$Consequence) ~ "trunc",
       grepl("missense", oncokb$Consequence) & grepl("^p\\.", oncokb$HGVSp) ~ "missense",
       grepl("splice", oncokb$Consequence) ~ "splice",
+      grepl("inframe_(insertion|deletion)", oncokb$Consequence) ~ "inframe",
+      grepl("upstream", oncokb$Consequence) ~ "upstream",
       grepl("(5|3)_prime_UTR_variant", oncokb$Consequence) ~ "UTR",
       TRUE ~ NA_character_
     )
@@ -1379,7 +1380,7 @@ oncotable <- function(
     multiplicity = NULL,
     oncokb_snv = NULL,
     oncokb_cna = NULL,
-    oncokb_fusions = NULL,
+    oncokb_fusions = NULL,                
     gencode,
     cytoband,
     verbose = TRUE,
@@ -1542,9 +1543,9 @@ create_oncotable <- function(
   }
 
   jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
-  
-  results <- mclapply(seq_len(nrow(cohort$inputs)), function(i) {
-    futile.logger::flog.threshold("ERROR")
+
+  futile.logger::flog.threshold("ERROR")
+  iterfun = function(i) {
     tryCatchLog(
       {
         row <- cohort$inputs[i]
@@ -1577,7 +1578,8 @@ create_oncotable <- function(
           }
         }
 
-        amp_thresh <- amp_thresh_multiplier * ploidy
+        # amp_thresh <- amp_thresh_multiplier * ploidy
+        amp_thresh = amp_thresh_multiplier
         message(paste("Processing", row$pair, "using amp.thresh of", amp_thresh))
 
 
@@ -1586,17 +1588,17 @@ create_oncotable <- function(
         oncotable_result <- tryCatchLog(
           {
             oncotable(
-              pair = row$pair,
-              somatic_variant_annotations = row$somatic_variant_annotations,
-              fusions = row$fusions,
+              pair = row[["pair"]],
+              somatic_variant_annotations = row[["somatic_variant_annotations"]],
+              fusions = row[["fusions"]], 
               jabba_gg = row[[jabba_column]],
-              karyograph = row$karyograph,
-              events = row$events,
-              signature_counts = row$signature_counts,
-              multiplicity = row$multiplicity,
-              oncokb_snv = row$oncokb_snv,
-              oncokb_cna = row$oncokb_cna,
-              oncokb_fusions = row$oncokb_fusions,
+              karyograph = row[["karyograph"]],
+              events = row[["events"]],
+              signature_counts = row[["signature_counts"]],
+              multiplicity = row[["multiplicity"]],
+              oncokb_snv = row[["oncokb_snv"]],
+              oncokb_cna = row[["oncokb_cna"]],
+              oncokb_fusions = row[["oncokb_fusions"]],
               gencode = gencode,
               cytoband = cytoband,
               verbose = TRUE,
@@ -1624,7 +1626,8 @@ create_oncotable <- function(
         NULL
       }
     )
-  }, mc.cores = cores, mc.preschedule = TRUE)
+  }
+  results <- mclapply(seq_len(nrow(cohort$inputs)), iterfun, mc.cores = cores, mc.preschedule = FALSE)
 
 
   # Update oncotable paths in the cohort
