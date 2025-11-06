@@ -11,8 +11,6 @@
 #' @return data.table containing variant QC metrics along with highest signature posterior
 #' @export
 #' @author Kevin Hadi, Aditya Deshpande
-
-
 create_variant_qc = function(oncokb_path, multiplicity_path, sbs_path, indel_path, cohort_type){
   oncokb = fread(oncokb_path)
   oncokb = Skilift:::parse_oncokb_tier(oncokb)
@@ -64,7 +62,7 @@ create_variant_qc = function(oncokb_path, multiplicity_path, sbs_path, indel_pat
   setkey(sbs_m, "key_col")
   sbs_m = sbs_m[, .SD[which.max(value)], by = key_col]
   sbs_m[, sbs_signature := paste0(variable, ": ", signif(value, 0.2))]
-  message("read in the oncokb maf")
+  message("read in sbs signatures")
 
   ## Get signature posteriors for indels
   indels = fread(indel_path)
@@ -77,13 +75,14 @@ create_variant_qc = function(oncokb_path, multiplicity_path, sbs_path, indel_pat
   setkey(indels_m, "key_col")
   indels_m = indels_m[, .SD[which.max(value)], by = key_col]
   indels_m[, indel_signature := paste0(variable, ": ", signif(value, 0.2))]
-  message("read in the oncokb maf")
+  message("read in indel signatures")
   all_sigs = rbind(sbs_m, indels_m, fill =  T)
-  all_sigs[, signature := ifelse(!is.na(sbs_signature), sbs_signature, indel_signature)] 
+  all_sigs[, signature := ifelse(!is.na(sbs_signature), sbs_signature, indel_signature)]
+  all_sigs[, signature_max := variable]
 
   ## Remove SBS sigs from DNP and TNP
-  oncokb_merged = as.data.table(merge(oncokb, all_sigs[, .(key_col, signature)], by = "key_col", all.x = T))
-  oncokb_merged[, signature := ifelse(Variant_Type %in% c("DNP", "TNP"), NA, Variant_Type)]
+  oncokb_merged = as.data.table(merge(oncokb, all_sigs[, .(key_col, signature, signature_max)], by = "key_col", all.x = T))
+  oncokb_merged[, signature := ifelse(Variant_Type %in% c("DNP", "TNP"), NA, signature)]
   message("calculating stats")
 
   ## Calculate and aggregate 
