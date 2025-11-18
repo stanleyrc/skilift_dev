@@ -693,9 +693,10 @@ process_qc_flag = function(
             # next
         }
         is_flagged = all(fun_comparator(data_value, value))
-        is_flagged = is_flagged && !is_na
+        is_passing = !is_flagged && !is_na
+        # is_flagged = is_flagged && !is_na
         op_to_show = fun_comparator_string
-        if (!is_flagged) {
+        if (is_passing) {
             flag_title = "PASS"
             op_to_show = ops_oppo[fun_comparator_string]
         }
