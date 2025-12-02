@@ -2295,7 +2295,7 @@ genome_temp <- function(
     visible = TRUE,
     title = NA,
     max.cn = NULL,
-    annotation = list(c("bfb", "chromoplexy", "chromothripsis", "del", "dm", "cpxdm", "dup", "pyrgo", "rigma", "simple", "tic", "tyfonas")),
+    annotation = list(c("inv", "invdup", "chromoplexy", "pyrgo", "tic", "tyfonas", "del","dup", "qrppos", "qrpmin", "qrpmix", "chromothripsis", "bfb", "tra", "rigma","dm", "cpxdm", "simple")),
     overwrite = FALSE) {
     # use type = allelic to make a color a genome graph
     dt1 <- data.table(
