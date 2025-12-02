@@ -80,7 +80,6 @@ granges_to_arrow_scatterplot <- function(
     if (!requireNamespace("arrow", quietly = TRUE)) {
         stop('You must have the package "arrow" installed in order for this function to work. Please install it.')
     }
-
     #' gr_path must be a path or an actual gRanges object    
     if (is.character(gr_path)) {
         if (!file.exists(gr_path)) {
@@ -114,6 +113,7 @@ granges_to_arrow_scatterplot <- function(
         ...
     )
 
+    
     if (!is.null(cov.color.field)) {
         dat[, color := color2numeric(get(cov.color.field))]
     } else {
@@ -232,6 +232,11 @@ subsample_hetsnps <- function(
         min_normal_freq = 0.2,
         max_normal_freq = 0.8
     )
+    ## force remove chr
+    if (grepl("^chr", seqlevels(allelic_hetsnps)[1])) {
+        seqlevels(allelic_hetsnps) = gsub("^chr", "", seqlevels(allelic_hetsnps))
+    }
+    
     allelic_hetsnps <- gr.val(allelic_hetsnps, maska, "mask")
     allelic_hetsnps <- allelic_hetsnps %Q% (is.na(mask))
     allelic_hetsnps$mask <- NULL
@@ -281,7 +286,6 @@ lift_denoised_coverage <- function(
     if (!dir.exists(output_data_dir)) {
         dir.create(output_data_dir, recursive = TRUE)
     }
-
     # Validate required columns exist
     required_cols <- c("pair", "tumor_coverage")
     missing_cols <- required_cols[!required_cols %in% names(cohort$inputs)]

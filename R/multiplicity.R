@@ -608,6 +608,7 @@ lift_multiplicity <- function(
 	show_only_oncokb = TRUE,
     cores = 1
 ) {
+
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
@@ -642,10 +643,13 @@ lift_multiplicity <- function(
         }
         
         # Determine output filename based on is_germline
-        out_file <- file.path(
-            pair_dir,
-            if(is_germline) "germline_mutations.json" else "mutations.json"
-        )
+
+        if(is_germline) {
+            out_name = "germline_mutations.json"
+        } else {
+            out_name = "mutations.json"
+        }
+        out_file <- file.path(pair_dir, out_name)
         
         snv_cn_path = row[[snv_cn_col]]
         oncokb_snv_path = NULL
