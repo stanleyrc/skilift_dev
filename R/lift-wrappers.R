@@ -186,6 +186,7 @@ lift_all <- function(
       ... = ...
     )
   } else if (cohort$type == "tumor_only") {
+
     cohort_mod = lift_tumor_only(
       cohort = cohort,
       output_data_dir = output_data_dir,
@@ -223,7 +224,6 @@ lift_mvp <- function(
   ...
 ) {
   list2env(list(...), envir = environment())
-
   jabba_column = Skilift::DEFAULT_JABBA(object = cohort)
 
   if (has_required_columns(cohort, required_columns$total_copy_number_graph)) {
@@ -317,6 +317,7 @@ lift_mvp <- function(
       )
     })
   }
+
 
   if (has_required_columns(cohort, required_columns$multiplicity)) {
     Skilift::skimessage("Uploading somatic multiplicity via Skilift::lift_multiplicity()")
@@ -455,7 +456,6 @@ lift_mvp <- function(
 
 lift_tumor_only <- function(cohort, output_data_dir, oncotable_dir, cores, ...) {
   cohort <- lift_mvp(cohort, output_data_dir, oncotable_dir, cores, ...)
-
   return(cohort)
 }
 

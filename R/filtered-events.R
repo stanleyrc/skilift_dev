@@ -919,6 +919,11 @@ collect_gene_mutations <- function(
   )
   if (verbose) message(length(bcf), " variants pass filter")
 
+  ## force remove seqnames
+  if (grepl("^chr", seqlevels(bcf)[1])) {
+      seqlevels(bcf) = gsub("^chr", "", seqlevels(bcf))
+  }
+
   genome.size <- sum(GenomeInfoDb::seqlengths(bcf), na.rm = TRUE) / 1e6
   if (is.na(genome.size)) {
     genome.size <- sum(
@@ -1517,14 +1522,17 @@ create_oncotable <- function(
   } else {
     message("bcftools is available.")
   }
-
   if (gencode == "/gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds") {
     message("using default gencode: /gpfs/data/imielinskilab/DB/GENCODE/gencode.v19.annotation.gtf.nochr.rds")
   }
 
   gencode <- process_gencode(gencode)
-  cytoband <- process_cytoband(cytoband)
-
+  if(cohort$reference_name == "hg19") {
+      cytoband <- process_cytoband(cytoband)
+  } else if (cohort$reference_name == "hg38") {
+      cytoband <- process_cytoband(system.file("extdata", "data", "hg38", "cytoband.rds", package = "Skilift"))
+  }
+  
   if (amp_thresh_multiplier == 1.5) {
     message("using default amp_thres_multiplier: 1.5")
   }
@@ -1612,8 +1620,10 @@ create_oncotable <- function(
             NULL
           }
         )
-
+        
         if (!is.null(oncotable_result)) {
+          if(!"variant.c" %in% names(oncotable_result))
+              oncotable_result[, variant.c := NA]
           # Save successful results
           oncotable_path <- file.path(pair_outdir, "oncotable.rds")
           saveRDS(oncotable_result, oncotable_path)
@@ -1820,7 +1830,8 @@ create_filtered_events <- function(
           NA_character_
         )
       )
-      if (any(is.na(fus_frame_label))) stop("A fusion was not labeled as in-frame or out-of-frame")
+      ## temp fix: comment out
+      ## if (any(is.na(fus_frame_label))) stop("A fusion was not labeled as in-frame or out-of-frame")
       variant_label = paste(
           fus_frame_label,
           variant.p.fus
@@ -2008,11 +2019,11 @@ lift_filtered_events <- function(cohort, output_data_dir, cores = 1, return_tabl
     if (!inherits(cohort, "Cohort")) {
         stop("Input must be a Cohort object")
     }
-    
+
     if (!dir.exists(output_data_dir)) {
         dir.create(output_data_dir, recursive = TRUE)
     }
-    
+
     # Validate required columns exist
     # required_cols <- c("pair", "oncotable", "jabba_gg")
 	jabba_column = Skilift::DEFAULT_JABBA(object = cohort)

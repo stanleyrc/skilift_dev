@@ -262,7 +262,7 @@ lift_allelic_pp_fit <- function(cohort,
                         binwidth = 1e4,
                         save = FALSE,
                         field = "count",
-                        verbose = T) 
+                        verbose = T)
 
                 if(save_png){
                     ggsave(file = out_file_png, plot = ppplot$plot, width = 6, height = 6, dpi = 300)
@@ -1213,6 +1213,11 @@ pp_plot = function(jabba_rds = NULL,
     if (verbose) {
       message("Grabbing hets and converting rel2abs")
     }
+    ## force remove chr
+    if (grepl("^chr", seqlevels(hets)[1])) {
+        seqlevels(hets) = gsub("^chr", "", seqlevels(hets))
+    }
+
     hets$cn = rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE)
     hets$jabba_cn = gr.val(hets, segstats, val = "cn", mean = TRUE, na.rm = TRUE)$cn %>% round()
     eqn = rel2abs(hets, field = field, purity = purity, ploidy = ploidy, allele = TRUE, return.params = TRUE)
@@ -1289,9 +1294,10 @@ pp_plot = function(jabba_rds = NULL,
               axis.text.x = element_text(size = 20, family = "sans"),
               axis.text.y = element_text(size = 14, family = "sans"))
 
-      pt = ggExtra::ggMarginal(pt, type = "histogram",
-                               xparams = list(bins = bins),
-                               yparams = list(bins = bins))
+      ## png not opened so ggMarginal throws X11 error - added below after png call if save
+      ## pt = ggExtra::ggMarginal(pt, type = "histogram",
+      ##                          xparams = list(bins = bins),
+      ##                          yparams = list(bins = bins))
       
     } else {
 
@@ -1324,6 +1330,12 @@ pp_plot = function(jabba_rds = NULL,
         width = width,
         units = units
     )
+    if(scatter) {
+        pt = ggExtra::ggMarginal(pt, type = "histogram",
+                                 xparams = list(bins = bins),
+                                 yparams = list(bins = bins))
+
+    }
     print(pt)
     grDevices::dev.off()
     # ppng(print(pt), 
