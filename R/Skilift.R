@@ -211,6 +211,26 @@ Skilift <- R6Class("Skilift",
         stop(warning("Did not update datafiles because of malformed Skilift object."))
       }
 
+      set_nested_value <- function(entry, path, value) {
+        if (length(path) == 1L) {
+          entry[[path[[1L]]]] <- value
+          return(entry)
+        }
+
+        key <- path[[1L]]
+        child <- entry[[key]]
+        if (is.null(child) || !is.list(child)) {
+          child <- list()
+        }
+
+        entry[[key]] <- set_nested_value(child, path[-1L], value)
+        entry
+      }
+
+      is_missing_value <- function(x) {
+        is.null(x) || (length(x) == 1L && is.atomic(x) && is.na(x))
+      }
+
       datafiles_json_path <- private$datafiles_json_path
       # Create a backup file with timestamp
       timestamp <- format(Sys.time(), "%Y_%m_%d_%H_%M_%S")
@@ -241,11 +261,17 @@ Skilift <- R6Class("Skilift",
 
           # Loop over the column names
           for (col in cols) {
-            # Use [[ ]] to access the column by name and check if it's NA
+            # Use [[ ]] to access the column by name and check if it's missing
             if (col != "patient.id") {
-              if (!is.na(patient_plots[[col]][i])) {
-                # If it's not NA, add it to plot_entry
-                plot_entry[[col]] <- patient_plots[[col]][i]
+              value <- patient_plots[[col]][i][[1L]]
+
+              if (!is_missing_value(value)) {
+                # Restore nested JSON objects from dotted column names
+                if (grepl("\\.", col)) {
+                  plot_entry <- set_nested_value(plot_entry, strsplit(col, "\\.")[[1L]], value)
+                } else {
+                  plot_entry[[col]] <- value
+                }
               }
             }
           }
