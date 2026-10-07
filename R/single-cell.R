@@ -687,6 +687,8 @@ gos_record <- function(row) {
 
 ## gOS per-cell mutations.json (bulk mutations format) from SNV observations
 gos_mutations_json <- function(obs) {
+    settings <- list(y_axis = list(title = "copy number", visible = TRUE))
+    if (!nrow(obs)) return(list(settings = settings, intervals = list()))   # e.g. normals with no called sites
     parts <- data.table::tstrsplit(obs$mutation, "_", fixed = TRUE)
     pos <- as.integer(parts[[2]])
     intervals <- data.table::data.table(
@@ -700,8 +702,7 @@ gos_mutations_json <- function(obs) {
         annotation = sprintf("Type: SNV; Genomic_variant: %s>%s; VAF: %.3f; Alt_count: %s; Ref_count: %s; ",
                              parts[[3]], parts[[4]], obs$vaf, obs$alt.count.t, obs$ref.count.t)
     )
-    list(settings = list(y_axis = list(title = "copy number", visible = TRUE)),
-         intervals = intervals)
+    list(settings = settings, intervals = intervals)
 }
 
 #' @name build_gos_sc_dataset
