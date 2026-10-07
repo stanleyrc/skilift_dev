@@ -61,6 +61,7 @@ StagedInstall: no
 LinkingTo: Rcpp
 Suggests:
     ape,
+    Rsamtools,
     Seurat,
     SeuratObject,
     Matrix,
