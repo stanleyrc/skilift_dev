@@ -448,15 +448,18 @@ sc_drop_chrx_homdels <- function(ot) {
 #' Patient-level filtered.events.json from the cells' own files: each event
 #' (same gene, fusion genes, vartype, type and variant) once, with how many cells
 #' carry it (cells = "n/N", cell_fraction, n_cells, cell_ids), alt / ref reads
-#' pooled over those cells and median copy numbers.
+#' pooled over those cells and median copy numbers. Counts and fractions are
+#' over the tumor cells; carriers among the other cells (normals) are reported
+#' separately as n_normal_cells.
 #'
 #' @param cell_ids the patient's cells
+#' @param tumor_cells the tumor cells among them (denominator of cell_fraction)
 #' @param data_dir gOS data folder
 #' @param patient patient id (output goes to data_dir/patient)
 #' @return the events (invisibly), or NULL
 #' @export
 #' @author Stanley Clarke
-sc_patient_filtered_events <- function(cell_ids, data_dir, patient) {
+sc_patient_filtered_events <- function(cell_ids, data_dir, patient, tumor_cells = cell_ids) {
     events <- data.table::rbindlist(lapply(cell_ids, function(cell) {
         f <- file.path(data_dir, cell, "filtered.events.json")
         if (!file.exists(f) || file.size(f) < 3) return(NULL)
@@ -467,7 +470,8 @@ sc_patient_filtered_events <- function(cell_ids, data_dir, patient) {
     if (!nrow(events)) return(invisible(NULL))
     key_cols <- intersect(c("gene", "fusion_genes", "vartype", "type", "Variant"), names(events))
     for (k in key_cols) events[is.na(get(k)), (k) := ""]
-    n_total <- length(cell_ids)
+    tumor_cells <- intersect(tumor_cells, cell_ids)
+    n_total <- length(tumor_cells)
     num <- function(x) suppressWarnings(as.numeric(x))
     out <- events[, c(
         .SD[1, !c("cell", "alt", "ref", "VAF", "estimated_altered_copies", "segment_cn", "id"), with = FALSE],
@@ -476,7 +480,8 @@ sc_patient_filtered_events <- function(cell_ids, data_dir, patient) {
              ref = if ("ref" %in% names(.SD)) sum(num(ref), na.rm = TRUE) else NA_real_,
              estimated_altered_copies = if ("estimated_altered_copies" %in% names(.SD)) stats::median(num(estimated_altered_copies), na.rm = TRUE) else NA_real_,
              segment_cn = if ("segment_cn" %in% names(.SD)) stats::median(num(segment_cn), na.rm = TRUE) else NA_real_,
-             n_cells = data.table::uniqueN(cell),
+             n_cells = sum(unique(cell) %in% tumor_cells),
+             n_normal_cells = sum(!(unique(cell) %in% tumor_cells)),
              cell_ids = paste(sort(unique(cell)), collapse = ","))),
         by = key_cols, .SDcols = setdiff(names(events), key_cols)]
     out[, VAF := ifelse(alt + ref > 0, alt / (alt + ref), NA_real_)]
