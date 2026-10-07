@@ -705,6 +705,35 @@ gos_mutations_json <- function(obs) {
     list(settings = settings, intervals = intervals)
 }
 
+#' @name sc_node_anchors
+#' @title sc_node_anchors
+#' @description
+#' Two tips whose most recent common ancestor is each node (one tip for a
+#' leaf), so a node can be found again in any copy of the same topology,
+#' whatever its node numbering.
+#'
+#' @param tree phylo object the node numbers refer to
+#' @param nodes integer node numbers (NA allowed)
+#' @return character vector "tipA|tipB", "tip" or NA
+#' @export
+#' @author Stanley Clarke
+sc_node_anchors <- function(tree, nodes) {
+    n <- ape::Ntip(tree)
+    first_tip <- function(k) {
+        while (k > n) k <- tree$edge[tree$edge[, 1] == k, 2][1]
+        tree$tip.label[k]
+    }
+    anchor <- function(k) {
+        if (is.na(k)) return(NA_character_)
+        if (k <= n) return(tree$tip.label[k])
+        kids <- tree$edge[tree$edge[, 1] == k, 2]
+        paste(first_tip(kids[1]), first_tip(kids[length(kids)]), sep = "|")
+    }
+    lookup <- unique(stats::na.omit(nodes))
+    anchors <- vapply(lookup, anchor, character(1))
+    unname(anchors[match(nodes, lookup)])
+}
+
 #' @name build_gos_sc_dataset
 #' @title build_gos_sc_dataset
 #' @description
@@ -810,6 +839,11 @@ build_gos_sc_dataset <- function(
         if (!is.null(variant_info)) {
             info <- data.table::as.data.table(variant_info)
             variants <- cbind(variants, info[match(variant_ids, info$mutation), !"mutation"])
+            ## node numbers only mean something for this phylo object, so also
+            ## write two tips whose MRCA is the node ("tipA|tipB"; one tip for a leaf)
+            if (!is.null(tree) && "node" %in% names(variants)) {
+                variants[, anchor := sc_node_anchors(tree, node)]
+            }
         }
         writeLines(paste0('{"schemaVersion":1,"format":"compact","variants":',
                           jsonlite::toJSON(variants, na = "null", digits = NA),
