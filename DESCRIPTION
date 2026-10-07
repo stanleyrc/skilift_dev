@@ -60,6 +60,10 @@ RoxygenNote: 7.3.2
 StagedInstall: no
 LinkingTo: Rcpp
 Suggests:
+    ape,
+    Seurat,
+    SeuratObject,
+    Matrix,
     testthat (>= 2.0),
     covr,
     pkgdown,
