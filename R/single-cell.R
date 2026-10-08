@@ -859,7 +859,7 @@ build_gos_sc_dataset <- function(
                  attributes,
                  list(cell_count = length(records),
                       exported = format(Sys.time(), "%Y-%m-%d %H:%M"),
-                      export_version = as.character(utils::packageVersion("skilift")),
+                      export_version = tryCatch(as.character(utils::packageVersion("skilift")), error = function(e) NA_character_),
                       summary = paste0("Single-cell WGS patient\nCells: ", length(records),
                                        "\nClones: ", paste0(names(clones), " (", clones, " cells)", collapse = ", "),
                                        if (!is.null(tree)) "\nTree: included")))
