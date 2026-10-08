@@ -985,6 +985,69 @@ sc_seurat_metadata <- function(
     out
 }
 
+#' @name sc_export_cohort_rna
+#' @title sc_export_cohort_rna
+#' @description
+#'
+#' Integrated RNA embedding across patients for the gOS cohort view: the
+#' Seurat objects are merged, re-normalized, variable features / PCA computed
+#' on the merged data, batch (patient) corrected with Harmony when installed,
+#' and a UMAP computed. Writes <out_dir>/_cohort/rna/cells.json with
+#' { method, cells: [{ patient, rna_id, cell_id, umap_1, umap_2, <meta_cols> }] }
+#' and markers of each `marker_col` level across the cohort to markers.json.
+#'
+#' @param seurat_paths named character vector: patient id -> Seurat .rds path
+#' @param out_dir gOS data directory (the folder holding the patient folders)
+#' @param meta_cols metadata columns copied per cell
+#' @param marker_col column for cohort-wide markers (NULL to skip)
+#' @param nfeatures variable features for PCA
+#' @param dims PCs used for Harmony / UMAP
+#' @return the exported list (invisibly)
+#' @export
+#' @author Stanley Clarke
+sc_export_cohort_rna <- function(seurat_paths, out_dir,
+                                 meta_cols = c("state", "Phase", "Cell_Type", "Region", "Region_Annotation", "Clone_Annotation", "seurat_clusters"),
+                                 marker_col = "state", nfeatures = 2000, dims = 1:30) {
+    objs <- lapply(names(seurat_paths), function(p) {
+        so <- readRDS(seurat_paths[[p]])
+        so$patient <- p
+        so$rna_id <- colnames(so)
+        Seurat::DefaultAssay(so) <- "RNA"
+        Seurat::DietSeurat(so, assays = "RNA")
+    })
+    merged <- merge(objs[[1]], y = objs[-1], add.cell.ids = names(seurat_paths))
+    if ("JoinLayers" %in% getNamespaceExports("SeuratObject")) merged <- SeuratObject::JoinLayers(merged)
+    merged <- Seurat::NormalizeData(merged, verbose = FALSE)
+    merged <- Seurat::FindVariableFeatures(merged, nfeatures = nfeatures, verbose = FALSE)
+    merged <- Seurat::ScaleData(merged, verbose = FALSE)
+    merged <- Seurat::RunPCA(merged, npcs = max(dims), verbose = FALSE)
+    reduction <- "pca"
+    method <- "merged Seurat objects, PCA, UMAP"
+    if (requireNamespace("harmony", quietly = TRUE)) {
+        merged <- tryCatch({
+            m <- harmony::RunHarmony(merged, group.by.vars = "patient", dims.use = dims, verbose = FALSE)
+            reduction <- "harmony"
+            method <- "merged Seurat objects, PCA, Harmony (patient), UMAP"
+            m
+        }, error = function(e) { message("Harmony failed, using PCA: ", conditionMessage(e)); merged })
+    }
+    merged <- Seurat::RunUMAP(merged, reduction = reduction, dims = dims, verbose = FALSE)
+    um <- Seurat::Embeddings(merged, "umap")
+    meta <- merged@meta.data
+    keep <- intersect(meta_cols, names(meta))
+    cells <- data.table::data.table(patient = meta$patient, rna_id = meta$rna_id,
+                                    cell_id = if ("cell_id" %in% names(meta)) meta$cell_id else NA_character_,
+                                    umap_1 = round(um[, 1], 4), umap_2 = round(um[, 2], 4))
+    for (k in keep) cells[[k]] <- meta[[k]]
+    dir.create(file.path(out_dir, "_cohort", "rna"), recursive = TRUE, showWarnings = FALSE)
+    out <- list(method = method, n_patients = length(seurat_paths), cells = cells)
+    jsonlite::write_json(out, file.path(out_dir, "_cohort", "rna", "cells.json"), auto_unbox = TRUE, digits = NA, na = "null")
+    if (!is.null(marker_col) && marker_col %in% names(meta)) {
+        sc_export_rna_markers(merged, file.path(out_dir, "_cohort"), group_cols = marker_col)
+    }
+    invisible(out)
+}
+
 #' @name sc_export_rna_markers
 #' @title sc_export_rna_markers
 #' @description
