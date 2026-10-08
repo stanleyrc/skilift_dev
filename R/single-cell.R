@@ -1152,10 +1152,10 @@ sc_recompute_umap <- function(
 #' @return data.table with chrom, start, end (BED, sorted)
 #' @export
 #' @author Stanley Clarke
-sc_igv_regions <- function(variants, genome_json = NULL, pad = 200) {
+sc_igv_regions <- function(variants, genome_json = NULL, pad = 200, junction_pad = 1000) {
     parts <- data.table::tstrsplit(variants, "_", fixed = TRUE)
     pos <- as.integer(parts[[2]])
-    regions <- data.table::data.table(chrom = parts[[1]], pos = pos)
+    regions <- data.table::data.table(chrom = parts[[1]], pos = pos, pad = pad)
     if (!is.null(genome_json) && file.exists(genome_json)) {
         g <- jsonlite::fromJSON(genome_json)
         alt <- g$connections
@@ -1166,9 +1166,11 @@ sc_igv_regions <- function(variants, genome_json = NULL, pad = 200) {
             ends <- rbind(data.table::data.table(iid = abs(alt$source), at_end = alt$source > 0),
                           data.table::data.table(iid = abs(alt$sink), at_end = alt$sink < 0))
             ends <- merge(ends, iv, by = "iid")
+            ## junction breakpoints get a wider window so split / discordant reads are visible
             regions <- rbind(regions, ends[, .(
                 chrom = paste0("chr", sub("^chr", "", chromosome)),
-                pos = ifelse(at_end, endPoint, startPoint))])
+                pos = ifelse(at_end, endPoint, startPoint),
+                pad = junction_pad)])
         }
     }
     regions[, `:=`(start = pmax(0L, as.integer(pos) - pad), end = as.integer(pos) + pad)]
@@ -1187,7 +1189,8 @@ sc_igv_regions <- function(variants, genome_json = NULL, pad = 200) {
 #' @param bam_col column of per-cell BAM/CRAM paths
 #' @param gos_datadir gOS data folder holding the cell folders
 #' @param variants SNV ids like chr1_18258813_G_A
-#' @param pad padding in bp
+#' @param pad padding in bp around SNV sites
+#' @param junction_pad padding in bp around junction (fusion / SV) breakpoints
 #' @param bed_dir folder for the per-cell BED files (default: a temp dir)
 #' @param reference reference fasta, needed when the inputs are CRAMs
 #' @param samtools samtools binary
@@ -1201,6 +1204,7 @@ lift_gos_sc_bams <- function(
     gos_datadir,
     variants,
     pad = 200,
+    junction_pad = 1000,
     bed_dir = tempfile("igv_regions_"),
     reference = NULL,
     samtools = "samtools",
@@ -1212,7 +1216,7 @@ lift_gos_sc_bams <- function(
         cell <- cells$pair[i]
         cell_dir <- file.path(gos_datadir, cell)
         bed <- file.path(bed_dir, paste0(cell, ".bed"))
-        data.table::fwrite(sc_igv_regions(variants, file.path(cell_dir, "complex.json"), pad = pad),
+        data.table::fwrite(sc_igv_regions(variants, file.path(cell_dir, "complex.json"), pad = pad, junction_pad = junction_pad),
                            bed, sep = "\t", col.names = FALSE)
         out <- file.path(cell_dir, "reads.bam")
         tmp <- paste0(out, ".tmp")
