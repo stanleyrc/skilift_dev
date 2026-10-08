@@ -831,9 +831,12 @@ build_gos_sc_dataset <- function(
         count <- function(x) ifelse(is.na(x), "null", format(x, scientific = FALSE, trim = TRUE))
         variant_ids <- unique(snvs$mutation)
         snvs[, variant := match(mutation, variant_ids) - 1L]
+        ## optional 4th element: genotype call (1 alt, 0 ref, null = no call)
+        has_gt <- "gt" %in% names(snvs)
         cell_json <- snvs[, .(json = paste0(
             jsonlite::toJSON(pair[1], auto_unbox = TRUE), ":[",
-            paste0("[", variant, ",", count(ref.count.t), ",", count(alt.count.t), "]", collapse = ","), "]")),
+            paste0("[", variant, ",", count(ref.count.t), ",", count(alt.count.t),
+                   if (has_gt) paste0(",", count(gt)) else "", "]", collapse = ","), "]")),
             by = pair]
         variants <- data.table::data.table(id = variant_ids)
         if (!is.null(variant_info)) {
@@ -855,6 +858,8 @@ build_gos_sc_dataset <- function(
     patient <- c(list(pair = patient_id, entry_type = "patient", patient_id = patient_id),
                  attributes,
                  list(cell_count = length(records),
+                      exported = format(Sys.time(), "%Y-%m-%d %H:%M"),
+                      export_version = as.character(utils::packageVersion("skilift")),
                       summary = paste0("Single-cell WGS patient\nCells: ", length(records),
                                        "\nClones: ", paste0(names(clones), " (", clones, " cells)", collapse = ", "),
                                        if (!is.null(tree)) "\nTree: included")))
@@ -1002,12 +1007,13 @@ sc_seurat_metadata <- function(
 #' @param marker_col column for cohort-wide markers (NULL to skip)
 #' @param nfeatures variable features for PCA
 #' @param dims PCs used for Harmony / UMAP
+#' @param cell_links optional named list (patient -> data.table with rna_id, cell_id) linking RNA barcodes to DNA cells
 #' @return the exported list (invisibly)
 #' @export
 #' @author Stanley Clarke
 sc_export_cohort_rna <- function(seurat_paths, out_dir,
-                                 meta_cols = c("state", "Phase", "Cell_Type", "Region", "Region_Annotation", "Clone_Annotation", "seurat_clusters"),
-                                 marker_col = "state", nfeatures = 2000, dims = 1:30) {
+                                 meta_cols = c("state", "Phase", "Cell_Type", "Region", "Region_Annotation", "Clone_Annotation", "seurat_clusters", "S.Score", "G2M.Score"),
+                                 marker_col = "state", nfeatures = 2000, dims = 1:30, cell_links = NULL) {
     objs <- lapply(names(seurat_paths), function(p) {
         so <- readRDS(seurat_paths[[p]])
         so$patient <- p
@@ -1035,8 +1041,17 @@ sc_export_cohort_rna <- function(seurat_paths, out_dir,
     um <- Seurat::Embeddings(merged, "umap")
     meta <- merged@meta.data
     keep <- intersect(meta_cols, names(meta))
-    cells <- data.table::data.table(patient = meta$patient, rna_id = meta$rna_id,
-                                    cell_id = if ("cell_id" %in% names(meta)) meta$cell_id else NA_character_,
+    cell_id <- if ("cell_id" %in% names(meta)) as.character(meta$cell_id) else rep(NA_character_, nrow(meta))
+    ## DNA cell ids from the per-patient rna/cells.json links (patient -> data.table(rna_id, cell_id))
+    if (!is.null(cell_links)) {
+        for (p in names(cell_links)) {
+            l <- cell_links[[p]]
+            if (is.null(l) || !nrow(l)) next
+            idx <- which(meta$patient == p)
+            cell_id[idx] <- l$cell_id[match(meta$rna_id[idx], l$rna_id)]
+        }
+    }
+    cells <- data.table::data.table(patient = meta$patient, rna_id = meta$rna_id, cell_id = cell_id,
                                     umap_1 = round(um[, 1], 4), umap_2 = round(um[, 2], 4))
     for (k in keep) cells[[k]] <- meta[[k]]
     dir.create(file.path(out_dir, "_cohort", "rna"), recursive = TRUE, showWarnings = FALSE)
