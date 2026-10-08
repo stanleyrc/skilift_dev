@@ -55,7 +55,8 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
         })
         gid <- dt$gw_id[k]
         cc <- counts[gw_id == gid]
-        amp <- cc$amp[!is.na(cc$amp) & cc$amp != ""][1]
+        amp <- if ("amp" %in% names(cc) && nrow(cc)) cc$amp[!is.na(cc$amp) & cc$amp != ""][1] else NA_character_
+        if (length(amp) == 0) amp <- NA_character_
         carriers <- cc[is.finite(cn) & cn >= min_cn]
         co <- if (!is.null(coords)) coords[gw_id == gid][1] else NULL
         su <- if (!is.null(summary)) summary[gw_id == gid][1] else NULL
@@ -63,7 +64,7 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
         cgc <- if (!is.null(co) && !is.na(co$cgc_genes)) trimws(strsplit(co$cgc_genes, ",")[[1]]) else character(0)
         list(
             id = gid, walk_id = dt$walk.id[k], name = dt$name[k],
-            label = if (!is.na(amp)) amp else dt$name[k],
+            label = if (!is.na(amp)) amp else if (!is.null(su) && "gene_label" %in% names(su) && !is.na(su$gene_label)) su$gene_label else dt$name[k],
             circular = isTRUE(dt$circular[k]),
             span = if ("wid" %in% names(dt)) dt$wid[k] else sum(nodes$end - nodes$start + 1),
             n_nodes = n,
