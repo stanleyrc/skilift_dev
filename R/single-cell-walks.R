@@ -17,15 +17,26 @@
 #' @param out_dir patient folder of the gOS dataset
 #' @param patient patient id written into the file
 #' @param min_cn copy number from which a cell counts as carrying the walk
+#' @param cell_ids optional gOS cell ids of the patient; walk cell ids are renamed to them when they match up to underscores / case
 #' @return path of the written json (invisibly)
 #' @export
-sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_dir, patient = NULL, min_cn = 1) {
+sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_dir, patient = NULL, min_cn = 1, cell_ids = NULL) {
     load_rds <- function(x) if (is.character(x)) readRDS(path.expand(x)) else x
     gw <- load_rds(walks)
     if (!inherits(gw, "gWalk")) stop("walks must be a gWalk (got ", paste(class(gw), collapse = "/"), ")")
     counts <- data.table::as.data.table(load_rds(counts))
     counts[, gw_id := as.character(gw_id)]
     counts[, pair := as.character(pair)]
+    ## cell ids in the walk tables may be spelled differently from the gOS cell ids
+    ## (e.g. MGH302_MR2_pl3_10b vs MGH302_MR_2_pl3_10b): match on a key without underscores / case
+    if (!is.null(cell_ids)) {
+        key <- function(x) tolower(gsub("[^A-Za-z0-9]", "", x))
+        lookup <- stats::setNames(as.character(cell_ids), key(cell_ids))
+        hit <- lookup[key(counts$pair)]
+        n_mapped <- sum(!is.na(hit))
+        if (n_mapped) counts[!is.na(hit), pair := hit[!is.na(hit)]]
+        message(sprintf("sc_export_walks: %d of %d walk cells matched to gOS cell ids", length(unique(counts$pair[!is.na(hit)])), length(unique(counts$pair))))
+    }
     coords <- if (!is.null(coords)) data.table::as.data.table(load_rds(coords)) else NULL
     if (!is.null(coords)) coords[, gw_id := as.character(gw_id)]
     summary <- if (!is.null(summary)) data.table::as.data.table(load_rds(summary)) else NULL
