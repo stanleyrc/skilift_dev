@@ -985,6 +985,56 @@ sc_seurat_metadata <- function(
     out
 }
 
+#' @name sc_export_rna_markers
+#' @title sc_export_rna_markers
+#' @description
+#'
+#' Marker genes per level of one or more metadata columns (Seurat
+#' FindAllMarkers, Wilcoxon, positive markers), written to rna/markers.json
+#' for the gOS RNA tab: { fields: { <column>: [{ group, n, genes: [{ gene,
+#' avg_log2FC, pct_1, pct_2, p_val_adj }] }] } }.
+#'
+#' @param seurat Seurat object (normalized RNA assay)
+#' @param out_dir patient folder in the gOS data directory (markers.json goes to its rna/)
+#' @param group_cols metadata columns to find markers for (skipped when missing or with one level)
+#' @param n markers kept per group
+#' @param min_cells smallest group kept
+#' @return the list written (invisibly)
+#' @export
+#' @author Stanley Clarke
+sc_export_rna_markers <- function(seurat, out_dir, group_cols = c("state", "Clone_Annotation", "seurat_clusters"),
+                                  n = 25, min_cells = 10) {
+    rna_dir <- file.path(out_dir, "rna")
+    dir.create(rna_dir, recursive = TRUE, showWarnings = FALSE)
+    out <- list()
+    meta <- seurat@meta.data
+    for (col in intersect(group_cols, names(meta))) {
+        groups <- meta[[col]]
+        keep <- !is.na(groups) & groups != ""
+        tab <- table(groups[keep])
+        levels_ok <- names(tab)[tab >= min_cells]
+        if (length(levels_ok) < 2) next
+        sub <- seurat[, keep & groups %in% levels_ok]
+        Seurat::Idents(sub) <- factor(as.character(sub@meta.data[[col]]), levels = levels_ok)
+        markers <- tryCatch(
+            Seurat::FindAllMarkers(sub, only.pos = TRUE, test.use = "wilcox", min.pct = 0.1,
+                                   logfc.threshold = 0.25, verbose = FALSE),
+            error = function(e) { message("markers for ", col, " failed: ", conditionMessage(e)); NULL })
+        if (is.null(markers) || !nrow(markers)) next
+        markers <- data.table::as.data.table(markers)
+        data.table::setorder(markers, cluster, p_val_adj, -avg_log2FC)
+        out[[col]] <- lapply(levels_ok, function(lv) {
+            m <- markers[cluster == lv][seq_len(min(n, .N))]
+            list(group = lv, n = as.integer(tab[[lv]]),
+                 genes = m[, .(gene, avg_log2FC = round(avg_log2FC, 3), pct_1 = round(pct.1, 3),
+                               pct_2 = round(pct.2, 3), p_val_adj = signif(p_val_adj, 3))])
+        })
+    }
+    result <- list(method = "Seurat FindAllMarkers (Wilcoxon, positive, min.pct 0.1, logFC 0.25)", fields = out)
+    jsonlite::write_json(result, file.path(rna_dir, "markers.json"), auto_unbox = TRUE, digits = NA, na = "null")
+    invisible(result)
+}
+
 #' @name export_gos_sc_rna
 #' @title export_gos_sc_rna
 #' @description
