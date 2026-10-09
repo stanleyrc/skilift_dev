@@ -53,6 +53,12 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
         x[, gw_id := as.character(gw_id)]
     }
     coords <- by_walk(coords, "coords")
+    if (!is.null(summary)) summary <- data.table::as.data.table(load_rds(summary))
+    from_cells <- FALSE
+    ## a per-cell summary (pair, amp_id4, amp_cn; no gw_id) names amplicons per cell:
+    ## turn it into a per-walk summary by matching each label to the walk its cells carry
+    if (!is.null(summary) && !"gw_id" %in% names(summary) && all(c("pair", "amp_id4", "amp_cn") %in% names(summary)))
+        { summary <- walk_labels_from_cell_summary(summary, counts, min_cn); from_cells <- TRUE }
     summary <- by_walk(summary, "summary")
     dt <- data.table::as.data.table(gw$dt)
     if (!"gw_id" %in% names(dt)) dt[, gw_id := walk.id]
@@ -105,19 +111,57 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
             total_cn = sum(carriers$cn),
             median_cn = if (nrow(carriers)) stats::median(carriers$cn) else 0,
             max_cn = if (nrow(carriers)) max(carriers$cn) else 0,
-            curated = if (!is.null(su) && "cn_filter" %in% names(su)) isTRUE(su$cn_filter) else NULL,
+            curated = if (!is.null(su) && "cn_filter" %in% names(su)) isTRUE(su$cn_filter) else if (from_cells) FALSE else NULL,
             gene_label = if (!is.null(su) && "gene_label" %in% names(su)) su$gene_label else NULL,
             amp_id = if (!is.null(su) && "amp_id4" %in% names(su) && !is.na(su$amp_id4)) su$amp_id4 else NULL,
             nodes = nodes[, intersect(c("chromosome", "start", "end", "strand", "cn"), names(nodes)), with = FALSE],
             junctions = junctions,
             cells = as.list(stats::setNames(carriers$cn, carriers$pair)))
     })
+    ## with labels matched from a per-cell summary, the unmatched walks get "<driver gene | Other> minor k"
+    ## (by decreasing cell count) instead of their raw gWalk name
+    if (from_cells) {
+        raw <- which(vapply(walk_json, function(w) identical(w$label, w$name), logical(1)))
+        fam <- vapply(walk_json[raw], function(w) if (length(w$driver_genes)) paste(w$driver_genes, collapse = "/") else "Other", character(1))
+        ord <- order(fam, -vapply(walk_json[raw], function(w) w$ncells, numeric(1)))
+        k <- stats::ave(seq_along(ord), fam[ord], FUN = seq_along)
+        for (i in seq_along(ord)) walk_json[[raw[ord[i]]]]$label <- paste(fam[ord[i]], "minor", k[i])
+    }
     out <- list(format = "gos-sc-walks/1", patient = patient, n_walks = length(walk_json),
                 n_cells = length(cells), cells = cells, walks = walk_json)
     dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
     path <- file.path(out_dir, "walks.json")
     jsonlite::write_json(out, path, auto_unbox = TRUE, digits = NA, null = "null", na = "null")
     invisible(path)
+}
+
+## Per-walk labels from a per-cell amplicon summary (pair, amp_id4 e.g. "MGH285 EGFR 1 (81)", amp_cn).
+## Each label goes to the walk whose carriers best match the label's cells (Jaccard >= 0.8) and whose
+## per-cell copy numbers agree best with amp_cn (walks with identical carriers are told apart by cn);
+## a walk takes at most one label. Returns gw_id, gene_label ("EGFR 1"), amp_id4, cn_filter = TRUE.
+walk_labels_from_cell_summary <- function(summary, counts, min_cn = 1) {
+    key <- function(x) tolower(gsub("[^A-Za-z0-9]", "", x))
+    s <- data.table::data.table(cell = key(summary$pair), amp_id4 = as.character(summary$amp_id4), amp_cn = as.numeric(summary$amp_cn))
+    s <- s[!is.na(amp_id4) & nzchar(amp_id4)]
+    car <- counts[is.finite(cn) & cn >= min_cn, .(cell = key(pair), gw_id, cn)]
+    cand <- data.table::rbindlist(lapply(unique(s$amp_id4), function(l) {
+        sl <- s[amp_id4 == l]
+        data.table::rbindlist(lapply(unique(car$gw_id), function(w) {
+            cw <- car[gw_id == w]
+            shared <- merge(sl, cw, by = "cell")
+            data.table::data.table(amp_id4 = l, gw_id = w,
+                                   jaccard = nrow(shared) / length(union(sl$cell, cw$cell)),
+                                   cn_diff = if (nrow(shared)) mean(abs(shared$amp_cn - shared$cn)) else Inf)
+        }))
+    }))
+    cand <- cand[jaccard >= 0.8][order(-round(jaccard, 2), cn_diff)]
+    picked <- cand[0]
+    for (i in seq_len(nrow(cand)))
+        if (!cand$amp_id4[i] %in% picked$amp_id4 && !cand$gw_id[i] %in% picked$gw_id) picked <- rbind(picked, cand[i])
+    message(sprintf("sc_export_walks: %d of %d per-cell amplicon labels matched to walks", nrow(picked), data.table::uniqueN(s$amp_id4)))
+    out <- picked[, .(gw_id, amp_id4, cn_filter = TRUE,
+                      gene_label = trimws(sub("\\s*\\(\\d+\\)$", "", sub("^\\S+\\s+", "", amp_id4))))]
+    out
 }
 
 ## TRUE where node b continues node a along the reference (same chromosome and strand, abutting)
