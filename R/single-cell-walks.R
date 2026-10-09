@@ -45,10 +45,15 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
         if (n_mapped) counts[!is.na(hit), pair := hit[!is.na(hit)]]
         message(sprintf("sc_export_walks: %d of %d walk cells matched to gOS cell ids", length(unique(counts$pair[!is.na(hit)])), length(unique(counts$pair))))
     }
-    coords <- if (!is.null(coords)) data.table::as.data.table(load_rds(coords)) else NULL
-    if (!is.null(coords)) coords[, gw_id := as.character(gw_id)]
-    summary <- if (!is.null(summary)) data.table::as.data.table(load_rds(summary)) else NULL
-    if (!is.null(summary)) summary[, gw_id := as.character(gw_id)]
+    ## older patients' coords / summary tables are per cell (no gw_id): skip them
+    by_walk <- function(x, what) {
+        if (is.null(x)) return(NULL)
+        x <- data.table::as.data.table(load_rds(x))
+        if (!"gw_id" %in% names(x)) { message("sc_export_walks: ", what, " has no gw_id column, ignored"); return(NULL) }
+        x[, gw_id := as.character(gw_id)]
+    }
+    coords <- by_walk(coords, "coords")
+    summary <- by_walk(summary, "summary")
     dt <- data.table::as.data.table(gw$dt)
     if (!"gw_id" %in% names(dt)) dt[, gw_id := walk.id]
     dt[, gw_id := as.character(gw_id)]
