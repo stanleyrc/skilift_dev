@@ -353,6 +353,8 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                  cells = stats::setNames(lapply(seq_len(nrow(ar)), function(k) c(ar$alt[k], ar$ref[k])), ar$rna_id))
         })
         cm <- cell_maps[[p]]
+        ## per-patient file only for patients already in the gOS dataset (cohort file covers all)
+        if (!dir.exists(file.path(data_dir, p))) next
         pdir <- file.path(data_dir, p, "rna")
         dir.create(pdir, recursive = TRUE, showWarnings = FALSE)
         jsonlite::write_json(list(format = "gos-sc-splicing/1", patient = p, n_cells = data.table::uniqueN(per[[p]]$rna_id),
