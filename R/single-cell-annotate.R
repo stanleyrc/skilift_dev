@@ -518,7 +518,12 @@ sc_cell_cna_fusions <- function(cell, jabba_gg, work_dir, out_rds, gencode_gr, c
     work_dir <- normalizePath(work_dir)
     jabba_gg <- normalizePath(jabba_gg)
     fusions_rds <- file.path(work_dir, "fusions.rds")
-    if (fusions && !file.exists(fusions_rds)) sc_cell_fusions(cell, jabba_gg, work_dir, cfg)
+    ## gGnome fusions() errors on some graphs (no breakpoint in a transcript: "Object 'tx_rank' not found");
+    ## carry on with the copy-number drivers alone rather than losing the cell
+    if (fusions && !file.exists(fusions_rds)) {
+        tryCatch(sc_cell_fusions(cell, jabba_gg, work_dir, cfg),
+                 error = function(e) message(cell, ": fusions failed, copy-number drivers only: ", conditionMessage(e)))
+    }
     if (!fusions || !file.exists(fusions_rds)) fusions_rds <- "/dev/null"
     sc_singularity_exec(cfg, cfg$unified_image,
         paste("export HOME=/root; set +u; source /opt/conda/etc/profile.d/conda.sh; conda activate pact;",
