@@ -12,7 +12,10 @@
 #' a high-confidence call of one cell with `single_min_reads` reads. With `slices`, every carrier
 #' cell gets an IGV slice of its RNA reads within `pad` bp of its fusion
 #' breakpoints (rna/reads/<rna_id>.bam; supporting reads tagged ZF:i:1).
-#' Writes data/<P>/rna/fusions.json (gos-sc-rna-fusions/1).
+#' Every fusion gets a tier (see sc_rna_fusion_tier: 1 known / actionable
+#' driver fusion, 2 cancer-gene fusion with functional evidence, 3 other) with
+#' its reasons, the cancer genes involved, Arriba's retained protein domains
+#' and transcripts. Writes data/<P>/rna/fusions.json (gos-sc-rna-fusions/1).
 #'
 #' @param patient patient id
 #' @param cell_dirs named character: rna_id -> per-cell folder (fusions.tsv, Aligned.sorted.bam)
@@ -26,12 +29,14 @@
 #' @param max_fusions cap on exported fusions (DNA-matched ones always kept)
 #' @param pad bp around each breakpoint in the slices
 #' @param cores parallel cells
+#' @param refs reference gene lists for the tiers (sc_rna_fusion_references())
 #' @return the fusions data.table (invisibly)
 #' @export
 #' @author Stanley Clarke
 sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, dna_events = NULL,
                                   keep_confidence = c("high", "medium"), min_cells = 2, single_min_reads = 10,
-                                  max_fusions = 2000, slices = TRUE, pad = 300, cores = 4) {
+                                  max_fusions = 2000, slices = TRUE, pad = 300, cores = 4,
+                                  refs = sc_rna_fusion_references()) {
     files <- file.path(cell_dirs, "fusions.tsv")
     keep <- file.exists(files)
     calls <- data.table::rbindlist(parallel::mclapply(which(keep), function(i) {
@@ -57,9 +62,17 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
 
     ## DNA fusions of the patient (gene pairs, either order)
     dna_pairs <- character(0)
+    dna_tier_of <- integer(0)
     if (!is.null(dna_events) && file.exists(dna_events)) {
         ev <- data.table::as.data.table(jsonlite::fromJSON(dna_events))
-        if ("vartype" %in% names(ev)) dna_pairs <- unique(ev[vartype %in% c("fusion", "outframe_fusion")]$gene)
+        if ("vartype" %in% names(ev)) {
+            dfx <- ev[vartype %in% c("fusion", "outframe_fusion")]
+            dna_pairs <- unique(dfx$gene)
+            if ("Tier" %in% names(dfx) && nrow(dfx)) {
+                tt <- dfx[, .(tier = suppressWarnings(min(as.integer(Tier), na.rm = TRUE))), by = gene]
+                dna_tier_of <- stats::setNames(ifelse(is.finite(tt$tier), tt$tier, NA_integer_), tt$gene)
+            }
+        }
     }
     pair_key <- function(a, b) paste(pmin(a, b), pmax(a, b), sep = "::")
     dna_keys <- if (length(dna_pairs)) {
@@ -67,17 +80,28 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
         stats::setNames(dna_pairs, pair_key(g[[1]], g[[2]]))
     } else character(0)
     clean_gene <- function(g) sub("\\(.*$", "", sub(",.*$", "", g))   ## intergenic "A(123),B(456)" -> A
+    ## most frequent informative value of an Arriba column across the cells of a fusion ("." when none)
+    top_value <- function(v) {
+        v <- v[!is.na(v) & v != "." & nzchar(v)]
+        if (!length(v)) return(".")
+        names(sort(table(v), decreasing = TRUE))[1]
+    }
+    for (col in c("retained_protein_domains", "transcript_id1", "transcript_id2"))
+        if (!col %in% names(calls)) calls[, (col) := "."]
 
     fus <- calls[, .(gene1 = gene1[1], gene2 = gene2[1], breakpoint1 = breakpoint1[1], breakpoint2 = breakpoint2[1],
                      strand1 = `strand1(gene/fusion)`[1], strand2 = `strand2(gene/fusion)`[1],
-                     site1 = site1[1], site2 = site2[1], type = type[1], reading_frame = reading_frame[1],
+                     site1 = site1[1], site2 = site2[1], type = type[1], reading_frame = top_value(reading_frame),
                      confidence = names(rank)[match(max(rank[confidence]), rank)],
                      n_cells = data.table::uniqueN(rna_id), n_cells_dna = data.table::uniqueN(cell_id[!is.na(cell_id)]),
-                     split_reads = sum(split1 + split2, na.rm = TRUE), discordant_mates = sum(discordant, na.rm = TRUE)),
+                     split_reads = sum(split1 + split2, na.rm = TRUE), discordant_mates = sum(discordant, na.rm = TRUE),
+                     retained_domains = top_value(retained_protein_domains),
+                     transcript1 = top_value(transcript_id1), transcript2 = top_value(transcript_id2)),
                  by = .(id = fusion_id)]
     fus[, dna_gene := unname(dna_keys[pair_key(clean_gene(gene1), clean_gene(gene2))])]
+    fus[, dna_tier := if (length(dna_tier_of)) unname(dna_tier_of[dna_gene]) else NA_integer_]
     known <- unique(calls[!is.na(tags) & tags != "." & grepl("Mitelman|known|COSMIC|CCLE", tags, ignore.case = TRUE)]$fusion_id)
-    fus[, known := id %in% known]
+    fus[, known := id %in% known | paste(clean_gene(gene1), clean_gene(gene2), sep = "::") %in% refs$known_pairs]
     n_all <- nrow(fus)
     fus <- fus[!is.na(dna_gene) | known | n_cells >= min_cells |
                (confidence == "high" & split_reads + discordant_mates >= single_min_reads)]
@@ -86,6 +110,9 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
     message(sprintf("sc_export_rna_fusions %s: %d of %d fusions kept (%d DNA-matched, %d known)", patient, nrow(fus), n_all,
                     sum(!is.na(fus$dna_gene)), sum(fus$known)))
     calls <- calls[fusion_id %in% fus$id]
+    tiers <- sc_rna_fusion_tier(fus, refs, n_cells_rna = sum(keep))
+    message(sprintf("sc_export_rna_fusions %s: tier 1 %d, tier 2 %d, tier 3 %d", patient,
+                    sum(tiers$tier == 1L), sum(tiers$tier == 2L), sum(tiers$tier == 3L)))
 
     ## per-cell RNA slices around the breakpoints, supporting reads tagged ZF:i:1
     if (slices) {
@@ -120,8 +147,13 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
     out <- lapply(seq_len(nrow(fus)), function(i) {
         f <- fus[i]
         cc <- cells_of[[f$id]][order(-(split1 + split2 + discordant))]
-        c(as.list(f[, !"dna_gene"]),
-          list(dna_match = if (is.na(f$dna_gene)) NULL else list(kind = "gene_pair", event_gene = f$dna_gene),
+        tr <- tiers[i]
+        c(as.list(f[, !c("dna_gene", "dna_tier")]),
+          list(tier = tr$tier, tier_label = tr$tier_label, tier_reasons = as.list(tr$tier_reasons[[1]]),
+               cancer_genes = tr$cancer_genes[[1]], oncokb_level = if (is.na(tr$oncokb_level)) NULL else tr$oncokb_level,
+               productive = tr$productive, cell_fraction = tr$cell_fraction),
+          list(dna_match = if (is.na(f$dna_gene)) NULL else list(kind = "gene_pair", event_gene = f$dna_gene,
+                                                                 tier = if (is.na(f$dna_tier)) NULL else f$dna_tier),
                cells = lapply(seq_len(nrow(cc)), function(k) list(
                    rna_id = cc$rna_id[k], cell_id = if (is.na(cc$cell_id[k])) NULL else cc$cell_id[k],
                    split1 = cc$split1[k], split2 = cc$split2[k], discordant = cc$discordant[k], confidence = cc$confidence[k],
@@ -130,6 +162,236 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
     res <- c(empty[c("format", "patient", "n_cells_rna")], list(fusions = out))
     jsonlite::write_json(res, file.path(rna_dir, "fusions.json"), auto_unbox = TRUE, null = "null", na = "null", digits = NA)
     invisible(fus)
+}
+
+#' @name sc_rna_fusion_references
+#' @title sc_rna_fusion_references
+#' @description
+#'
+#' Reference lists for the RNA fusion tiers: Arriba's known fusion gene pairs
+#' (5'::3', from the known_fusions database), cancer genes with their role
+#' (OncoKB cancer gene list, then the COSMIC Cancer Gene Census) and OncoKB's
+#' fusion biomarkers (genes whose fusions carry a level, e.g. NTRK1 "Fusions",
+#' and named pairs such as FGFR3-TACC3) with their best level (1-4 therapeutic,
+#' then Dx, then Px). Missing files give empty lists.
+#'
+#' @param known_fusions Arriba known_fusions_*.tsv.gz
+#' @param oncokb_genes OncoKB cancer gene list (rds data.table with Hugo_Symbol, Role)
+#' @param oncokb_biomarkers OncoKB biomarker-drug associations tsv (Level, Gene, Alterations)
+#' @param cgc COSMIC Cancer Gene Census csv
+#' @return list(known_pairs, cancer_roles, oncokb_genes, oncokb_pairs)
+#' @export
+#' @author Stanley Clarke
+sc_rna_fusion_references <- function(
+    known_fusions = "/nfs/sw/easybuild/software/arriba/2.5.0/database/known_fusions_hg38_GRCh38_v2.5.0.tsv.gz",
+    oncokb_genes = "/gpfs/commons/groups/imielinski_lab/DB/OncoKB/OncoKB_cancer_genes.rds",
+    oncokb_biomarkers = "/gpfs/commons/groups/imielinski_lab/DB/OncoKB/oncokb_biomarker_drug_associations.tsv",
+    cgc = "/gpfs/commons/groups/imielinski_lab/DB/COSMIC/v97_GRCh38/cancer_gene_census.csv") {
+    ok <- function(f) is.character(f) && length(f) == 1 && !is.na(f) && file.exists(f)
+    known_pairs <- character(0)
+    if (ok(known_fusions)) {
+        con <- gzfile(known_fusions); l <- readLines(con, warn = FALSE); close(con)
+        p <- strsplit(sub("^#", "", grep("^#", l, value = TRUE)), "\t", fixed = TRUE)
+        p <- p[vapply(p, length, 1L) >= 2]
+        known_pairs <- unique(toupper(vapply(p, function(x) paste(x[1], x[2], sep = "::"), "")))
+    }
+    roles <- character(0)
+    if (ok(oncokb_genes)) {
+        x <- data.table::as.data.table(readRDS(oncokb_genes))
+        r <- tolower(ifelse(is.na(x$Role) | !nzchar(x$Role), "cancer gene", x$Role))
+        roles <- stats::setNames(r, toupper(x$Hugo_Symbol))
+    }
+    if (ok(cgc)) {
+        y <- data.table::fread(cgc, showProgress = FALSE)
+        g <- toupper(y[["Gene Symbol"]])
+        r <- y[["Role in Cancer"]]
+        r <- ifelse(is.na(r) | !nzchar(r), "cancer gene", r)
+        new <- !g %in% names(roles)
+        roles <- c(roles, stats::setNames(r[new], g[new]))
+    }
+    okb_genes <- okb_pairs <- character(0)
+    if (ok(oncokb_biomarkers)) {
+        b <- data.table::fread(oncokb_biomarkers, sep = "\t", showProgress = FALSE)
+        data.table::setnames(b, 1:3, c("level", "gene", "alt"))
+        b <- b[grepl("Fusion", alt) & !grepl("excluding Fusions", alt)]
+        rank <- function(l) ifelse(grepl("^\\d$", l), suppressWarnings(as.integer(l)),
+                            ifelse(grepl("^Dx", l), 4L + suppressWarnings(as.integer(sub("Dx", "", l))),
+                                   8L + suppressWarnings(as.integer(sub("Px", "", l)))))
+        best <- function(gene, level) {
+            d <- data.table::data.table(gene = gene, level = level, r = rank(level))[order(r)]
+            d <- d[!duplicated(gene)]
+            stats::setNames(d$level, d$gene)
+        }
+        gl <- b[grepl("(^|, )Fusions", alt)]
+        okb_genes <- best(toupper(gl$gene), as.character(gl$level))
+        pr <- b[, .(pair = unlist(regmatches(alt, gregexpr("[A-Za-z0-9]+-[A-Za-z0-9]+(?= Fusion)", alt, perl = TRUE)))), by = .(level = as.character(level))]
+        if (nrow(pr)) okb_pairs <- best(toupper(sub("-", "::", pr$pair, fixed = TRUE)), pr$level)
+    }
+    list(known_pairs = known_pairs, cancer_roles = roles, oncokb_genes = okb_genes, oncokb_pairs = okb_pairs)
+}
+
+#' @name sc_rna_fusion_tier
+#' @title sc_rna_fusion_tier
+#' @description
+#'
+#' Tier of each RNA fusion, on the scale of the DNA driver tiers (OncoKB:
+#' 1 actionable, 2 significant, 3 VUS). Only productive fusions (not
+#' read-through, not 5'-5' / 3'-3') rank above 3.
+#'   Tier 1 (known / actionable driver): an OncoKB fusion biomarker pair
+#'     (e.g. FGFR3::TACC3); a fusion of an OncoKB fusion gene (NTRK1-3, ALK,
+#'     ROS1, RET, FGFR1-3, BRAF, MET, PDGFRA/B, ...) with a partner, in frame
+#'     or (3' partner) keeping its kinase domain; an Arriba known (Mitelman /
+#'     literature) pair in frame, or DNA-matched in >= 2 cells without a known
+#'     frame shift; an in-frame EGFR intragenic
+#'     deletion (EGFRvIII-like); or the RNA call of a tier-1 DNA fusion.
+#'   Tier 2 (cancer-gene fusion with evidence): a cancer gene (OncoKB cancer
+#'     genes, COSMIC CGC) at a genic breakpoint and in frame, DNA-matched,
+#'     keeping a kinase domain, or in >= min_fraction of the RNA cells; any
+#'     other known pair; an in-frame DNA-matched fusion; or the RNA call of a
+#'     tier-2 DNA fusion.
+#'   Tiers 1-2 also need support beyond one cell (>= 2 carrier cells or a
+#'   DNA-matched gene pair).
+#'   Tier 3: everything else exported.
+#'
+#' @param fus fusions (gene1, gene2, site1, site2, type, reading_frame, known, n_cells, retained_domains, dna_gene, dna_tier)
+#' @param refs sc_rna_fusion_references()
+#' @param n_cells_rna RNA cells of the patient (for the cell fraction)
+#' @param min_fraction cell fraction making a cancer-gene fusion tier 2
+#' @return data.table(tier, tier_label, tier_reasons (list), cancer_genes (list), oncokb_level, productive, cell_fraction)
+#' @export
+#' @author Stanley Clarke
+sc_rna_fusion_tier <- function(fus, refs = sc_rna_fusion_references(), n_cells_rna = NA, min_fraction = 0.1) {
+    n <- nrow(fus)
+    col <- function(x, d) if (is.null(fus[[x]])) rep(d, n) else fus[[x]]
+    clean <- function(g) toupper(sub("\\(.*$", "", sub(",.*$", "", g)))
+    g1 <- clean(fus$gene1); g2 <- clean(fus$gene2)
+    genic1 <- col("site1", ".") != "intergenic"; genic2 <- col("site2", ".") != "intergenic"
+    type <- col("type", ".")
+    readthrough <- grepl("read-through", type)
+    nonprod <- grepl("5'-5'|3'-3'", type)
+    productive <- !readthrough & !nonprod
+    frame <- col("reading_frame", ".")
+    inframe <- frame %in% "in-frame"
+    dna_gene <- col("dna_gene", NA_character_); dna_tier <- col("dna_tier", NA_integer_)
+    dna <- !is.na(dna_gene)
+    known <- col("known", FALSE) %in% TRUE
+    dom <- strsplit(ifelse(is.na(col("retained_domains", ".")), ".", col("retained_domains", ".")), "|", fixed = TRUE)
+    side <- function(k) vapply(dom, function(d) if (length(d) >= k) d[k] else ".", "")
+    ## a protein kinase domain (Pfam "Protein kinase domain", "Protein tyrosine (and serine/threonine) kinase"),
+    ## at least half of it kept; metabolic kinases (PI3/4-kinase, NDK, ...) do not count
+    kinase <- function(d) vapply(regmatches(d, gregexpr("(Protein_kinase_domain|Protein_tyrosine[^,(]*kinase)[^,]*\\((\\d+)%\\)", d, ignore.case = TRUE)), function(m)
+        length(m) > 0 && any(as.integer(sub(".*\\((\\d+)%\\)$", "\\1", m)) >= 50), TRUE)
+    kin1 <- genic1 & kinase(side(1)); kin2 <- genic2 & kinase(side(2))
+    frac <- if (is.finite(n_cells_rna) && n_cells_rna > 0) col("n_cells", 0) / n_cells_rna else rep(NA_real_, n)
+    role1 <- ifelse(genic1, unname(refs$cancer_roles[g1]), NA_character_)
+    role2 <- ifelse(genic2, unname(refs$cancer_roles[g2]), NA_character_)
+    cancer <- !is.na(role1) | !is.na(role2)
+    okb1 <- ifelse(genic1, unname(refs$oncokb_genes[g1]), NA_character_)
+    okb2 <- ifelse(genic2, unname(refs$oncokb_genes[g2]), NA_character_)
+    pair_lvl <- unname(refs$oncokb_pairs[paste(g1, g2, sep = "::")])
+    ## frame not out-of-frame / stop-codon: in frame, or not determined (".": e.g. intronic / UTR breakpoints)
+    frame_ok <- inframe | frame %in% c(".", "", NA)
+    ## OncoKB fusion gene: in frame, or the 3' partner keeping its kinase domain without a known frame shift
+    okb_partner <- g1 != g2 & ((!is.na(okb1) & inframe) | (!is.na(okb2) & (inframe | (kin2 & frame_ok))))
+    egfrviii <- g1 == "EGFR" & g2 == "EGFR" & inframe & grepl("deletion", type)
+    recurrent <- (frac >= min_fraction) %in% TRUE
+    ## support beyond one cell: >= 2 carrier cells or the same gene pair in the DNA
+    supported <- col("n_cells", 1L) >= 2 | dna
+    ## a known pair: in frame, or DNA-matched in >= 2 cells without a known frame shift
+    known1 <- known & (inframe | (dna & col("n_cells", 1L) >= 2 & frame_ok))
+    t1 <- productive & supported & (!is.na(pair_lvl) | okb_partner | known1 | egfrviii | (dna & dna_tier %in% 1L))
+    t2 <- productive & supported & !t1 & ((cancer & (inframe | dna | (kin2 & frame_ok) | recurrent)) | known | (dna & inframe) | (dna & dna_tier %in% 2L))
+    tier <- ifelse(t1, 1L, ifelse(t2, 2L, 3L))
+    labels <- c("known / actionable driver", "cancer-gene fusion", "other")
+    reasons <- lapply(seq_len(n), function(i) {
+        r <- character(0)
+        if (readthrough[i]) r <- c(r, "read-through (adjacent genes)")
+        if (nonprod[i]) r <- c(r, "non-productive orientation (5'-5' / 3'-3')")
+        if (!is.na(pair_lvl[i])) r <- c(r, sprintf("OncoKB fusion %s::%s (level %s)", g1[i], g2[i], pair_lvl[i]))
+        if (!is.na(okb1[i])) r <- c(r, sprintf("OncoKB fusion gene %s (level %s)", g1[i], okb1[i]))
+        if (!is.na(okb2[i]) && g2[i] != g1[i]) r <- c(r, sprintf("OncoKB fusion gene %s (level %s)", g2[i], okb2[i]))
+        if (egfrviii[i]) r <- c(r, "in-frame EGFR intragenic deletion (EGFRvIII-like)")
+        if (known[i]) r <- c(r, "known fusion (Arriba / Mitelman)")
+        if (!is.na(role1[i])) r <- c(r, sprintf("cancer gene %s (%s)", g1[i], role1[i]))
+        if (!is.na(role2[i]) && g2[i] != g1[i]) r <- c(r, sprintf("cancer gene %s (%s)", g2[i], role2[i]))
+        if (inframe[i]) r <- c(r, "in frame") else if (!frame[i] %in% c(".", "")) r <- c(r, frame[i])
+        if (kin1[i]) r <- c(r, sprintf("%s kinase domain retained", g1[i]))
+        if (kin2[i] && g2[i] != g1[i]) r <- c(r, sprintf("%s kinase domain retained", g2[i]))
+        if (dna[i]) r <- c(r, if (is.na(dna_tier[i])) sprintf("DNA fusion %s", dna_gene[i]) else sprintf("DNA fusion %s (DNA tier %d)", dna_gene[i], dna_tier[i]))
+        if (recurrent[i]) r <- c(r, sprintf("in %.0f%% of RNA cells", 100 * frac[i]))
+        if (!supported[i]) r <- c(r, "single cell, no DNA support")
+        r
+    })
+    cg <- lapply(seq_len(n), function(i) {
+        out <- list()
+        if (!is.na(role1[i])) out <- c(out, list(list(gene = g1[i], role = role1[i])))
+        if (!is.na(role2[i]) && g2[i] != g1[i]) out <- c(out, list(list(gene = g2[i], role = role2[i])))
+        out
+    })
+    lvl <- ifelse(!is.na(pair_lvl), pair_lvl, ifelse(!is.na(okb1), okb1, okb2))
+    data.table::data.table(tier = tier, tier_label = labels[tier], tier_reasons = reasons, cancer_genes = cg,
+                           oncokb_level = lvl, productive = productive, cell_fraction = round(frac, 4))
+}
+
+#' @name sc_rna_fusion_recurrence
+#' @title sc_rna_fusion_recurrence
+#' @description
+#'
+#' Cohort recurrence of the RNA fusions: adds to every fusion of every
+#' data/<P>/rna/fusions.json the other patients with the same gene pair
+#' (either order, first gene of intergenic fields), as `recurrence`
+#' [{patient, n_cells}] (most cells first) and `n_patients`. A tier 1-2
+#' fusion seen in `artefact_patients` or more patients that is neither known
+#' nor DNA-matched drops to tier 3 (recurrent single-cell calls without DNA
+#' support across unrelated tumours are mostly alignment / transcriptional
+#' artefacts, e.g. BOLA2B::SMG1); the export's tier is kept as `tier_base`.
+#' Run after the per-patient exports; rewrites the files in place (fields only added).
+#'
+#' @param data_dir data folder of the gOS dataset
+#' @param artefact_patients patients from which an unsupported recurrent fusion is demoted
+#' @return data.table(patient, pair, n_cells) (invisibly)
+#' @export
+#' @author Stanley Clarke
+sc_rna_fusion_recurrence <- function(data_dir, artefact_patients = 3) {
+    files <- Sys.glob(file.path(data_dir, "*", "rna", "fusions.json"))
+    if (!length(files)) return(invisible(data.table::data.table()))
+    pats <- basename(dirname(dirname(files)))
+    js <- lapply(files, jsonlite::fromJSON, simplifyVector = FALSE)
+    clean <- function(g) toupper(sub("\\(.*$", "", sub(",.*$", "", g)))
+    key <- function(f) { a <- clean(f$gene1); b <- clean(f$gene2); paste(pmin(a, b), pmax(a, b), sep = "::") }
+    tab <- data.table::rbindlist(lapply(seq_along(js), function(i) {
+        fs <- js[[i]]$fusions
+        if (!length(fs)) return(NULL)
+        data.table::data.table(patient = pats[i], pair = vapply(fs, key, ""), n_cells = vapply(fs, function(f) as.integer(f$n_cells), 1L))
+    }))
+    if (!nrow(tab)) return(invisible(tab))
+    tab <- tab[, .(n_cells = max(n_cells)), by = .(patient, pair)][order(-n_cells)]
+    by_pair <- split(tab, tab$pair)
+    for (i in seq_along(js)) {
+        if (!length(js[[i]]$fusions)) next
+        js[[i]]$fusions <- lapply(js[[i]]$fusions, function(f) {
+            o <- by_pair[[key(f)]]
+            o <- o[patient != pats[i]]
+            f$recurrence <- lapply(seq_len(nrow(o)), function(k) list(patient = o$patient[k], n_cells = o$n_cells[k]))
+            f$n_patients <- nrow(o) + 1L
+            if (!is.null(f$tier)) {
+                if (is.null(f$tier_base)) { f$tier_base <- f$tier; f$tier_reasons_base <- f$tier_reasons }
+                f$tier <- f$tier_base
+                f$tier_reasons <- f$tier_reasons_base
+                f$tier_label <- c("known / actionable driver", "cancer-gene fusion", "other")[f$tier]
+                if (f$tier_base < 3 && f$n_patients >= artefact_patients && !isTRUE(f$known) && is.null(f$dna_match)) {
+                    f$tier <- 3L
+                    f$tier_label <- "other"
+                    f$tier_reasons <- c(f$tier_reasons, list(sprintf("in %d patients without DNA support (likely artefact)", f$n_patients)))
+                }
+            }
+            f
+        })
+        jsonlite::write_json(js[[i]], files[i], auto_unbox = TRUE, null = "null", na = "null", digits = NA)
+    }
+    message(sprintf("sc_rna_fusion_recurrence: %d patients, %d gene pairs in >1 patient", length(files),
+                    sum(tab[, data.table::uniqueN(patient), by = pair]$V1 > 1)))
+    invisible(tab)
 }
 
 ## ------------------------------------------------------------------ splicing
