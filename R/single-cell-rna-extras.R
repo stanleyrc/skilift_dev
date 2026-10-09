@@ -57,7 +57,8 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
     num <- function(v) suppressWarnings(as.integer(v))
     calls[, `:=`(split1 = num(split_reads1), split2 = num(split_reads2), discordant = num(discordant_mates))]
     calls[, fusion_id := paste0(gene1, "::", gene2, "|", breakpoint1, "|", breakpoint2)]
-    calls[, cell_id := if (is.null(cell_map)) NA_character_ else unname(cell_map[rna_id])]
+    ## per-cell dir names can differ in case from the rna ids of cells.json (BWH69 ..._10f vs ..._10F)
+    calls[, cell_id := if (is.null(cell_map)) NA_character_ else unname(cell_map[match(tolower(rna_id), tolower(names(cell_map)))])]
     rank <- c(high = 3L, medium = 2L, low = 1L)
 
     ## DNA fusions of the patient (gene pairs, either order)
