@@ -316,6 +316,50 @@ sc_cell_snv_oncotable <- function(cell, obs, oncokb_full, roles) {
         id = cell)]
 }
 
+#' @name sc_hg38_gene_location
+#' @title sc_hg38_gene_location
+#' @description
+#'
+#' Sets gene_location of oncotable gene rows (CNAs, fusion partners) to the
+#' hg38 gene span: the nf-gos CNA gene file first (cfg$cna_gencode, the genes
+#' OncoKB was run on), then any other gene of the full hg38 GENCODE
+#' (cfg$gencode). Rows whose gene is in neither get NA rather than skilift's
+#' hg19 gene_locations.rds position, which oncotable() fills in.
+#'
+#' @param ot oncotable rows (data.table with gene, gene_location)
+#' @param cfg sc_annotation_config()
+#' @return ot with hg38 gene_location
+#' @export
+#' @author Stanley Clarke
+sc_hg38_gene_location <- function(ot, cfg = sc_annotation_config()) {
+    if (!NROW(ot) || !"gene" %in% names(ot)) return(ot)
+    loc <- sc_hg38_gene_spans(cfg)
+    hg38 <- unname(loc[as.character(ot$gene)])
+    if (!"gene_location" %in% names(ot)) ot[, gene_location := NA_character_]
+    ## SNV rows carry their own (hg38) position; only gene-level rows are remapped
+    gene_level <- if ("source" %in% names(ot)) ot$source %in% c("oncokb_fusions", "oncokb_cna") else rep(TRUE, nrow(ot))
+    ot[gene_level, gene_location := hg38[gene_level]]
+    ot
+}
+
+## named vector gene -> "chr:start-end" (hg38), cached per session
+sc_hg38_gene_spans <- function(cfg = sc_annotation_config()) {
+    key <- paste(cfg$cna_gencode, cfg$gencode)
+    if (!is.null(.sc_gene_span_cache[[key]])) return(.sc_gene_span_cache[[key]])
+    span <- function(gr) {
+        gr <- gr[!duplicated(gr$gene_name)]
+        stats::setNames(paste0(as.character(GenomicRanges::seqnames(gr)), ":", GenomicRanges::start(gr), "-", GenomicRanges::end(gr)), gr$gene_name)
+    }
+    full <- readRDS(cfg$gencode)
+    if ("type" %in% names(GenomicRanges::mcols(full))) full <- full[full$type %in% "gene"]
+    cna <- span(readRDS(cfg$cna_gencode))
+    full <- span(full)
+    loc <- c(cna, full[setdiff(names(full), names(cna))])
+    .sc_gene_span_cache[[key]] <- loc
+    loc
+}
+.sc_gene_span_cache <- new.env()
+
 #' @name sc_write_cell_filtered_events
 #' @title sc_write_cell_filtered_events
 #' @description
@@ -332,6 +376,8 @@ sc_cell_snv_oncotable <- function(cell, obs, oncokb_full, roles) {
 #' @export
 #' @author Stanley Clarke
 sc_write_cell_filtered_events <- function(cell, snv_rows, other_rows, jabba_gg, cell_dir) {
+    ## cached CNA / fusion rows may still carry skilift's hg19 gene_location
+    if (NROW(other_rows)) other_rows <- sc_hg38_gene_location(data.table::as.data.table(other_rows))
     ot <- data.table::rbindlist(list(snv_rows, other_rows), fill = TRUE)
     if (!nrow(ot)) ot <- data.table::data.table(type = NA, source = "none")
     rds <- tempfile(fileext = ".rds")
@@ -376,7 +422,7 @@ sc_cell_fusions <- function(cell, jabba_gg, work_dir, cfg = sc_annotation_config
 #' cell's fusions (sc_cell_fusions(), run first unless fusions = FALSE) and gene
 #' amplifications / deletions via nf-gos process_singularity.sh (SNV part
 #' skipped), then skilift oncotable() on the OncoKB output. gene_location is
-#' set from the hg38 gene file (skilift's gene_locations.rds is hg19).
+#' set by sc_hg38_gene_location() (skilift's gene_locations.rds is hg19).
 #'
 #' @param cell cell id
 #' @param jabba_gg path to the cell's JaBbA gGraph rds
@@ -414,12 +460,7 @@ sc_cell_cna_fusions <- function(cell, jabba_gg, work_dir, out_rds, gencode_gr, c
                     jabba_gg = jabba_gg, gencode = gencode_gr, cytoband = cytoband_gr,
                     amp.thresh = amp.thresh, del.thresh = del.thresh, verbose = FALSE)
     ot <- ot[!is.na(type) & source %in% c("oncokb_fusions", "oncokb_cna")]
-    if (nrow(ot) && "gene" %in% names(ot)) {
-        genes <- readRDS(cfg$cna_gencode)
-        k <- match(ot$gene, genes$gene_name)
-        hg38 <- paste0(as.character(GenomicRanges::seqnames(genes))[k], ":", GenomicRanges::start(genes)[k], "-", GenomicRanges::end(genes)[k])
-        ot[, gene_location := ifelse(is.na(k), gene_location, hg38)]
-    }
+    ot <- sc_hg38_gene_location(ot, cfg)
     saveRDS(ot, out_rds)
     ot
 }
