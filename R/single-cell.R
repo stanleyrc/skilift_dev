@@ -845,6 +845,22 @@ build_gos_sc_dataset <- function(
             ## node numbers only mean something for this phylo object, so also
             ## write two tips whose MRCA is the node ("tipA|tipB"; one tip for a leaf)
             if (!is.null(tree) && "node" %in% names(variants)) {
+                ## node ids from a mapping on another tree (e.g. a stale site table) would
+                ## silently anchor sites to the wrong clades
+                if ("clade_cells" %in% names(variants)) {
+                    nodes <- unique(stats::na.omit(variants$node))
+                    size <- vapply(nodes, function(k) {
+                        if (k > ape::Ntip(tree) + tree$Nnode) -1L
+                        else if (k <= ape::Ntip(tree)) 1L
+                        else length(ape::extract.clade(tree, k)$tip.label)
+                    }, integer(1))
+                    tips_below <- size[match(variants$node, nodes)]
+                    bad <- which(!is.na(variants$node) & tips_below != variants$clade_cells)
+                    if (length(bad)) {
+                        stop(length(bad), " of ", sum(!is.na(variants$node)), " sites have node ids that do not ",
+                             "match this tree (clade_cells != tips below node); rerun the map step on this tree")
+                    }
+                }
                 variants[, anchor := sc_node_anchors(tree, node)]
             }
         }
