@@ -1281,9 +1281,9 @@ sc_recompute_umap <- function(
 #' @export
 #' @author Stanley Clarke
 sc_igv_regions <- function(variants, genome_json = NULL, pad = 200, junction_pad = 1000) {
-    parts <- data.table::tstrsplit(variants, "_", fixed = TRUE)
+    parts <- if (length(variants)) data.table::tstrsplit(variants, "_", fixed = TRUE) else list(character(0), character(0))
     pos <- as.integer(parts[[2]])
-    regions <- data.table::data.table(chrom = parts[[1]], pos = pos, pad = pad)
+    regions <- data.table::data.table(chrom = parts[[1]], pos = pos, pad = rep(pad, length(pos)))
     if (!is.null(genome_json) && file.exists(genome_json)) {
         g <- jsonlite::fromJSON(genome_json)
         alt <- g$connections
