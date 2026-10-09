@@ -13,7 +13,9 @@
 #' With `simplify` (default) consecutive nodes joined by a reference
 #' adjacency are collapsed into one interval, as `gWalk$simplify()` does in
 #' the blogs, so only the ALT junctions remain; the merged node's cn is the
-#' width-weighted mean of its pieces.
+#' width-weighted mean of its pieces. Internal pieces shorter than 1 kb
+#' (templated insertions) are then dropped (listed in the `via` of the junction
+#' that skips them) and same-strand neighbours within 1 kb are merged.
 #'
 #' @param walks gWalk or path to an rds holding one
 #' @param counts data.table or rds path with columns gw_id, pair, cn, amp
@@ -71,7 +73,9 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
             a <- nodes[pairs[p, 1]]; b <- nodes[pairs[p, 2]]
             ref <- a$chromosome == b$chromosome && a$strand == b$strand &&
                 ((a$strand != "-" && b$start == a$end + 1) || (a$strand == "-" && a$start == b$end + 1))
-            list(from = pairs[p, 1] - 1L, to = pairs[p, 2] - 1L, type = if (isTRUE(ref)) "REF" else "ALT")
+            j <- list(from = pairs[p, 1] - 1L, to = pairs[p, 2] - 1L, type = if (isTRUE(ref)) "REF" else "ALT")
+            if ("via" %in% names(b) && nzchar(b$via)) j$via <- b$via
+            j
         })
         gid <- dt$gw_id[k]
         cc <- counts[gw_id == gid]
@@ -99,7 +103,7 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
             curated = if (!is.null(su) && "cn_filter" %in% names(su)) isTRUE(su$cn_filter) else NULL,
             gene_label = if (!is.null(su) && "gene_label" %in% names(su)) su$gene_label else NULL,
             amp_id = if (!is.null(su) && "amp_id4" %in% names(su) && !is.na(su$amp_id4)) su$amp_id4 else NULL,
-            nodes = nodes,
+            nodes = nodes[, intersect(c("chromosome", "start", "end", "strand", "cn"), names(nodes)), with = FALSE],
             junctions = junctions,
             cells = as.list(stats::setNames(carriers$cn, carriers$pair)))
     })
@@ -112,26 +116,67 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
 }
 
 ## TRUE where node b continues node a along the reference (same chromosome and strand, abutting)
-ref_adjacent <- function(a, b) {
-    a$chromosome == b$chromosome & a$strand == b$strand &
-        ((a$strand != "-" & b$start == a$end + 1) | (a$strand == "-" & a$start == b$end + 1))
+## TRUE where node b continues node a along the reference (same chromosome and
+## strand) after skipping at most `gap` bases
+ref_adjacent <- function(a, b, gap = 0) {
+    d <- ifelse(a$strand == "-", a$start - b$end - 1, b$start - a$end - 1)
+    a$chromosome == b$chromosome & a$strand == b$strand & d >= 0 & d <= gap
 }
 
-## Collapse runs of reference-adjacent walk nodes into single intervals
-## (width-weighted mean cn); a circular walk whose last node abuts its first is
-## rotated so the run across the closing junction is merged too.
-simplify_walk_nodes <- function(nodes, circular = FALSE) {
+## Merge runs of reference-adjacent nodes (within `gap`) into single intervals
+## (width-weighted mean cn, the run keeps the `via` of its first node); a
+## circular walk whose last node abuts its first is rotated so the run across
+## the closing junction is merged too.
+collapse_ref_runs <- function(nodes, circular = FALSE, gap = 0) {
     n <- nrow(nodes)
-    brk <- !ref_adjacent(nodes[-n], nodes[-1])
-    if (circular && any(brk) && isTRUE(ref_adjacent(nodes[n], nodes[1]))) {
+    if (n < 2) return(nodes)
+    brk <- !ref_adjacent(nodes[-n], nodes[-1], gap)
+    if (circular && any(brk) && isTRUE(ref_adjacent(nodes[n], nodes[1], gap))) {
         first <- which(brk)[1] + 1
         nodes <- nodes[c(first:n, seq_len(first - 1))]
-        brk <- !ref_adjacent(nodes[-n], nodes[-1])
+        brk <- !ref_adjacent(nodes[-n], nodes[-1], gap)
     }
     nodes[, run := cumsum(c(TRUE, brk))]
     out <- nodes[, list(chromosome = chromosome[1], start = min(start), end = max(end), strand = strand[1],
-                        cn = if (all(is.na(cn))) NA_real_ else stats::weighted.mean(cn, end - start + 1, na.rm = TRUE)),
+                        cn = if (all(is.na(cn))) NA_real_ else stats::weighted.mean(cn, end - start + 1, na.rm = TRUE),
+                        via = via[1]),
                  by = run]
     out[, run := NULL]
     out
+}
+
+## Simplify a walk for display, as gWalk$simplify() does in the blogs plus two
+## steps for pieces too small to see at amplicon scale:
+##  1. collapse reference-adjacent nodes, so only ALT junctions remain, and
+##     same-strand neighbours within `merge_gap` (small deletions);
+##  2. drop internal pieces shorter than `min_width` (templated insertions),
+##     recording them in `via` of the junction that skips them;
+##  3. merge again the neighbours that dropping brought together.
+simplify_walk_nodes <- function(nodes, circular = FALSE, min_width = 1000, merge_gap = 1000) {
+    nodes <- data.table::copy(nodes)
+    nodes[, via := ""]
+    nodes <- collapse_ref_runs(nodes, circular)
+    if (merge_gap > 0) nodes <- collapse_ref_runs(nodes, circular, merge_gap)
+    small <- (nodes$end - nodes$start + 1) < min_width
+    if (min_width > 0 && any(small) && !all(small)) {
+        desc <- sprintf("%s:%s-%s%s", nodes$chromosome, format(nodes$start, big.mark = ",", trim = TRUE),
+                        format(nodes$end, big.mark = ",", trim = TRUE), nodes$strand)
+        n <- nrow(nodes)
+        pending <- character(0)
+        ## walk around once (twice for circular, so pieces before the first kept node reach it)
+        idx <- if (circular) c(seq_len(n), seq_len(n)) else seq_len(n)
+        vias <- nodes$via
+        seen <- logical(n)
+        for (i in idx) {
+            if (small[i]) { if (!seen[i]) pending <- c(pending, desc[i]); seen[i] <- TRUE; next }
+            if (length(pending)) vias[i] <- paste(c(if (nzchar(vias[i])) vias[i], pending), collapse = "; ")
+            pending <- character(0)
+            seen[i] <- TRUE
+            if (all(seen) && !length(pending)) break
+        }
+        nodes[, via := vias]
+        nodes <- nodes[!small]
+    }
+    if (merge_gap > 0) nodes <- collapse_ref_runs(nodes, circular, merge_gap)
+    nodes
 }
