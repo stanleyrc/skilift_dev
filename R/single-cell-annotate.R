@@ -276,6 +276,82 @@ sc_fit_sbs_signatures <- function(sets, work_dir, cosmic_version = 3.4, genome =
     long[]
 }
 
+#' @name sc_signature_fit_quality
+#' @title sc_signature_fit_quality
+#' @description
+#'
+#' Goodness of fit of the SigProfilerAssignment fits that sc_fit_sbs_signatures()
+#' wrote to work_dir, per site set: the observed SBS96 catalog, the catalog
+#' reconstructed from the activities and the reference signatures SigProfiler
+#' used, and SigProfiler's own statistics (cosine similarity, L1 / L2 norm of the
+#' residual as \% of the catalog, KL divergence, Pearson correlation). This is
+#' what the bulk Signatures tab shows as observed vs reconstructed / decomposed
+#' catalogs with cosine similarity.
+#'
+#' @param work_dir the work_dir given to sc_fit_sbs_signatures()
+#' @param digits rounding of the reconstructed catalog
+#' @return list: channels (SBS96 order of the vectors) and sets, a named list per
+#'   set of list(counts, reconstruction, stats); NULL when there is no fit
+#' @export
+#' @author Stanley Clarke
+sc_signature_fit_quality <- function(work_dir, digits = 2) {
+    matrix_file <- file.path(work_dir, "sbs96.txt")
+    find <- function(pattern) list.files(file.path(work_dir, "assignment"), pattern = pattern, recursive = TRUE, full.names = TRUE)[1]
+    act_file <- find("Assignment_Solution_Activities.txt$")
+    sig_file <- find("Assignment_Solution_Signatures.txt$")
+    stats_file <- find("Assignment_Solution_Samples_Stats.txt$")
+    if (!file.exists(matrix_file) || is.na(act_file) || is.na(sig_file)) return(NULL)
+    counts <- data.table::fread(matrix_file)
+    channels <- counts$MutationType
+    act <- data.table::fread(act_file)
+    data.table::setnames(act, 1, "set")
+    sigs <- data.table::fread(sig_file)
+    sig_mat <- as.matrix(sigs[match(channels, sigs[[1]]), -1, with = FALSE])
+    stats <- if (!is.na(stats_file)) data.table::fread(stats_file) else NULL
+    num <- function(x) as.numeric(sub("%$", "", as.character(x)))
+    sets <- lapply(stats::setNames(act$set, act$set), function(nm) {
+        a <- unlist(act[set == nm, colnames(sig_mat), with = FALSE])
+        recon <- as.vector(base::`%*%`(sig_mat, a))
+        s <- if (!is.null(stats)) stats[`Sample Names` == nm] else NULL
+        list(counts = as.integer(counts[[nm]]),
+             reconstruction = round(recon, digits),
+             stats = if (!is.null(s) && nrow(s)) list(
+                 cosine = num(s$`Cosine Similarity`), l1 = num(s$`L1 Norm`), l1_pct = num(s$`L1_Norm_%`),
+                 l2 = num(s$`L2 Norm`), l2_pct = num(s$`L2_Norm_%`), kl = num(s$`KL Divergence`),
+                 correlation = num(s$Correlation)) else NULL)
+    })
+    list(channels = channels, sets = sets)
+}
+
+#' @name sc_add_signature_fit_quality
+#' @title sc_add_signature_fit_quality
+#' @description
+#'
+#' Adds the fit quality of sc_signature_fit_quality() to a gOS single-cell
+#' signatures.json list (cosmic_version, genome, method, sets = list of
+#' list(name, n, activities)): a top-level channels vector and, for each fitted
+#' set, counts, reconstruction and stats. Sets without a fit are unchanged.
+#'
+#' @param sig signatures.json as a list (as written, or jsonlite::read_json())
+#' @param work_dir the work_dir given to sc_fit_sbs_signatures()
+#' @return sig with fit quality
+#' @export
+#' @author Stanley Clarke
+sc_add_signature_fit_quality <- function(sig, work_dir) {
+    q <- sc_signature_fit_quality(work_dir)
+    if (is.null(q)) return(sig)
+    sig$channels <- q$channels
+    sig$sets <- lapply(sig$sets, function(s) {
+        f <- q$sets[[s$name]]
+        if (is.null(f)) return(s)
+        s$counts <- f$counts
+        s$reconstruction <- f$reconstruction
+        if (!is.null(f$stats)) s$stats <- f$stats
+        s
+    })
+    sig
+}
+
 #' @name sc_cell_snv_oncotable
 #' @title sc_cell_snv_oncotable
 #' @description
