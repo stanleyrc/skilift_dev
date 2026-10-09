@@ -433,11 +433,12 @@ sc_gtf_introns <- function(gtf) {
            exon_left = exon[-.N], exon_right = exon[-1]), by = transcript][start <= end]
 }
 
-## exons of the GTF: chromosome (no "chr"), start, end, strand, gene, transcript (no version), exon number
+## exons of the GTF: chromosome (no "chr"), start, end, strand, gene, transcript (no version), exon number, gene type
 sc_gtf_exons <- function(gtf) {
     ex <- data.table::as.data.table(rtracklayer::import(gtf, feature.type = "exon"))
+    if (!"gene_type" %in% names(ex)) ex[, gene_type := NA_character_]
     ex <- ex[, .(chromosome = sub("^chr", "", as.character(seqnames)), start, end, strand = as.character(strand),
-                 gene = gene_name, transcript = sub("\\..*$", "", transcript_id), exon = as.integer(exon_number))]
+                 gene = gene_name, transcript = sub("\\..*$", "", transcript_id), exon = as.integer(exon_number), gene_type = as.character(gene_type))]
     data.table::setorder(ex, transcript, start)
     ex[]
 }
@@ -532,28 +533,35 @@ sc_variant_junctions <- function(gtf_exons) {
     }))
 }
 
-## IGV slices of per-cell RNA reads at the known-variant junctions (both exon sides of the alt and
-## the reference junction): rna/splice_reads/<rna_id>.bam. Returns rna_id -> relative path.
-sc_splice_slices <- function(rna_ids, cell_dirs, variants, rna_dir, pad = 300, cores = 4,
+## IGV slices of per-cell RNA reads: rna/splice_reads/<rna_id>.bam with the regions given per cell
+## (known-variant loci: both exon sides of the alt and the reference junction; finding loci).
+## Returns rna_id -> relative path.
+sc_splice_slices <- function(regions_of, cell_dirs, rna_dir, cores = 4,
                              samtools = Sys.getenv("SC_SAMTOOLS", "/gpfs/commons/groups/imielinski_lab/Software/miniforge3/envs/mskilab_ne1/bin/samtools")) {
-    if (!length(rna_ids) || !nrow(variants)) return(list())
+    regions_of <- regions_of[names(regions_of) %in% names(cell_dirs) & vapply(regions_of, length, 1L) > 0]
+    if (!length(regions_of)) return(list())
     out_dir <- file.path(rna_dir, "splice_reads")
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-    v <- variants[!is.na(alt_start) & !is.na(ref_start)]
-    pos <- unique(data.table::data.table(chromosome = rep(v$chromosome, 4),
-                                         pos = c(v$alt_start - 1L, v$alt_end + 1L, v$ref_start - 1L, v$ref_end + 1L)))
-    regions <- pos[, paste0("chr", chromosome, ":", pmax(1L, pos - pad), "-", pos + pad)]
+    rna_ids <- names(regions_of)
     ok <- parallel::mclapply(rna_ids, function(r) {
         bam <- file.path(cell_dirs[[r]], "Aligned.sorted.bam")
         if (!file.exists(paste0(bam, ".bai"))) return(FALSE)
         out <- file.path(out_dir, paste0(r, ".bam"))
-        rc <- system2(samtools, c("view", "-b", "-M", "-o", shQuote(out), shQuote(bam), regions), stdout = FALSE, stderr = FALSE)
+        rc <- system2(samtools, c("view", "-b", "-M", "-o", shQuote(out), shQuote(bam), unique(regions_of[[r]])), stdout = FALSE, stderr = FALSE)
         if (rc != 0) return(FALSE)
         system2(samtools, c("index", shQuote(out)), stdout = FALSE, stderr = FALSE) == 0 && file.exists(paste0(out, ".bai"))
     }, mc.cores = cores, mc.preschedule = FALSE)
     done <- rna_ids[unlist(ok) %in% TRUE]
     stats::setNames(as.list(paste0("rna/splice_reads/", done, ".bam")), done)
 }
+
+## samtools regions of a junction: both exon ends +- pad (one region when they are close)
+sc_junction_regions <- function(chromosome, start, end, pad = 500) {
+    a <- start - 1L; b <- end + 1L
+    if (b - a <= 2L * pad) return(sprintf("chr%s:%d-%d", chromosome, max(1L, a - pad), b + pad))
+    sprintf("chr%s:%d-%d", chromosome, c(max(1L, a - pad), b - pad), c(a + pad, b + pad))
+}
+
 
 ## per-cell overdispersion of a patient's clusters: for each junction, the variance of per-cell PSI
 ## (cells with >= min_total reads in the cluster) minus the binomial variance expected from read
@@ -591,6 +599,189 @@ sc_cluster_group_test <- function(x, group_of, min_total = 3, min_cells = 5) {
     res[, group_q := stats::p.adjust(group_p, "BH")][]
 }
 
+## gene families whose short reads multi-map between paralogs or repeats (NOTCH2NL*, ubiquitin,
+## HLA, rDNA / snRNA, histone clusters, ribosomal proteins and their pseudogenes, NBPF, ...):
+## splicing differences there are usually mapping artefacts, so their findings are demoted
+SC_SPLICE_ARTEFACT_GENES <- paste0("^(NOTCH2NL|UBC$|UBB$|HLA-|RNA[0-9]|RN7S|RNU[0-9]|SNOR|H[1-4]C[0-9]|H2[AB]C[0-9]|H1-[0-9]|H2A[XZ]|",
+                                   "H3-[0-9]|MT-|RPL[0-9]|RPS[0-9]|NBPF|TBC1D3|GOLGA[68]|NPIP[AB]|POTE|SMN[12]$|SERF1|GTF2IRD2|PSG[0-9]|",
+                                   "KRTAP|USP17L|FAM90A|SPDYE|NOMO[123]$|RGPD[0-9]|PRAMEF|ANKRD20A|ANKRD36|CT45A|GAGE|XAGE|TSPY|HSPA1[AB]$)")
+
+sc_splice_artefact <- function(gene) !is.na(gene) & grepl(SC_SPLICE_ARTEFACT_GENES, gene)
+
+## support factor of a finding: 0 .. 1, the smaller of the read support (1 at 100 reads) and the cell
+## support (1 at 20 cells; reads are not UMI-collapsed, so a few cells can carry many reads)
+sc_splice_support <- function(n, cells = Inf) pmin(1, log10(pmax(n, 1)) / 2, log10(pmax(cells, 1)) / log10(20))
+
+## Ensembl canonical transcripts of a GTF (transcript ids without version; empty when not tagged)
+sc_gtf_canonical <- function(gtf) {
+    x <- tryCatch(system2("grep", c("-F", shQuote('tag "Ensembl_canonical"'), shQuote(gtf)), stdout = TRUE, stderr = FALSE), error = function(e) character(0))
+    x <- grep("\ttranscript\t", x, value = TRUE)
+    unique(sub("\\..*$", "", sub('.*transcript_id "([^"]+)".*', "\\1", x)))
+}
+
+sc_splice_severity <- function(score, artefact) ifelse(artefact, "artefact", ifelse(score >= 6, "high", ifelse(score >= 3, "moderate", "low")))
+
+sc_splice_pct <- function(x) ifelse(!is.finite(x), "–", ifelse(x > 0 & x < 0.005, "<1%", paste0(round(100 * x), "%")))
+
+#' @name sc_splice_site_note
+#' @title sc_splice_site_note
+#' @description
+#'
+#' Where the new splice site of an unannotated junction lies, relative to the
+#' annotated GTF intron it replaces (the intron sharing its other end, the
+#' nearest one on the moved side): offset in bp, "intron" (the junction is
+#' shorter: the exon is extended into the intron) or "exon" (the exon is
+#' shortened), the exon number on the longest transcript with that intron, and
+#' whether the offset is not a multiple of 3 (frameshift in coding exons).
+#' Sites more than `max_offset` bp from the annotated one are "distant"
+#' (no exon / frame given: usually a cryptic exon or another first exon).
+#' Exon skips: the skipped exons of the longest transcript joining the two
+#' exon ends, their total length and frame.
+#'
+#' @param jn one junction (chromosome, start, end, strand, type) — intron coordinates
+#' @param introns GTF introns (sc_gtf_introns: transcript, exon_left, exon_right)
+#' @param ex GTF exons (sc_gtf_exons)
+#' @param tx_rank named numeric transcript -> preference (higher first; e.g. canonical + number of exons)
+#' @return list(offset, where, exon, exons, frameshift, transcript, ref_start, ref_end) (NA when not derivable)
+#' @export
+#' @author Stanley Clarke
+sc_splice_site_note <- function(jn, introns, ex, tx_rank, max_offset = 300) {
+    out <- list(offset = NA_integer_, where = NA_character_, exon = NA_integer_, exons = NULL, frameshift = NA, transcript = NA_character_,
+                ref_start = NA_integer_, ref_end = NA_integer_)
+    minus <- identical(jn$strand, "-")
+    chr <- jn$chromosome
+    if (jn$type %in% c("novel_acceptor", "novel_donor")) {
+        ## the new site is at the intron start for a minus-strand acceptor / plus-strand donor
+        at_start <- (jn$type == "novel_acceptor") == minus
+        h <- if (at_start) introns[chromosome == chr & end == jn$end] else introns[chromosome == chr & start == jn$start]
+        if (!nrow(h)) return(out)
+        h <- data.table::copy(h)
+        h[, d := if (at_start) abs(start - jn$start) else abs(end - jn$end)]
+        h[, n := tx_rank[transcript]]
+        h[is.na(n), n := 0]
+        r <- h[order(d, -n, transcript)][1]
+        out$offset <- as.integer(r$d)
+        out$transcript <- r$transcript; out$ref_start <- r$start; out$ref_end <- r$end
+        if (r$d > max_offset) { out$where <- "distant"; return(out) }
+        out$where <- if ((jn$end - jn$start) < (r$end - r$start)) "intron" else "exon"
+        ## the exon on the moved side: left of the intron at its start, right of it at its end
+        out$exon <- as.integer(if (at_start) r$exon_left else r$exon_right)
+        out$frameshift <- r$d %% 3 != 0
+    } else if (jn$type == "exon_skip") {
+        l <- ex[chromosome == chr & end == jn$start - 1L, unique(transcript)]
+        r <- ex[chromosome == chr & start == jn$end + 1L, unique(transcript)]
+        tx <- intersect(l, r)
+        if (!length(tx)) return(out)
+        rk <- tx_rank[tx]; rk[is.na(rk)] <- 0
+        tx <- tx[order(-rk, tx)][1]
+        sk <- ex[transcript == tx & start > jn$start & end < jn$end]
+        if (!nrow(sk)) return(out)
+        out$exons <- sort(as.integer(sk$exon))
+        out$offset <- as.integer(sum(sk$end - sk$start + 1L))
+        out$frameshift <- out$offset %% 3 != 0
+        out$transcript <- tx
+    }
+    out
+}
+
+## plain-language description of a junction for the findings sentences
+sc_splice_junction_phrase <- function(type, note) {
+    fs <- if (isTRUE(note$frameshift)) "frameshift" else if (identical(note$frameshift, FALSE)) "in frame" else NULL
+    site <- if (type == "novel_acceptor") "acceptor" else "donor"
+    if (type %in% c("novel_acceptor", "novel_donor") && identical(note$where, "distant"))
+        return(sprintf("an unannotated %s %s kb from the annotated one", site, format(round(note$offset / 1000, 1), nsmall = 1)))
+    if (type %in% c("novel_acceptor", "novel_donor") && is.finite(note$offset)) {
+        where <- if (note$where == "intron") sprintf("%d bp into the intron next to exon %d (exon extended)", note$offset, note$exon)
+                 else sprintf("%d bp inside exon %d", note$offset, note$exon)
+        return(paste0("an unannotated ", site, " ", where, if (length(fs)) paste0(", ", fs) else ""))
+    }
+    if (type == "exon_skip") {
+        ex <- note$exons
+        what <- if (length(ex) == 1) sprintf("exon %d", ex) else if (length(ex) > 1) sprintf("exons %d–%d", min(ex), max(ex)) else "one or more exons"
+        return(paste0("a junction skipping ", what, if (length(fs)) paste0(" (", fs, ")") else ""))
+    }
+    switch(type,
+           novel_acceptor = "an unannotated acceptor", novel_donor = "an unannotated donor",
+           novel_combination = "an unannotated pairing of annotated sites", novel = "an unannotated junction",
+           annotated = "an annotated junction", "a junction")
+}
+
+#' @name sc_splice_patient_specific
+#' @title sc_splice_patient_specific
+#' @description
+#'
+#' Patient-specific splicing: per cluster and patient, the junction whose
+#' pooled PSI in the patient exceeds its PSI in every other evaluable
+#' patient (>= `min_reads` reads and >= 3 cells in the cluster) by at least
+#' `min_dpsi`. The patient needs >= `min_reads` reads in the cluster;
+#' fewer than `min_cells` cells flag the finding ("few cells") and demote it.
+#'
+#' @param pb patient x junction pseudobulk (chromosome, start, end, reads, cells, patient, cluster_id)
+#' @param cl_cells cells with any read per cluster and patient (cluster_id, n_cells, patient)
+#' @return data.table(patient, cluster_id, start, end, k, n, cells, psi, max_other, n_other, dpsi)
+#' @export
+#' @author Stanley Clarke
+sc_splice_patient_specific <- function(pb, cl_cells, min_reads = 20, min_cells = 5, min_dpsi = 0.5, min_other = 3) {
+    tot <- pb[, .(n = sum(reads)), by = .(cluster_id, patient)]
+    tot <- merge(tot, cl_cells, by = c("cluster_id", "patient"), all.x = TRUE)
+    tot[is.na(n_cells), n_cells := 0L]
+    ev <- tot[n >= min_reads & n_cells >= 3]
+    ev <- ev[ev[, .N, by = cluster_id][N >= min_other + 1], on = "cluster_id"]
+    if (!nrow(ev)) return(NULL)
+    jn <- unique(pb[cluster_id %in% ev$cluster_id, .(cluster_id, start, end)])
+    full <- merge(ev[, .(cluster_id, patient, n, n_cells)], jn, by = "cluster_id", allow.cartesian = TRUE)
+    full <- merge(full, pb[, .(cluster_id, patient, start, end, k = reads)], by = c("cluster_id", "patient", "start", "end"), all.x = TRUE)
+    full[is.na(k), k := 0L]
+    full[, psi := k / n]
+    ## the highest and second-highest PSI of each junction over the evaluable patients
+    full[, `:=`(rk = frank(-psi, ties.method = "first"), n_ev = .N), by = .(cluster_id, start, end)]
+    sec <- full[, .(second = if (.N >= 2) sort(psi, decreasing = TRUE)[2] else NA_real_), by = .(cluster_id, start, end)]
+    top <- merge(full[rk == 1], sec, by = c("cluster_id", "start", "end"))
+    top[, dpsi := psi - second]
+    top <- top[dpsi >= min_dpsi & n >= min_reads]
+    top <- top[order(-dpsi)][, .SD[1], by = .(cluster_id, patient)]
+    top[, .(patient, cluster_id, start, end, k, n, cells = n_cells, psi, max_other = second, n_other = n_ev - 1L, dpsi, few_cells = n_cells < min_cells)]
+}
+
+#' @name sc_splice_clone_findings
+#' @title sc_splice_clone_findings
+#' @description
+#'
+#' Clone-differential clusters of one patient (clone test q < `q_max`): per
+#' cluster the clone and junction with the largest pooled PSI over the other
+#' clones (clones with >= 3 cells and >= 10 reads); a clone or rest with fewer
+#' than `min_cells` cells or `min_reads` reads flags the finding as small-group.
+#'
+#' @param x per-cell junction counts of the patient (rna_id, cluster_id, start, end, count)
+#' @param clone_of named character rna_id -> clone
+#' @param gt clone test (sc_cluster_group_test)
+#' @return data.table(cluster_id, clone, start, end, k, n, cells, psi, k_rest, n_rest, cells_rest, psi_rest, dpsi, q, small)
+#' @export
+#' @author Stanley Clarke
+sc_splice_clone_findings <- function(x, clone_of, gt, q_max = 0.1, min_cells = 5, min_reads = 20) {
+    ids <- gt[group_q < q_max]$cluster_id
+    if (!length(ids) || !length(clone_of)) return(NULL)
+    xx <- x[cluster_id %in% ids]
+    xx[, clone := unname(clone_of[rna_id])]
+    xx <- xx[!is.na(clone)]
+    if (!nrow(xx)) return(NULL)
+    g <- xx[, .(n = sum(count), cells = data.table::uniqueN(rna_id)), by = .(cluster_id, clone)][cells >= 3 & n >= 10]
+    g <- g[g[, .N, by = cluster_id][N >= 2], on = "cluster_id"]
+    if (!nrow(g)) return(NULL)
+    jn <- unique(xx[, .(cluster_id, start, end)])
+    f <- merge(g[, .(cluster_id, clone, n, cells)], jn, by = "cluster_id", allow.cartesian = TRUE)
+    f <- merge(f, xx[, .(k = sum(count)), by = .(cluster_id, clone, start, end)], by = c("cluster_id", "clone", "start", "end"), all.x = TRUE)
+    f[is.na(k), k := 0L]
+    f[, `:=`(k_all = sum(k), n_all = sum(n), cells_all = sum(cells)), by = .(cluster_id, start, end)]
+    f[, `:=`(k_rest = k_all - k, n_rest = n_all - n, cells_rest = cells_all - cells)]
+    f[, `:=`(psi = k / n, psi_rest = k_rest / n_rest)]
+    f[, dpsi := psi - psi_rest]
+    f <- f[order(-dpsi)][, .SD[1], by = cluster_id][dpsi > 0]
+    f <- merge(f, gt[, .(cluster_id, q = group_q)], by = "cluster_id")
+    f[, small := cells < min_cells | n < min_reads | cells_rest < min_cells | n_rest < min_reads]
+    f[, .(cluster_id, clone, start, end, k, n, cells, psi, k_rest, n_rest, cells_rest, psi_rest, dpsi, q, small)]
+}
+
 #' @name sc_export_rna_splicing
 #' @title sc_export_rna_splicing
 #' @description
@@ -605,15 +796,27 @@ sc_cluster_group_test <- function(x, group_of, min_total = 3, min_cells = 5) {
 #' plots). Writes:
 #'  - data/_cohort/rna/splicing.json: clusters whose junction usage differs
 #'    between patients (chi-square on patient x junction pseudobulk counts,
-#'    BH q, max delta-PSI between patients with >= `min_patient_reads`) and
-#'    the known variants per patient,
+#'    BH q, max delta-PSI between patients with >= `min_patient_reads`; ranked
+#'    by `rank_score` = max delta-PSI x read support of the two most different
+#'    patients, then p), the known variants per patient and every patient's
+#'    findings,
 #'  - data/<P>/rna/splicing.json per patient: per-cell counts of the clusters
 #'    most overdispersed between the patient's cells (sc_cluster_dispersion) or
 #'    differing between its DNA clones (sc_cluster_group_test, `clones`),
-#'    the cohort clusters and those of SC_SPLICE_GENES, and per-cell alt /
-#'    reference reads of known GBM splice variants (EGFRvIII, EGFRvII, EGFR
-#'    C-terminal deletions, MET exon 14 skipping, PDGFRA delta 8-9), with IGV
-#'    slices of the variant loci for carrier cells (`slices`).
+#'    the cohort clusters, those of SC_SPLICE_GENES and those of the findings,
+#'    and per-cell alt / reference reads of known GBM splice variants
+#'    (EGFRvIII, EGFRvII, EGFR C-terminal deletions, MET exon 14 skipping,
+#'    PDGFRA delta 8-9), with IGV slices of the variant and finding loci for
+#'    carrier cells (`slices`).
+#'
+#' Findings (`findings`, top `n_findings` per patient by score): known variants
+#' with carriers (covered-cell and alt-read fractions, clones of the carriers);
+#' patient-specific junctions (sc_splice_patient_specific: PSI above every other
+#' evaluable patient by >= 0.5), boosted when the junction is unannotated, the
+#' gene is a GBM / OncoKB / COSMIC CGC gene (`cancer_genes`) or the new site
+#' shifts the frame; clone-differential clusters (sc_splice_clone_findings).
+#' Paralog / repeat families (SC_SPLICE_ARTEFACT_GENES) and few-cell / few-read
+#' groups are flagged and demoted.
 #'
 #' @param cell_dirs list patient -> named character (rna_id -> per-cell folder with junctions.bed)
 #' @param data_dir data folder of the gOS dataset
@@ -621,17 +824,20 @@ sc_cluster_group_test <- function(x, group_of, min_total = 3, min_cells = 5) {
 #' @param cell_maps list patient -> named character rna_id -> gOS cell id; RNA ids of the
 #'   junction folders (cell_dirs names) are matched to these case-insensitively and renamed to them
 #' @param clones list patient -> named character rna_id -> DNA clone (clone-differential clusters)
+#' @param cancer_genes gene symbols boosted in the findings (with SC_SPLICE_GENES); default OncoKB + COSMIC CGC
 #' @param min_reads,min_cells cohort junction filter
 #' @param min_patient_reads patient cluster reads for delta-PSI
 #' @param n_cohort,n_patient,n_novel clusters exported (between patients; per patient by dispersion / clone test; with novel junctions)
-#' @param slices write per-cell RNA slices of the variant loci (carriers + `n_ref_slices` reference cells per variant)
+#' @param n_findings,n_finding_cells findings kept per patient; cells sliced per finding (most junction reads)
+#' @param slices write per-cell RNA slices of the variant loci (carriers + `n_ref_slices` reference cells per variant) and finding loci
 #' @param cores parallel reads
-#' @return list(cohort = cohort clusters, patients = per-patient cluster ids) invisibly
+#' @return list(cohort = cohort clusters, patients = per-patient cluster ids, findings) invisibly
 #' @export
 #' @author Stanley Clarke
-sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(), clones = list(), min_reads = 30, min_cells = 10,
-                                   min_patient_reads = 30, n_cohort = 300, n_patient = 100, n_novel = 100, slices = TRUE, n_ref_slices = 6,
-                                   cores = 8) {
+sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(), clones = list(),
+                                   cancer_genes = names(sc_rna_fusion_references()$cancer_roles), min_reads = 30, min_cells = 10,
+                                   min_patient_reads = 30, n_cohort = 300, n_patient = 100, n_novel = 100, n_findings = 10, n_finding_cells = 20,
+                                   slices = TRUE, n_ref_slices = 6, cores = 8) {
     message("sc_export_rna_splicing: GTF introns")
     ex <- sc_gtf_exons(gtf)
     introns <- sc_gtf_introns(ex)
@@ -639,6 +845,12 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
     merged <- sc_merged_exons(ex)
     genes <- ex[, .(start = min(start), end = max(end), strand = strand[1], chromosome = chromosome[1]), by = gene]
     variants <- sc_variant_junctions(ex)
+    ## transcript preference for exon numbers: Ensembl canonical, then most exons
+    tx_rank <- ex[, .N, by = transcript]
+    tx_rank <- stats::setNames(tx_rank$N + 1000 * (tx_rank$transcript %in% sc_gtf_canonical(gtf)), tx_rank$transcript)
+    coding <- unique(ex[gene_type %in% "protein_coding"]$gene)
+    if (!length(coding)) coding <- unique(ex$gene)
+    cancer <- unique(toupper(c(SC_SPLICE_GENES, cancer_genes)))
 
     ## per patient: per-cell junction counts
     per <- list()
@@ -696,31 +908,24 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         m <- data.table::dcast(.SD, patient ~ start + end, value.var = "reads", fill = 0, fun.aggregate = sum)
         mat <- as.matrix(m[, -1, with = FALSE]); rownames(mat) <- m$patient
         mat <- mat[rowSums(mat) >= min_patient_reads, , drop = FALSE]
-        if (nrow(mat) < 2 || ncol(mat) < 2) list(p = NA_real_, max_dpsi = NA_real_, n_patients = nrow(mat)) else {
+        if (nrow(mat) < 2 || ncol(mat) < 2) list(p = NA_real_, max_dpsi = NA_real_, n_patients = nrow(mat), support = NA_real_) else {
             psi <- mat / rowSums(mat)
-            list(p = suppressWarnings(stats::chisq.test(mat)$p.value), max_dpsi = max(apply(psi, 2, function(v) diff(range(v)))),
-                 n_patients = nrow(mat))
+            rng <- apply(psi, 2, function(v) diff(range(v)))
+            jm <- which.max(rng)
+            ## read support of the comparison: the smaller cluster total of the two most different patients
+            list(p = suppressWarnings(stats::chisq.test(mat)$p.value), max_dpsi = max(rng), n_patients = nrow(mat),
+                 support = min(rowSums(mat)[c(which.max(psi[, jm]), which.min(psi[, jm]))]))
         }
     }, by = cluster_id, .SDcols = c("patient", "start", "end", "reads")]
     stats <- stats[!is.na(p)]
     stats[, q := stats::p.adjust(p, "BH")]
-    top <- stats[q < 0.05][order(-max_dpsi, q)][seq_len(min(.N, n_cohort))]
+    ## p ties (chi-square p underflows to 0 for most strong clusters): rank by delta-PSI x read support (1 at >= 1000 reads)
+    stats[, rank_score := max_dpsi * pmin(1, log10(pmax(support, 1)) / 3)]
+    top <- stats[q < 0.05][order(-rank_score, p)][seq_len(min(.N, n_cohort))]
     ## cells with any read in a cluster, per patient
     cl_key <- cl[, .(chromosome, start, end, cluster_id)]
     cl_cells <- data.table::rbindlist(lapply(patients, function(p)
         merge(per[[p]], cl_key, by = c("chromosome", "start", "end"))[, .(n_cells = data.table::uniqueN(rna_id)), by = cluster_id][, patient := p]))
-    cohort_clusters <- lapply(top$cluster_id, function(id) {
-        jj <- cl_by[[id]]
-        u <- pb[cluster_id == id]
-        s <- top[cluster_id == id]
-        c(cluster_head(id),
-          list(p = s$p, q = s$q, max_dpsi = s$max_dpsi, n_patients = s$n_patients,
-               usage = stats::setNames(lapply(patients, function(p) {
-                   cnt <- vapply(seq_len(nrow(jj)), function(k) as.numeric(sum(u[patient == p & start == jj$start[k] & end == jj$end[k]]$reads)), 0)
-                   nc <- cl_cells[cluster_id == id & patient == p]$n_cells
-                   list(counts = cnt, total = sum(cnt), n_cells = if (length(nc)) nc else 0L)
-               }), patients)))
-    })
 
     ## known variants per patient (per-cell alt / ref reads)
     variant_cells <- function(p, v) {
@@ -732,26 +937,112 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
     var_tab <- list()
     for (p in patients) var_tab[[p]] <- lapply(seq_len(nrow(variants)), function(i) variant_cells(p, variants[i]))
 
-    cdir <- file.path(data_dir, "_cohort", "rna")
-    dir.create(cdir, recursive = TRUE, showWarnings = FALSE)
-    cohort_variants <- lapply(seq_len(nrow(variants)), function(i) {
-        v <- variants[i]
-        list(id = v$id, gene = v$gene, description = v$description,
-             alt_junction = list(chromosome = v$chromosome, start = v$alt_start, end = v$alt_end),
-             ref_junction = list(chromosome = v$chromosome, start = v$ref_start, end = v$ref_end),
-             usage = stats::setNames(lapply(patients, function(p) {
-                 ar <- var_tab[[p]][[i]]
-                 list(alt = sum(ar$alt), ref = sum(ar$ref), n_cells_alt = sum(ar$alt > 0), n_cells = sum(ar$alt + ar$ref > 0))
-             }), patients))
-    })
-    jsonlite::write_json(list(format = "gos-sc-splicing-cohort/1", patients = patients, n_clusters_tested = nrow(stats),
-                              n_cells_rna = stats::setNames(lapply(patients, function(p) data.table::uniqueN(per[[p]]$rna_id)), patients),
-                              variants = cohort_variants, clusters = cohort_clusters),
-                         file.path(cdir, "splicing.json"), auto_unbox = TRUE, digits = NA, null = "null", na = "null")
-    message("sc_export_rna_splicing: cohort: ", length(cohort_clusters), " clusters of ", nrow(stats), " tested")
+    ## ---- findings ----
+    message("sc_export_rna_splicing: findings")
+    pat_spec <- sc_splice_patient_specific(pb, cl_cells)
+    jinfo <- cl[, .(cluster_id, chromosome, strand, start, end, type, gene)]
+    data.table::setkey(jinfo, cluster_id, start, end)
+    gene_boost <- function(g) if (!is.na(g) && toupper(g) %in% cancer) 1.5 else 1
+    ## non-coding genes: no frame, demoted
+    coding_factor <- function(g) if (!is.na(g) && g %in% coding) 1 else 0.6
+    site_note <- function(j) {
+        note <- sc_splice_site_note(j, introns, ex, tx_rank)
+        if (!(j$gene %in% coding)) note$frameshift <- NA
+        note
+    }
+    jlabel <- function(chr, s, e) sprintf("chr%s:%s-%s", chr, format(s, big.mark = ",", trim = TRUE), format(e, big.mark = ",", trim = TRUE))
+    phrase_of <- function(j, note) {
+        ph <- sc_splice_junction_phrase(j$type, note)
+        if (j$type %in% c("annotated", "novel", "novel_combination")) paste0(ph, " (", jlabel(j$chromosome, j$start, j$end), ")") else ph
+    }
+    note_list <- function(note) list(offset = note$offset, where = note$where, exon = note$exon, exons = if (length(note$exons)) I(note$exons) else NULL,
+                                      frameshift = note$frameshift, transcript = note$transcript)
+    top_cells <- function(p, chr, s, e, among = NULL) {
+        y <- per[[p]][.(chr, s, e), .(rna_id, count), nomatch = 0L]
+        if (length(among)) y <- y[rna_id %in% among]
+        y[order(-count)][seq_len(min(.N, n_finding_cells))]$rna_id
+    }
+    loci_of <- function(chr, s, e) list(list(chromosome = chr, position = s - 1L), list(chromosome = chr, position = e + 1L))
+    finding <- function(kind, p, gene, score, flags, text, junction, numbers, cells, cluster_id = NULL, variant_id = NULL, clone = NULL, note = NULL) {
+        art <- "paralog/repeat family" %in% flags
+        list(id = paste(kind, if (length(cluster_id)) cluster_id else variant_id, p, sep = ":"), kind = kind, patient = p, gene = gene,
+             cluster_id = cluster_id, variant_id = variant_id, clone = clone, score = round(score, 3), severity = sc_splice_severity(score, art),
+             flags = I(as.character(flags)), text = text, junction = junction, note = note, numbers = numbers,
+             cells = I(as.character(cells)), loci = loci_of(junction$chromosome, junction$start, junction$end))
+    }
+    findings_of <- function(p, x, cg, gt) {
+        out <- list()
+        ## known variants with carriers
+        for (i in seq_len(nrow(variants))) {
+            v <- variants[i]; ar <- var_tab[[p]][[i]][alt + ref > 0]
+            n_alt <- sum(ar$alt > 0); alt <- sum(ar$alt); ref <- sum(ar$ref)
+            if (n_alt < 3 || alt < 5) next
+            cf <- n_alt / nrow(ar); af <- alt / (alt + ref)
+            byc <- if (length(cg)) ar[, .(clone = unname(cg[rna_id]), alt)][!is.na(clone), .(n = .N, n_alt = sum(alt > 0)), by = clone][order(-n_alt, -n)] else NULL
+            ctext <- if (length(byc) && nrow(byc)) paste0("; carriers by clone: ", paste(utils::head(byc[n_alt > 0, sprintf("%s %d/%d", clone, n_alt, n)], 4), collapse = ", ")) else ""
+            score <- 6 * (cf + af) / 2 * sc_splice_support(alt, n_alt) * 2.25
+            out[[length(out) + 1]] <- finding("known_variant", p, v$gene, score, character(0),
+                sprintf("%s: %d of %d covered cells (%s) carry %s; %s of the reads at the junction are alt (%d alt / %d ref)%s",
+                        v$id, n_alt, nrow(ar), sc_splice_pct(cf), sub(paste0(", ", v$id, "\\)$"), ")", v$description), sc_splice_pct(af), alt, ref, ctext),
+                list(chromosome = v$chromosome, start = v$alt_start, end = v$alt_end, type = "exon_skip"),
+                list(n_cells_alt = n_alt, n_cells = nrow(ar), cell_fraction = cf, alt = alt, ref = ref, alt_fraction = af,
+                     clones = if (length(byc) && nrow(byc)) lapply(seq_len(nrow(byc)), function(k) list(clone = byc$clone[k], n_cells = byc$n[k], n_cells_alt = byc$n_alt[k])) else list()),
+                ar[alt > 0][order(-alt)][seq_len(min(.N, n_finding_cells))]$rna_id, variant_id = v$id)
+        }
+        ## patient-specific junctions
+        d <- if (length(pat_spec)) pat_spec[patient == p] else NULL
+        for (i in seq_len(if (length(d)) nrow(d) else 0L)) {
+            r <- d[i]; j <- jinfo[.(r$cluster_id, r$start, r$end)][1]
+            note <- site_note(j)
+            art <- sc_splice_artefact(j$gene); unann <- j$type != "annotated"
+            score <- 6 * r$dpsi * sc_splice_support(r$k, r$cells) * (if (unann) 1.5 else 0.7) * gene_boost(j$gene) * coding_factor(j$gene) *
+                (if (isTRUE(note$frameshift)) 1.2 else 1) *
+                (if (r$few_cells) 0.4 else 1) * (if (art) 0.2 else 1)
+            other <- if (r$max_other < 0.005) "0%" else paste("at most", sc_splice_pct(r$max_other))
+            out[[length(out) + 1]] <- finding("patient_specific", p, j$gene, score,
+                c(if (art) "paralog/repeat family", if (r$few_cells) sprintf("only %d cells", r$cells)),
+                sprintf("%s: %d of %d reads (%d cells) use %s; %s in the %d other patients with coverage",
+                        j$gene, r$k, r$n, r$cells, phrase_of(j, note), other, r$n_other),
+                list(chromosome = j$chromosome, start = j$start, end = j$end, type = j$type),
+                list(reads = r$k, total = r$n, n_cells = r$cells, psi = r$psi, max_other = r$max_other, n_other = r$n_other, dpsi = r$dpsi),
+                top_cells(p, j$chromosome, j$start, j$end), cluster_id = r$cluster_id, note = note_list(note))
+        }
+        ## clone-differential clusters
+        cf <- if (length(cg)) sc_splice_clone_findings(x, cg, gt) else NULL
+        for (i in seq_len(if (length(cf)) nrow(cf) else 0L)) {
+            r <- cf[i]; j <- jinfo[.(r$cluster_id, r$start, r$end)][1]
+            note <- site_note(j)
+            art <- sc_splice_artefact(j$gene); unann <- j$type != "annotated"
+            score <- 6 * r$dpsi * sc_splice_support(min(r$n, r$n_rest), min(r$cells, r$cells_rest)) * min(1, -log10(max(r$q, 1e-300)) / 2) *
+                (if (unann) 1.5 else 1) * gene_boost(j$gene) * coding_factor(j$gene) * (if (r$small) 0.3 else 1) * (if (art) 0.2 else 1)
+            out[[length(out) + 1]] <- finding("clone_differential", p, j$gene, score,
+                c(if (art) "paralog/repeat family", if (r$small) "small group (<5 cells or <20 reads)"),
+                sprintf("%s: %s uses %s in %s of reads (%d cells) vs %s in the other clones (%d cells; q = %s)",
+                        j$gene, if (grepl("^clone", r$clone, ignore.case = TRUE)) r$clone else paste("clone", r$clone), phrase_of(j, note), sc_splice_pct(r$psi), r$cells, sc_splice_pct(r$psi_rest), r$cells_rest, format(signif(r$q, 2))),
+                list(chromosome = j$chromosome, start = j$start, end = j$end, type = j$type),
+                list(reads = r$k, total = r$n, n_cells = r$cells, psi = r$psi, reads_rest = r$k_rest, total_rest = r$n_rest, n_cells_rest = r$cells_rest,
+                     psi_rest = r$psi_rest, dpsi = r$dpsi, q = r$q),
+                top_cells(p, j$chromosome, j$start, j$end, among = names(cg)[cg == r$clone]), cluster_id = r$cluster_id, clone = r$clone,
+                note = note_list(note))
+        }
+        if (!length(out)) return(list())
+        ## a known variant's junction found again as patient-specific / clone-differential: keep the variant finding
+        jkey <- vapply(out, function(f) paste(f$junction$chromosome, f$junction$start, f$junction$end), "")
+        is_var <- vapply(out, function(f) f$kind == "known_variant", TRUE)
+        out <- out[is_var | !jkey %in% jkey[is_var]]
+        sc <- vapply(out, function(f) f$score, 0)
+        out <- out[order(-sc)]
+        out <- out[vapply(out, function(f) f$score, 0) >= 0.5]
+        ## top n by score, plus every known variant and the best two clone-differential clusters
+        ## (patient-specific junctions are the most numerous and would crowd them out)
+        kind <- vapply(out, function(f) f$kind, "")
+        keep <- seq_along(out) <= n_findings | kind == "known_variant" | (kind == "clone_differential" & cumsum(kind == "clone_differential") <= 2)
+        out[keep]
+    }
 
-    ## per patient: clusters most overdispersed between cells (+ cohort clusters + GBM genes), per-cell counts; known variants
+    ## per patient: clusters most overdispersed between cells (+ cohort clusters + GBM genes + findings), per-cell counts; known variants
     pat_ids <- list()
+    all_findings <- list()
     for (p in patients) {
         x <- merge(per[[p]], cl_key, by = c("chromosome", "start", "end"))
         x[, cl_total := sum(count), by = .(rna_id, cluster_id)]
@@ -773,9 +1064,17 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         novel_ids <- novel_ids[seq_len(min(length(novel_ids), n_novel))]
         disp_ids <- disp[order(-excess_sd)][seq_len(min(.N, n_patient))]$cluster_id
         cohort_ids <- intersect(top$cluster_id, unique(x$cluster_id))
-        ids <- unique(c(cohort_ids, clone_ids, novel_ids, disp_ids, gbm))
+        fnd <- findings_of(p, x, cg, gt)
+        all_findings[[p]] <- fnd
+        finding_ids <- unique(unlist(lapply(fnd, function(f) f$cluster_id)))
+        ids <- unique(c(finding_ids, cohort_ids, clone_ids, novel_ids, disp_ids, gbm))
         pat_ids[[p]] <- ids
+        message("sc_export_rna_splicing: ", p, " findings: ", paste(vapply(fnd, function(f) sprintf("%s %s %.1f", f$kind, f$gene, f$score), ""), collapse = "; "))
+        ## per-patient file only for patients already in the gOS dataset (cohort file covers all)
+        if (!dir.exists(file.path(data_dir, p))) next
         xs <- split(x[cluster_id %in% ids], by = "cluster_id")
+        fscore <- list()
+        for (f in fnd) if (length(f$cluster_id)) fscore[[f$cluster_id]] <- max(c(fscore[[f$cluster_id]], f$score))
         clusters <- lapply(ids, function(id) {
             jj <- cl_by[[id]]
             xx <- xs[[id]]
@@ -788,20 +1087,28 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
             c(cluster_head(id),
               list(excess_sd = if (nrow(d)) d$excess_sd else NULL, clone_p = if (nrow(g)) g$group_p else NULL, clone_q = if (nrow(g)) g$group_q else NULL,
                    n_cells = nrow(w), cohort = id %in% top$cluster_id, gbm_gene = id %in% gbm,
-                   selected_by = I(c("cohort", "clone", "novel", "dispersion", "gene")[c(id %in% cohort_ids, id %in% clone_ids, id %in% novel_ids, id %in% disp_ids, id %in% gbm)]),
+                   finding_score = fscore[[id]], artefact = sc_splice_artefact(jj$gene[1]),
+                   selected_by = I(c("finding", "cohort", "clone", "novel", "dispersion", "gene")[c(id %in% finding_ids, id %in% cohort_ids, id %in% clone_ids, id %in% novel_ids, id %in% disp_ids, id %in% gbm)]),
                    cells = stats::setNames(lapply(seq_len(nrow(m)), function(i) unname(as.integer(m[i, ]))), w$rna_id)))
         })
-        ## per-patient file only for patients already in the gOS dataset (cohort file covers all)
-        if (!dir.exists(file.path(data_dir, p))) next
         pdir <- file.path(data_dir, p, "rna")
         dir.create(pdir, recursive = TRUE, showWarnings = FALSE)
         bams <- list()
-        if (slices && nrow(variants)) {
-            pick <- unique(unlist(lapply(var_tab[[p]], function(ar)
-                c(ar[alt > 0]$rna_id, ar[alt == 0 & ref > 0][order(-ref)][seq_len(min(.N, n_ref_slices))]$rna_id))))
-            pick <- pick[!is.na(pick) & pick %in% names(cell_dirs[[p]])]
-            bams <- sc_splice_slices(pick, cell_dirs[[p]], variants, pdir, cores = cores)
-            message("sc_export_rna_splicing: ", p, ": variant-locus RNA slices for ", length(bams), " of ", length(pick), " cells")
+        if (slices) {
+            ## variant loci for carriers and a few reference cells; finding loci (+- 500 bp) for the finding cells
+            regs <- list()
+            add <- function(ids, r) for (id in ids[!is.na(ids)]) regs[[id]] <<- unique(c(regs[[id]], r))
+            if (nrow(variants)) {
+                vv0 <- variants[!is.na(alt_start) & !is.na(ref_start)]
+                pos <- unique(data.table::data.table(chromosome = rep(vv0$chromosome, 4),
+                                                     pos = c(vv0$alt_start - 1L, vv0$alt_end + 1L, vv0$ref_start - 1L, vv0$ref_end + 1L)))
+                vregions <- pos[, paste0("chr", chromosome, ":", pmax(1L, pos - 300L), "-", pos + 300L)]
+                add(unique(unlist(lapply(var_tab[[p]], function(ar)
+                    c(ar[alt > 0]$rna_id, ar[alt == 0 & ref > 0][order(-ref)][seq_len(min(.N, n_ref_slices))]$rna_id)))), vregions)
+            }
+            for (f in fnd) add(unlist(f$cells), sc_junction_regions(f$junction$chromosome, f$junction$start, f$junction$end))
+            bams <- sc_splice_slices(regs, cell_dirs[[p]], pdir, cores = cores)
+            message("sc_export_rna_splicing: ", p, ": RNA slices (variant + finding loci) for ", length(bams), " of ", length(regs), " cells")
         }
         vv <- lapply(seq_len(nrow(variants)), function(i) {
             v <- variants[i]
@@ -815,14 +1122,54 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         cm <- cell_maps[[p]]
         empty_named <- structure(list(), names = character(0))
         jsonlite::write_json(list(format = "gos-sc-splicing/1", patient = p, n_cells = data.table::uniqueN(per[[p]]$rna_id),
-                                  variants = vv, clusters = clusters,
+                                  findings = fnd, variants = vv, clusters = clusters,
                                   splice_reads = if (length(bams)) bams else empty_named,
                                   cell_map = if (length(cm)) as.list(cm) else empty_named),
                              file.path(pdir, "splicing.json"), auto_unbox = TRUE, digits = NA, null = "null", na = "null")
         message("sc_export_rna_splicing: ", p, ": ", length(ids), " clusters (", length(clone_ids), " clone-differential of ", nrow(gt), " tested, ",
                 length(novel_ids), " with novel junctions, ",
-                length(gbm), " GBM-gene), variants: ",
+                length(gbm), " GBM-gene, ", length(finding_ids), " findings), variants: ",
                 paste(vapply(vv, function(v) paste0(v$id, " ", v$n_cells_alt), ""), collapse = ", "))
     }
-    invisible(list(cohort = top, patients = pat_ids))
+
+    ## cohort file: ranked clusters + the clusters of every patient's findings
+    cohort_findings <- unlist(unname(all_findings), recursive = FALSE)
+    if (length(cohort_findings)) cohort_findings <- cohort_findings[order(-vapply(cohort_findings, function(f) f$score, 0))]
+    extra <- setdiff(unique(unlist(lapply(cohort_findings, function(f) f$cluster_id))), top$cluster_id)
+    cohort_ids <- c(top$cluster_id, extra)
+    cohort_clusters <- lapply(cohort_ids, function(id) {
+        jj <- cl_by[[id]]
+        u <- pb[cluster_id == id]
+        s <- stats[cluster_id == id]
+        rank <- match(id, top$cluster_id)
+        c(cluster_head(id),
+          list(p = if (nrow(s)) s$p else NULL, q = if (nrow(s)) s$q else NULL, max_dpsi = if (nrow(s)) s$max_dpsi else NULL,
+               n_patients = if (nrow(s)) s$n_patients else NULL, rank_score = if (nrow(s)) s$rank_score else NULL,
+               rank = if (is.na(rank)) NULL else rank, artefact = sc_splice_artefact(jj$gene[1]),
+               usage = stats::setNames(lapply(patients, function(p) {
+                   cnt <- vapply(seq_len(nrow(jj)), function(k) as.numeric(sum(u[patient == p & start == jj$start[k] & end == jj$end[k]]$reads)), 0)
+                   nc <- cl_cells[cluster_id == id & patient == p]$n_cells
+                   list(counts = cnt, total = sum(cnt), n_cells = if (length(nc)) nc else 0L)
+               }), patients)))
+    })
+    cdir <- file.path(data_dir, "_cohort", "rna")
+    dir.create(cdir, recursive = TRUE, showWarnings = FALSE)
+    cohort_variants <- lapply(seq_len(nrow(variants)), function(i) {
+        v <- variants[i]
+        list(id = v$id, gene = v$gene, description = v$description,
+             alt_junction = list(chromosome = v$chromosome, start = v$alt_start, end = v$alt_end),
+             ref_junction = list(chromosome = v$chromosome, start = v$ref_start, end = v$ref_end),
+             usage = stats::setNames(lapply(patients, function(p) {
+                 ar <- var_tab[[p]][[i]]
+                 list(alt = sum(ar$alt), ref = sum(ar$ref), n_cells_alt = sum(ar$alt > 0), n_cells = sum(ar$alt + ar$ref > 0))
+             }), patients))
+    })
+    jsonlite::write_json(list(format = "gos-sc-splicing-cohort/1", patients = patients, n_clusters_tested = nrow(stats),
+                              n_cells_rna = stats::setNames(lapply(patients, function(p) data.table::uniqueN(per[[p]]$rna_id)), patients),
+                              findings = if (length(cohort_findings)) cohort_findings else list(),
+                              variants = cohort_variants, clusters = cohort_clusters),
+                         file.path(cdir, "splicing.json"), auto_unbox = TRUE, digits = NA, null = "null", na = "null")
+    message("sc_export_rna_splicing: cohort: ", length(cohort_clusters), " clusters (", length(extra), " from findings) of ", nrow(stats), " tested, ",
+            length(cohort_findings), " findings")
+    invisible(list(cohort = top, patients = pat_ids, findings = all_findings))
 }
