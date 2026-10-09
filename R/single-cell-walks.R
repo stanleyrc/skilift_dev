@@ -65,7 +65,8 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
         if (simplify && n_raw > 1) nodes <- simplify_walk_nodes(nodes, isTRUE(dt$circular[k]))
         n <- nrow(nodes)
         pairs <- if (n > 1) cbind(seq_len(n - 1), seq_len(n - 1) + 1) else matrix(integer(0), ncol = 2)
-        if (isTRUE(dt$circular[k]) && n > 1) pairs <- rbind(pairs, c(n, 1))
+        ## circular: closing junction last -> first (a self-junction when the walk collapsed to one interval)
+        if (isTRUE(dt$circular[k]) && n >= 1) pairs <- rbind(pairs, c(n, 1))
         junctions <- lapply(seq_len(nrow(pairs)), function(p) {
             a <- nodes[pairs[p, 1]]; b <- nodes[pairs[p, 2]]
             ref <- a$chromosome == b$chromosome && a$strand == b$strand &&
