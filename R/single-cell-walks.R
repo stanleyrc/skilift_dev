@@ -10,6 +10,11 @@
 #' curation flags of `summary` (ncells_filter, cn_filter, gene_label,
 #' amp_id4). Only cells with cn >= `min_cn` are listed per walk.
 #'
+#' With `simplify` (default) consecutive nodes joined by a reference
+#' adjacency are collapsed into one interval, as `gWalk$simplify()` does in
+#' the blogs, so only the ALT junctions remain; the merged node's cn is the
+#' width-weighted mean of its pieces.
+#'
 #' @param walks gWalk or path to an rds holding one
 #' @param counts data.table or rds path with columns gw_id, pair, cn, amp
 #' @param coords optional data.table / rds path (amp_coords)
@@ -17,10 +22,11 @@
 #' @param out_dir patient folder of the gOS dataset
 #' @param patient patient id written into the file
 #' @param min_cn copy number from which a cell counts as carrying the walk
+#' @param simplify collapse reference-adjacent nodes, keeping only ALT junctions
 #' @param cell_ids optional gOS cell ids of the patient; walk cell ids are renamed to them when they match up to underscores / case
 #' @return path of the written json (invisibly)
 #' @export
-sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_dir, patient = NULL, min_cn = 1, cell_ids = NULL) {
+sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_dir, patient = NULL, min_cn = 1, cell_ids = NULL, simplify = TRUE) {
     load_rds <- function(x) if (is.character(x)) readRDS(path.expand(x)) else x
     gw <- load_rds(walks)
     if (!inherits(gw, "gWalk")) stop("walks must be a gWalk (got ", paste(class(gw), collapse = "/"), ")")
@@ -55,6 +61,8 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
             start = GenomicRanges::start(gr), end = GenomicRanges::end(gr),
             strand = as.character(GenomicRanges::strand(gr)),
             cn = if ("cn" %in% names(m)) as.numeric(m$cn) else NA_real_)
+        n_raw <- nrow(nodes)
+        if (simplify && n_raw > 1) nodes <- simplify_walk_nodes(nodes, isTRUE(dt$circular[k]))
         n <- nrow(nodes)
         pairs <- if (n > 1) cbind(seq_len(n - 1), seq_len(n - 1) + 1) else matrix(integer(0), ncol = 2)
         if (isTRUE(dt$circular[k]) && n > 1) pairs <- rbind(pairs, c(n, 1))
@@ -79,6 +87,7 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
             circular = isTRUE(dt$circular[k]),
             span = if ("wid" %in% names(dt)) dt$wid[k] else sum(nodes$end - nodes$start + 1),
             n_nodes = n,
+            n_nodes_raw = n_raw,
             coordinates = if (!is.null(co)) co$coordinates else NULL,
             genes = union(cgc, intersect(flags, known_flags)),
             driver_genes = intersect(flags, known_flags),
@@ -99,4 +108,29 @@ sc_export_walks <- function(walks, counts, coords = NULL, summary = NULL, out_di
     path <- file.path(out_dir, "walks.json")
     jsonlite::write_json(out, path, auto_unbox = TRUE, digits = NA, null = "null", na = "null")
     invisible(path)
+}
+
+## TRUE where node b continues node a along the reference (same chromosome and strand, abutting)
+ref_adjacent <- function(a, b) {
+    a$chromosome == b$chromosome & a$strand == b$strand &
+        ((a$strand != "-" & b$start == a$end + 1) | (a$strand == "-" & a$start == b$end + 1))
+}
+
+## Collapse runs of reference-adjacent walk nodes into single intervals
+## (width-weighted mean cn); a circular walk whose last node abuts its first is
+## rotated so the run across the closing junction is merged too.
+simplify_walk_nodes <- function(nodes, circular = FALSE) {
+    n <- nrow(nodes)
+    brk <- !ref_adjacent(nodes[-n], nodes[-1])
+    if (circular && any(brk) && isTRUE(ref_adjacent(nodes[n], nodes[1]))) {
+        first <- which(brk)[1] + 1
+        nodes <- nodes[c(first:n, seq_len(first - 1))]
+        brk <- !ref_adjacent(nodes[-n], nodes[-1])
+    }
+    nodes[, run := cumsum(c(TRUE, brk))]
+    out <- nodes[, list(chromosome = chromosome[1], start = min(start), end = max(end), strand = strand[1],
+                        cn = if (all(is.na(cn))) NA_real_ else stats::weighted.mean(cn, end - start + 1, na.rm = TRUE)),
+                 by = run]
+    out[, run := NULL]
+    out
 }
