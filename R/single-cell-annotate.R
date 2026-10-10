@@ -441,20 +441,24 @@ sc_hg38_gene_spans <- function(cfg = sc_annotation_config()) {
 #' @description
 #'
 #' Write a cell's filtered.events.json with create_filtered_events() from its
-#' SNV rows and fusion / CNA rows (oncotable layout).
+#' SNV rows, fusion / CNA rows (oncotable layout) and, when given, the complex
+#' SVs of the cell's gGnome events() graph (as "Complex SV" rows, footprint as location).
 #'
 #' @param cell cell id
 #' @param snv_rows sc_cell_snv_oncotable() rows (or NULL)
 #' @param other_rows fusion / CNA oncotable rows (or NULL)
 #' @param jabba_gg the cell's JaBbA graph (path) or NULL
 #' @param cell_dir the cell's gOS folder
+#' @param complex the cell's events complex.rds (path) or NULL
 #' @return create_filtered_events() result
 #' @export
 #' @author Stanley Clarke
-sc_write_cell_filtered_events <- function(cell, snv_rows, other_rows, jabba_gg, cell_dir) {
+sc_write_cell_filtered_events <- function(cell, snv_rows, other_rows, jabba_gg, cell_dir, complex = NULL) {
     ## cached CNA / fusion rows may still carry skilift's hg19 gene_location
     if (NROW(other_rows)) other_rows <- sc_hg38_gene_location(data.table::as.data.table(other_rows))
-    ot <- data.table::rbindlist(list(snv_rows, other_rows), fill = TRUE)
+    cx <- if (!is.null(complex) && !is.na(complex) && file.exists(complex)) collect_complex_events(complex, verbose = FALSE) else NULL
+    if (NROW(cx)) cx <- cx[!is.na(type)]
+    ot <- data.table::rbindlist(list(snv_rows, other_rows, cx), fill = TRUE)
     if (!nrow(ot)) ot <- data.table::data.table(type = NA, source = "none")
     rds <- tempfile(fileext = ".rds")
     on.exit(unlink(rds))
@@ -590,6 +594,16 @@ sc_patient_filtered_events <- function(cell_ids, data_dir, patient, tumor_cells 
         x[, cell := cell]
     }), fill = TRUE)
     if (!nrow(events)) return(invisible(NULL))
+    ## complex SVs: per-cell "Chromothripsis: 2" -> one event per class and chromosome set
+    if ("type" %in% names(events) && any(events$type %in% "Complex SV")) {
+        cx <- events$type %in% "Complex SV"
+        chroms <- vapply(strsplit(gsub("[;,]", " ", as.character(events$Genome_Location[cx])), " +"), function(x) {
+            s <- unique(sub(":.*", "", x[nzchar(x)]))
+            paste(s[order(suppressWarnings(as.numeric(sub("^chr", "", s))), s)], collapse = ",")
+        }, "")
+        cls <- sub(": [0-9]+$", "", events$vartype[cx])
+        events[cx, `:=`(vartype = cls, Variant = paste0(cls, " (", chroms, ")"))]
+    }
     key_cols <- intersect(c("gene", "fusion_genes", "vartype", "type", "Variant"), names(events))
     for (k in key_cols) events[is.na(get(k)), (k) := ""]
     tumor_cells <- intersect(tumor_cells, cell_ids)
