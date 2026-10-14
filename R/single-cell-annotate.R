@@ -455,7 +455,7 @@ sc_hg38_gene_spans <- function(cfg = sc_annotation_config()) {
 #' @author Stanley Clarke
 sc_write_cell_filtered_events <- function(cell, snv_rows, other_rows, jabba_gg, cell_dir, complex = NULL) {
     ## cached CNA / fusion rows may still carry skilift's hg19 gene_location
-    if (NROW(other_rows)) other_rows <- sc_hg38_gene_location(data.table::as.data.table(other_rows))
+    if (NROW(other_rows)) other_rows <- sc_relabel_upstream_fusions(sc_hg38_gene_location(data.table::as.data.table(other_rows)))
     cx <- if (!is.null(complex) && !is.na(complex) && file.exists(complex)) collect_complex_events(complex, verbose = FALSE) else NULL
     if (NROW(cx)) cx <- cx[!is.na(type)]
     ot <- data.table::rbindlist(list(snv_rows, other_rows, cx), fill = TRUE)
@@ -545,8 +545,57 @@ sc_cell_cna_fusions <- function(cell, jabba_gg, work_dir, out_rds, gencode_gr, c
                     jabba_gg = jabba_gg, gencode = gencode_gr, cytoband = cytoband_gr,
                     amp.thresh = amp.thresh, del.thresh = del.thresh, verbose = FALSE)
     ot <- ot[!is.na(type) & source %in% c("oncokb_fusions", "oncokb_cna")]
+    ot <- sc_relabel_upstream_fusions(ot)
     ot <- sc_hg38_gene_location(ot, cfg)
     saveRDS(ot, out_rds)
+    ot
+}
+
+#' @name sc_relabel_upstream_fusions
+#' @title sc_relabel_upstream_fusions
+#' @description
+#'
+#' The fusions GENCODE (cfg$fusions_gencode) gives every transcript with a 5'UTR a
+#' synthetic exon -1 that extends 150 kb upstream, so a junction landing only in
+#' that flank is named as a fusion of the gene (e.g. 86 kb upstream of ZNF345
+#' gives "ZNF345::MLLT3"). Fusion rows (oncotable layout, source oncokb_fusions)
+#' whose partner break is in exon -1 are relabelled "upstream of GENE" in
+#' fusion_genes ("upstream of ZNF345::MLLT3"), the gene is kept in
+#' upstream_partner, upstream_only is TRUE, and the row is demoted to tier 3
+#' (VUS) without therapeutic / diagnostic / prognostic annotation, so it is not a
+#' gene-fusion driver. The rows stay in the events table. Idempotent.
+#'
+#' @param ot fusion / CNA oncotable rows (data.table or NULL)
+#' @return ot with upstream_only and upstream_partner columns
+#' @export
+#' @author Stanley Clarke
+sc_relabel_upstream_fusions <- function(ot) {
+    if (is.null(ot) || !NROW(ot)) return(ot)
+    ot <- data.table::as.data.table(ot)
+    if (!"upstream_only" %in% names(ot)) ot[, upstream_only := NA]
+    ot[, upstream_only := as.logical(upstream_only)]
+    if (!"upstream_partner" %in% names(ot)) ot[, upstream_partner := NA_character_]
+    needed <- c("source", "type", "fusion_genes", "variant.p")
+    if (!all(needed %in% names(ot))) return(ot)
+    is_fus <- ot$source %in% "oncokb_fusions" & ot$type %in% "fusion" & grepl("::", ot$fusion_genes, fixed = TRUE)
+    ## variant.p is "Exon <A> (p.<aa>)::Exon <B> (p.<aa>)"; exon -1 is the synthetic upstream exon
+    up_a <- is_fus & grepl("^Exon -1( |:|$)", ot$variant.p)
+    up_b <- is_fus & grepl("::Exon -1( |$)", ot$variant.p)
+    todo <- which((up_a | up_b) & !(ot$upstream_only %in% TRUE))
+    for (i in todo) {
+        g <- strsplit(ot$fusion_genes[i], "::", fixed = TRUE)[[1]]
+        if (length(g) != 2L) next
+        up <- c(up_a[i], up_b[i])
+        data.table::set(ot, i, "upstream_partner", paste(g[up], collapse = ","))
+        data.table::set(ot, i, "fusion_genes", paste(ifelse(up, paste("upstream of", g), g), collapse = "::"))
+        data.table::set(ot, i, "variant.p", gsub("Exon -1( \\(p\\.5'UTR\\))?", "Upstream flank", ot$variant.p[i]))
+        data.table::set(ot, i, "upstream_only", TRUE)
+        data.table::set(ot, i, "tier", 3L)
+        data.table::set(ot, i, "tier_description", "VUS")
+        for (col in intersect(c("therapeutics", "resistances", "diagnoses", "prognoses"), names(ot)))
+            data.table::set(ot, i, col, NA)
+    }
+    ot[is_fus & is.na(upstream_only), upstream_only := FALSE]
     ot
 }
 
