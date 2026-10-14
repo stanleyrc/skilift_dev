@@ -1715,7 +1715,9 @@ create_filtered_events <- function(
         "resistances" = "resistances",
         "diagnoses" = "diagnoses",
         "prognoses" = "prognoses",
-        "is_multi_hit_per_gene" = "is_multi_hit_per_gene"
+        "is_multi_hit_per_gene" = "is_multi_hit_per_gene",
+        "upstream_only" = "upstream_only",
+        "upstream_partner" = "upstream_partner"
     )
 
   res.final = Skilift:::change_names(possible_drivers, oncotable_col_to_filtered_events_col)
