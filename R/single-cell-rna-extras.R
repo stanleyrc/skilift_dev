@@ -68,6 +68,8 @@ sc_export_rna_fusions <- function(patient, cell_dirs, out_dir, cell_map = NULL, 
         ev <- data.table::as.data.table(jsonlite::fromJSON(dna_events))
         if ("vartype" %in% names(ev)) {
             dfx <- ev[vartype %in% c("fusion", "outframe_fusion")]
+            ## "upstream of GENE" calls (break in the synthetic 5'UTR flank) are not gene fusions
+            if ("upstream_only" %in% names(dfx)) dfx <- dfx[!(upstream_only %in% TRUE)]
             dna_pairs <- unique(dfx$gene)
             if ("Tier" %in% names(dfx) && nrow(dfx)) {
                 tt <- dfx[, .(tier = suppressWarnings(min(as.integer(Tier), na.rm = TRUE))), by = gene]
