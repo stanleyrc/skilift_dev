@@ -427,8 +427,9 @@ sc_splice_snv_links <- function(ev, cells, snv_file, cell_map, cg = NULL, window
 #' @param evr list(events, cells) of sc_splice_events
 #' @param links sc_splice_snv_links table or NULL
 #' @param n_igv cells per event listed for the IGV view
+#' @param read_cells sc_splice_read_cells (restricted to cells with a slice): adds `read_cells` (id, role, k, n) to each event
 #' @export
-sc_splice_events_json <- function(evr, links = NULL, n_igv = 6L) {
+sc_splice_events_json <- function(evr, links = NULL, n_igv = 6L, read_cells = NULL) {
     ev <- evr$events
     if (!nrow(ev)) return(list())
     num <- function(v) if (length(v) && is.finite(v)) as.numeric(v) else NULL
@@ -451,6 +452,7 @@ sc_splice_events_json <- function(evr, links = NULL, n_igv = 6L) {
              finding_id = if (is.na(e$finding)) NULL else e$finding, finding_score = num(e$finding_score),
              loci = list(list(chromosome = e$chromosome, position = e$start - 1L), list(chromosome = e$chromosome, position = e$end + 1L)),
              cells = I(cd[order(-k)][seq_len(min(.N, n_igv))][k > 0]$rna_id),
+             read_cells = if (!is.null(read_cells) && !is.null(read_cells[[e$event_id]]) && nrow(read_cells[[e$event_id]])) unname(lapply(split(read_cells[[e$event_id]], seq_len(nrow(read_cells[[e$event_id]]))), function(r) list(id = r$rna_id, role = r$role, k = r$k, n = r$n))) else NULL,
              snv_links = if (!is.null(lk) && nrow(lk)) lapply(seq_len(nrow(lk)), function(j) { l <- lk[j]
                  list(variant_id = l$id, variant_index = l$index, chromosome = l$chromosome, position = l$position, ref = l$ref, alt = l$alt, category = l$category,
                       gene = l$gene, consequence = l$consequence, protein = l$protein, site = l$site, offset = l$offset, distance = l$distance, region = l$region,
@@ -459,4 +461,42 @@ sc_splice_events_json <- function(evr, links = NULL, n_igv = 6L) {
                       p_fisher = num(l$p_fisher), p = num(l$p), q = num(l$q), carrier_clone = if (is.na(l$carrier_clone)) NULL else l$carrier_clone,
                       carrier_clone_frac = num(l$carrier_clone_frac), carriers = I(l$carriers[[1]])) }) else list())
     })
+}
+
+
+#' Cells whose reads illustrate each event: the `n_use` cells with most reads on the event's junction (k > 0)
+#' and `n_control` control cells that cover the cluster but never use it (k == 0, most reads in the cluster first)
+#'
+#' @param evr list(events, cells) of sc_splice_events (cells: event_id -> data.table(rna_id, k, n))
+#' @param n_use maximum supporting cells per event
+#' @param n_control maximum control cells per event
+#' @return list event_id -> data.table(rna_id, role ("using" / "control"), k, n)
+#' @export
+sc_splice_read_cells <- function(evr, n_use = 8L, n_control = 2L) {
+    out <- lapply(evr$events$event_id, function(id) {
+        cd <- evr$cells[[id]]
+        if (is.null(cd) || !nrow(cd)) return(NULL)
+        u <- cd[k > 0][order(-k, rna_id)][seq_len(min(.N, n_use))]
+        ctl <- cd[k == 0 & n > 0][order(-n, rna_id)][seq_len(min(.N, n_control))]
+        r <- data.table::rbindlist(list(u[, .(rna_id, role = "using", k, n)], ctl[, .(rna_id, role = "control", k, n)]))
+        if (nrow(r)) r else NULL
+    })
+    stats::setNames(out, evr$events$event_id)
+}
+
+#' samtools regions per cell for the events' reads (both ends of the junction / retained intron, padded)
+#'
+#' @param events events table of sc_splice_events (event_id, chromosome, start, end)
+#' @param read_cells sc_splice_read_cells
+#' @param pad bp around each end
+#' @return list of list(rna_id, regions) per event (use with `add`)
+#' @export
+sc_splice_event_regions <- function(events, read_cells, pad = 300L) {
+    out <- list()
+    for (i in seq_len(nrow(events))) {
+        e <- events[i]; rc <- read_cells[[e$event_id]]
+        if (is.null(rc) || !nrow(rc)) next
+        out[[length(out) + 1L]] <- list(rna_id = rc$rna_id, regions = sc_junction_regions(e$chromosome, e$start, e$end, pad = pad))
+    }
+    out
 }
