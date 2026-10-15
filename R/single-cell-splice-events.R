@@ -465,19 +465,20 @@ sc_splice_events_json <- function(evr, links = NULL, n_igv = 6L, read_cells = NU
 
 
 #' Cells whose reads illustrate each event: the `n_use` cells with most reads on the event's junction (k > 0)
-#' and `n_control` control cells that cover the cluster but never use it (k == 0, most reads in the cluster first)
+#' and `n_control` comparator cells that cover the cluster and use the event least (k == 0 first, else lowest k / n; they use the canonical or another junction)
 #'
 #' @param evr list(events, cells) of sc_splice_events (cells: event_id -> data.table(rna_id, k, n))
 #' @param n_use maximum supporting cells per event
 #' @param n_control maximum control cells per event
 #' @return list event_id -> data.table(rna_id, role ("using" / "control"), k, n)
 #' @export
-sc_splice_read_cells <- function(evr, n_use = 8L, n_control = 2L) {
+sc_splice_read_cells <- function(evr, n_use = 8L, n_control = 3L) {
     out <- lapply(evr$events$event_id, function(id) {
         cd <- evr$cells[[id]]
         if (is.null(cd) || !nrow(cd)) return(NULL)
         u <- cd[k > 0][order(-k, rna_id)][seq_len(min(.N, n_use))]
-        ctl <- cd[k == 0 & n > 0][order(-n, rna_id)][seq_len(min(.N, n_control))]
+        ## comparators: cells covering the cluster that use the event least (no read on it first, else lowest share), deepest first
+        ctl <- cd[n > 0 & k < n & !rna_id %in% u$rna_id][order(k / n, -n, rna_id)][seq_len(min(.N, n_control))]
         r <- data.table::rbindlist(list(u[, .(rna_id, role = "using", k, n)], ctl[, .(rna_id, role = "control", k, n)]))
         if (nrow(r)) r else NULL
     })

@@ -849,7 +849,7 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                                    min_patient_reads = 30, n_cohort = 300, n_patient = 100, n_novel = 100, n_findings = 10, n_finding_cells = 20,
                                    slices = TRUE, n_ref_slices = 6, cores = 8, events = TRUE, snv_window = 50L,
                                    ir_dir = NULL, normal_cells = list(), repeat_track = NULL,
-                                   event_slices = TRUE, n_event_cells = 8L, n_event_controls = 2L, out_dir = data_dir) {
+                                   event_slices = TRUE, n_event_cells = 8L, n_event_controls = 3L, out_dir = data_dir) {
     message("sc_export_rna_splicing: GTF introns")
     ex <- sc_gtf_exons(gtf)
     introns <- sc_gtf_introns(ex)
