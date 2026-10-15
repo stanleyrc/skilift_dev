@@ -848,7 +848,8 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                                    cancer_genes = names(sc_rna_fusion_references()$cancer_roles), min_reads = 30, min_cells = 10,
                                    min_patient_reads = 30, n_cohort = 300, n_patient = 100, n_novel = 100, n_findings = 10, n_finding_cells = 20,
                                    slices = TRUE, n_ref_slices = 6, cores = 8, events = TRUE, snv_window = 50L,
-                                   ir_dir = NULL, normal_cells = list(), repeat_track = NULL) {
+                                   ir_dir = NULL, normal_cells = list(), repeat_track = NULL,
+                                   event_slices = TRUE, n_event_cells = 8L, n_event_controls = 2L, out_dir = data_dir) {
     message("sc_export_rna_splicing: GTF introns")
     ex <- sc_gtf_exons(gtf)
     introns <- sc_gtf_introns(ex)
@@ -1147,9 +1148,10 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                    selected_by = I(c("finding", "cohort", "clone", "novel", "dispersion", "gene")[c(id %in% finding_ids, id %in% cohort_ids, id %in% clone_ids, id %in% novel_ids, id %in% disp_ids, id %in% gbm)]),
                    cells = stats::setNames(lapply(seq_len(nrow(m)), function(i) unname(as.integer(m[i, ]))), w$rna_id)))
         })
-        pdir <- file.path(data_dir, p, "rna")
+        pdir <- file.path(out_dir, p, "rna")
         dir.create(pdir, recursive = TRUE, showWarnings = FALSE)
         bams <- list()
+        read_cells <- NULL
         if (slices) {
             ## variant loci for carriers and a few reference cells; finding loci (+- 500 bp) for the finding cells
             regs <- list()
@@ -1163,6 +1165,11 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                     c(ar[alt > 0]$rna_id, ar[alt == 0 & ref > 0][order(-ref)][seq_len(min(.N, n_ref_slices))]$rna_id)))), vregions)
             }
             for (f in fnd) add(unlist(f$cells), sc_junction_regions(f$junction$chromosome, f$junction$start, f$junction$end))
+            if (event_slices && !is.null(evr) && nrow(evr$events)) {
+                ## every listed event: its most-supporting cells + control cells that use the other junctions of the cluster
+                read_cells <- sc_splice_read_cells(evr, n_event_cells, n_event_controls)
+                for (a in sc_splice_event_regions(evr$events, read_cells)) add(a$rna_id, a$regions)
+            }
             if (!is.null(evr) && nrow(evr$events)) {
                 ## top recommended events: their most-using cells; linked SNVs: the carrier cells around the SNV
                 for (i in utils::head(which(evr$events$recommended), 40L)) {
@@ -1175,7 +1182,9 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                 }
             }
             bams <- sc_splice_slices(regs, cell_dirs[[p]], pdir, cores = cores)
-            message("sc_export_rna_splicing: ", p, ": RNA slices (variant + finding loci) for ", length(bams), " of ", length(regs), " cells")
+            message("sc_export_rna_splicing: ", p, ": RNA slices (variant + finding + event loci) for ", length(bams), " of ", length(regs), " cells")
+            ## an event offers reads only for cells whose slice was written
+            if (!is.null(read_cells)) read_cells <- lapply(read_cells, function(d) d[rna_id %in% names(bams)])
         }
         vv <- lapply(seq_len(nrow(variants)), function(i) {
             v <- variants[i]
@@ -1190,7 +1199,7 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         empty_named <- structure(list(), names = character(0))
         jsonlite::write_json(list(format = "gos-sc-splicing/1", patient = p, n_cells = data.table::uniqueN(per[[p]]$rna_id),
                                   findings = fnd, variants = vv, clusters = clusters,
-                                  events = if (!is.null(evr)) sc_splice_events_json(evr, ev_links) else NULL,
+                                  events = if (!is.null(evr)) sc_splice_events_json(evr, ev_links, read_cells = read_cells) else NULL,
                                   event_params = if (!is.null(evr)) list(format = "gos-sc-splice-events/1", snv_window = snv_window, cover_reads = 3L, min_cover_cells = 10L,
                                                                          min_using_cells = 3L, min_reads = 10L, min_psi = 0.05,
                                                                          intron_retention = !is.null(ir), n_normal_cells = length(normal_cells[[p]]),
@@ -1224,7 +1233,7 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                    list(counts = cnt, total = sum(cnt), n_cells = if (length(nc)) nc else 0L)
                }), patients)))
     })
-    cdir <- file.path(data_dir, "_cohort", "rna")
+    cdir <- file.path(out_dir, "_cohort", "rna")
     dir.create(cdir, recursive = TRUE, showWarnings = FALSE)
     cohort_variants <- lapply(seq_len(nrow(variants)), function(i) {
         v <- variants[i]

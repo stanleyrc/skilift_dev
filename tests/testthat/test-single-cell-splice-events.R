@@ -117,3 +117,18 @@ test_that("normal-panel flag needs reads, cells and a comparable PSI", {
     expect_false(sc_splice_normal_flag(0.4, 0.4, 5L, 1L))
     expect_false(sc_splice_normal_flag(0.4, NA_real_, NA_integer_, NA_integer_))
 })
+
+test_that("read cells: most supporting cells first, then controls that cover the cluster without the junction", {
+    ev <- data.table(event_id = c("e1", "e2"), chromosome = "1", start = c(201L, 5000L), end = c(305L, 5100L))
+    cd <- data.table(rna_id = sprintf("c%02d", 1:14), k = c(0L, 0L, 0L, 12L, 9L, 8L, 7L, 6L, 5L, 4L, 3L, 2L, 1L, 0L),
+                     n = c(50L, 90L, 70L, rep(20L, 10), 0L))
+    evr <- list(events = ev, cells = list(e1 = cd, e2 = cd[0]))
+    rc <- sc_splice_read_cells(evr, n_use = 8L, n_control = 2L)
+    expect_equal(rc$e1[role == "using"]$rna_id, sprintf("c%02d", 4:11))
+    expect_equal(rc$e1[role == "control"]$rna_id, c("c02", "c03"))
+    expect_null(rc$e2)
+    rg <- sc_splice_event_regions(ev, rc)
+    expect_length(rg, 1L)
+    expect_equal(rg[[1]]$regions, "chr1:1-606")
+    expect_equal(length(rg[[1]]$rna_id), 10L)
+})
