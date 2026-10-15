@@ -237,7 +237,8 @@ sc_splice_snv_test <- function(k, n, carrier, min_each = 2L) {
 #' @export
 sc_splice_events <- function(patient_id, x, cl, allj, introns, ex, tx_rank, coding, cancer, cg = NULL, findings = list(), min_reads = 10L,
                              min_using_cells = 3L, cover_reads = 3L, min_cover_cells = 10L, max_events = 2000L, common_patients = 3L,
-                             short_intron = 30L, min_psi = 0.05, n_boot = 200L, seed = 1L) {
+                             short_intron = 30L, min_psi = 0.05, n_boot = 200L, seed = 1L, normal = NULL, repeat_track = NULL, ann_starts = character(0),
+                             ann_ends = character(0)) {
     set.seed(seed)
     ## cluster-level coverage
     cc <- unique(x[cl_total >= cover_reads, .(rna_id, cluster_id, cl_total)])
@@ -333,16 +334,38 @@ sc_splice_events <- function(patient_id, x, cl, allj, introns, ex, tx_rank, codi
     ev[, flag_short := (end - start + 1L) <= short_intron]
     ev[, flag_common := n_other_with >= common_patients & !is.na(max_other) & abs(psi - max_other) < 0.15]
     ev[, flag_few := cells_covering < min_cover_cells]
-    ev[, flags := mapply(function(a, s, c, f) paste(c(if (a) "paralog/repeat family", if (s) "very short intron", if (c) "same junction at a similar PSI in other patients",
-                                                       if (f) "few covering cells"), collapse = "; "), flag_artefact, flag_short, flag_common, flag_few)]
+    ## normal (non-tumour) cell panel and low-complexity / simple repeat at a novel splice site
+    ev <- sc_splice_apply_filters(ev, normal, repeat_track, ann_starts, ann_ends)
     ev[, differential := !is.na(dpsi_other) & dpsi_other >= 0.5 & !annotated]
     ev[, enriched := !is.na(clone_q) & clone_q < 0.1 & abs(clone_psi - rest_psi) >= 0.1]
     ev[, finding_notable := !is.na(finding_severity) & finding_severity %in% c("high", "moderate")]
     ev[, reason := mapply(function(a, b, c, d) paste(c(if (a) "novel in cancer gene", if (b) "clone-enriched", if (c) "patient-specific", if (d) "finding"), collapse = ", "),
                           !annotated & cancer_gene, enriched, differential, finding_notable)]
-    ev[, recommended := reason != "" & !flag_artefact & !flag_short & !flag_common & !flag_few & cells_using >= min_using_cells & reads >= min_reads]
+    ev[, recommended := reason != "" & !flag_artefact & !flag_short & !flag_common & !flag_few & !flag_normal & !flag_repeat & cells_using >= min_using_cells & reads >= min_reads]
     ev[, patient := patient_id]
     list(events = ev[], cells = cell_data)
+}
+
+#' Normal-panel and repeat flags of an events table; sets flag_normal, flag_repeat, normal_* columns and `flags`
+#'
+#' @param ev events (flag_artefact, flag_short, flag_common, flag_few, psi, cluster_id, start, end, type)
+#' @param normal sc_splice_normal_panel (or NULL)
+#' @param repeat_track sc_repeat_track (or NULL)
+#' @param ann_starts,ann_ends annotated intron ends as "chromosome:position"
+#' @export
+sc_splice_apply_filters <- function(ev, normal = NULL, repeat_track = NULL, ann_starts = character(0), ann_ends = character(0)) {
+    if (!"normal_reads" %in% names(ev)) ev[, `:=`(normal_reads = NA_integer_, normal_cells = NA_integer_, normal_psi = NA_real_)]
+    if (!is.null(normal) && nrow(normal) && nrow(ev)) {
+        ev[normal, on = .(cluster_id, start, end), `:=`(normal_reads = as.integer(i.reads), normal_cells = as.integer(i.cells), normal_psi = i.psi)]
+    }
+    ev[, flag_normal := sc_splice_normal_flag(psi, normal_psi, normal_reads, normal_cells)]
+    ev[, flag_repeat := FALSE]
+    nir <- !ev$type %in% "intron_retention"
+    if (any(nir)) ev[which(nir), flag_repeat := sc_splice_repeat_flag(.SD, repeat_track, ann_starts, ann_ends), .SDcols = c("chromosome", "start", "end")]
+    ev[, flags := mapply(function(a, s, c, f, n, r) paste(c(if (a) "paralog/repeat family", if (s) "very short intron", if (c) "same junction at a similar PSI in other patients",
+                                                       if (f) "few covering cells", if (n) "also used in normal (non-tumour) cells", if (r) "low-complexity / simple repeat at the splice site"),
+                                                     collapse = "; "), flag_artefact, flag_short, flag_common, flag_few, flag_normal, flag_repeat)]
+    ev[]
 }
 
 `%||%` <- function(a, b) if (is.null(a) || (length(a) == 1 && is.na(a))) b else a

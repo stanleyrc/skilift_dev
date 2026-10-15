@@ -834,6 +834,9 @@ sc_splice_clone_findings <- function(x, clone_of, gt, q_max = 0.1, min_cells = 5
 #' @param n_findings,n_finding_cells findings kept per patient; cells sliced per finding (most junction reads)
 #' @param slices write per-cell RNA slices of the variant loci (carriers + `n_ref_slices` reference cells per variant) and finding loci
 #' @param cores parallel reads
+#' @param ir_dir folder of the intron retention counts (sc_ir_count_cell via gos_sc_ir.R: ir_targets.rds, counts/<patient>/<cell>.tsv.gz); NULL skips the intron retention events
+#' @param normal_cells list patient -> rna ids of normal / non-tumour cells (the normal-cell panel flags events also used by them)
+#' @param repeat_track sc_repeat_track (low-complexity / simple repeat flag at novel splice sites)
 #' @param events write `events` (sc_splice_events: one row per junction with plain-language summary, PSI + CI, cells using / covering,
 #'   clone enrichment, frame, recurrence, "recommended" tier) and, from data/<P>/snv_matrix.json, `snv_links` (SNVs within `snv_window` bp of
 #'   either splice site, or in the segment between the new and the annotated site, with a carrier vs non-carrier test; sc_splice_snv_links)
@@ -844,7 +847,8 @@ sc_splice_clone_findings <- function(x, clone_of, gt, q_max = 0.1, min_cells = 5
 sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(), clones = list(),
                                    cancer_genes = names(sc_rna_fusion_references()$cancer_roles), min_reads = 30, min_cells = 10,
                                    min_patient_reads = 30, n_cohort = 300, n_patient = 100, n_novel = 100, n_findings = 10, n_finding_cells = 20,
-                                   slices = TRUE, n_ref_slices = 6, cores = 8, events = TRUE, snv_window = 50L) {
+                                   slices = TRUE, n_ref_slices = 6, cores = 8, events = TRUE, snv_window = 50L,
+                                   ir_dir = NULL, normal_cells = list(), repeat_track = NULL) {
     message("sc_export_rna_splicing: GTF introns")
     ex <- sc_gtf_exons(gtf)
     introns <- sc_gtf_introns(ex)
@@ -861,6 +865,7 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
 
     ## per patient: per-cell junction counts
     per <- list()
+    cell_files <- lapply(cell_dirs, basename)
     for (p in names(cell_dirs)) {
         ## folder names (sample sheet) may differ in case from the Seurat / gOS RNA ids: use the latter
         canon <- names(cell_maps[[p]])
@@ -894,6 +899,25 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
     message("sc_export_rna_splicing: ", data.table::uniqueN(cl$cluster_id), " clusters from ", nrow(cl), " junctions (",
             paste(names(table(cl$type)), table(cl$type), collapse = ", "), ")")
     cl_by <- split(cl, cl$cluster_id)
+    ## artefact filters: annotated splice sites, the normal-cell panel and the intron retention counts
+    ann_starts <- unique(paste0(ann$chromosome, ":", ann$start)); ann_ends <- unique(paste0(ann$chromosome, ":", ann$end))
+    normal_panel <- if (length(normal_cells)) sc_splice_normal_panel(per, normal_cells, cl) else NULL
+    if (!is.null(normal_panel)) message("sc_export_rna_splicing: normal-cell panel: ", sum(lengths(normal_cells)), " cells, ", nrow(normal_panel), " junctions")
+    ir <- NULL
+    if (events && length(ir_dir) && file.exists(file.path(ir_dir, "ir_targets.rds"))) {
+        ir_tg <- readRDS(file.path(ir_dir, "ir_targets.rds"))
+        ir_counts <- lapply(names(cell_dirs), function(p) data.table::rbindlist(lapply(seq_along(cell_dirs[[p]]), function(i) {
+            f <- file.path(ir_dir, "counts", p, paste0(cell_files[[p]][i], ".tsv.gz"))
+            if (!file.exists(f)) return(NULL)
+            x <- data.table::fread(f, showProgress = FALSE)
+            if (nrow(x)) x[, rna_id := names(cell_dirs[[p]])[i]] else NULL
+        }), fill = TRUE))
+        names(ir_counts) <- names(cell_dirs)
+        ir_other <- lapply(ir_counts, function(x) if (nrow(x)) x[, .(ret = sum((ret_l + ret_r) / 2), spl = sum(spl), cells_using = sum(ret_l + ret_r >= 2)), by = idx] else x)
+        ir_normal <- data.table::rbindlist(lapply(names(ir_counts), function(p) if (length(normal_cells[[p]])) ir_counts[[p]][tolower(rna_id) %in% tolower(normal_cells[[p]])] else NULL))
+        ir <- list(tg = ir_tg, counts = ir_counts, other = ir_other, normal = ir_normal)
+        message("sc_export_rna_splicing: intron retention counts of ", sum(vapply(ir_counts, function(x) data.table::uniqueN(x$rna_id), 1L)), " cells over ", nrow(ir_tg$introns), " introns")
+    }
 
     ## JSON parts shared by the cohort and patient files
     junctions_of <- function(jj) lapply(seq_len(nrow(jj)), function(k) list(start = jj$start[k], end = jj$end[k], annotated = jj$annotated[k],
@@ -1077,13 +1101,23 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         ## event-level table (+ SNV links); the clusters of the events are exported so every event opens in the sashimi
         evr <- NULL; ev_links <- NULL; event_ids <- character(0)
         if (events && dir.exists(file.path(data_dir, p))) {
-            evr <- sc_splice_events(p, x, cl, allj, introns, ex, tx_rank, coding, cancer, cg = cg, findings = fnd)
+            evr <- sc_splice_events(p, x, cl, allj, introns, ex, tx_rank, coding, cancer, cg = cg, findings = fnd, normal = normal_panel,
+                                    repeat_track = repeat_track, ann_starts = ann_starts, ann_ends = ann_ends)
+            if (!is.null(ir) && nrow(ir$counts[[p]])) {
+                ire <- sc_ir_events(p, ir$counts[[p]], unique(ir$counts[[p]]$rna_id), ir$tg, cl = unique(cl[annotated == TRUE, .(chromosome, start, end, cluster_id)]),
+                                    cancer = cancer, coding = coding, others = ir$other[setdiff(names(ir$other), p)], cg = cg, normal_counts = ir$normal)
+                if (nrow(ire$events)) {
+                    evr$events <- data.table::rbindlist(list(evr$events, ire$events), fill = TRUE)
+                    evr$cells <- c(evr$cells, ire$cells)
+                }
+                message("sc_export_rna_splicing: ", p, ": ", nrow(ire$events), " intron retention events (", sum(ire$events$recommended), " recommended)")
+            }
             snv_file <- file.path(data_dir, p, "snv_matrix.json")
             if (nrow(evr$events) && file.exists(snv_file) && length(cell_maps[[p]])) {
                 ev_links <- tryCatch(sc_splice_snv_links(evr$events, evr$cells, snv_file, cell_maps[[p]], cg = cg, window = snv_window),
                                      error = function(e) { message("sc_export_rna_splicing: ", p, ": SNV links failed: ", conditionMessage(e)); NULL })
             }
-            event_ids <- unique(evr$events$cluster_id)
+            event_ids <- setdiff(unique(evr$events$cluster_id), NA_character_)
             message("sc_export_rna_splicing: ", p, ": ", nrow(evr$events), " events (", sum(evr$events$recommended), " recommended), ",
                     if (is.null(ev_links)) 0L else nrow(ev_links), " SNV links")
         }
