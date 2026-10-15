@@ -100,3 +100,20 @@ test_that("the segment between a nearby new site and the annotated site is searc
     expect_true(any(h$event_id == "near" & h$index == 0L))
     expect_false(any(h$event_id == "far" & h$index == 1L))
 })
+
+test_that("repeat flag only tests novel splice sites", {
+    track <- GenomicRanges::GRanges("1", IRanges::IRanges(c(1000, 5000), c(1030, 5040)))
+    ev <- data.table::data.table(chromosome = "1", start = c(1010L, 1010L, 3000L), end = c(9000L, 9000L, 5020L))
+    ## 1st: novel start in the repeat; 2nd: the same start is annotated; 3rd: novel end in the repeat
+    f1 <- sc_splice_repeat_flag(ev[c(1, 3)], track, ann_starts = character(0), ann_ends = "1:9000")
+    expect_equal(f1, c(TRUE, TRUE))
+    f2 <- sc_splice_repeat_flag(ev[2], track, ann_starts = "1:1010", ann_ends = "1:9000")
+    expect_false(f2)
+})
+
+test_that("normal-panel flag needs reads, cells and a comparable PSI", {
+    expect_true(sc_splice_normal_flag(0.4, 0.3, 5L, 3L))
+    expect_false(sc_splice_normal_flag(0.4, 0.05, 5L, 3L))
+    expect_false(sc_splice_normal_flag(0.4, 0.4, 5L, 1L))
+    expect_false(sc_splice_normal_flag(0.4, NA_real_, NA_integer_, NA_integer_))
+})
