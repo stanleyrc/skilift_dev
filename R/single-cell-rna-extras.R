@@ -649,7 +649,7 @@ sc_splice_pct <- function(x) ifelse(!is.finite(x), "–", ifelse(x > 0 & x < 0.0
 #' @author Stanley Clarke
 sc_splice_site_note <- function(jn, introns, ex, tx_rank, max_offset = 300) {
     out <- list(offset = NA_integer_, where = NA_character_, exon = NA_integer_, exons = NULL, frameshift = NA, transcript = NA_character_,
-                ref_start = NA_integer_, ref_end = NA_integer_)
+                ref_start = NA_integer_, ref_end = NA_integer_, intron = NA_integer_)
     minus <- identical(jn$strand, "-")
     chr <- jn$chromosome
     if (jn$type %in% c("novel_acceptor", "novel_donor")) {
@@ -664,6 +664,7 @@ sc_splice_site_note <- function(jn, introns, ex, tx_rank, max_offset = 300) {
         r <- h[order(d, -n, transcript)][1]
         out$offset <- as.integer(r$d)
         out$transcript <- r$transcript; out$ref_start <- r$start; out$ref_end <- r$end
+        out$intron <- as.integer(min(r$exon_left, r$exon_right))
         if (r$d > max_offset) { out$where <- "distant"; return(out) }
         out$where <- if ((jn$end - jn$start) < (r$end - r$start)) "intron" else "exon"
         ## the exon on the moved side: left of the intron at its start, right of it at its end
@@ -833,13 +834,17 @@ sc_splice_clone_findings <- function(x, clone_of, gt, q_max = 0.1, min_cells = 5
 #' @param n_findings,n_finding_cells findings kept per patient; cells sliced per finding (most junction reads)
 #' @param slices write per-cell RNA slices of the variant loci (carriers + `n_ref_slices` reference cells per variant) and finding loci
 #' @param cores parallel reads
+#' @param events write `events` (sc_splice_events: one row per junction with plain-language summary, PSI + CI, cells using / covering,
+#'   clone enrichment, frame, recurrence, "recommended" tier) and, from data/<P>/snv_matrix.json, `snv_links` (SNVs within `snv_window` bp of
+#'   either splice site, or in the segment between the new and the annotated site, with a carrier vs non-carrier test; sc_splice_snv_links)
+#' @param snv_window bp either side of a splice site for SNV links
 #' @return list(cohort = cohort clusters, patients = per-patient cluster ids, findings) invisibly
 #' @export
 #' @author Stanley Clarke
 sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(), clones = list(),
                                    cancer_genes = names(sc_rna_fusion_references()$cancer_roles), min_reads = 30, min_cells = 10,
                                    min_patient_reads = 30, n_cohort = 300, n_patient = 100, n_novel = 100, n_findings = 10, n_finding_cells = 20,
-                                   slices = TRUE, n_ref_slices = 6, cores = 8) {
+                                   slices = TRUE, n_ref_slices = 6, cores = 8, events = TRUE, snv_window = 50L) {
     message("sc_export_rna_splicing: GTF introns")
     ex <- sc_gtf_exons(gtf)
     introns <- sc_gtf_introns(ex)
@@ -1069,7 +1074,20 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         fnd <- findings_of(p, x, cg, gt)
         all_findings[[p]] <- fnd
         finding_ids <- unique(unlist(lapply(fnd, function(f) f$cluster_id)))
-        ids <- unique(c(finding_ids, cohort_ids, clone_ids, novel_ids, disp_ids, gbm))
+        ## event-level table (+ SNV links); the clusters of the events are exported so every event opens in the sashimi
+        evr <- NULL; ev_links <- NULL; event_ids <- character(0)
+        if (events && dir.exists(file.path(data_dir, p))) {
+            evr <- sc_splice_events(p, x, cl, allj, introns, ex, tx_rank, coding, cancer, cg = cg, findings = fnd)
+            snv_file <- file.path(data_dir, p, "snv_matrix.json")
+            if (nrow(evr$events) && file.exists(snv_file) && length(cell_maps[[p]])) {
+                ev_links <- tryCatch(sc_splice_snv_links(evr$events, evr$cells, snv_file, cell_maps[[p]], cg = cg, window = snv_window),
+                                     error = function(e) { message("sc_export_rna_splicing: ", p, ": SNV links failed: ", conditionMessage(e)); NULL })
+            }
+            event_ids <- unique(evr$events$cluster_id)
+            message("sc_export_rna_splicing: ", p, ": ", nrow(evr$events), " events (", sum(evr$events$recommended), " recommended), ",
+                    if (is.null(ev_links)) 0L else nrow(ev_links), " SNV links")
+        }
+        ids <- unique(c(finding_ids, cohort_ids, clone_ids, novel_ids, disp_ids, gbm, event_ids))
         pat_ids[[p]] <- ids
         message("sc_export_rna_splicing: ", p, " findings: ", paste(vapply(fnd, function(f) sprintf("%s %s %.1f", f$kind, f$gene, f$score), ""), collapse = "; "))
         ## per-patient file only for patients already in the gOS dataset (cohort file covers all)
@@ -1109,6 +1127,17 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                     c(ar[alt > 0]$rna_id, ar[alt == 0 & ref > 0][order(-ref)][seq_len(min(.N, n_ref_slices))]$rna_id)))), vregions)
             }
             for (f in fnd) add(unlist(f$cells), sc_junction_regions(f$junction$chromosome, f$junction$start, f$junction$end))
+            if (!is.null(evr) && nrow(evr$events)) {
+                ## top recommended events: their most-using cells; linked SNVs: the carrier cells around the SNV
+                for (i in utils::head(which(evr$events$recommended), 40L)) {
+                    e <- evr$events[i]; cd <- evr$cells[[e$event_id]]
+                    add(cd[order(-k)][seq_len(min(.N, 6L))]$rna_id, sc_junction_regions(e$chromosome, e$start, e$end))
+                }
+                if (!is.null(ev_links)) for (i in utils::head(order(ev_links$p, na.last = NA), 40L)) {
+                    l <- ev_links[i]; e <- evr$events[event_id == l$event_id]
+                    add(unlist(l$carriers), sprintf("chr%s:%d-%d", e$chromosome, max(1L, l$position - 300L), l$position + 300L))
+                }
+            }
             bams <- sc_splice_slices(regs, cell_dirs[[p]], pdir, cores = cores)
             message("sc_export_rna_splicing: ", p, ": RNA slices (variant + finding loci) for ", length(bams), " of ", length(regs), " cells")
         }
@@ -1125,6 +1154,9 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
         empty_named <- structure(list(), names = character(0))
         jsonlite::write_json(list(format = "gos-sc-splicing/1", patient = p, n_cells = data.table::uniqueN(per[[p]]$rna_id),
                                   findings = fnd, variants = vv, clusters = clusters,
+                                  events = if (!is.null(evr)) sc_splice_events_json(evr, ev_links) else NULL,
+                                  event_params = if (!is.null(evr)) list(format = "gos-sc-splice-events/1", snv_window = snv_window, cover_reads = 3L, min_cover_cells = 10L,
+                                                                         min_using_cells = 3L, min_reads = 10L, min_psi = 0.05) else NULL,
                                   splice_reads = if (length(bams)) bams else empty_named,
                                   cell_map = if (length(cm)) as.list(cm) else empty_named),
                              file.path(pdir, "splicing.json"), auto_unbox = TRUE, digits = NA, null = "null", na = "null")
