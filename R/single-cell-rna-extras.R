@@ -902,7 +902,7 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
     ## artefact filters: annotated splice sites, the normal-cell panel and the intron retention counts
     ann_starts <- unique(paste0(ann$chromosome, ":", ann$start)); ann_ends <- unique(paste0(ann$chromosome, ":", ann$end))
     normal_panel <- if (length(normal_cells)) sc_splice_normal_panel(per, normal_cells, cl) else NULL
-    if (!is.null(normal_panel)) message("sc_export_rna_splicing: normal-cell panel: ", sum(lengths(normal_cells)), " cells, ", nrow(normal_panel), " junctions")
+    if (!is.null(normal_panel)) message("sc_export_rna_splicing: normal-cell panel: ", sum(vapply(normal_cells, length, 1L)), " cells, ", nrow(normal_panel), " junctions")
     ir <- NULL
     if (events && length(ir_dir) && file.exists(file.path(ir_dir, "ir_targets.rds"))) {
         ir_tg <- readRDS(file.path(ir_dir, "ir_targets.rds"))
@@ -913,6 +913,8 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
             if (nrow(x)) x[, rna_id := names(cell_dirs[[p]])[i]] else NULL
         }), fill = TRUE))
         names(ir_counts) <- names(cell_dirs)
+        ## reads spliced at either end of an intron count as splicing (IRFinder's SplicesMax)
+        for (p in names(ir_counts)) if (nrow(ir_counts[[p]])) ir_counts[[p]] <- sc_ir_splice_max(ir_counts[[p]], per[[p]], ir_tg$introns)
         ir_other <- lapply(ir_counts, function(x) if (nrow(x)) x[, .(ret = sum((ret_l + ret_r) / 2), spl = sum(spl), cells_using = sum(ret_l + ret_r >= 2)), by = idx] else x)
         ir_normal <- data.table::rbindlist(lapply(names(ir_counts), function(p) if (length(normal_cells[[p]])) ir_counts[[p]][tolower(rna_id) %in% tolower(normal_cells[[p]])] else NULL))
         ir <- list(tg = ir_tg, counts = ir_counts, other = ir_other, normal = ir_normal)
@@ -1190,7 +1192,9 @@ sc_export_rna_splicing <- function(cell_dirs, data_dir, gtf, cell_maps = list(),
                                   findings = fnd, variants = vv, clusters = clusters,
                                   events = if (!is.null(evr)) sc_splice_events_json(evr, ev_links) else NULL,
                                   event_params = if (!is.null(evr)) list(format = "gos-sc-splice-events/1", snv_window = snv_window, cover_reads = 3L, min_cover_cells = 10L,
-                                                                         min_using_cells = 3L, min_reads = 10L, min_psi = 0.05) else NULL,
+                                                                         min_using_cells = 3L, min_reads = 10L, min_psi = 0.05,
+                                                                         intron_retention = !is.null(ir), n_normal_cells = length(normal_cells[[p]]),
+                                                                         repeat_flag = !is.null(repeat_track)) else NULL,
                                   splice_reads = if (length(bams)) bams else empty_named,
                                   cell_map = if (length(cm)) as.list(cm) else empty_named),
                              file.path(pdir, "splicing.json"), auto_unbox = TRUE, digits = NA, null = "null", na = "null")

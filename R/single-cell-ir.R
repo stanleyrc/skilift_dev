@@ -116,6 +116,25 @@ sc_ir_count_cell <- function(bam, tg, min_mapq = 255L) {
     out[]
 }
 
+## spliced reads of an intron per cell: the largest of the reads spliced exactly out of it (BAM CIGAR) and the reads spliced at its first / last
+## intronic base to any partner (regtools junctions)
+sc_ir_splice_max <- function(cn, junctions, it) {
+    if (!"spl_exact" %in% names(cn)) cn[, spl_exact := spl]
+    if (is.null(junctions) || !nrow(junctions)) return(cn)
+    j <- junctions[rna_id %in% unique(cn$rna_id)]
+    jl <- j[, .(spl_l = sum(count)), by = .(rna_id, chromosome, start)]
+    jr <- j[, .(spl_r = sum(count)), by = .(rna_id, chromosome, end)]
+    m <- cn[, .(rna_id, idx)]
+    m <- merge(m, it[, .(idx, chromosome, start, end)], by = "idx")
+    m <- merge(m, jl, by = c("rna_id", "chromosome", "start"), all.x = TRUE)
+    m <- merge(m, jr, by = c("rna_id", "chromosome", "end"), all.x = TRUE)
+    m[is.na(spl_l), spl_l := 0L][is.na(spl_r), spl_r := 0L]
+    cn <- merge(cn, m[, .(rna_id, idx, spl_l, spl_r)], by = c("rna_id", "idx"), all.x = TRUE)
+    cn[, spl := pmax(spl, spl_l, spl_r, na.rm = TRUE)][, c("spl_l", "spl_r") := NULL]
+    ## introns whose only splicing evidence is at an end (no read in the cell file) still need a row: those cells are absent from counts and so uncovered
+    cn[]
+}
+
 #' IR ratio statistics of one intron over cells
 #'
 #' @param ret_l,ret_r,spl per covering cell counts
@@ -142,27 +161,33 @@ sc_ir_kn <- function(ret_l, ret_r, spl) {
 #' @param cancer cancer gene symbols (upper case); coding, tx_rank, ex, introns: as sc_splice_events
 #' @param others list patient -> data.table(idx, ret, spl, cells_using) of the other patients (recurrence)
 #' @param cg named character rna_id -> DNA clone
+#' @param junctions per-cell junctions (rna_id, chromosome, start, end, count; sc_read_junctions) of the patient: reads spliced at either end of an
+#'   intron (to any partner) count as splicing (IRFinder's SplicesMax), so an intron whose neighbour exon is alternatively spliced is not scored
 #' @param normal_counts counts (as `counts`) of the normal / non-tumour cells of every patient (the normal panel)
 #' @return list(events, cells) like sc_splice_events (rows of intron retention only)
 #' @export
 #' @author Stanley Clarke
 sc_ir_events <- function(patient_id, counts, cells, tg, cl = NULL, cancer = character(0), coding = character(0), others = list(), cg = NULL,
                          min_reads = 10L, min_using_cells = 3L, cover_reads = 3L, min_cover_cells = 10L, min_psi = 0.05, max_events = 500L,
-                         common_patients = 3L, n_boot = 200L, seed = 1L, normal_counts = NULL) {
+                         common_patients = 3L, n_boot = 200L, seed = 1L, normal_counts = NULL, junctions = NULL, max_recommended = 15L) {
     set.seed(seed)
     it <- tg$introns
     cn <- data.table::copy(counts)[rna_id %in% cells]
     cn[, `:=`(k = (ret_l + ret_r) / 2)]
+    cn <- sc_ir_splice_max(cn, junctions, it)
     cn[, n := k + spl]
     ## candidate introns: retained reads at both ends and in the body
-    cov <- cn[n >= cover_reads, .(cells_covering = .N, cluster_reads = sum(n), reads = sum(k), spliced = sum(spl),
+    cov <- cn[n >= cover_reads, .(cells_covering = .N, cluster_reads = sum(n), reads = sum(k), spliced = sum(spl_exact),
                                   cells_using = sum(ret_l + ret_r >= 2), end_l = sum(ret_l), end_r = sum(ret_r), body = sum(body)), by = idx]
     cov[, psi := reads / cluster_reads]
-    cand <- cov[reads >= min_reads & cells_using >= min_using_cells & psi >= min_psi & end_l >= 3 & end_r >= 3 & body > 0]
+    ## the intron must itself be spliced in the cells (>= 5 reads at its exact junction) and not 100% unspliced: an intron whose junction is never seen is
+    ## part of an unannotated exon / transcript (alternative-isoform exons of the GTF), not a retained intron
+    cand <- cov[reads >= min_reads & cells_using >= min_using_cells & psi >= min_psi & psi <= 0.95 & spliced >= 5 & end_l >= 3 & end_r >= 3 & body > 0]
     empty <- list(events = data.table::data.table(), cells = list())
     if (!nrow(cand)) return(empty)
     cand <- merge(cand, it, by = "idx")
-    cand[, cancer_gene := !is.na(gene) & toupper(gene) %in% cancer]
+    cancer_set <- cancer
+    cand[, cancer_gene := cancer | (!is.na(gene) & toupper(gene) %in% cancer_set)]
     cand[, art_gene := sc_splice_artefact(gene)]
     cand[, prio := cancer_gene * 1e5 + (!art_gene) * 1e4 + pmin(reads, 9999)]
     data.table::setorder(cand, -prio)
@@ -236,7 +261,12 @@ sc_ir_events <- function(patient_id, counts, cells, tg, cl = NULL, cancer = char
     ev[, finding_notable := FALSE]
     ev[, reason := mapply(function(a, b, c) paste(c(if (a) "retained intron in cancer gene", if (b) "clone-enriched", if (c) "patient-specific"), collapse = ", "),
                           cancer_gene & psi >= 0.2, enriched, differential)]
-    ev[, recommended := reason != "" & !flag_artefact & !flag_common & !flag_few & !flag_normal & !flag_repeat & cells_using >= min_using_cells & reads >= min_reads]
+    ## recommended: a reason, no flag, a CI floor of 10% IR and >= 5 cells; only the `max_recommended` best (IR ratio x read support) so the tier is not flooded
+    ev[, recommended := reason != "" & !flag_artefact & !flag_common & !flag_few & !flag_normal & !flag_repeat & cells_using >= 5L & reads >= min_reads &
+                        !is.na(psi_lo) & psi_lo >= 0.1]
+    ev[, ir_score := psi * pmin(1, log10(pmax(reads, 1)) / 2)]
+    ev[recommended == TRUE, rk := data.table::frank(-ir_score, ties.method = "first")]
+    ev[, recommended := recommended & !is.na(rk) & rk <= max_recommended][, c("rk", "ir_score") := NULL]
     ev[, patient := patient_id]
     ev[, intron_idx := idx]
     drop <- intersect(c("idx", "spliced", "end_l", "end_r", "body", "art_gene", "prio", "clean_len", "sample_reads", "sample_cells", "cancer"), names(ev))
