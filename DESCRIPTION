@@ -52,7 +52,8 @@ Imports:
 	scales,
 	rlang,
     googlesheets4,
-    ggpubr
+    ggpubr,
+    nnls
 License: GPL-2
 BugReports: http://github.com/mskilab-org/skilift/issues
 Encoding: UTF-8
