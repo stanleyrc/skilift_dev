@@ -130,5 +130,8 @@ test_that("read cells: most supporting cells first, then controls that cover the
     rg <- sc_splice_event_regions(ev, rc)
     expect_length(rg, 1L)
     expect_equal(rg[[1]]$regions, "chr1:1-606")
-    expect_equal(length(rg[[1]]$rna_id), 10L)
+    expect_equal(length(rg[[1]]$rna_id), 10L)    ## no cell without reads on the event: the lowest-share cells are the comparators
+    cd2 <- data.table(rna_id = c("a", "b", "c", "d"), k = c(10L, 9L, 1L, 2L), n = c(10L, 10L, 10L, 10L))
+    rc2 <- sc_splice_read_cells(list(events = ev[1], cells = list(e1 = cd2)), n_use = 2L, n_control = 2L)
+    expect_equal(rc2$e1[role == "control"]$rna_id, c("c", "d"))
 })
