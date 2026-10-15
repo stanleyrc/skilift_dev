@@ -60,7 +60,7 @@ sc_read_cosmic_reference <- function(path) {
 #' Each round adds the candidate signature with the largest likelihood gain
 #' (multinomial log-likelihood of the NNLS reconstruction) if its likelihood-ratio
 #' test (1 df) passes alpha / number of candidates and it takes at least min_frac
-#' of the exposure.
+#' of the exposure and improves the cosine of the reconstruction by at least min_cosine_gain.
 #'
 #' @param counts 96-vector of channel counts
 #' @param S 96 x n signature matrix
@@ -68,11 +68,13 @@ sc_read_cosmic_reference <- function(path) {
 #' @param alpha family-wise level of the likelihood-ratio test
 #' @param min_frac smallest exposure fraction of an added signature
 #' @param max_add most signatures added
+#' @param min_cosine_gain smallest improvement of the cosine between catalog and reconstruction (a significant
+#'   likelihood gain alone is not enough: with thousands of mutations small misfits are always significant)
 #' @return list(added = integer indices in selection order, gain = data.table of the
 #'   steps: signature, delta_loglik, p, frac, cosine_gain)
 #' @export
 #' @author Stanley Clarke
-sc_sig_forward_select <- function(counts, S, base, alpha = 0.05, min_frac = 0.05, max_add = 4L) {
+sc_sig_forward_select <- function(counts, S, base, alpha = 0.05, min_frac = 0.05, max_add = 4L, min_cosine_gain = 0.02) {
     if (is.character(base)) base <- match(base, colnames(S))
     cur <- base
     steps <- list()
@@ -92,7 +94,7 @@ sc_sig_forward_select <- function(counts, S, base, alpha = 0.05, min_frac = 0.05
         if (is.null(best)) break
         delta <- 2 * (best$ll - ll0)
         p <- stats::pchisq(delta, 1, lower.tail = FALSE)
-        if (!is.finite(delta) || p >= alpha / length(cands)) break
+        if (!is.finite(delta) || p >= alpha / length(cands) || best$cos - cos0 < min_cosine_gain) break
         cur <- c(cur, best$cd)
         steps[[length(steps) + 1L]] <- data.table::data.table(
             signature = colnames(S)[best$cd], index = best$cd, delta_loglik = delta / 2, p = p,
@@ -125,14 +127,14 @@ sc_sig_forward_select <- function(counts, S, base, alpha = 0.05, min_frac = 0.05
 #' @param n_boot bootstrap resamples per subset
 #' @param min_stability fraction of resamples that must select an added signature
 #' @param min_select smallest subset (mutations) allowed to add signatures
-#' @param alpha,min_frac,max_add see sc_sig_forward_select()
+#' @param alpha,min_frac,max_add,min_cosine_gain see sc_sig_forward_select()
 #' @param seed random seed
 #' @return list(signatures = character, reasons = data.table(signature, source, set, ...))
 #' @export
 #' @author Stanley Clarke
 sc_sig_patient_set <- function(catalogs, S, base_signatures, all_catalog = NULL, n_boot = 200L,
                                min_stability = 0.8, min_select = 100L, alpha = 0.05, min_frac = 0.05,
-                               max_add = 4L, seed = 1L) {
+                               max_add = 4L, min_cosine_gain = 0.02, seed = 1L) {
     set.seed(seed)
     base_signatures <- intersect(base_signatures, colnames(S))
     base <- match(base_signatures, colnames(S))
@@ -151,11 +153,11 @@ sc_sig_patient_set <- function(catalogs, S, base_signatures, all_catalog = NULL,
     for (nm in names(catalogs)) {
         ct <- catalogs[[nm]]
         if (sum(ct) < min_select) next
-        sel <- sc_sig_forward_select(ct, S, base, alpha, min_frac, max_add)
+        sel <- sc_sig_forward_select(ct, S, base, alpha, min_frac, max_add, min_cosine_gain)
         if (!length(sel$added)) next
         count <- integer(ncol(S))
         for (b in seq_len(n_boot)) {
-            rs <- sc_sig_forward_select(.sj_resample(ct), S, base, alpha, min_frac, max_add)
+            rs <- sc_sig_forward_select(.sj_resample(ct), S, base, alpha, min_frac, max_add, min_cosine_gain)
             count[rs$added] <- count[rs$added] + 1L
         }
         for (k in seq_len(nrow(sel$gain))) {
@@ -172,6 +174,41 @@ sc_sig_patient_set <- function(catalogs, S, base_signatures, all_catalog = NULL,
     }
     reasons <- reasons[!duplicated(signature)]
     list(signatures = reasons$signature, reasons = reasons[])
+}
+
+#' @name sc_sig_candidate_check
+#' @title sc_sig_candidate_check
+#' @description
+#'
+#' Evidence for ONE extra signature in a catalog on top of the patient set: its
+#' exposure fraction with a bootstrap 95\% CI, the likelihood-ratio test and cosine
+#' gain of adding it, and the fraction of bootstrap resamples in which it takes at
+#' least min_frac of the exposure. Used to show why a signature reported by the
+#' independent fits is not in the patient set.
+#'
+#' @param counts 96-vector
+#' @param S COSMIC matrix
+#' @param signatures patient signature set
+#' @param candidate signature name
+#' @param n_boot resamples
+#' @param min_frac exposure fraction counted as present in a resample
+#' @return list(frac, lo, hi, delta_loglik, p, cosine_gain, support)
+#' @export
+#' @author Stanley Clarke
+sc_sig_candidate_check <- function(counts, S, signatures, candidate, n_boot = 200L, min_frac = 0.05) {
+    base <- match(signatures, colnames(S)); cd <- match(candidate, colnames(S))
+    e0 <- .sj_nnls(counts, S, base); e1 <- .sj_nnls(counts, S, c(base, cd))
+    delta <- 2 * (.sj_loglik(counts, S, e1) - .sj_loglik(counts, S, e0))
+    fr <- numeric(n_boot)
+    for (b in seq_len(n_boot)) {
+        e <- .sj_nnls(.sj_resample(counts), S, c(base, cd))
+        fr[b] <- if (sum(e) > 0) e[cd] / sum(e) else 0
+    }
+    q <- stats::quantile(fr, c(0.025, 0.975), names = FALSE)
+    list(frac = round(e1[cd] / max(sum(e1), 1e-12), 4), lo = round(q[1], 4), hi = round(q[2], 4),
+         delta_loglik = round(delta / 2, 2), p = signif(stats::pchisq(max(delta, 0), 1, lower.tail = FALSE), 3),
+         cosine_gain = round(.sj_cosine(counts, .sj_mm(S, e1)) - .sj_cosine(counts, .sj_mm(S, e0)), 4),
+         support = mean(fr >= min_frac))
 }
 
 #' @name sc_sig_refit_bootstrap
@@ -323,7 +360,14 @@ sc_refit_signatures_joint <- function(sets, S, base_signatures, set_info = list(
             sg <- a$signature
             if (!(sg %in% sigs)) seen[[sg]] <- c(seen[[sg]], s$name)
         }
-        legacy_dropped <- lapply(names(seen), function(sg) list(signature = sg, legacy_sets = unique(seen[[sg]])))
+        legacy_dropped <- lapply(names(seen), function(sg) {
+            sets_of <- unique(seen[[sg]])
+            checks <- lapply(intersect(sets_of, names(catalogs)), function(nm) {
+                ch <- sc_sig_candidate_check(catalogs[[nm]], S, sigs, sg, n_boot = n_boot_select)
+                c(list(set = nm), lapply(ch, function(x) if (is.numeric(x)) as.numeric(x) else x))
+            })
+            list(signature = sg, legacy_sets = sets_of, checks = checks)
+        })
     }
     list(cosmic_version = "3.4", genome = "GRCh38",
          method = "patient signature set (cosmic_fit of all sites + bootstrap-stable subset additions), NNLS refit of every set, bootstrap CIs",

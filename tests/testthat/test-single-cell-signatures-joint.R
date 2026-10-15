@@ -47,3 +47,21 @@ test_that("joint refit finds a subclonal-only exposure difference", {
     expect_true(pr$p > 0.05)
     expect_true(is.list(jsonlite::fromJSON(jsonlite::toJSON(out, auto_unbox = TRUE), simplifyVector = FALSE)))
 })
+
+test_that("candidate check separates a real extra signature from a null one", {
+    skip_if_not_installed("nnls")
+    S <- make_S(); set.seed(4)
+    ct <- as.numeric(table(factor(draw(S, c(.4, .2, 0, 0, .4, 0, 0, 0), 1500), SC_SBS96)))
+    real <- sc_sig_candidate_check(ct, S, c("S1", "S2"), "S5", n_boot = 50)
+    null <- sc_sig_candidate_check(ct, S, c("S1", "S2", "S5"), "S7", n_boot = 50)
+    expect_true(real$frac > 0.3 && real$lo > 0.2 && real$support == 1 && real$cosine_gain > 0.05)
+    expect_true(null$frac < 0.05 && null$support < 0.5)
+})
+
+test_that("a tiny cosine gain is not added even when the likelihood gain is significant", {
+    skip_if_not_installed("nnls")
+    S <- make_S(); set.seed(5)
+    ct <- as.numeric(table(factor(draw(S, c(.5, .47, 0, 0, .03, 0, 0, 0), 20000), SC_SBS96)))
+    expect_length(sc_sig_forward_select(ct, S, c("S1", "S2"), min_frac = 0.01, min_cosine_gain = 0)$added, 1)
+    expect_length(sc_sig_forward_select(ct, S, c("S1", "S2"), min_frac = 0.01, min_cosine_gain = 0.02)$added, 0)
+})
