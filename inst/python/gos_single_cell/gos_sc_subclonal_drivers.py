@@ -49,6 +49,7 @@ from collections import Counter, defaultdict
 
 import numpy as np
 from scipy.optimize import nnls
+from gos_sc_noisy import is_noisy
 
 TRUNC_RE = re.compile(r"stop_gained|splice_acceptor|splice_donor|start_lost|frameshift")
 MIN_CLADE_SITES = 50
@@ -522,7 +523,7 @@ def patient_block(data, P, cosmic, chan_index, n_boot, rng, territory):
         "n_sites": len(variants),
         "site_categories": dict(Counter(v.get("category") for v in variants)),
         "background": {"subclonal": dict(bg), "truncal": {k: truncal_bg[k] for k in ("trunc", "missense", "synonymous")}},
-        "noisy": P == "BWH69",
+        "noisy": is_noisy(P),
     })
 
     # ---- clade signatures
@@ -854,7 +855,7 @@ def main():
             "expected hits in a gene = sum over patients of background x gene territory bp / total territory bp (GENCODE v24 CCDS CDS union + 4 bp per coding intron; "
             f"{L_trunc_tot / 1e6:.1f} Mb over {len(terr)} genes). p_hits: Poisson on distinct hits; p_patients: Poisson-binomial on patients with >= 1 hit; BH q over all genes in the territory. "
             "'nonsyn' adds missense SNVs to both background and hits. Not modelled: trinucleotide context, copy number, expression / replication timing, per-gene callability, "
-            "and SNV noise (BWH69 has many noisy SNVs: see p_patients_no_bwh69; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
+            "and SNV noise (patients flagged noisy via NOISY_PATIENTS, default none, are dropped in p_patients_no_bwh69, a legacy key name equal to p_patients when none is flagged; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
         ),
         "dnds_note": "Gene-level dN/dS is not fitted: subclonal truncating counts are 3-31 per patient. Cohort trunc:missense:synonymous counts per patient are in patients[].background.",
         "clade_signature_method": (

@@ -38,6 +38,7 @@ from collections import Counter, defaultdict
 
 import numpy as np
 from scipy import stats
+from gos_sc_noisy import noisy_caveat
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = "/gpfs/commons/projects/imielinski_web/sclarke/gOS_GBM_sc"
@@ -708,7 +709,7 @@ def build(args):
         "Nine patients: a null state-genotype test is weak evidence of absence. Carriers of a focal amplification mostly sit on one lineage; the within-lineage estimate removes lineage but has fewer informative strata.",
         "BWH69, BWH75, MGH285 and MGH301 are on older trees; BWH75 and MGH301 have no SNV calls and no hotspot site evidence, so SNV-based checks there are not available.",
         "Focal amplification and homozygous deletion calls come from aligned_trees.json (amp = CN >= max(baseline + 3, 2 x baseline)); the broader 'EGFR amp' set in event_associations.json (filtered-event amplification) can differ, e.g. BWH75.",
-        "BWH69 SNV calls are noisy (many single-cell-private sites); its subclonal driver hits are less certain.",
+        *([noisy_caveat()] if noisy_caveat() else []),
     ]
     cohort = {
         "format": "gos-sc-portrait-cohort/1", "created": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),

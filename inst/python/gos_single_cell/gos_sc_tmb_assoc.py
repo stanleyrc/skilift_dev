@@ -30,6 +30,7 @@ from collections import defaultdict
 
 import numpy as np
 from scipy import sparse, stats
+from gos_sc_noisy import noisy_caveat
 
 ROOT = "/gpfs/commons/projects/imielinski_web/sclarke/gOS_GBM_sc/data"
 GENESETS = "/gpfs/commons/projects/imielinski_web/sclarke/gOS_dev_ase/genesets"
@@ -975,7 +976,7 @@ def main():
                       "Linked cells: DNA cell with an RNA cell annotated Malignant and not DNA clone Normal.")
     res["caveats"] = [
         "Total and subclonal TMB mostly encode clade membership: the qc_clone adjustment (within-clone) separates TMB from lineage.",
-        "Private TMB is a lower bound (cell-private sites are not in the candidate set) and noisy; BWH69 SNV calls are noisy (shown with and without it).",
+        "Private TMB is a lower bound (cell-private sites are not in the candidate set) and noisy." + ((" " + noisy_caveat()) if noisy_caveat() else ""),
         "Replicating (S-phase) cells have altered coverage and callability: see the S-phase confounding table and the qc_sdna adjustment.",
         "Nested clades share cells; clade-level p values are descriptive.",
         "Patient-level signature associations use at most 6 patients and are descriptive only.",
