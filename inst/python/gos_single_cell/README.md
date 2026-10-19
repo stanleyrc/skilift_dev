@@ -32,6 +32,7 @@ Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3
 | `gos_sc_homdel_qc.py` | Size of the copy-number-0 segment behind each HOMDEL event, per patient, written onto the event. | data/<P>/filtered.events.json (HOMDEL segment size), broad_cn0.json |
 | `gos_sc_hotspot_rescue.py` | Hotspot rescue: configured hotspot drivers (TERT promoter C228T / C250T, IDH1 R132, H3-3A K27M / G34, BRAF V600E) | data/<P>/filtered.events.json, hotspot_rescue.json |
 | `gos_sc_pooled_drivers.py` | Import high-confidence pooled-scan driver calls (srctools feature/driver-sensitivity) into data/<P>/filtered.events.json. | data/<P>/filtered.events.json |
+| `gos_sc_known_cn_rescue.py` | Tier K ("known biology") rescue of driver SNVs in copy-number-altered regions, with dropout- and CN-aware clonality. | data/<P>/filtered.events.json, <P>/known_cn_rescue.json, _cohort/known_cn_rescue.json (to a staging --out) |
 | `gos_sc_portrait.py` | Multi-modal patient portrait + cohort "canonical GBM biology vs novel" export for the gOS single-cell cohort. | data/<P>/ portrait json and _cohort canonical-vs-novel (see header) |
 | `gos_sc_rna_covariate_de.py` | Cross-patient RNA differential on the per-cell covariates (rna/covariates.json) -> _cohort/rna_covariate_de.json. | data/_cohort/rna_covariate_de.json, rna_covariate_de_cells.json |
 | `gos_sc_rna_covariates.py` | Extra per-cell covariates for the cross-patient RNA differential (data/<P>/rna/covariates.json). | data/<P>/rna/covariates.json |

@@ -17,7 +17,12 @@ Rule (dropout_aware_clonality):
           clonal         p_detection >= ALPHA_DETECTION (consistent with clonal), or (no reference) observed >= RAW_CLONAL
                          (dropout can only lower detection)
 The raw cell_fraction is never changed; rows get clonality, clonality_method = "dropout-aware" and clonality_stats.
-d3-free, numpy only. annotate_events() re-annotates a patient's filtered.events.json rows in place (see gos_sc_clonality.py).
+d3-free, numpy only. annotate_events() re-annotates a patient's filtered.events.json rows in place (see gos_sc_clonality.py); rows that carry a
+copy-number-aware call (cn_aware_clonality, written by gos_sc_known_cn_rescue.py) are left alone.
+
+Copy-number-aware extension (cn_aware_clonality, CellCN): the expected per-cell detection is rescaled from the diploid truncal reference to the
+cell's expected VAF = mutant copies / total CN (copies estimated per CN group); a shortfall confined to CN-loss cells is reported as loss of the
+mutant allele (still clonal). The row keeps clonality_method = "dropout-aware" (the front end keys on it) with clonality_stats.cn_aware = True.
 """
 import json
 import os
@@ -33,7 +38,13 @@ MIN_COVERED = 10
 MIN_BIN_OBS = 20        # truncal-site observations needed for a depth bin's rate; sparser bins borrow the nearest bin
 RAW_CLONAL = 0.85       # fallback when no truncal reference / per-cell depth: observed >= this is clonal
 N_PERM = 2000
-READ_EVIDENCE_SOURCES = ("site evidence (not in SNV calls)", "pooled driver scan", "called SNV (not a tree site)")
+KNOWN_CN_SOURCE = "known driver CN rescue (genotyping VCF)"
+READ_EVIDENCE_SOURCES = ("site evidence (not in SNV calls)", "pooled driver scan", "called SNV (not a tree site)", KNOWN_CN_SOURCE)
+# CN-aware extension (cn_aware_clonality)
+CN_MODEL = "copy-number-aware (expected VAF = mutant copies / total CN per cell)"
+CN_CLONAL_RATIO = 0.9   # clonal also when observed / expected detection >= this (deep sites: a few % shortfall is model misfit, not subclonality)
+CN_LOSS_RATIO = 0.5     # a CN group counts as having lost the mutant allele only when its detection is < half the expectation
+MAX_CN_MODEL = 8        # cells above this total CN are left out of the CN-aware test (amplicons: multiplicity not identifiable)
 
 
 # ---------------------------------------------------------------- reference
@@ -212,6 +223,135 @@ def dropout_aware_clonality(carriers_by_cell, depth_by_cell, clade_of_cell, trun
     return out
 
 
+# ---------------------------------------------------------------- copy-number-aware extension
+
+def detection_at_vaf(ref, d, vaf):
+    """Expected P(>= 1 alt read) in a covered cell at depth d for a variant at allele fraction vaf, from the truncal reference
+    (measured at diploid heterozygous sites, vaf 0.5): the reference rate r(d) is turned into a per-read alt capture probability
+    f = 1 - (1 - r)^(1/d), scaled by vaf / 0.5 (capped below 1) and turned back: 1 - (1 - f')^d. At vaf 0.5 this is r(d) itself;
+    dropout of a whole locus is in r(d) and is not rescaled."""
+    r = expected_rate(ref, d)
+    if r is None:
+        return None
+    if vaf <= 0:
+        return 0.0
+    r = min(max(r, 1e-6), 1 - 1e-6)
+    f = 1 - (1 - r) ** (1.0 / d)
+    f2 = min(0.999, f * vaf / 0.5)
+    return float(1 - (1 - f2) ** d)
+
+
+def _group_multiplicity(alt, depth, cn):
+    """ML mutant copy number m in 1..cn for a CN group from its pooled alt / depth (binomial on m / cn); None without reads."""
+    if not depth or cn < 1:
+        return None
+    best, bl = None, -np.inf
+    for m in range(1, cn + 1):
+        v = min(m / cn, 1 - 1e-3)
+        ll = alt * np.log(v) + (depth - alt) * np.log(1 - v)
+        if ll > bl:
+            best, bl = m, ll
+    return best
+
+
+def cn_aware_clonality(carriers_by_cell, depth_by_cell, cn_by_cell, clade_of_cell, truncal_detection_by_depth, alt_by_cell=None,
+                       n_perm=N_PERM, seed=0):
+    """Dropout- and copy-number-aware clonality of one site.
+
+    carriers_by_cell / depth_by_cell / clade_of_cell / reference as dropout_aware_clonality; cn_by_cell {cell: total CN at the site}
+    (None / missing = unknown); alt_by_cell {cell: alt reads} (for the per-CN-group multiplicity; carriers count 1 read when absent).
+    Covered tumour cells are grouped by total CN. Per group the mutant copy number m (1..CN) is the ML value from the group's pooled reads,
+    and each cell's expected detection is detection_at_vaf(depth, m / CN). Cells with unknown CN, CN 0 or CN > MAX_CN_MODEL are left out.
+      clonal       carriers consistent with every modelled cell carrying >= 1 mutant copy (P >= ALPHA_DETECTION, or observed / expected
+                   detection >= CN_CLONAL_RATIO)
+      clonal (allele loss in a subset)  not consistent overall, but the shortfall is confined to CN group(s) below the modal CN whose own
+                   detection is significantly low and < CN_LOSS_RATIO of its expectation; with those cells set to m = 0 the rest is consistent (status "clonal", allele_loss set)
+      subclonal / indeterminate  as dropout_aware_clonality, with the CN-scaled expectations (clade restriction decides)
+    -> the dropout_aware_clonality fields plus cn_aware = True, cn_model, cn_groups [{cn, n_covered, n_carriers, alt, depth, m, vaf_expected,
+       expected_detection, observed_detection, p_low}], allele_loss [{cn, n_cells}], n_cn_unknown / n_cn_excluded, modal_cn."""
+    ref = truncal_detection_by_depth
+    cells_all = sorted(c for c, d in (depth_by_cell or {}).items() if d and d > 0)
+    keep, unknown, excluded = [], 0, 0
+    for c in cells_all:
+        k = (cn_by_cell or {}).get(c)
+        if k is None:
+            unknown += 1
+        elif k < 1 or k > MAX_CN_MODEL:
+            excluded += 1
+        else:
+            keep.append(c)
+    base = dropout_aware_clonality({c: carriers_by_cell.get(c) for c in keep}, {c: depth_by_cell[c] for c in keep}, clade_of_cell, ref, n_perm, seed) \
+        if depth_by_cell is not None else dropout_aware_clonality(carriers_by_cell, None, clade_of_cell, ref, n_perm, seed)
+    base.update(cn_aware=True, cn_model=CN_MODEL, n_cn_unknown=unknown, n_cn_excluded=excluded, cn_groups=[], allele_loss=[], modal_cn=None)
+    if depth_by_cell is None or ref is None or len(keep) < MIN_COVERED:
+        why = ("per-cell depth not available" if depth_by_cell is None else "no truncal reference" if ref is None
+               else f"only {len(keep)} cells with a known CN in 1..{MAX_CN_MODEL} ({excluded} with CN 0 or > {MAX_CN_MODEL}, {unknown} unknown)")
+        if depth_by_cell is not None and len(keep) < MIN_COVERED:      # e.g. an amplicon: the dropout-aware call on all covered cells
+            base = dropout_aware_clonality(carriers_by_cell, depth_by_cell, clade_of_cell, ref, n_perm, seed)
+            base.update(cn_aware=True, cn_model=CN_MODEL, n_cn_unknown=unknown, n_cn_excluded=excluded, cn_groups=[], allele_loss=[], modal_cn=None)
+        base["cn_reason"] = "CN-aware model not applied (dropout-aware call on all covered cells): " + why
+        return base
+    alt_by_cell = alt_by_cell or {}
+    groups = {}
+    for c in keep:
+        groups.setdefault(int(cn_by_cell[c]), []).append(c)
+    modal = max(groups, key=lambda k: (len(groups[k]), -abs(k - 2)))
+    ps, rows = {}, []
+    for k in sorted(groups):
+        g = groups[k]
+        alt = sum(int(alt_by_cell.get(c, 1 if carriers_by_cell.get(c) else 0)) for c in g)
+        dep = sum(int(depth_by_cell[c]) for c in g)
+        m = _group_multiplicity(alt, dep, k) or 1
+        pg = [detection_at_vaf(ref, depth_by_cell[c], m / k) for c in g]
+        if any(p is None for p in pg):
+            base["cn_reason"] = "CN-aware model not applied: truncal reference has no rate for some depths"
+            return base
+        for c, p in zip(g, pg):
+            ps[c] = min(max(p, 1e-6), 1 - 1e-6)
+        ncar = sum(bool(carriers_by_cell.get(c)) for c in g)
+        pl = poisson_binomial_cdf(ncar, [ps[c] for c in g])
+        rows.append({"cn": k, "n_covered": len(g), "n_carriers": ncar, "alt": alt, "depth": dep, "m": m, "vaf_expected": round(m / k, 3),
+                     "expected_detection": round(float(np.mean([ps[c] for c in g])), 4), "observed_detection": round(ncar / len(g), 4),
+                     "p_low": float(f"{pl:.4g}")})
+    base.update(cn_groups=rows, modal_cn=modal)
+    cells = sorted(keep)
+    carrier = np.array([bool(carriers_by_cell.get(c)) for c in cells], bool)
+    pv = np.array([ps[c] for c in cells])
+    n_car = int(carrier.sum())
+    p_all = poisson_binomial_cdf(n_car, pv)
+    base.update(expected_detection=round(float(pv.mean()), 4), p_detection=float(f"{p_all:.4g}"))
+    ratio = (n_car / len(cells)) / float(pv.mean()) if pv.mean() > 0 else 0.0
+    base["detection_ratio"] = round(ratio, 4)
+    if p_all >= ALPHA_DETECTION or ratio >= CN_CLONAL_RATIO:
+        grp = ", ".join("CN%d m=%d" % (r["cn"], r["m"]) for r in rows)
+        base.update(status="clonal", reason=f"detection {base['observed_detection']:.2f} consistent with >= 1 mutant copy in every cell given its copy number "
+                                            f"(expected {base['expected_detection']:.2f}, P = {p_all:.3g}; {grp})")
+        return base
+    low = [r for r in rows if r["cn"] < modal and r["p_low"] < ALPHA_DETECTION and r["observed_detection"] < CN_LOSS_RATIO * r["expected_detection"]]
+    if low:
+        lost = {r["cn"] for r in low}
+        rest = [i for i, c in enumerate(cells) if int(cn_by_cell[c]) not in lost]
+        if len(rest) >= MIN_COVERED:
+            p_rest = poisson_binomial_cdf(int(carrier[rest].sum()), pv[rest])
+            if p_rest >= ALPHA_DETECTION:
+                base.update(status="clonal", p_detection_without_loss=float(f"{p_rest:.4g}"),
+                            allele_loss=[{"cn": r["cn"], "n_cells": r["n_covered"], "n_carriers": r["n_carriers"]} for r in low],
+                            reason="clonal with loss of the mutant allele in the CN%s cells (%s carriers, P = %s); the other cells are consistent (P = %.3g)" % (
+                                "/".join(str(r["cn"]) for r in low), ", ".join("%d/%d" % (r["n_carriers"], r["n_covered"]) for r in low),
+                                ", ".join("%.2g" % r["p_low"] for r in low), p_rest))
+                return base
+    m, names = _clade_matrix(cells, clade_of_cell)
+    pc, f1, best = clade_restriction(carrier, pv, m, n_perm, seed)
+    base.update(p_clade_restriction=None if pc is None else float(f"{pc:.4g}"), best_clade_f1=round(f1, 3) if f1 is not None else None,
+                best_clade=names[best] if best is not None else None, n_clades_tested=int(m.shape[0]))
+    if pc is not None and pc < ALPHA_CLADE:
+        base.update(status="subclonal", reason=f"detection {base['observed_detection']:.2f} below the CN-aware expectation {base['expected_detection']:.2f} (P = {p_all:.2g}) and carriers clade-restricted (best clade F1 {f1:.2f}, permutation P = {pc:.3g})")
+    else:
+        base.update(status="indeterminate", reason=f"detection {base['observed_detection']:.2f} below the CN-aware expectation {base['expected_detection']:.2f} (P = {p_all:.2g}) "
+                                                   f"but carriers not clade-restricted ({'no tree clades' if pc is None else f'permutation P = {pc:.3g}'})")
+    return base
+
+
 # ---------------------------------------------------------------- patient inputs
 
 def _load(path):
@@ -344,6 +484,56 @@ class PatientContext:
             return {cells[i]: a[i] > 0 for i in t if i < len(d) and d[i] > 0}, dp, "BAM pileup (gos_sc_allsnv)"
         return None, None, None
 
+    def evidence_counts(self, sid):
+        """(alt reads by cell, depth by cell, source) for the CN-aware model (same sources and order as evidence())."""
+        cells, t = self.cells, self.tumour_idx
+        ev = (self.ev.get("sites") or {}).get(sid)
+        if ev:
+            reads = ev.get("reads") or {}
+            pooled = (((ev.get("presets") or {}).get("all") or {}).get("tumor") or {})
+            if reads.get("rows") and not reads.get("capped") and ev.get("sample_every", 1) == 1:
+                tset = set(t)
+                dp, alt = {}, {}
+                for r in reads["rows"]:
+                    c, al = r[0], r[1]
+                    if c is None or c not in tset or al not in ("A", "R"):
+                        continue
+                    dp[cells[c]] = dp.get(cells[c], 0) + 1
+                    alt[cells[c]] = alt.get(cells[c], 0) + (al == "A")
+                if sum(v > 0 for v in alt.values()) == pooled.get("cells_alt") and len(dp) == pooled.get("cells_cov"):
+                    return alt, dp, "site_evidence reads (all reads)"
+        v = ((self.calls or {}).get("dna") or {}).get(sid)
+        if v:
+            a, d = v.get("alt") or [], v.get("dp") or []
+            keep = [i for i in t if i < len(d) and (d[i] or 0) > 0]
+            return {cells[i]: int(a[i] or 0) if i < len(a) else 0 for i in keep}, {cells[i]: int(d[i]) for i in keep}, "region_calls (caller-filtered reads)"
+        s = ((self.pileup or {}).get("sites") or {}).get(sid)
+        if s and s.get("cells"):
+            a, d = s["cells"].get("alt") or [], s["cells"].get("dp") or []
+            keep = [i for i in t if i < len(d) and d[i] > 0]
+            return {cells[i]: int(a[i]) for i in keep}, {cells[i]: int(d[i]) for i in keep}, "BAM pileup (gos_sc_allsnv)"
+        return None, None, None
+
+    def assess_cn(self, row, cn, n_perm=N_PERM, counts=None):
+        """CN-aware assessment of a row. cn: CellCN of the patient (None -> plain assess). counts: optional (alt_by_cell, depth_by_cell, source)
+        given by the caller (e.g. genotyping VCF AD), else evidence_counts()."""
+        sid = site_id_of(row)
+        if cn is None or not sid:
+            return self.assess(row, n_perm)
+        alt, dp, src = counts if counts is not None else self.evidence_counts(sid)
+        if alt is None:
+            return self.assess(row, n_perm)
+        chrom, pos = sid.split(":")[0], int(sid.split(":")[1])
+        cnc = cn.at(chrom, pos)
+        res = cn_aware_clonality({c: alt.get(c, 0) > 0 for c in dp}, dp, cnc, self.clade_of_cell, self.reference, alt, n_perm, seed=sum(map(ord, sid)))
+        res["site"] = sid
+        res["evidence_source"] = src
+        res["cn_source"] = cn.source
+        if self.reference:
+            res["reference"] = {"scope": self.reference.get("scope"), "source": self.reference["source"], "n_truncal_sites": self.reference["n_sites"],
+                                "rate_by_depth": dict(zip(self.reference["labels"], self.reference["rate"]))}
+        return res
+
     def assess(self, row, n_perm=N_PERM):
         sid = site_id_of(row)
         car, dp, src = self.evidence(sid) if sid else (None, None, None)
@@ -369,6 +559,46 @@ class PatientContext:
         return res
 
 
+class CellCN:
+    """Per-cell total CN at a position from data/<P>/cn_binned.json + cn_binned_100kb.cn.u16 (row-major cells x bins, 65535 missing)."""
+
+    def __init__(self, data, patient):
+        d = os.path.join(data, patient)
+        meta = _load(os.path.join(d, "cn_binned.json"))
+        if not meta:
+            raise OSError(f"{patient}: no cn_binned.json")
+        lv = meta["levels"]["100kb"]
+        self.cells = meta["cells"]
+        self.bin_size = int(lv["bin_size"])
+        self.first = {str(c["chr"]): (int(c["first_bin"]), int(c["n_bins"])) for c in lv["chromosomes"]}
+        self.missing = int(lv.get("missing_value", 65535))
+        path = os.path.join(d, lv["files"]["cn"])
+        self.m = np.fromfile(path, dtype="<u2").reshape(len(self.cells), int(lv["n_bins"]))
+        self.source = f"{patient}/cn_binned_100kb.cn.u16 (100 kb bins, bin-centre segment total CN)"
+
+    def at(self, chrom, pos):
+        """{cell: total CN or None} at chrom (with or without 'chr') : pos."""
+        c = str(chrom).replace("chr", "")
+        if c not in self.first:
+            return {x: None for x in self.cells}
+        f, n = self.first[c]
+        b = f + min(n - 1, (int(pos) - 1) // self.bin_size)
+        col = self.m[:, b]
+        return {x: (None if int(v) == self.missing else int(v)) for x, v in zip(self.cells, col)}
+
+    def state(self, chrom, pos, cells=None):
+        """Summary of the CN state at a site over cells (default all): modal CN, CN2 fraction, counts by CN."""
+        v = self.at(chrom, pos)
+        vals = [k for x, k in v.items() if k is not None and (cells is None or x in cells)]
+        if not vals:
+            return {"modal_cn": None, "cn2_fraction": None, "counts": {}, "n_cells": 0}
+        cnt = {}
+        for k in vals:
+            cnt[k] = cnt.get(k, 0) + 1
+        modal = max(cnt, key=lambda k: (cnt[k], -abs(k - 2)))
+        return {"modal_cn": modal, "cn2_fraction": round(cnt.get(2, 0) / len(vals), 4), "counts": {str(k): cnt[k] for k in sorted(cnt)}, "n_cells": len(vals)}
+
+
 def is_read_evidence(row):
     return row.get("source") in READ_EVIDENCE_SOURCES
 
@@ -387,6 +617,8 @@ def annotate_events(events, ctx, n_perm=N_PERM):
     """Annotate every read-evidence row of a filtered.events list in place; -> list of (row, result)."""
     out = []
     for e in events:
+        if (e.get("clonality_stats") or {}).get("cn_aware"):
+            continue        # CN-aware call (gos_sc_known_cn_rescue.py): re-annotated only by that exporter
         if is_read_evidence(e) and site_id_of(e):
             res = ctx.assess(e, n_perm)
             apply(e, res)
