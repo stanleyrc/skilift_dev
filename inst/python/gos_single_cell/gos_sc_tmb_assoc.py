@@ -33,7 +33,7 @@ from scipy import sparse, stats
 from gos_sc_noisy import noisy_caveat
 
 ROOT = "/gpfs/commons/projects/imielinski_web/sclarke/gOS_GBM_sc/data"
-GENESETS = "/gpfs/commons/projects/imielinski_web/sclarke/gOS_dev_ase/genesets"
+GENESETS = os.environ.get("GOS_GENESETS", "/gpfs/commons/projects/imielinski_web/sclarke/gOS_dev/genesets")  # was a deleted preview build (gOS_dev_ase); missing gmt files silently dropped all module tests
 PATIENTS = ["BWH69", "BWH70", "BWH75", "MGH285", "MGH301", "MGH302", "MGH303", "MGH304", "MGH305"]
 MEASURES = ["total", "subclonal", "private", "subclonal_pc", "private_pc"]
 GENE_MEASURES = ["total", "subclonal", "private"]
@@ -494,6 +494,8 @@ SHARED_BY = {}
 def load_modsets():
     for fn in ("hallmark.gmt", "gbm_3ca.gmt"):
         path = os.path.join(GENESETS, fn)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"gene set file missing: {path} (set GOS_GENESETS)")
         if os.path.exists(path):
             for line in open(path):
                 f = line.rstrip("\n").split("\t")
