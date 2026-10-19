@@ -65,11 +65,16 @@ sc_export_cell_signatures <- function(patient_dir, out_dir = patient_dir,
                                      quality_fun = sc_signature_fit_quality,
                                      cfg = sc_annotation_config()) {
     if (min_mutations < 100L) stop("min_mutations must be at least 100")
+    input_md5 <- NULL
     if (is.null(counts)) {
+        source_files <- file.path(patient_dir, c("snv_matrix.json", "tree.nwk"))
+        input_md5 <- tools::md5sum(source_files)
         snv <- jsonlite::read_json(file.path(patient_dir, "snv_matrix.json"), simplifyVector = TRUE)
         tree <- ape::read.tree(file.path(patient_dir, "tree.nwk"))
         cell_ids <- unique(c(names(snv$cells), tree$tip.label))
         counts <- sc_cell_signature_counts(snv$variants, tree, cell_ids)
+        if (!identical(input_md5, tools::md5sum(source_files))) stop("signature inputs changed while reading")
+        names(input_md5) <- basename(names(input_md5))
     }
     counts <- as.matrix(counts)
     if (!all(SC_SBS96 %in% rownames(counts)) || is.null(colnames(counts)) || anyDuplicated(colnames(counts)))
@@ -97,6 +102,7 @@ sc_export_cell_signatures <- function(patient_dir, out_dir = patient_dir,
     out <- list(format = "gos-sc-cell-signatures/1", genome = "GRCh38", cosmic_version = "3.4",
         method = "SigProfilerAssignment cosmic_fit; root-to-tip truncal + subclonal + private mapped SBS96 sites",
         min_mutations = min_mutations, mutation_set = "mapped root-to-tip; ambiguous/unmapped/outside-tumor excluded",
+        input_md5 = as.list(input_md5),
         signatures = as.list(all_signatures), cells = cells)
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
     target <- file.path(out_dir, "signatures_cells.json")

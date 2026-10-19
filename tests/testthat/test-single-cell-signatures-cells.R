@@ -8,6 +8,21 @@ testthat::test_that("root-to-tip catalogs include ancestors and private sites wh
     testthat::expect_equal(sum(counts[4:5, ]), 0)
 })
 
+testthat::test_that("file-backed catalogs retain exact input fingerprints for later promotion checks", {
+    input <- tempfile("cell_sig_input_"); dir.create(input)
+    output <- tempfile("cell_sig_output_")
+    on.exit(unlink(c(input, output), recursive = TRUE))
+    tree <- ape::read.tree(text = "((a:1,b:1):1,c:2);")
+    ape::write.tree(tree, file = file.path(input, "tree.nwk"))
+    variants <- data.table::data.table(id = paste0("s", 1:100), category = "truncal", anchor = "a|b", context = SC_SBS96[1])
+    jsonlite::write_json(list(variants = variants, cells = list(a = list(), b = list(), c = list())), file.path(input, "snv_matrix.json"), auto_unbox = TRUE)
+    fitter <- function(sets, ...) data.table::data.table(set = names(sets), signature = "SBS1", activity = 100)
+    out <- sc_export_cell_signatures(input, out_dir = output, fit_fun = fitter, quality_fun = function(...) NULL, cfg = list())
+    testthat::expect_equal(out$cells[[1]]$n, 100)
+    testthat::expect_true(out$cells[[3]]$too_few)
+    testthat::expect_equal(unname(out$input_md5[["tree.nwk"]]), unname(tools::md5sum(file.path(input, "tree.nwk"))))
+})
+
 testthat::test_that("export uses a synthetic counts matrix and flags low counts without fitting them", {
     counts <- matrix(0L, 96, 3, dimnames = list(SC_SBS96, c("a", "b", "small")))
     counts[1:2, "a"] <- c(90L, 30L); counts[1:2, "b"] <- c(30L, 120L); counts[1, "small"] <- 99L
