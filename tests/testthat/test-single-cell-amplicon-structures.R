@@ -41,6 +41,11 @@ test_that("sc_amplicon_structures: PASS classes with >= min_cells, structures pe
   expect_equal(ids[["c1"]], ids[["c2"]])
   expect_false(ids[["c1"]] == ids[["c3"]])
   expect_equal(a$classes$n_structures, length(unique(ids)))
+  # duplicate clusters of one class in a cell: one entry, CN summed
+  dup <- rbind(clusters, data.table(pair = "c1", genes_in_cluster = "EGFR", mean_cn = 5, filter = "PASS"))
+  b <- sc_amplicon_structures(dup, jj_fixture(), "P1", min_cells = 3)
+  expect_equal(nrow(b$cells[cls == "EGFR"]), 4L)
+  expect_equal(b$cells[cell == "c1" & cls == "EGFR", cn], 45)
 })
 
 test_that("sc_export_amplicon_structures writes the cohort JSON (synthetic rds inputs)", {
