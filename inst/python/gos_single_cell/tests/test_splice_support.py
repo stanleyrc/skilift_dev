@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import gos_sc_splice_support as S  # noqa: E402
 
 EV = [{"gene": "G1", "type": "Splice", "Variant": "c.1-1G>C", "Genome_Location": "17:1000-1000", "seqnames": "17", "n_cells": 10},

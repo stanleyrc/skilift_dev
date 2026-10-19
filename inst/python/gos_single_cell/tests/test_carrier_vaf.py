@@ -1,6 +1,6 @@
 """Synthetic fixtures only: python3 test_carrier_vaf.py"""
 import json, os, sys, tempfile, unittest
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import gos_sc_subclonal_drivers as s
 
 
