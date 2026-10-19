@@ -3,9 +3,12 @@
 Moved from srctools `inst/gos_single_cell/` on 2026-10-18 (copy commits name the source srctools commit). Each script is
 run as `python3 <name>.py ...` with the gOS data directory (`gOS_GBM_sc/data`) given as argument or env var; see each header
 for arguments. From R: `sc_run_python_exporter("gos_sc_<name>", args)`. The pipeline needs pysam/pandas/numpy/scipy where noted
-(use the `mskilab_ne1` conda python on the cluster).
+For numerical exporters/tests, the cluster's `fishhook_scrna` Python provides numpy/pandas/scipy. The `mskilab_ne1`
+Python does not currently provide scipy. Pileup exporters additionally require pysam; choose a Python containing the
+needed dependencies explicitly via `GOS_PYTHON` or the wrapper's `python=` argument.
 
 Tests (synthetic fixtures only): `python3 -m unittest discover inst/python/gos_single_cell/tests`.
+Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3/envs/fishhook_scrna/bin/python -m unittest discover inst/python/gos_single_cell/tests` — 72 tests pass.
 
 `gos_sc_allsnv_pileup.py` and `gos_sc_hotspot_rescue.py` still read `precompute/steps/site_evidence.py` and
 `precompute/config/regions/gbm.tsv` from srctools; set `SRCTOOLS_GOS_SC` to override that location.
