@@ -40,9 +40,15 @@ Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3
 | `gos_sc_splice_exons.py` | Exon models of the genes in the single-cell splicing exports, so gOS can draw exons under | data/_cohort/splice_exons.json |
 | `gos_sc_splice_support.py` | Where each splice alteration comes from: DNA (a splice-site SNV in filtered.events.json), RNA (aberrant splicing in | data/_cohort/splice_support.json |
 | `gos_sc_subclonal_drivers.py` | Cohort subclonal drivers and subclonal signature shifts -> <data>/_cohort/subclonal_drivers.json | data/_cohort/subclonal_drivers.json |
+| `gos_sc_cn_binned.py` | Per-cell binned copy number (total, major, minor, BAF) at 1 Mb and 100 kb for paper-figure CN / BAF heatmaps. | data/<P>/cn_binned.json + cn_binned_100kb.{cn,major,minor}.u16 |
+| `gos_sc_walk_segment_cn.py` | Per-cell CN at ecDNA walk segments + the Fig 5C segment-correlation triangles (port of gOS triangleCorrelation.js). | data/<P>/walk_segment_cn.json |
+| `gos_sc_phylo_signal.py` | Phylogenetic autocorrelation (Moran's I, permutation z / p) of depth, ploidy, SNVs, VAF and walk copies on the tree (port of gOS phyloSignal). | data/<P>/phylo_signal.json |
+| `gos_sc_tree_site_fit.py` | Best-clade F1 and clade-violating flag of every SNV site on each tree, plus SBS96 of violators vs consistent sites. | data/<P>/tree_site_fit.json |
 | `gos_sc_tert_sv.py` | Mark TERT promoter rearrangements in gOS single-cell filtered.events.json. | data/<P>/filtered.events.json (TERT promoter SV mark) |
 | `gos_sc_tmb_assoc.py` | Cohort TMB associations -> analysis/tmb_assoc/out/tmb_associations.json (copied to _cohort/tmb_associations.json). | data/_cohort/tmb_associations.json |
 | `gos_sc_tmb_clade.py` | Clade-level TMB and its associations -> _cohort/tmb_clade_assoc.json  (unit = tree clade / branch, not cell). | data/_cohort/tmb_clade_assoc.json |
 | `gos_sc_tree_support.py` | Bootstrap support (Felsenstein bootstrap proportion, FBP, and optionally | tree bootstrap support json for Compare Trees (see header) |
 
 `hotspot_verdicts.js` is the node helper used by allsnv and hotspot_rescue (runs gOS `siteEvidence.js`).
+
+`gos_sc_figlib.py` is the shared helper of the four figure exporters above (gOS coordinates, segment lookup, Newick layout). Their tests compare with `tests/fixtures/figure_exports_golden.json`, the output of the gOS browser code on a synthetic fixture (`tests/fixtures/make_figure_golden.mjs`). The R side is `sc_export_state_scores()` (R/single-cell-figure-exports.R, Seurat module scores -> _cohort/rna/state_scores.json).
