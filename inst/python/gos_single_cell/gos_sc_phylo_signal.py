@@ -8,6 +8,9 @@ drawn with the same PRNG as the browser (mulberry32, seed 7), permutation p = (n
   walks     log1p(copies) of every walk in a driver-gene group of walks.json (walkGroups defaults: curated walks, >= 3 carrier cells)
 Extra, not in the gOS panel (source = "extra"):
   Mean somatic VAF   per cell, mean alt / (ref + alt) over its called tree sites (snv_matrix.json, genotype 1)
+Seq. depth fallback (--depth-dir): where datafiles.json has qc_depth for fewer than 6 tumour cells, the per-cell depth of
+<depth-dir>/seq_depth_<P>.tsv (columns cell, depth, source: pairs-table mean coverage, else total reads) is used instead;
+the row records the source (z is scale-free within a patient).
 and for every variable `p_perm10000`, a permutation p from 10,000 random permutations (numpy, seed 7) for a finer p.
 n = tumour cells (not Normal clones) on the tree; patients with < 6 such cells, or no tree.nwk, are not available.
 
@@ -155,7 +158,26 @@ def mean_vaf(snv):
     return out
 
 
-def export_patient(data, outdir, patient, datafiles):
+def load_depth_tsv(path):
+    """{cell: depth}, source of a seq_depth_<P>.tsv (cell, depth[, source]); ({}, None) when missing."""
+    if not path or not os.path.exists(path):
+        return {}, None
+    out, src = {}, None
+    with open(path) as fh:
+        head = fh.readline().rstrip("\n").split("\t")
+        ic, idp = head.index("cell"), head.index("depth")
+        isrc = head.index("source") if "source" in head else None
+        for line in fh:
+            f = line.rstrip("\n").split("\t")
+            v = _f(f[idp])
+            if math.isfinite(v):
+                out[f[ic]] = v
+                if isrc is not None and not src:
+                    src = f[isrc]
+    return out, src
+
+
+def export_patient(data, outdir, patient, datafiles, depth=None, depth_source=None):
     tp = os.path.join(data, patient, "tree.nwk")
     if not os.path.exists(tp):
         print(patient, "no tree.nwk: not available", flush=True)
@@ -170,8 +192,13 @@ def export_patient(data, outdir, patient, datafiles):
     tumour = [i for i in cell_ids if i in rec and not F.is_normal_clone(rec[i]["clone_id"])]
     variables, meta = [], []
     for key, field in CONTROLS:
-        variables.append((key, {i: rec[i].get(field) for i in tumour}))
-        meta.append({"key": key, "kind": "control", "source": "gOS", "field": field})
+        vals = {i: rec[i].get(field) for i in tumour}
+        m = {"key": key, "kind": "control", "source": "gOS", "field": field}
+        if field == "qc_depth" and depth and sum(math.isfinite(_f(v)) for v in vals.values()) < 6:
+            vals = {i: depth.get(i) for i in tumour}
+            m = {"key": key, "kind": "control", "source": "depth table", "field": depth_source or "per-cell depth"}
+        variables.append((key, vals))
+        meta.append(m)
     for gkey, ws in W.walk_groups(walks.get("walks") or [], cell_ids).items():
         for w in ws:
             key = w.get("label") or w.get("name") or str(w.get("id"))
@@ -203,11 +230,13 @@ def main():
     ap.add_argument("--data", default=os.path.join(F.DATA_ROOT, "data"))
     ap.add_argument("--datafiles", default=None)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--depth-dir", default=None, help="seq_depth_<P>.tsv per patient (Seq. depth where qc_depth is missing)")
     ap.add_argument("--patients", nargs="*", default=["BWH69", "BWH70", "BWH75", "MGH285", "MGH301", "MGH302", "MGH303", "MGH304", "MGH305"])
     a = ap.parse_args()
     datafiles = F.jload(a.datafiles or os.path.join(os.path.dirname(a.data.rstrip("/")), "datafiles.json"))
     for p in a.patients:
-        export_patient(a.data, a.out, p, datafiles)
+        d, src = load_depth_tsv(os.path.join(a.depth_dir, f"seq_depth_{p}.tsv")) if a.depth_dir else ({}, None)
+        export_patient(a.data, a.out, p, datafiles, d, src)
 
 
 if __name__ == "__main__":

@@ -44,6 +44,22 @@ class Golden(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    def test_phylo_signal_depth_fallback(self):
+        # datafiles without qc_depth: the depth table fills the Seq. depth control and the row names its source
+        df = [dict(r, qc_depth=None) if r.get("entry_type") == "cell" else r for r in self.datafiles]
+        cells = [c["cell_id"] for c in ps.F.patient_cells(df, "FXP")]
+        tsv = os.path.join(self.tmp.name, "seq_depth_FXP.tsv")
+        with open(tsv, "w") as fh:
+            fh.write("cell\tdepth\tsource\n" + "".join(f"{c}\t{1000 + 10 * k}\ttotal reads\n" for k, c in enumerate(cells)))
+        d, src = ps.load_depth_tsv(tsv)
+        self.assertEqual(src, "total reads")
+        out = ps.export_patient(self.data, os.path.join(self.tmp.name, "out_depth"), "FXP", df, d, src)
+        row = [r for r in out["rows"] if r["key"] == "Seq. depth"][0]
+        self.assertEqual(row["source"], "depth table")
+        self.assertEqual(row["field"], "total reads")
+        self.assertTrue(row["z"] is not None and row["z"] == row["z"])
+        self.assertEqual(ps.load_depth_tsv(os.path.join(self.tmp.name, "nope.tsv")), ({}, None))
+
     def test_mulberry32_matches_js(self):
         # first draws of mulberry32(7): computed by the JS in figures.js
         r = ps.Mulberry32(7)
