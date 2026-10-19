@@ -87,6 +87,8 @@ sc_cluster_class <- function(g) vapply(strsplit(as.character(g), ","), function(
 sc_amplicon_structures <- function(clusters, jj, patient, min_cells = 5, max_difference = 0.25, min_span = 1e5) {
   gc <- data.table::as.data.table(clusters)
   gc <- gc[filter %in% "PASS", .(cell = pair, cls = sc_cluster_class(genes_in_cluster), cn = as.numeric(mean_cn))]
+  # a cell with two clusters of the same class: one entry, copies summed (as the paper's violins)
+  gc <- gc[, .(cn = sum(cn)), by = .(cell, cls)]
   n <- gc[, .(n_cells = data.table::uniqueN(cell)), by = cls]
   keep <- n[n_cells >= min_cells]
   dropped <- n[n_cells < min_cells]
