@@ -177,8 +177,17 @@ def snv_rows(p, rep, srows, events, obs, depth, n_tumour, vcf=None, release=None
         annotate(row, site if site.get('ok') else {}, pe, vcf, release)
         if ev is not None:
             row["matches_event"] = event_key(ev)
+            inherit_clonality(row, ev)
         rows.append(row)
     return rows
+
+
+def inherit_clonality(row, ev):
+    """Copy the matched filtered event's dropout-aware clonality (clonality.py) onto a clinical row; nothing when it has none."""
+    if ev.get("clonality_method") == "dropout-aware":
+        row.update(clonality=ev.get("clonality"), clonality_method=ev["clonality_method"], clonality_stats=ev.get("clonality_stats"),
+                   clonality_inherited_from=event_key(ev))
+    return row
 
 
 def cnv_rows(p, rep, events, coords, tcells, n_tumour):
@@ -276,6 +285,7 @@ def tert_rows(p, rep, events, n_tumour):
                        carriers, t.get("covered"), n_tumour, clin, "clinical|%s|TERT|%s" % (p, t["site"]))
         if ev is not None:
             row["matches_event"] = event_key(ev)
+            inherit_clonality(row, ev)
         rows.append(row)
     return rows, neg
 

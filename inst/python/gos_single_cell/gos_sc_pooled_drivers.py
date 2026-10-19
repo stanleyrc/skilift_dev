@@ -23,6 +23,9 @@ import shutil
 import sys
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import clonality as cl  # noqa: E402
+
 SOURCE = "pooled driver scan"
 SCAN_SHA = "02065e8"
 DEFAULT_SCAN = "/gpfs/commons/groups/imielinski_lab/projects/single_cell_GBM/analysis/driver_sensitivity_261016"
@@ -228,6 +231,10 @@ def run(data, candidates, patients=None, dry=False, scan=DEFAULT_SCAN, tag=None,
         with open(path) as fh:
             events = json.load(fh)
         clean = [{k: v for k, v in r.items() if k != "_check"} for r in new]
+        # dropout-aware clonality (clonality.py); per-cell depth from site evidence / region_calls when the site is there
+        cl.annotate_rows(data, p, clean)
+        for r, c in zip(new, clean):
+            r.update({k: c[k] for k in ("clonality", "clonality_method", "clonality_stats") if k in c})
         merged, skipped = merge(events, clean)
         for r in new:
             reason = next((s for x, s in skipped if x["Genome_Location"] == r["Genome_Location"] and x["gene"] == r["gene"]), None)

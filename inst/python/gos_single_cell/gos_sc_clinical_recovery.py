@@ -497,6 +497,9 @@ def main():
                     row.update(source="filtered events", status="discordant_negative", reason="report says absent but single cells have %s carrier cells" % ev.get("n_cells"))
                 else:
                     row.update(status="not_assessable", reason=(s or {}).get("reason") or "no TERT promoter assessment in hotspot_rescue.json or the filtered events")
+                if ev is not None and ev.get("clonality_method") == "dropout-aware":
+                    # dropout-aware clonality of the single-cell row (clonality.py); carriers / covered is a lower bound under allelic dropout
+                    row.update(sc_clonality=ev.get("clonality"), sc_clonality_reason=(ev.get("clonality_stats") or {}).get("reason"))
                 if row["status"] == "concordant_negative":
                     row["label"] = "%s absent in both (clinical and single-cell); not a TERT-negative call" % nm
                 res["tert_promoter"].append(row)
