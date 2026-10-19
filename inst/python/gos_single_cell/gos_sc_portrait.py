@@ -707,7 +707,7 @@ def build(args):
         "SOX2 amplification dosage in RNA is weak and confounded with cell cycle (S-phase cells carry inflated copy number); treat it as unconfirmed.",
         "TMB-RNA associations are explained by clade membership (the within-clone adjustment removes them) and did not survive robustness checks.",
         "Nine patients: a null state-genotype test is weak evidence of absence. Carriers of a focal amplification mostly sit on one lineage; the within-lineage estimate removes lineage but has fewer informative strata.",
-        "BWH69, BWH75, MGH285 and MGH301 are on older trees; BWH75 and MGH301 have no SNV calls and no hotspot site evidence, so SNV-based checks there are not available.",
+        "MGH285 and MGH301 are still on older trees without SNV calls or hotspot site evidence, so SNV-based checks there are not available; BWH75 has an SNV tree but no truncal sites, so its TMB is not available.",
         "Focal amplification and homozygous deletion calls come from aligned_trees.json (amp = CN >= max(baseline + 3, 2 x baseline)); the broader 'EGFR amp' set in event_associations.json (filtered-event amplification) can differ, e.g. BWH75.",
         *([noisy_caveat()] if noisy_caveat() else []),
     ]
