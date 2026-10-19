@@ -677,3 +677,48 @@ sc_patient_filtered_events <- function(cell_ids, data_dir, patient, tumor_cells 
                          dataframe = "rows", na = "null", auto_unbox = TRUE, digits = NA)
     invisible(out)
 }
+
+#' @name sc_export_gene_spans
+#' @title sc_export_gene_spans
+#' @description
+#'
+#' Writes the hg38 GENCODE gene spans (sc_hg38_gene_spans) as the cohort file
+#' _cohort/gene_spans.json, so gOS can list the genes inside any footprint
+#' (schema "gos-gene-spans/1": genes = [{gene, chrom, start, end, strand, type, coding}],
+#' sorted by chromosome and start, chromosome names as in the GENCODE file). Genes the
+#' full GENCODE does not describe (nf-gos CNA gene file only) have no strand / type.
+#'
+#' @param out_file output json path (e.g. <data>/_cohort/gene_spans.json); an existing file is backed up as .bak_<yymmdd>
+#' @param cfg sc_annotation_config()
+#' @param drop_pseudogenes drop gene_type matching "pseudogene" (keeps the file small)
+#' @param gene_types if not NULL, keep only these gene_type values (coding is always kept)
+#' @return list(n_genes, n_dropped, bytes), invisibly
+#' @export
+#' @author Stanley Clarke
+sc_export_gene_spans <- function(out_file, cfg = sc_annotation_config(), drop_pseudogenes = TRUE, gene_types = NULL) {
+    loc <- sc_hg38_gene_spans(cfg)
+    m <- regmatches(loc, regexec("^(.+):([0-9]+)-([0-9]+)$", loc))
+    dt <- data.table::data.table(gene = names(loc), chrom = vapply(m, `[`, "", 2),
+                                 start = as.integer(vapply(m, `[`, "", 3)), end = as.integer(vapply(m, `[`, "", 4)))
+    full <- readRDS(cfg$gencode)
+    if ("type" %in% names(GenomicRanges::mcols(full))) full <- full[full$type %in% "gene"]
+    full <- full[!duplicated(full$gene_name)]
+    idx <- match(dt$gene, full$gene_name)
+    dt[, strand := as.character(GenomicRanges::strand(full))[idx]]
+    dt[strand == "*", strand := NA_character_]
+    dt[, type := if ("gene_type" %in% names(GenomicRanges::mcols(full))) as.character(full$gene_type)[idx] else NA_character_]
+    dt[, coding := type %in% "protein_coding"]
+    n0 <- nrow(dt)
+    if (drop_pseudogenes) dt <- dt[is.na(type) | !grepl("pseudogene", type)]
+    if (!is.null(gene_types)) dt <- dt[coding | type %in% gene_types]
+    chr_order <- function(x) { y <- sub("^chr", "", x); suppressWarnings(ifelse(is.na(as.integer(y)), 100L + match(y, c("X", "Y", "M", "MT")), as.integer(y))) }
+    dt <- dt[order(chr_order(chrom), start, end)]
+    rows <- lapply(seq_len(nrow(dt)), function(i) {
+        r <- as.list(dt[i]); r[vapply(r, function(v) length(v) == 1L && is.na(v), TRUE)] <- NULL; r
+    })
+    doc <- list(format = "gos-gene-spans/1", source = basename(cfg$gencode), genes = rows)
+    if (file.exists(out_file)) file.copy(out_file, paste0(out_file, ".bak_", format(Sys.Date(), "%y%m%d")), overwrite = FALSE)
+    dir.create(dirname(out_file), showWarnings = FALSE, recursive = TRUE)
+    jsonlite::write_json(doc, out_file, auto_unbox = TRUE, digits = NA)
+    invisible(list(n_genes = nrow(dt), n_dropped = n0 - nrow(dt), bytes = file.size(out_file)))
+}
