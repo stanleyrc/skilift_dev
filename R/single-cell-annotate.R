@@ -51,6 +51,8 @@ sc_annotation_config <- function(...) {
         gencode = "/gpfs/commons/groups/imielinski_lab/DB/GENCODE/hg38/v32/gencode.v32.annotation.nochr.rds",
         cna_gencode = file.path(reference, "gencode.v32.annotation.nochr.tsg.onco.rds"),
         fusions_gencode = file.path(reference, "gencode.v32.annotation.nochr.5putr.expanded.rds"),
+        ## GENCODE v32 has no MANE / Ensembl_canonical tags: sc_export_gene_models() takes them from this GTF
+        canonical_gtf = "/gpfs/commons/groups/imielinski_lab/DB/GENCODE/hg38/v46/gencode.v46.basic.annotation.gtf",
         oncotree_code = "GBM"
     )
     cfg <- utils::modifyList(defaults, list(...))
