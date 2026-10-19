@@ -17,7 +17,8 @@ Known-driver rule for a swept site (biallelic SNV; ANNOVAR fields of the VCF): T
 Read QC: pooled normal cells >= MIN_NORMAL_DP reads with 0 alt reads; gnomAD (gnomad40_genome_AF) <= MAX_POP_AF; >= MIN_CARRIERS
 tumour cells with an alt read and >= MIN_ALT alt reads; alt reads on both strands when >= MIN_ALT. Sequoia's branch_filter = "germline" is
 reported but not used (it labels every trunk variant germline).
-A swept site is added only when its CN-aware clonality is clonal or subclonal (clade-restricted); indeterminate sites are reported only.
+A swept site is added only when its CN-aware clonality is clonal, or subclonal with best tree-clade F1 >= MIN_SUBCLONAL_F1; indeterminate
+sites and splice-site changes (RNA carry-over is not checked from VCF counts) are reported only.
 Rows get: evidence = "known driver (rescued)", known_basis, site_cn {modal_cn, cn2_fraction, counts, cn_altered}, pipeline_status
 (tree site / site-filter stage), clonality (CN-aware; previous call kept in clonality_dropout_only) and clonality_stats.cn_aware = True.
 
@@ -25,7 +26,8 @@ usage: gos_sc_known_cn_rescue.py --data <gOS data> --out <staging data dir> --kn
        [--patients A,B] [--tabix tabix] [--tag bak_<yymmdd>] [--dry]
   --out: rewritten files go there (data/<P>/filtered.events.json, <P>/known_cn_rescue.json, _cohort/known_cn_rescue.json); --out == --data
          writes in place after a <file>.<tag> backup. The manifest is a TSV with columns patient, vcf and optionally site_candidates,
-         pool_sites (site-filter tables, for pipeline_status).
+         pool_sites (site-filter tables, for pipeline_status) and sample_map (TSV vcf_sample, pair; VCF sample names
+         differ from the gOS cell ids for most patients).
 """
 import argparse
 import copy
@@ -53,6 +55,7 @@ MIN_MINOR_STRAND = 0.1
 COSMIC_MIN = 3
 CN_ALTERED_CN2 = 0.80       # same cut as the site-QC pool (diploid_fraction)
 SPAN_PAD = 2000
+MIN_SUBCLONAL_F1 = 0.6     # a subclonal rescue must follow a tree clade (best-clade F1), not a few scattered cells
 ADD_STATUSES = ("clonal", "subclonal")   # an indeterminate CN-aware call (low detection, carriers not clade-restricted) is artefact-like: reported, not added
 TRUNC = ("stopgain", "stoploss", "startloss")
 PATIENTS = ["BWH69", "BWH70", "BWH75", "MGH285", "MGH301", "MGH302", "MGH303", "MGH304", "MGH305"]
@@ -162,11 +165,20 @@ def sample_counts(fmt, sample):
     return ad[0], ad[1], (f[1] if f else 0), (r[1] if r else 0)
 
 
-def sweep(vcf, regions, known, cell_names, tabix="tabix"):
-    """Known-driver candidate records of the VCF in the regions -> list of site dicts with per-cell counts (cells by gOS name)."""
+def read_sample_map(path):
+    """{vcf sample: gOS cell} from a TSV with columns vcf_sample, pair (None when no map is given)."""
+    if not path:
+        return None
+    with open(path, newline="") as fh:
+        return {r["vcf_sample"]: r["pair"] for r in csv.DictReader(fh, delimiter="\t")}
+
+
+def sweep(vcf, regions, known, cell_names, tabix="tabix", sample_map=None):
+    """Known-driver candidate records of the VCF in the regions -> list of site dicts with per-cell counts (cells by gOS name).
+    sample_map {vcf sample: cell}; without one the VCF name with '-' -> '_' is used."""
     hdr = subprocess.run([tabix, "-H", vcf], check=True, capture_output=True, text=True).stdout.splitlines()
     samples = hdr[-1].split("\t")[9:]
-    norm = {s: s.replace("-", "_") for s in samples}
+    norm = {s: (sample_map.get(s) if sample_map is not None else s.replace("-", "_")) for s in samples}
     idx = [(j, norm[s]) for j, s in enumerate(samples) if norm[s] in cell_names]
     seen, out = set(), []
     # one tabix call per chunk of regions (the region list is short)
@@ -352,7 +364,12 @@ def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
         report["notes"].append(f"VCF sweep not run: no genotyping VCF for {patient}" + (f" ({vcf} missing)" if vcf else ""))
         sites = []
     else:
-        sites = sweep(vcf, gene_regions(data, known), known, set(ctx.cells), tabix)
+        smap = read_sample_map((man or {}).get("sample_map"))
+        sites = sweep(vcf, gene_regions(data, known), known, set(ctx.cells), tabix, smap)
+        n_matched = len({smap[x] for x in smap if smap[x] in set(ctx.cells)}) if smap is not None else None
+        report["vcf_cells_matched"] = n_matched
+        if smap is not None and n_matched < 0.5 * len(ctx.cells):
+            report["notes"].append(f"only {n_matched} of {len(ctx.cells)} cells matched to VCF samples")
     ids = [f"{s['chrom']}_{s['pos']}_{s['ref']}_{s['alt']}" for s in sites]
     in_sf1 = grep_ids((man or {}).get("site_candidates"), ids)
     in_pool = grep_ids((man or {}).get("pool_sites"), ids)
@@ -392,9 +409,15 @@ def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
         dp = {c: s["counts"][c][0] + s["counts"][c][1] for c in qc["covered"]}
         res = ctx.assess_cn(row, cn, counts=(alt, dp, "genotyping VCF AD_BAM (per-cell CRAM recount)"))
         mark(row, res, st, status, s["basis"])
+        why = None
         if res["status"] not in ADD_STATUSES:
-            rec.update(action="not added: carriers neither consistent with clonal nor clade-restricted (artefact-like)", clonality=res["status"],
-                       clonality_reason=res.get("reason"))
+            why = "not added: carriers neither consistent with clonal nor clade-restricted (artefact-like)"
+        elif res["status"] == "subclonal" and (res.get("best_clade_f1") or 0) < MIN_SUBCLONAL_F1:
+            why = f"not added: subclonal but best tree-clade F1 {res.get('best_clade_f1')} < {MIN_SUBCLONAL_F1}"
+        elif s["type"] == "Splice":
+            why = "review: splice-site change (RNA / cDNA carry-over on spliced reads not checked from the VCF counts)"
+        if why:
+            rec.update(action=why, clonality=res["status"], clonality_reason=res.get("reason"), best_clade_f1=res.get("best_clade_f1"))
             continue
         kept.append(row)
         rec.update(action="added", clonality=res["status"], clonality_reason=res.get("reason"), allele_loss=res.get("allele_loss"))
