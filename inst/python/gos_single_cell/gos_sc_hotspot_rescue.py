@@ -14,6 +14,8 @@ tumour cells show an alt read. The row is labelled source = "site evidence (not 
   cell_ids          tumour cells with >= 1 alt read (carriers)
   covered_ref_cell_ids  tumour cells with reads but no alt read ("no alt read"; allele dropout is common, so not "wild type")
   cells / cell_fraction carriers / covered tumour cells (a lower bound for the fraction: dropout), coverage = covered / tumour cells
+  clonality / clonality_method / clonality_stats  dropout-aware call (clonality.py: detection vs the patient's truncal SNVs at matched depth,
+                    clade restriction); never derive clonality from cell_fraction alone
   hotspot_evidence  pooled tumour / normal alt and ref reads per strand (preset "all"), cells, verdict and its checks
 Cells outside `covered` have no coverage. Re-running replaces earlier rescued rows; the previous file is kept as .<BACKUP_TAG>.
 """
@@ -24,6 +26,9 @@ import shutil
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import clonality as cl  # noqa: E402
 
 SOURCE = "site evidence (not in SNV calls)"
 MIN_CARRIERS = 3
@@ -257,6 +262,11 @@ def run_patient(data, patient, gos_src, tag, dry, mode="call", annotations=None)
             fh.write("\n".join(mutation_id(h) for h in disc) + "\n")
         return [], [dict(patient=patient, name=h["name"], called=False, reason="candidate for annotation") for h in disc]
     rows, report = build_rows(patient, calls, ev_doc, regions, verdicts, kept, discovered=disc, annotations=(annotations or {}).get(patient, {}))
+    # dropout-aware clonality (clonality.py): cell_fraction is a lower bound under allelic dropout, not a clonality call
+    for r, res in cl.annotate_rows(data, patient, rows):
+        rec = next((x for x in report if x.get("called") and x.get("gene") == r["gene"] and x.get("variant") == r["Variant"]), None)
+        if rec is not None:
+            rec.update(clonality=res["status"], clonality_method=cl.METHOD, clonality_reason=res["reason"])
     if not dry:
         bak = f"{path}.{tag}"
         if not os.path.exists(bak):

@@ -50,6 +50,7 @@ from collections import Counter, defaultdict
 import numpy as np
 from scipy.optimize import nnls
 from gos_sc_noisy import is_noisy
+from clonality import event_clonality, METHOD as CLONALITY_METHOD
 
 TRUNC_RE = re.compile(r"stop_gained|splice_acceptor|splice_donor|start_lost|frameshift")
 MIN_CLADE_SITES = 50
@@ -155,9 +156,9 @@ def parse_newick_clades(text):
                 clades.append(s)
                 stack[-1].append(s)
             i += 1
-            # skip label / length after ')'
-            m = re.match(r"[^(),;]*", text[i:])
-            i += len(m.group(0))
+            if ch == ")":  # skip label / length after ')' (not after ',', which would swallow the next leaf name)
+                m = re.match(r"[^(),;]*", text[i:])
+                i += len(m.group(0))
         else:
             m = re.match(r"[^(),:;]+", text[i:])
             name = m.group(0)
@@ -451,7 +452,16 @@ def patient_block(data, P, cosmic, chan_index, n_boot, rng, territory):
         frac_source = "raw (per-carrier VAF too low for the dropout model)" if low_vaf else ("dropout-aware" if clon and clon.get("fraction") is not None else "raw")
         cat = v["category"] if v else None
         tree_sub = cat in ("subclonal", "private") if cat else None
-        if frac is None:
+        ec = event_clonality(e)   # read-evidence rows: exported dropout-aware call (clonality.py), not the fraction threshold
+        if ec is not None:
+            frac_source = CLONALITY_METHOD + " detection test (clonality.py); carrier_fraction is " + frac_source
+            if ec == "indeterminate":
+                status = "indeterminate"
+            elif (ec == "subclonal") == bool(tree_sub) or tree_sub is None:
+                status = ec
+            else:
+                status = "discordant"
+        elif frac is None:
             status = "unknown"
         elif frac < CLONAL_FRACTION and (tree_sub is None or tree_sub):
             status = "subclonal"
@@ -486,6 +496,7 @@ def patient_block(data, P, cosmic, chan_index, n_boot, rng, territory):
             "clade_f1": round(f1[0], 3) if f1 else None,
             "best_clade": clade,
             "status": status,
+            "clonality_test": e.get("clonality_stats") if ec is not None else None,
             "context": v.get("context") if v else None,
             "signature": posterior(v.get("context"), cat) if v else None,
         })
@@ -846,7 +857,9 @@ def main():
         "definitions": {
             "hit": "filtered.events.json SNV with Tier 1-2, or tier-3 missense with driver_class 'likely' (damaging)",
             "carrier_fraction": "dropout-aware fraction f of tumour cells carrying the site, from precompute/region_calls.json: f and the per-carrier VAF v satisfy f x v = pooled tumour VAF and sum over covered tumour cells of f x (1 - (1 - v)^depth) = observed carrier cells (bisection); raw carrier cells / tumour cells when the site has no region calls or the per-carrier VAF is < 0.15 (not het-like: the alt reads look like low-level error, so a dropout correction would be meaningless; flagged low_carrier_vaf)",
-            "subclonal": f"carrier fraction < {CLONAL_FRACTION} and the CellPhy mutation map places the site on a subclonal or private node; 'clonal' = fraction >= {CLONAL_FRACTION} and a truncal node; 'discordant' = the two disagree",
+            "subclonal": f"carrier fraction < {CLONAL_FRACTION} and the CellPhy mutation map places the site on a subclonal or private node; 'clonal' = fraction >= {CLONAL_FRACTION} and a truncal node; 'discordant' = the two disagree. Read-evidence rows (hotspot rescue, pooled scan, called-SNV rows) use the exported dropout-aware call instead "
+                         "(clonality.py: detection vs the patient's truncal SNVs at matched depth, Poisson-binomial alpha 0.01, plus clade-restriction permutation alpha 0.05; "
+                         "'indeterminate' = < 10 covered cells, no reference, or low detection without clade restriction)",
             "clade_f1": "best F1 between the carrier cells and any clade of tree.nwk (normals included, same as gOS cladeFit.js)",
             "signature_posterior": "P(signature | SBS96 context) proportional to the exposure of the site's tree set (truncal / subclonal / private) in signatures_joint.json x the COSMIC v3.4 profile",
         },

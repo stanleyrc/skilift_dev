@@ -39,6 +39,7 @@ from collections import Counter, defaultdict
 import numpy as np
 from scipy import stats
 from gos_sc_noisy import noisy_caveat
+from clonality import event_clonality
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = "/gpfs/commons/projects/imielinski_web/sclarke/gOS_GBM_sc"
@@ -312,6 +313,20 @@ def pooled_tert(inp, p):
     return next((e for e in (inp.events.get(p) or []) if e.get("gene") == "TERT" and e.get("source") == "pooled driver scan" and str(e.get("type")) == "Promoter"), None)
 
 
+def tert_clonality_text(e):
+    """' Dropout-aware clonality: ...' for a TERT promoter row with the exported call, else ''."""
+    c = event_clonality(e)
+    if not c:
+        return ""
+    st = e.get("clonality_stats") or {}
+    exp = st.get("expected_detection")
+    head = {"clonal": "consistent with clonal", "subclonal": "subclonal", "indeterminate": "clonality indeterminate"}[c]
+    if exp is not None:
+        return (f" Dropout-aware clonality: {head} (alt reads in {st.get('n_carriers')} of {st.get('n_covered')} covered cells ({st.get('observed_detection', 0):.0%}; {st.get('evidence_source')}) "
+                f"vs {exp:.0%} expected for truncal SNVs at the same depth{' (cohort reference: no truncal SNVs in this patient)' if st.get('reference_scope') else ''}).")
+    return f" Dropout-aware clonality: {head} ({st.get('reason')})."
+
+
 def snv_list(inp, p):
     """Driver SNVs of one patient from filtered.events.json, subclonal_drivers.json and hotspot_rescue.json, de-duplicated."""
     n_t = inp.aligned["patients"][p]["n_tumour"]
@@ -326,6 +341,9 @@ def snv_list(inp, p):
         key = (e["gene"], (e.get("Variant") or "").split(" ")[0])
         seen[key] = {"gene": e["gene"], "variant": e.get("Variant"), "class": e["type"], "tier": e.get("Tier"), "n_cells": n,
                      "frac": fnum(n / n_t) if n_t else None, "source": "filtered.events", "qc_flags": []}
+        if event_clonality(e):   # read-evidence row: carriers / covered cells and the dropout-aware call (frac above is carriers / all tumour cells)
+            seen[key].update(frac_covered=fnum(e.get("cell_fraction")), cells=e.get("cells"), clonality=event_clonality(e),
+                             clonality_reason=(e.get("clonality_stats") or {}).get("reason"))
     for h in inp.sub["hits"]:
         if h["patient"] != p:
             continue
@@ -334,6 +352,8 @@ def snv_list(inp, p):
         rec = {"gene": h["gene"], "variant": h.get("protein") or h["site"], "class": h["class"], "tier": h["tier"], "driver_class": h.get("driver_class"),
                "n_cells": h["n_carriers"], "frac": fnum(h.get("carrier_fraction")), "category": (h.get("tree") or {}).get("category"),
                "clade_f1": fnum(h.get("clade_f1")), "source": "subclonal_drivers", "qc_flags": flags, "site": h["site"], "oncokb": h.get("oncokb_effect")}
+        if h.get("clonality_test"):
+            rec.update(clonality=h["clonality_test"].get("status"), clonality_reason=h["clonality_test"].get("reason"), status=h.get("status"))
         # prefer the dropout-aware record; drop an equal filtered.events duplicate by gene+protein
         for k in [k for k in seen if k[0] == h["gene"] and k[1] and k[1] == (h.get("protein") or "")]:
             seen.pop(k)
@@ -437,7 +457,7 @@ def build_checks(inp, mh, p, snvs):
         ev = (e.get("hotspot_evidence") or {}).get("tumor") or {}
         name = "TERT " + str(e.get("Variant") or "").split(" ")[0]
         checks["tert"] = ("consistent", f"{name} in {e.get('n_cells')} of {e.get('covered_tumour_cells')} covered tumour cells (pooled driver scan: {ev.get('alt')} of {ev.get('dp')} reads alt); "
-                          f"{e.get('n_normal_cells') or 0} normal cells with alt reads. Site evidence not run for {p}.",
+                          f"{e.get('n_normal_cells') or 0} normal cells with alt reads. Site evidence not run for {p}." + tert_clonality_text(e),
                           {"route": "promoter mutation", "source": "pooled driver scan"}, link(report=p, tab=7, heatmap="drivers", drvf="genes:TERT"))
     elif not hot.get("assessed"):
         checks["tert"] = ("not_testable", f"site evidence not run for {p}.", {}, link(report=p, tab=15))
@@ -446,8 +466,10 @@ def build_checks(inp, mh, p, snvs):
         pos = [s for s in ts if s.get("called") and s.get("level") in ("supported", "weak")]
         if pos:
             s = pos[0]
+            tev = next((e for e in (inp.events.get(p) or []) if e.get("gene") == "TERT" and str(e.get("Variant") or "").startswith(s["name"].split(" ")[-1])), None)
             lvl = "supported" if s["level"] == "supported" else "weak (few covered cells)"
-            checks["tert"] = ("consistent", f"{s['name']} in {s['carriers']} of {s['covered']} covered tumour cells ({lvl}); no alt reads in matched normal cells." if (s.get("normal") or {}).get("cells_alt", 0) == 0 else f"{s['name']} in {s['carriers']} of {s['covered']} covered cells ({lvl}).", {"site": s["name"], "carriers": s["carriers"], "covered": s["covered"]}, link(report=p, tab=15, evsite=s["site"]))
+            checks["tert"] = ("consistent", f"{s['name']} in {s['carriers']} of {s['covered']} covered tumour cells ({lvl}); no alt reads in matched normal cells." + tert_clonality_text(tev) if (s.get("normal") or {}).get("cells_alt", 0) == 0 else f"{s['name']} in {s['carriers']} of {s['covered']} covered cells ({lvl})." + tert_clonality_text(tev),
+                              {"site": s["name"], "carriers": s["carriers"], "covered": s["covered"], "clonality": event_clonality(tev)}, link(report=p, tab=15, evsite=s["site"]))
         else:
             ok = [s for s in ts if s.get("level") in ("absent", "supported", "weak") and (s.get("covered") or 0) >= 10]
             txt = "; ".join(f"{s['name']} {s.get('carriers')}/{s.get('covered')} cells" if s.get("covered") else f"{s['name']} not genotyped" for s in ts)

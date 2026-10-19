@@ -11,8 +11,8 @@ Pipeline (each stage is a MODE; see README_allsnv.md in this folder or the heade
   7. MODE=rows       final verdicts (with the cohort background) + RNA / cDNA carry-over check -> event rows -> filtered.events.json (backup first)
 
 A row (source "called SNV (not a tree site)") carries: cell_ids (tumour cells with >= 1 alt read: MAPQ >= 20, BQ >= 13, no duplicate),
-covered_ref_cell_ids, cells / cell_fraction (carriers / covered tumour cells), clonality (clonal >= 0.85, else subclonal; "not assessed" when
-< 50% of tumour cells are covered), the pooled tumour / normal alt and ref reads per strand and the verdict with its checks (hotspot_evidence), and
+covered_ref_cell_ids, cells / cell_fraction (carriers / covered tumour cells), clonality (dropout-aware, clonality.py; the earlier
+fraction rule "clonal >= 0.85, else subclonal; not assessed when < 50% of tumour cells are covered" is kept as clonality_fraction_rule), the pooled tumour / normal alt and ref reads per strand and the verdict with its checks (hotspot_evidence), and
 the OncoKB tier / effect. Sites at an existing event position (tree sites, hotspot rescue) are skipped.
 """
 import csv
@@ -27,6 +27,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gos_sc_hotspot_rescue as hr  # noqa: E402
+import clonality as cl  # noqa: E402
 
 SOURCE = "called SNV (not a tree site)"
 DATA = os.environ.get("DATA_DIR", "/gpfs/commons/projects/imielinski_web/sclarke/gOS_GBM_sc/data")
@@ -280,6 +281,11 @@ def mode_rows():
             row = make_row(p, c, calls, o, x, rna)
             rows.append(row)
             rec.update(called=True, clonality=row["clonality"], cell_fraction=row["cell_fraction"], low_coverage=row["low_coverage"])
+        # dropout-aware clonality replaces the fraction rule (kept as clonality_fraction_rule)
+        for r, res in cl.annotate_rows(DATA, p, rows, WORK):
+            rec = next((x for x in report if x.get("called") and x["site"] == res["site"]), None)
+            if rec is not None:
+                rec.update(clonality=res["status"], clonality_fraction_rule=r.get("clonality_fraction_rule"))
         summary[p] = dict(candidates=len(cands), already_events=skipped, added=len(rows), sites=report)
         print(p, "candidates", len(cands), "added", len(rows), flush=True)
         if not dry:
