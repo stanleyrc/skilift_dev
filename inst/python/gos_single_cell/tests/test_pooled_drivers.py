@@ -1,5 +1,5 @@
 import csv, gzip, json, os, sys, tempfile, unittest
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import gos_sc_pooled_drivers as G
 
 HDR = "patient gene chrom pos ref alt type consequence protein oncokb_tier oncokb_effect tumour_alt tumour_dp normal_alt normal_dp carriers covered carrier_vaf_median carriers_2plus_frac clade_best clade_f1 rna_alt rna_dp rna_alt_cells other_patients_alt_cells verdict why".split()

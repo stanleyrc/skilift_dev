@@ -3,7 +3,7 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import gos_sc_homdel_qc as H  # noqa: E402
 
 FOCAL = [{"chromosome": "9", "startPoint": 21_900_000, "endPoint": 22_100_000, "y": 0}, {"chromosome": "9", "startPoint": 1, "endPoint": 21_899_999, "y": 2}]

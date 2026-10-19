@@ -204,7 +204,8 @@ def load(path):
 
 
 WORK = os.environ.get("WORK", "/gpfs/commons/groups/imielinski_lab/projects/single_cell_GBM/gos_datasets/gOS_GBM_sc/work/hotspot_rescue")
-REGION_SET = os.path.join(os.path.dirname(os.path.abspath(__file__)), "precompute", "config", "regions", "gbm.tsv")
+# region set stays in srctools (private pipeline config); override the srctools location with SRCTOOLS_GOS_SC
+REGION_SET = os.path.join(os.environ.get("SRCTOOLS_GOS_SC", "/gpfs/commons/home/sclarke/git/srctools/inst/gos_single_cell"), "precompute", "config", "regions", "gbm.tsv")
 ANNOTATED_COLS = ("patient", "mutation", "gene", "classification", "protein", "type", "tier", "role", "effect", "effect_description", "gene_summary", "variant_summary", "therapeutics", "prognoses", "diagnoses")
 
 

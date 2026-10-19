@@ -23,7 +23,9 @@ import time
 import pysam
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "precompute", "steps"))
+# precompute/steps/site_evidence.py stays in srctools (private pipeline); override with SRCTOOLS_GOS_SC
+SRC_GOS_SC = os.environ.get("SRCTOOLS_GOS_SC", "/gpfs/commons/home/sclarke/git/srctools/inst/gos_single_cell")
+sys.path.insert(0, os.path.join(SRC_GOS_SC, "precompute", "steps"))
 import site_evidence as se  # noqa: E402
 
 DATA = os.environ.get("DATA_DIR", "/gpfs/commons/projects/imielinski_web/sclarke/gOS_GBM_sc/data")
