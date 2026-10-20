@@ -684,7 +684,8 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--extra", default=None, help="JSON with extra per-hit notes {site: {title, text, loci: [...]}}")
     ap.add_argument("--read-qc", default=None, help="JSON from subclonal/hit_read_qc.py {site: {...}}")
-    ap.add_argument("--site-qc", default=None, help="JSON from gos_sc_driver_site_qc.py {patient|site: {paralog, segdup, umap_k100, mapq}}")
+    ap.add_argument("--emit-recurrence-sites", default=None, help="write the non-hit mutation-map sites of genes seen in >= 2 patients (input for gos_sc_driver_site_qc.py sites --hits)")
+    ap.add_argument("--site-qc", default=None, help="comma-separated JSONs from gos_sc_driver_site_qc.py {patient|site: {paralog, segdup, umap_k100, mapq}}")
     a = ap.parse_args()
     rng = np.random.default_rng(a.seed)
     terr = gene_territory(a.gtf, os.path.join(a.work, "gene_territory_gencode_v24_ccds.tsv"))
@@ -750,7 +751,10 @@ def main():
         flagged_ids.add(h["snv_id"])
 
     # ---- strict filter: excluding codes from read QC, carrier VAF and site QC (paralog); informational ones are only shown
-    sq = load(a.site_qc) if a.site_qc else {}
+    sq = {}
+    for sp in (a.site_qc or '').split(','):
+        if sp:
+            sq.update(load(sp) or {})
     n_site = 0
     for h in hits:
         codes = list((h.get("read_qc") or {}).get("codes") or [])
@@ -765,8 +769,44 @@ def main():
         h["excluded_reason"] = ex
         h["strict_pass"] = not ex
         h["qc_assessed"] = {"read_qc": bool((rq or {}).get(f"{h['patient']}|{h['site']}")), "site_qc": bool(s_rec)}
-    excluded_ids = {h["snv_id"] for h in hits if not h["strict_pass"]}
+    excluded_ids = {(h["patient"], h["snv_id"]) for h in hits if not h["strict_pass"]}
     log("strict filter:", len(excluded_ids), "of", len(hits), "hits excluded; site QC for", n_site)
+
+    # recurrence sites that are not driver hits (mutation-map SNVs of genes seen in >= 2 patients; e.g. KIF4B, which has no
+    # filtered.events row): no CRAM read QC, so only the paralog / carrier-VAF / single-read filters can apply to them
+    hit_keys = {(h["patient"], h["snv_id"]) for h in hits}
+    gene_pats = defaultdict(set)
+    for P, go in obs.items():
+        for g, d in go.items():
+            if d["nonsyn"] or d["trunc"]:
+                gene_pats[g].add(P)
+    extra = []
+    for P, go in obs.items():
+        for g, d in go.items():
+            if len(gene_pats[g]) < 2:
+                continue
+            for sid in dict.fromkeys(d["nonsyn"] + d["trunc"]):
+                m = re.match(r"^(chr[0-9XYM]+)_(\d+)_([ACGT])_([ACGT])$", sid)
+                if m and (P, sid) not in hit_keys:
+                    extra.append({"patient": P, "gene": g, "snv_id": sid, "chrom": m.group(1), "pos": int(m.group(2)), "ref": m.group(3), "alt": m.group(4),
+                                  "site": f"{m.group(1)}:{m.group(2)}:{m.group(3)}>{m.group(4)}"})
+    if a.emit_recurrence_sites:
+        json.dump(extra, open(a.emit_recurrence_sites, "w"))
+        log("recurrence sites emitted:", len(extra))
+    carrier_vaf_flags(a.data, extra)
+    n_extra_site = 0
+    extra_excluded = 0
+    for e in extra:
+        codes = list((e.get("carrier_vaf_check") or {}).get("codes") or [])
+        s_rec = (sq or {}).get(f"{e['patient']}|{e['site']}")
+        if s_rec:
+            n_extra_site += 1
+            codes += DF.site_codes(s_rec)
+        ex, _info = DF.split_codes(codes)
+        if ex:
+            excluded_ids.add((e["patient"], e["snv_id"]))
+            extra_excluded += 1
+    log("recurrence-only sites:", len(extra), "site QC for", n_extra_site, "excluded", extra_excluded)
 
     # ---- recurrence
     L_trunc_tot = sum(t["cds"] + t["splice"] for t in terr.values())
@@ -783,7 +823,7 @@ def main():
                 n_p = p["background"]["subclonal"].get("trunc", 0) if variant_set == "trunc" else p["background"]["subclonal"].get("trunc", 0) + p["background"]["subclonal"].get("missense", 0)
                 mu = n_p * L / Ltot
                 ids = obs[p["patient"]].get(g, {}).get(variant_set, [])
-                per.append((p["patient"], mu, len(ids), ids, p.get("noisy"), len([i for i in ids if i not in flagged_ids]), len([i for i in ids if i not in excluded_ids])))
+                per.append((p["patient"], mu, len(ids), ids, p.get("noisy"), len([i for i in ids if i not in flagged_ids]), len([i for i in ids if (p["patient"], i) not in excluded_ids])))
             hits_n = sum(x[2] for x in per)
             pats_n = sum(1 for x in per if x[2] > 0)
             mu_tot = sum(x[1] for x in per)
@@ -797,7 +837,7 @@ def main():
             p_nb = poisson_binomial_sf(pats_nb, [1 - math.exp(-x[1]) for x in per_nb]) if pats_nb else 1.0
             pats_qc = sum(1 for x in per if x[5] > 0)
             p_qc = poisson_binomial_sf(pats_qc, [1 - math.exp(-x[1]) for x in per]) if pats_qc else 1.0
-            hits_s = sum(len([i for i in x[3] if i not in excluded_ids]) for x in per)
+            hits_s = sum(x[6] for x in per)
             pats_s = sum(1 for x in per if x[6] > 0)
             p_hs = poisson_sf(hits_s, mu_tot) if hits_s else 1.0
             p_ps = poisson_binomial_sf(pats_s, [1 - math.exp(-x[1]) for x in per]) if pats_s else 1.0
@@ -808,7 +848,7 @@ def main():
                 "ratio": round(hits_n / mu_tot, 1) if mu_tot else None,
                 "p_hits": p_h, "p_patients": p_p, "patients_no_bwh69": pats_nb, "p_patients_no_bwh69": p_nb,
                 "patients_read_qc_pass": pats_qc, "p_patients_read_qc_pass": p_qc,
-                "per_patient": [{"patient": x[0], "expected": round(x[1], 4), "hits": x[2], "sites": x[3], "read_qc_flagged": [i for i in x[3] if i in flagged_ids], "excluded": [i for i in x[3] if i in excluded_ids]} for x in per if x[2] > 0],
+                "per_patient": [{"patient": x[0], "expected": round(x[1], 4), "hits": x[2], "sites": x[3], "read_qc_flagged": [i for i in x[3] if i in flagged_ids], "excluded": [i for i in x[3] if (x[0], i) in excluded_ids]} for x in per if x[2] > 0],
             })
         m = len(rows)
         for k in ("p_hits", "p_patients", "p_patients_no_bwh69", "p_patients_read_qc_pass", "p_hits_strict", "p_patients_strict"):
@@ -900,7 +940,7 @@ def main():
             "expected hits in a gene = sum over patients of background x gene territory bp / total territory bp (GENCODE v24 CCDS CDS union + 4 bp per coding intron; "
             f"{L_trunc_tot / 1e6:.1f} Mb over {len(terr)} genes). p_hits: Poisson on distinct hits; p_patients: Poisson-binomial on patients with >= 1 hit; BH q over all genes in the territory. "
             "'nonsyn' adds missense SNVs to both background and hits. Not modelled: trinucleotide context, copy number, expression / replication timing, per-gene callability, "
-            "and SNV noise (patients flagged noisy via NOISY_PATIENTS, default none, are dropped in p_patients_no_bwh69, a legacy key name equal to p_patients when none is flagged; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). STRICT columns (hits_strict / patients_strict / p,q_*_strict) rerun both tests on hits without an excluding filter code ('excluded_reason' on each hit: exon_split, split_only, read_end, low_carrier_vaf, single_read, paralog, recurrent_allele); the all-hits columns (hits, patients, q_hits, q_patients) are unchanged and kept beside them. segdup, low_mappability and alt_mapq_lower are informational. Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
+            "and SNV noise (patients flagged noisy via NOISY_PATIENTS, default none, are dropped in p_patients_no_bwh69, a legacy key name equal to p_patients when none is flagged; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). STRICT columns (hits_strict / patients_strict / p,q_*_strict) rerun both tests on hits without an excluding filter code ('excluded_reason' on each hit: exon_split, split_only, read_end, low_carrier_vaf, single_read, paralog, recurrent_allele); the all-hits columns (hits, patients, q_hits, q_patients) are unchanged and kept beside them. segdup, low_mappability and alt_mapq_lower are informational. Mutation-map sites that are not driver hits (e.g. KIF4B) have no CRAM read QC, so for them only paralog, low_carrier_vaf and single_read can exclude. Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
         ),
         "dnds_note": "Gene-level dN/dS is not fitted: subclonal truncating counts are 3-31 per patient. Cohort trunc:missense:synonymous counts per patient are in patients[].background.",
         "clade_signature_method": (
