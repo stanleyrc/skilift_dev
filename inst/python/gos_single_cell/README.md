@@ -9,6 +9,7 @@ needed dependencies explicitly via `GOS_PYTHON` or the wrapper's `python=` argum
 
 Tests (synthetic fixtures only): `python3 -m unittest discover inst/python/gos_single_cell/tests`.
 Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3/envs/fishhook_scrna/bin/python -m unittest discover inst/python/gos_single_cell/tests` — 72 tests pass.
+- `gos_sc_ecdna_status.py DATA_DIR OUT_DIR [P ...]`: ecDNA vs chromosomal/integrated per amplicon x clade from CN dispersion (D, sister D, bootstrap CIs; pre-registered rule in the header). Needs pyarrow (e.g. the alphagenome env). Writes `<P>/ecdna_status.json`, `_cohort/ecdna_status.json`.
 
 `gos_sc_allsnv_pileup.py` and `gos_sc_hotspot_rescue.py` still read `precompute/steps/site_evidence.py` and
 `precompute/config/regions/gbm.tsv` from srctools; set `SRCTOOLS_GOS_SC` to override that location.
