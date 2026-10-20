@@ -16,7 +16,7 @@ import argparse, csv, gzip, json, os, subprocess, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import driver_filters as F
 
-FLANK = 50
+FLANK = 50  # default; --flank overrides (set below as module state)
 
 
 def load_hits(path):
@@ -57,8 +57,34 @@ def comp(b):
     return {"A": "T", "C": "G", "G": "C", "T": "A"}.get(b.upper(), "N")
 
 
+def load_transcripts(path, names):
+    """Stream the transcript FASTA (header: '>idx ENSTxxx chrN+ s-e,s-e'); returns ({idx: seq}, {idx: (ENST, chrom, min, max)}) for idx in names."""
+    seq, meta, cur, buf = {}, {}, None, []
+    with open(path) as fh:
+        for ln in fh:
+            if ln[0] == ">":
+                if cur is not None:
+                    seq[cur] = "".join(buf)
+                t = ln[1:].split()
+                cur, buf = (t[0] if t[0] in names else None), []
+                if cur is not None:
+                    try:
+                        ex = [x for x in t[3].split(",") if x]
+                        ends = [int(y) for x in ex for y in x.split("-")]
+                        meta[cur] = (t[1], t[2][:-1], min(ends), max(ends))
+                    except (IndexError, ValueError):
+                        meta[cur] = (t[1], "", 0, 0)
+            elif cur is not None:
+                buf.append(ln.strip())
+        if cur is not None:
+            seq[cur] = "".join(buf)
+    return seq, meta
+
+
 def sites_cmd(a):
     import pysam
+    global FLANK
+    FLANK = a.flank
     hits = load_hits(a.hits)
     ref = pysam.FastaFile(a.ref)
     seg = F.IntervalIndex(read_bed(a.segdup)) if a.segdup else None
@@ -77,10 +103,23 @@ def sites_cmd(a):
     names = list(keys)
     with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as tf:
         tf.write("".join(fa))
-    sam = subprocess.run([a.minimap2, "-ax", "sr", "-N", "20", "-p", "0.2", "-t", str(a.threads), "--eqx", "--secondary=yes", a.ref, tf.name],
-                         capture_output=True, text=True, check=True).stdout
-    os.unlink(tf.name)
+    if a.aligner == "bwa":  # sensitive seeds (-k 11) so a 95%-identical paralog flank still aligns; all alignments reported (-a)
+        cmd = [a.bwa, "mem", "-a", "-k", "11", "-T", "30", "-t", str(a.threads), a.ref, tf.name]
+    elif a.aligner == "asm20":  # long-flank, k19 seeds: tolerates ~5% divergence from a paralog over 2*flank bp
+        cmd = [a.minimap2, "-ax", "asm20", "-N", "20", "-p", "0.2", "-t", str(a.threads), "--eqx", "--secondary=yes", a.ref, tf.name]
+    else:
+        cmd = [a.minimap2, "-ax", "sr", "-N", "20", "-p", "0.2", "-t", str(a.threads), "--eqx", "--secondary=yes", a.ref, tf.name]
+    sam = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
     recs = parse_sam(sam, FLANK)
+    # spliced paralogs (e.g. KIF4B is an intronless copy of the KIF4A mRNA): align the flank to the transcriptome too, where the
+    # homologous exon sequence is contiguous. Transcripts that span the hit's own locus are skipped.
+    trecs, tseq, tmeta = {}, {}, {}
+    if a.transcripts:
+        tcmd = [a.minimap2, "-ax", "sr", "-N", "50", "-p", "0.1", "-t", str(a.threads), "--eqx", "--secondary=yes", a.transcripts, tf.name]
+        trecs = parse_sam(subprocess.run(tcmd, capture_output=True, text=True, check=True).stdout, FLANK)
+        need = {r["chrom"] for v in trecs.values() for r in v}
+        tseq, tmeta = load_transcripts(a.transcripts, need)
+    os.unlink(tf.name)
     res = {}
     for i, k in enumerate(names):
         h, seq = keys[k]
@@ -96,6 +135,17 @@ def sites_cmd(a):
             base = comp(tb) if r["rev"] else tb  # homologous base in the orientation of the hit's own strand
             ident, cov = F.aln_identity(r["cigar"], r["nm"], r["qlen"])
             homs.append(dict(chrom=r["chrom"], pos=tpos + 1, base=base, strand="-" if r["rev"] else "+", identity=round(ident, 3), coverage=round(cov, 3)))
+        for r in trecs.get(str(i), []):
+            m = tmeta.get(r["chrom"])
+            if not m or (m[1] == c and m[2] - 1000 <= p <= m[3] + 1000):
+                continue  # own locus / own gene's transcripts
+            tpos = F.query_to_ref(r["cigar"], r["pos0"], r["qidx"])
+            if tpos is None:
+                continue
+            tb = tseq[r["chrom"]][tpos:tpos + 1].upper()
+            base = comp(tb) if r["rev"] else tb
+            ident, cov = F.aln_identity(r["cigar"], r["nm"], r["qlen"])
+            homs.append(dict(chrom=m[0], pos=tpos + 1, base=base, strand="-" if r["rev"] else "+", identity=round(ident, 3), coverage=round(cov, 3), transcript=True))
         pc = F.paralog_call(h["alt"], h["ref"], homs)
         res[k] = dict(patient=h["patient"], gene=h["gene"], site=h["site"], paralog=dict(pc, n_homologs=len(homs), homologs=homs[:6]),
                       segdup=bool(seg.contains(c, p)) if seg else None, umap_k100=bool(umap.contains(c, p)) if umap else None)
@@ -154,7 +204,7 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     s = sp.add_parser("sites")
     s.add_argument("--hits", required=True); s.add_argument("--ref", required=True); s.add_argument("--segdup"); s.add_argument("--umap")
-    s.add_argument("--minimap2", default="minimap2"); s.add_argument("--threads", type=int, default=4); s.add_argument("--out", required=True)
+    s.add_argument("--minimap2", default="minimap2"); s.add_argument("--transcripts"); s.add_argument("--flank", type=int, default=50); s.add_argument("--aligner", default="minimap2", choices=["minimap2", "asm20", "bwa"]); s.add_argument("--bwa", default="bwa"); s.add_argument("--threads", type=int, default=4); s.add_argument("--out", required=True)
     m = sp.add_parser("mapq")
     m.add_argument("--hits", required=True); m.add_argument("--crams", required=True); m.add_argument("--ref", required=True)
     m.add_argument("--into", required=True); m.add_argument("--max-cells", type=int, default=60); m.add_argument("--threads", type=int, default=8)
