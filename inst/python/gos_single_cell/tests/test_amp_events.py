@@ -49,6 +49,18 @@ class T(unittest.TestCase):
         self.assertEqual((r["vartype"], r["type"], r["n_cells"], r["cells"], r["segment_cn"], r["estimated_altered_copies"]), ("AMP", "SCNA", 8, "8/12", 9, 7))
         self.assertEqual(r["Genome_Location"], "1:550001-700000")
 
+    def test_role_tier_from_oncokb(self):
+        roles = {"AMPG": "Oncogene", "TSG": "Tumor Suppressor"}
+        info = a.amplified_genes(fixture(), LV, [False] * 12, GENES)["AMPG"]
+        names = ["c%d" % i for i in range(12)]
+        r = a.make_row("PX", "AMPG", info, names, 12, template=dict(gene="AMPG", role=None, Tier=3), roles=roles)
+        self.assertEqual((r["role"], r["Tier"]), ("Oncogene", 2))
+        self.assertEqual(a.role_tier("TSG", roles), ("Tumor Suppressor", 3))
+        self.assertEqual(a.role_tier("NOTKB", roles), (None, 3))
+        with tempfile.TemporaryDirectory() as d:
+            f = os.path.join(d, "r.tsv"); open(f, "w").write("gene\trole\nGLI1\tOncogene\nFOO\t\n")
+            self.assertEqual(a.load_roles(f), {"GLI1": "Oncogene", "FOO": None})
+
     def test_merge_adds_and_is_idempotent_and_keeps_other_rows(self):
         other = dict(gene="TP53", type="Missense", vartype="Missense", n_cells=3)
         new, s = a.merge_events([other], [self._row()])
