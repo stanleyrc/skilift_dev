@@ -2,7 +2,7 @@
 
 The driver path (oncotable on a fixed gene list) misses amplicons in genes outside the list and calls
 some listed genes in only a few cells (MGH285 FOXO1: 1 cell, SOX5 in MGH301: none). This exporter adds
-AMP rows from the per-cell 100 kb copy number (cn_binned) for the genes that carry an amplicon of
+AMP rows (only where the live file has no AMP row for the gene, or one with < MIN_CELLS cells) from the per-cell 100 kb copy number (cn_binned) for the genes that carry an amplicon of
 <P>/ecdna_status.json (comma-separated amplicon `label`s) or are named with --genes:
 
   gene CN (median of the 100 kb bins overlapping the gene) >= max(5, 2 x cell ploidy, 2 x the cell's
@@ -123,6 +123,9 @@ def export_patient(data_dir, out_dir, patient, extra_genes=(), min_cells=5):
     ev = json.load(open(base))
     rows = []
     for gene, info in amp.items():
+        live = next((r for r in ev if r.get("gene") == gene and r.get("vartype") == "AMP" and r.get("type") == "SCNA"), None)
+        if live and (live.get("n_cells") or 0) >= min_cells:
+            continue  # the driver path already reports this amplification: leave its row untouched
         tmpl = next((r for r in ev if r.get("gene") == gene), None)
         keep = ("gene", "fusion_genes", "gene_summary", "role", "Tier", "variant_summary", "effect", "effect_description")
         t = {k: tmpl.get(k) for k in keep} if tmpl else None
