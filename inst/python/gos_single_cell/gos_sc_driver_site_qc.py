@@ -82,9 +82,28 @@ def load_transcripts(path, names):
 
 
 def sites_cmd(a):
+    """One pass per flank length (comma list); a site is `paralog` when any pass finds a matching homolog."""
+    res = None
+    for fl in str(a.flank).split(","):
+        r = sites_pass(a, int(fl))
+        if res is None:
+            res = r
+            continue
+        for k, v in r.items():
+            o = res[k]["paralog"]
+            o["homologs"] = (o["homologs"] + v["paralog"]["homologs"])[:8]
+            o["n_homologs"] += v["paralog"]["n_homologs"]
+            o["paralog"] = o["paralog"] or v["paralog"]["paralog"]
+            o["matching_loci"] = sorted(set(o["matching_loci"]) | set(v["paralog"]["matching_loci"]))[:5]
+    json.dump(res, open(a.out, "w"), indent=1)
+    print("sites", len(res), "paralog", sum(1 for v in res.values() if v["paralog"]["paralog"]),
+          "segdup", sum(1 for v in res.values() if v["segdup"]), "low_map", sum(1 for v in res.values() if v["umap_k100"] is False))
+
+
+def sites_pass(a, flank):
     import pysam
     global FLANK
-    FLANK = a.flank
+    FLANK = flank
     hits = load_hits(a.hits)
     ref = pysam.FastaFile(a.ref)
     seg = F.IntervalIndex(read_bed(a.segdup)) if a.segdup else None
@@ -149,9 +168,7 @@ def sites_cmd(a):
         pc = F.paralog_call(h["alt"], h["ref"], homs)
         res[k] = dict(patient=h["patient"], gene=h["gene"], site=h["site"], paralog=dict(pc, n_homologs=len(homs), homologs=homs[:6]),
                       segdup=bool(seg.contains(c, p)) if seg else None, umap_k100=bool(umap.contains(c, p)) if umap else None)
-    json.dump(res, open(a.out, "w"), indent=1)
-    print("sites", len(res), "paralog", sum(1 for v in res.values() if v["paralog"]["paralog"]),
-          "segdup", sum(1 for v in res.values() if v["segdup"]), "low_map", sum(1 for v in res.values() if v["umap_k100"] is False))
+    return res
 
 
 def mapq_cell(args):
@@ -204,7 +221,7 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     s = sp.add_parser("sites")
     s.add_argument("--hits", required=True); s.add_argument("--ref", required=True); s.add_argument("--segdup"); s.add_argument("--umap")
-    s.add_argument("--minimap2", default="minimap2"); s.add_argument("--transcripts"); s.add_argument("--flank", type=int, default=50); s.add_argument("--aligner", default="minimap2", choices=["minimap2", "asm20", "bwa"]); s.add_argument("--bwa", default="bwa"); s.add_argument("--threads", type=int, default=4); s.add_argument("--out", required=True)
+    s.add_argument("--minimap2", default="minimap2"); s.add_argument("--transcripts"); s.add_argument("--flank", default="50,100", help="flank lengths (comma list)"); s.add_argument("--aligner", default="minimap2", choices=["minimap2", "asm20", "bwa"]); s.add_argument("--bwa", default="bwa"); s.add_argument("--threads", type=int, default=4); s.add_argument("--out", required=True)
     m = sp.add_parser("mapq")
     m.add_argument("--hits", required=True); m.add_argument("--crams", required=True); m.add_argument("--ref", required=True)
     m.add_argument("--into", required=True); m.add_argument("--max-cells", type=int, default=60); m.add_argument("--threads", type=int, default=8)
