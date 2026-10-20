@@ -83,6 +83,17 @@ class T(unittest.TestCase):
             self.assertEqual(s, [("AMPG", "added", 8)])
             self.assertEqual(len(json.load(open(out))), 2)
 
+    def test_export_skips_gene_already_called(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "data", "PX"); os.makedirs(p); os.makedirs(os.path.join(d, "data", "_cohort"))
+            fixture().astype("<u2").tofile(os.path.join(p, "cn.u16"))
+            json.dump(dict(cells=["c%d" % i for i in range(12)], normal=[False] * 12, levels={"100kb": LV}), open(os.path.join(p, "cn_binned.json"), "w"))
+            json.dump(dict(genes=GENES), open(os.path.join(d, "data", "_cohort", "gene_spans.json"), "w"))
+            json.dump(dict(amplicons=[dict(label="AMPG")]), open(os.path.join(p, "ecdna_status.json"), "w"))
+            json.dump([dict(gene="AMPG", type="SCNA", vartype="AMP", n_cells=9, cell_ids="c0")], open(os.path.join(p, "filtered.events.json"), "w"))
+            r = a.export_patient(os.path.join(d, "data"), os.path.join(d, "out"), "PX")
+            self.assertEqual(r["rows"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
