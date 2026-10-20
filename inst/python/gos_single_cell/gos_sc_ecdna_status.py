@@ -25,7 +25,8 @@ carrier cells and curated circular walks are reported beside the call, not used 
 Primary analysis excludes S-phase cells (precompute/sphase.json); a with-S-phase verdict is
 reported as sensitivity. Needs numpy, pandas-free; pyarrow for coverage.arrow.
 
-Writes <out>/<P>/ecdna_status.json and <out>/_cohort/ecdna_status.json.
+Writes <out>/<P>/ecdna_status.json (with per-cell region means `values`, aligned to `cells`, and
+`clade_cells` index lists for the per-clade dot plot) and <out>/_cohort/ecdna_status.json.
 usage: gos_sc_ecdna_status.py DATA_DIR OUT_DIR [PATIENT ...]
 """
 import json
@@ -385,8 +386,12 @@ def run_patient(data, P, seed=20261019):
                         start=int(reg["start"]), end=int(reg["end"]), n_bins_10kb=int(len(reg["idx"])),
                         verdict=res["primary"]["verdict"], verdict_with_sphase=res["with_sphase"]["verdict"],
                         mixed_pairs=res["primary"]["mixed_pairs"], groups=res["primary"]["groups"],
-                        gGnome_cells_by_type=gg, circular_walks=wl))
+                        gGnome_cells_by_type=gg, circular_walks=wl,
+                        values=[None if not np.isfinite(v) else round(float(v), 1) for v in X[:, k]]))
+    used = {g["group"] for a in out for g in a["groups"]}
     return dict(format=FORMAT, patient=P, n_tumour_cells=len(tcells), n_sphase_excluded=int(sp.sum()),
+                cells=tcells, sphase=[int(v) for v in sp],
+                clade_cells={g: sorted(pos[c] for c in cl_cells[g] if c in pos) for g in sorted(used) if g != "ALL"},
                 rule=RULE, params=dict(min_carriers=MIN_CARRIERS, min_cn=MIN_CN, bootstrap=B, unstable_D_lo=1,
                                        stable_D_hi=0.5, window_sizes_10kb=list(WSIZES), seed=seed),
                 amplicons=out)
@@ -415,7 +420,7 @@ def main(argv):
             json.dump(res, f, separators=(",", ":"))
         for a in res["amplicons"]:
             g = next((x for x in a["groups"] if x["group"] == "ALL"), {})
-            cohort.append(dict(patient=P, id=a["id"], kind=a["kind"], label=a["label"], verdict=a["verdict"],
+            cohort.append(dict(patient=P, id=a["id"], kind=a["kind"], label=a["label"], chrom=a["chrom"], start=a["start"], end=a["end"], verdict=a["verdict"],
                                verdict_with_sphase=a["verdict_with_sphase"], n_carriers=g.get("n_carriers"),
                                median=g.get("median"), D=g.get("D"), D_lo=g.get("D_lo"), D_hi=g.get("D_hi"),
                                stable_clades=[x["group"] for x in a["groups"] if x["call"] == "stable"],
