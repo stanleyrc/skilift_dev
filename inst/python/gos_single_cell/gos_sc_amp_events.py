@@ -9,7 +9,7 @@ AMP rows (only where the live file has no AMP row for the gene, or one with < MI
   median CN on that chromosome) in >= MIN_CELLS (5) tumour cells.
 
 Usage
-  export: gos_sc_amp_events.py export DATA_DIR OUT_DIR [--genes G1,G2] [--min-cells 5] PATIENT ...
+  export: gos_sc_amp_events.py export DATA_DIR OUT_DIR [--genes G1,G2] [--oncokb ROLES.tsv] [--min-cells 5] PATIENT ...
       reads DATA_DIR/<P>/{cn_binned.json,cn_binned_100kb.cn.u16,ecdna_status.json,filtered.events.json},
       DATA_DIR/_cohort/gene_spans.json; writes OUT_DIR/<P>/amp_events_added.json (rows + base sha256).
       Never writes filtered.events.json: promotion merges into the LIVE file (merge, below).
@@ -87,7 +87,24 @@ def amplified_genes(cn, lv, normal, genes, min_cells=5):
     return out
 
 
-def make_row(patient, gene, info, cell_names, n_tumour, template=None):
+def load_roles(path):
+    """gene -> OncoKB Role from a 2-column TSV (gene, role) dumped from DB/OncoKB/OncoKB_cancer_genes.rds."""
+    roles = {}
+    if path:
+        for line in open(path).read().splitlines()[1:]:
+            g, _, r = line.partition("\t")
+            if g:
+                roles[g] = r.strip() or None
+    return roles
+
+
+def role_tier(gene, roles):
+    """Exporter convention (live rows): OncoKB oncogene amplification Tier 2; tumour suppressor or gene not in OncoKB Tier 3."""
+    role = (roles or {}).get(gene)
+    return role, (2 if role and "Oncogene" in role else 3)
+
+
+def make_row(patient, gene, info, cell_names, n_tumour, template=None, roles=None):
     g = info["g"]
     ids = [cell_names[i] for i in info["cells"]]
     seg = int(round(info["segment_cn"]))
@@ -95,6 +112,7 @@ def make_row(patient, gene, info, cell_names, n_tumour, template=None):
         gene=gene, fusion_genes="", gene_summary=None, role=None, Tier=3,
         variant_summary="%s amplification (focal copy-number call; not reviewed by OncoKB)" % gene,
         effect="Unknown", effect_description=None)
+    row["role"], row["Tier"] = role_tier(gene, roles)
     row.update(vartype="AMP", type="SCNA", Variant="AMP",
                Genome_Location="%s:%d-%d" % (g["chrom"], g["start"], g["end"]), seqnames=str(g["chrom"]),
                start=str(g["start"]), end=str(g["end"]), sample=ids[0], id=patient,
@@ -105,7 +123,7 @@ def make_row(patient, gene, info, cell_names, n_tumour, template=None):
     return row
 
 
-def export_patient(data_dir, out_dir, patient, extra_genes=(), min_cells=5):
+def export_patient(data_dir, out_dir, patient, extra_genes=(), min_cells=5, roles=None):
     pdir = os.path.join(data_dir, patient)
     meta, lv, cn = load_cn(pdir)
     spans = {g["gene"]: g for g in json.load(open(os.path.join(data_dir, "_cohort", "gene_spans.json")))["genes"]}
@@ -129,7 +147,7 @@ def export_patient(data_dir, out_dir, patient, extra_genes=(), min_cells=5):
         tmpl = next((r for r in ev if r.get("gene") == gene), None)
         keep = ("gene", "fusion_genes", "gene_summary", "role", "Tier", "variant_summary", "effect", "effect_description")
         t = {k: tmpl.get(k) for k in keep} if tmpl else None
-        rows.append(make_row(patient, gene, info, meta["cells"], n_tumour, t))
+        rows.append(make_row(patient, gene, info, meta["cells"], n_tumour, t, roles))
     res = dict(format=FORMAT, patient=patient, rule="gene CN >= max(5, 2x ploidy, 2x chromosome median) in >= %d tumour cells" % min_cells,
                base_sha256=sha256(base), n_tumour_cells=n_tumour, genes_considered=sorted(names), genes_without_span=missing,
                rows=rows)
@@ -182,7 +200,11 @@ def main(argv):
             print("merge", *s)
         return 0
     rest = argv[1:]
-    genes, mc = [], 5
+    genes, mc, roles = [], 5, {}
+    if "--oncokb" in rest:
+        i = rest.index("--oncokb")
+        roles = load_roles(rest[i + 1])
+        del rest[i:i + 2]
     for flag in ("--genes", "--min-cells"):
         if flag in rest:
             i = rest.index(flag)
@@ -194,7 +216,7 @@ def main(argv):
                 mc = int(v)
     data_dir, out_dir, pats = rest[0], rest[1], rest[2:]
     for p in pats:
-        r = export_patient(data_dir, out_dir, p, genes, mc)
+        r = export_patient(data_dir, out_dir, p, genes, mc, roles)
         print(p, "AMP rows:", [(x["gene"], x["n_cells"], x["segment_cn"]) for x in r["rows"]], "no span:", r["genes_without_span"])
     return 0
 
