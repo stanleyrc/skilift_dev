@@ -163,6 +163,10 @@ sc_read_het_counts <- function(path) {
 #' @param chunk_sites sites per chunk for the within-segment heterogeneity check;
 #'   a segment with a clearly LOH chunk and a clearly het chunk is left unchanged
 #'   (status mixed_breakpoint: the segment spans an allelic breakpoint)
+#' @param max_total_het_test het calls with a larger total CN are never turned
+#'   into LOH (status high_cn_untested): one minor copy among many is not
+#'   separable from LOH with a few reads per site
+#' @param dcap depth cap per site
 #' @param mixed_frac minimum fraction of chunks of each sign for mixed_breakpoint
 #' @param min_f_reject an LOH call is only rejected when the best minor fraction
 #'   is at least this (else status loh_partial, unchanged)
@@ -171,7 +175,8 @@ sc_read_het_counts <- function(path) {
 #' @author Stanley Clarke
 sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_min = 10, bin_width = 5e4,
                                fix_het = TRUE, w = 0.02, err = 0.01, x_ratio = 0.2,
-                               chunk_sites = 300L, mixed_frac = 0.2, min_f_reject = 0.2, dcap = 40L) {
+                               chunk_sites = 300L, mixed_frac = 0.2, min_f_reject = 0.2, dcap = 40L,
+                               max_total_het_test = 4L) {
     segs <- data.table::copy(data.table::as.data.table(segs))
     segs[, chr := sub("^chr", "", as.character(chr))]
     hets <- data.table::as.data.table(hets)[(ref + alt) >= 2]
@@ -234,7 +239,7 @@ sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_mi
     }
     fgrid <- c(1/2, 2/5, 1/3, 1/4, 1/5, 1/6)
     ## log-likelihood of every (k, d) row under each minor fraction, then summed per chunk / segment
-    fall <- sort(unique(c(0, fgrid, unlist(lapply(2:12, function(t) seq_len(floor(t / 2)) / t)))))
+    fall <- c(0, fgrid)
     ukd <- unique(kdc[, .(k, d)])
     llm <- vapply(fall, function(f) .sc_ado_rows(ukd$k, ukd$d, f, fit$r, fit$rho, w, err), numeric(nrow(ukd)))
     if (is.null(dim(llm))) llm <- matrix(llm, nrow = 1)
@@ -275,12 +280,16 @@ sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_mi
         } else if (mn == 0 && llr > llr_min) {
             if (tot >= 2) {
                 m <- seq_len(floor(tot / 2))
-                jm <- match(round(m / tot, 10), round(fall, 10))
-                mbest <- m[which.max(seg_mat[r_i, jm])]
+                z <- kd[seg_id == segs$seg_id[i]]
+                llm <- vapply(m / tot, function(f) sc_ado_loglik(z$k, z$d, z$n, f = f, r = fit$r, rho = fit$rho, w = w, err = err), 0)
+                mbest <- m[which.max(llm)]
                 data.table::set(segs, i, c("new_major", "new_minor", "status"), list(as.integer(tot - mbest), as.integer(mbest), "loh_rejected"))
             } else {
                 data.table::set(segs, i, c("new_major", "new_minor", "status"), list(1L, 1L, "loh_rejected_total_raised"))
             }
+        } else if (mn > 0 && llr < -llr_min && tot > max_total_het_test) {
+            ## amplified segments: a single minor copy (f <= 1/(max_total_het_test + 1)) is not separable from LOH
+            data.table::set(segs, i, "status", "high_cn_untested")
         } else if (mn > 0 && llr < -llr_min) {
             if (fix_het) data.table::set(segs, i, c("new_major", "new_minor", "status"), list(as.integer(tot), 0L, "loh_by_baf"))
             else data.table::set(segs, i, "status", "loh_by_baf_not_applied")

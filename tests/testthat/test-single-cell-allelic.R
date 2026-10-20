@@ -66,3 +66,11 @@ test_that("sex = auto: unknown without chrX sites, female with dense chrX hets",
     expect_equal(res$params$sex, "female")
     expect_equal(res$segs[seg_id == 2, status], "loh_rejected_total_raised")
 })
+
+test_that("amplified het segments are not turned into LOH", {
+    segs <- data.table(seg_id = 1:2, chr = c("1", "7"), start = 1L, end = 2e8L, major = c(1L, 10L), minor = 1L)
+    hets <- rbind(sim_sites("1", 0, 6000, f = 0.5, seed = 31), sim_sites("7", 0, 3000, f = 1/11, seed = 32))
+    s <- sc_allelic_baf_fix(segs, hets, sex = "male")$segs
+    expect_true(s[seg_id == 2, status] %in% c("high_cn_untested", "het_supported", "inconclusive"))
+    expect_equal(s[seg_id == 2, new_minor], 1L)
+})
