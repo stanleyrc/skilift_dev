@@ -51,6 +51,7 @@ import numpy as np
 from scipy.optimize import nnls
 from gos_sc_noisy import is_noisy
 from clonality import event_clonality, METHOD as CLONALITY_METHOD
+import driver_filters as DF
 
 TRUNC_RE = re.compile(r"stop_gained|splice_acceptor|splice_donor|start_lost|frameshift")
 MIN_CLADE_SITES = 50
@@ -607,7 +608,7 @@ def patient_block(data, P, cosmic, chan_index, n_boot, rng, territory):
 
 CARRIER_VAF_MIN_RATIO = 0.5     # carrier pooled VAF below this fraction of the patient's real-subclonal baseline ...
 CARRIER_VAF_MAX_P = 1e-3         # ... and binomially unlikely under that baseline -> flagged
-SINGLE_READ_MAX_FRAC = 0.3       # fewer than this share of carriers with >= 2 alt reads (and >= 5 carriers) -> flagged
+SINGLE_READ_MAX_FRAC = 0.5       # fewer than this share of carriers with >= 2 alt reads (and >= 5 carriers) -> flagged
 
 
 def binom_cdf(k, n, p):
@@ -660,13 +661,15 @@ def carrier_vaf_flags(data, hits, min_dp=4):
             dp = sum(c[1] for c in cs)
             multi = sum(c[0] >= 2 for c in cs) / len(cs)
             pv = binom_cdf(alt, dp, base)
-            flags = []
+            flags, codes = [], []
             if alt / dp < CARRIER_VAF_MIN_RATIO * base and pv < CARRIER_VAF_MAX_P:
+                codes.append("low_carrier_vaf")
                 flags.append(f"carrier VAF {alt / dp:.2f} vs {base:.2f} for well-placed subclonal sites in {P} (copy number 2 expects ~0.5): likely amplification / sequencing error")
             if len(cs) >= 5 and multi < SINGLE_READ_MAX_FRAC:
+                codes.append("single_read")
                 flags.append(f"single-read carriers: {sum(c[0] >= 2 for c in cs)} of {len(cs)} carriers have >= 2 alt reads")
             h["carrier_vaf_check"] = {"available": True, "carriers": len(cs), "alt": alt, "depth": dp, "vaf": round(alt / dp, 4),
-                                      "baseline_vaf": round(base, 4), "p_below_baseline": pv, "carriers_2plus_alt_frac": round(multi, 3), "flags": flags}
+                                      "baseline_vaf": round(base, 4), "p_below_baseline": pv, "carriers_2plus_alt_frac": round(multi, 3), "flags": flags, "codes": codes}
     return {}
 
 
@@ -681,6 +684,7 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--extra", default=None, help="JSON with extra per-hit notes {site: {title, text, loci: [...]}}")
     ap.add_argument("--read-qc", default=None, help="JSON from subclonal/hit_read_qc.py {site: {...}}")
+    ap.add_argument("--site-qc", default=None, help="JSON from gos_sc_driver_site_qc.py {patient|site: {paralog, segdup, umap_k100, mapq}}")
     a = ap.parse_args()
     rng = np.random.default_rng(a.seed)
     terr = gene_territory(a.gtf, os.path.join(a.work, "gene_territory_gencode_v24_ccds.tsv"))
@@ -708,20 +712,24 @@ def main():
         c = r.get("counts") or {}
         na, nr = c.get("alt_reads", 0), c.get("ref_reads", 0)
         f = lambda k, n: (c.get(k, 0) / n) if n else None
+        codes = DF.read_qc_codes(c, r.get("other_patients"))
         flags = []
-        if na >= 3 and (f("alt_exon_split", na) or 0) >= 0.5:
+        if "exon_split" in codes:
             flags.append("spliced reads: alt sits on exon-exon reads (RNA / cDNA carry-over or processed copy)")
-        elif na >= 3 and (f("alt_sa", na) or 0) >= 0.5 and (f("ref_sa", nr) or 0) < 0.25:
+        elif "split_only" in codes:
             flags.append("alt on split reads only")
-        if na >= 3 and (f("alt_end10", na) or 0) >= 0.8 and (f("ref_end10", nr) or 0) <= 0.3:
+        if "read_end" in codes:
             flags.append("alt at read-block ends")
+        if "recurrent_allele" in codes:
+            flags.append("recurrent allele: seen in >= %d other patients' cells (likely artefact)" % DF.RECURRENT_MIN_PATIENTS)
         if r.get("other_patients_with_allele"):
             flags.append("same allele in " + ", ".join(r["other_patients_with_allele"]))
+            codes.append("same_allele_other")
         h["read_qc"] = {
             "carriers_scanned": r.get("carriers_scanned"), "alt_reads": na, "ref_reads": nr,
             "alt_sa_frac": f("alt_sa", na), "ref_sa_frac": f("ref_sa", nr), "alt_exon_split_frac": f("alt_exon_split", na),
             "alt_end10_frac": f("alt_end10", na), "ref_end10_frac": f("ref_end10", nr),
-            "other_patients_with_allele": r.get("other_patients_with_allele"), "flags": flags,
+            "other_patients_with_allele": r.get("other_patients_with_allele"), "flags": flags, "codes": codes,
         }
         if flags:
             flagged_ids.add(h["snv_id"])
@@ -741,6 +749,25 @@ def main():
                 rqh["flags"].append(fl)
         flagged_ids.add(h["snv_id"])
 
+    # ---- strict filter: excluding codes from read QC, carrier VAF and site QC (paralog); informational ones are only shown
+    sq = load(a.site_qc) if a.site_qc else {}
+    n_site = 0
+    for h in hits:
+        codes = list((h.get("read_qc") or {}).get("codes") or [])
+        codes += [c for c in ((h.get("carrier_vaf_check") or {}).get("codes") or []) if c not in codes]
+        s_rec = (sq or {}).get(f"{h['patient']}|{h['site']}")
+        if s_rec:
+            n_site += 1
+            h["site_qc"] = {k: s_rec.get(k) for k in ("paralog", "segdup", "umap_k100", "mapq")}
+            codes += [c for c in DF.site_codes(s_rec) if c not in codes]
+        ex, info = DF.split_codes(codes)
+        h["flag_codes"] = codes
+        h["excluded_reason"] = ex
+        h["strict_pass"] = not ex
+        h["qc_assessed"] = {"read_qc": bool((rq or {}).get(f"{h['patient']}|{h['site']}")), "site_qc": bool(s_rec)}
+    excluded_ids = {h["snv_id"] for h in hits if not h["strict_pass"]}
+    log("strict filter:", len(excluded_ids), "of", len(hits), "hits excluded; site QC for", n_site)
+
     # ---- recurrence
     L_trunc_tot = sum(t["cds"] + t["splice"] for t in terr.values())
     L_cds_tot = sum(t["cds"] for t in terr.values())
@@ -756,12 +783,12 @@ def main():
                 n_p = p["background"]["subclonal"].get("trunc", 0) if variant_set == "trunc" else p["background"]["subclonal"].get("trunc", 0) + p["background"]["subclonal"].get("missense", 0)
                 mu = n_p * L / Ltot
                 ids = obs[p["patient"]].get(g, {}).get(variant_set, [])
-                per.append((p["patient"], mu, len(ids), ids, p.get("noisy"), len([i for i in ids if i not in flagged_ids])))
+                per.append((p["patient"], mu, len(ids), ids, p.get("noisy"), len([i for i in ids if i not in flagged_ids]), len([i for i in ids if i not in excluded_ids])))
             hits_n = sum(x[2] for x in per)
             pats_n = sum(1 for x in per if x[2] > 0)
             mu_tot = sum(x[1] for x in per)
             if hits_n == 0:
-                rows.append({"gene": g, "p_hits": 1.0, "p_patients": 1.0, "p_patients_no_bwh69": 1.0, "p_patients_read_qc_pass": 1.0, "_zero": True})
+                rows.append({"gene": g, "p_hits": 1.0, "p_patients": 1.0, "p_patients_no_bwh69": 1.0, "p_patients_read_qc_pass": 1.0, "p_hits_strict": 1.0, "p_patients_strict": 1.0, "_zero": True})
                 continue
             p_h = poisson_sf(hits_n, mu_tot)
             p_p = poisson_binomial_sf(pats_n, [1 - math.exp(-x[1]) for x in per])
@@ -770,16 +797,21 @@ def main():
             p_nb = poisson_binomial_sf(pats_nb, [1 - math.exp(-x[1]) for x in per_nb]) if pats_nb else 1.0
             pats_qc = sum(1 for x in per if x[5] > 0)
             p_qc = poisson_binomial_sf(pats_qc, [1 - math.exp(-x[1]) for x in per]) if pats_qc else 1.0
+            hits_s = sum(len([i for i in x[3] if i not in excluded_ids]) for x in per)
+            pats_s = sum(1 for x in per if x[6] > 0)
+            p_hs = poisson_sf(hits_s, mu_tot) if hits_s else 1.0
+            p_ps = poisson_binomial_sf(pats_s, [1 - math.exp(-x[1]) for x in per]) if pats_s else 1.0
             rows.append({
-                "gene": g, "set": variant_set, "length_bp": L, "cds_bp": t["cds"], "splice_bp": t["splice"],
+                "gene": g, "set": variant_set,
+                "hits_strict": hits_s, "patients_strict": pats_s, "p_hits_strict": p_hs, "p_patients_strict": p_ps, "length_bp": L, "cds_bp": t["cds"], "splice_bp": t["splice"],
                 "hits": hits_n, "patients": pats_n, "expected_hits": round(mu_tot, 4),
                 "ratio": round(hits_n / mu_tot, 1) if mu_tot else None,
                 "p_hits": p_h, "p_patients": p_p, "patients_no_bwh69": pats_nb, "p_patients_no_bwh69": p_nb,
                 "patients_read_qc_pass": pats_qc, "p_patients_read_qc_pass": p_qc,
-                "per_patient": [{"patient": x[0], "expected": round(x[1], 4), "hits": x[2], "sites": x[3], "read_qc_flagged": [i for i in x[3] if i in flagged_ids]} for x in per if x[2] > 0],
+                "per_patient": [{"patient": x[0], "expected": round(x[1], 4), "hits": x[2], "sites": x[3], "read_qc_flagged": [i for i in x[3] if i in flagged_ids], "excluded": [i for i in x[3] if i in excluded_ids]} for x in per if x[2] > 0],
             })
         m = len(rows)
-        for k in ("p_hits", "p_patients", "p_patients_no_bwh69", "p_patients_read_qc_pass"):
+        for k in ("p_hits", "p_patients", "p_patients_no_bwh69", "p_patients_read_qc_pass", "p_hits_strict", "p_patients_strict"):
             qs = bh([r[k] for r in rows])
             for r, q in zip(rows, qs):
                 r[k.replace("p_", "q_")] = q
@@ -804,8 +836,8 @@ def main():
             "multi_hit_patients": sorted({h["patient"] for h in hs if h["hits_in_gene_patient"] > 1}),
             "classes": dict(Counter(h["class"] for h in hs)),
             "length_bp": (terr.get(g) or {}).get("cds", 0) + (terr.get(g) or {}).get("splice", 0) or None,
-            "recurrence_trunc": {k: rec_t[g].get(k) for k in ("hits", "patients", "expected_hits", "p_patients", "q_patients", "p_hits", "q_hits", "patients_no_bwh69", "q_patients_no_bwh69", "patients_read_qc_pass", "q_patients_read_qc_pass")} if g in rec_t else None,
-            "recurrence_nonsyn": {k: rec_n[g].get(k) for k in ("hits", "patients", "expected_hits", "p_patients", "q_patients", "p_hits", "q_hits")} if g in rec_n else None,
+            "recurrence_trunc": {k: rec_t[g].get(k) for k in ("hits", "patients", "expected_hits", "p_patients", "q_patients", "p_hits", "q_hits", "patients_no_bwh69", "q_patients_no_bwh69", "patients_read_qc_pass", "q_patients_read_qc_pass", "hits_strict", "patients_strict", "q_hits_strict", "q_patients_strict")} if g in rec_t else None,
+            "recurrence_nonsyn": {k: rec_n[g].get(k) for k in ("hits", "patients", "expected_hits", "p_patients", "q_patients", "p_hits", "q_hits", "hits_strict", "patients_strict", "q_hits_strict", "q_patients_strict")} if g in rec_n else None,
         })
     driver_genes.sort(key=lambda r: (-len(r["patients_subclonal"]), -r["n_hits_subclonal"], r["gene"]))
 
@@ -868,7 +900,7 @@ def main():
             "expected hits in a gene = sum over patients of background x gene territory bp / total territory bp (GENCODE v24 CCDS CDS union + 4 bp per coding intron; "
             f"{L_trunc_tot / 1e6:.1f} Mb over {len(terr)} genes). p_hits: Poisson on distinct hits; p_patients: Poisson-binomial on patients with >= 1 hit; BH q over all genes in the territory. "
             "'nonsyn' adds missense SNVs to both background and hits. Not modelled: trinucleotide context, copy number, expression / replication timing, per-gene callability, "
-            "and SNV noise (patients flagged noisy via NOISY_PATIENTS, default none, are dropped in p_patients_no_bwh69, a legacy key name equal to p_patients when none is flagged; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
+            "and SNV noise (patients flagged noisy via NOISY_PATIENTS, default none, are dropped in p_patients_no_bwh69, a legacy key name equal to p_patients when none is flagged; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). STRICT columns (hits_strict / patients_strict / p,q_*_strict) rerun both tests on hits without an excluding filter code ('excluded_reason' on each hit: exon_split, split_only, read_end, low_carrier_vaf, single_read, paralog, recurrent_allele); the all-hits columns (hits, patients, q_hits, q_patients) are unchanged and kept beside them. segdup, low_mappability and alt_mapq_lower are informational. Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
         ),
         "dnds_note": "Gene-level dN/dS is not fitted: subclonal truncating counts are 3-31 per patient. Cohort trunc:missense:synonymous counts per patient are in patients[].background.",
         "clade_signature_method": (
@@ -896,7 +928,7 @@ def main():
     log("wrote", out, len(hits), "hits;", len(flagged_ids), "read-QC flagged")
     top = genes_out[0]["rows"][:12]
     for r in top:
-        log(f"  {r['gene']:10s} hits={r['hits']} pats={r['patients']} exp={r['expected_hits']:.3f} p={r['p_patients']:.2e} q={r['q_patients']:.2e} q_noBWH69={r['q_patients_no_bwh69']:.2e} pats_qc={r['patients_read_qc_pass']} q_qc={r['q_patients_read_qc_pass']:.2e}")
+        log(f"  {r['gene']:10s} hits={r['hits']} pats={r['patients']} exp={r['expected_hits']:.3f} p={r['p_patients']:.2e} q={r['q_patients']:.2e} q_noBWH69={r['q_patients_no_bwh69']:.2e} pats_qc={r['patients_read_qc_pass']} q_qc={r['q_patients_read_qc_pass']:.2e} pats_strict={r['patients_strict']} q_strict={r['q_patients_strict']:.2e}")
     for s in sig_shifts[:15]:
         log("  shift", s["patient"], s["clade"], "vs", s["vs"], s["signature"], s["diff"], f"q={s['q']:.3g}")
 
