@@ -8,7 +8,7 @@ Python does not currently provide scipy. Pileup exporters additionally require p
 needed dependencies explicitly via `GOS_PYTHON` or the wrapper's `python=` argument.
 
 Tests (synthetic fixtures only): `python3 -m unittest discover inst/python/gos_single_cell/tests`.
-Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3/envs/fishhook_scrna/bin/python -m unittest discover inst/python/gos_single_cell/tests` — 72 tests pass (2026-10-20: 109 with test_snv_columnar).
+Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3/envs/fishhook_scrna/bin/python -m unittest discover inst/python/gos_single_cell/tests` — 72 tests pass (2026-10-20: 108 with test_snv_columnar).
 
 `gos_sc_allsnv_pileup.py` and `gos_sc_hotspot_rescue.py` still read `precompute/steps/site_evidence.py` and
 `precompute/config/regions/gbm.tsv` from srctools; set `SRCTOOLS_GOS_SC` to override that location.
