@@ -29,7 +29,7 @@ sc_merge_joint_genome_json <- function(joint, regular, joint_chrs, description =
     take <- function(cs, map, src) {
         for (cc in cs %||% list()) {
             s <- remap_end(cc$source, map); k <- remap_end(cc$sink, map)
-            if (!s$ok || !k$ok || (is.null(cc$source) && is.null(cc$sink))) { if (src == "regular") dropped <<- dropped + 1L; next }
+            if (!s$ok || !k$ok || (is.null(cc$source) && is.null(cc$sink))) { if (src == "regular" && xor(s$ok && !is.null(cc$source), k$ok && !is.null(cc$sink))) dropped <<- dropped + 1L; next }
             cc$source <- s$v; cc$sink <- k$v; cc$cn_source <- src
             conns[[length(conns) + 1L]] <<- cc
         }
