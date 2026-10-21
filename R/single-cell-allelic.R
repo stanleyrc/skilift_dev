@@ -170,13 +170,19 @@ sc_read_het_counts <- function(path) {
 #' @param mixed_frac minimum fraction of chunks of each sign for mixed_breakpoint
 #' @param min_f_reject an LOH call is only rejected when the best minor fraction
 #'   is at least this (else status loh_partial, unchanged)
+#' @param min_sites_reject an LOH call on a segment with fewer than min_sites
+#'   (but at least min_sites_reject) sites is still tested, in the LOH -> het
+#'   direction only (status loh_rejected / loh_rejected_total_raised /
+#'   loh_partial; otherwise few_sites). A fine segmentation splits arms into
+#'   segments with a few dozen sites each, which min_sites alone leaves untested.
+#'   Default min_sites (off).
 #' @return list(segs = segs with new_major, new_minor, status, n_sites, llr, f_hat; params = list(r, rho, sex, ...))
 #' @export
 #' @author Stanley Clarke
 sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_min = 10, bin_width = 5e4,
                                fix_het = TRUE, w = 0.02, err = 0.01, x_ratio = 0.2,
                                chunk_sites = 300L, mixed_frac = 0.2, min_f_reject = 0.2, dcap = 40L,
-                               max_total_het_test = 4L) {
+                               max_total_het_test = 4L, min_sites_reject = min_sites) {
     segs <- data.table::copy(data.table::as.data.table(segs))
     segs[, chr := sub("^chr", "", as.character(chr))]
     hets <- data.table::as.data.table(hets)[(ref + alt) >= 2]
@@ -212,7 +218,9 @@ sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_mi
     nsite <- ov[, .(n_sites = .N, n_bins = data.table::uniqueN(bin), n_both = sum(ref > 0 & alt > 0)), by = seg_id]
     segs <- merge(segs, nsite, by = "seg_id", all.x = TRUE)
     segs[is.na(n_sites), `:=`(n_sites = 0L, n_bins = 0L, n_both = 0L)]
-    segs[, hemi := sex == "male" & chr %in% c("X", "Y")]
+    ## male X/Y are hemizygous, except segments lying entirely inside a PAR (X+Y diploid)
+    segs[, hemi := sex == "male" & chr %in% c("X", "Y") &
+             !((start >= .SC_PAR$start[1] & end <= .SC_PAR$end[1]) | (start >= .SC_PAR$start[2] & end <= .SC_PAR$end[2]))]
     ## calibration: autosomal 1:1 segments (fall back to all autosomal non-LOH)
     ref_ids <- segs[chr %in% as.character(1:22) & major == 1 & minor == 1 & n_sites >= min_sites, seg_id]
     if (sum(segs[seg_id %in% ref_ids, n_sites]) < 500)
@@ -260,7 +268,10 @@ sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_mi
     cm <- cmix[match(segs$seg_id, cmix$seg_id)]
     for (i in which(!segs$hemi)) {
         tot <- segs$major[i] + segs$minor[i]
-        if (segs$n_sites[i] < min_sites || is.na(rowsel[i])) { data.table::set(segs, i, "status", "few_sites"); next }
+        few <- segs$n_sites[i] < min_sites
+        if (is.na(rowsel[i]) || (few && !(segs$minor[i] == 0 && tot > 0 && segs$n_sites[i] >= min_sites_reject))) {
+            data.table::set(segs, i, "status", "few_sites"); next
+        }
         if (tot == 0) { data.table::set(segs, i, "status", "cn0"); next }
         r_i <- rowsel[i]
         s <- min(1, segs$n_bins[i] / segs$n_sites[i])
@@ -273,7 +284,10 @@ sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_mi
         mixed <- cm$nck[i] > 1 && cm$fpos[i] >= mixed_frac && cm$fneg[i] >= mixed_frac
         if (cm$nck[i] > 1) data.table::set(segs, i, "chunk_llr_range", sprintf("%.1f..%.1f (het %.2f, loh %.2f)", cm$lmin[i], cm$lmax[i], cm$fpos[i], cm$fneg[i]))
         mn <- segs$minor[i]
-        if (mixed) {
+        if (few && !(llr > llr_min)) {
+            ## below min_sites only the LOH -> het direction is applied
+            data.table::set(segs, i, "status", "few_sites")
+        } else if (mixed) {
             data.table::set(segs, i, "status", "mixed_breakpoint")
         } else if (mn == 0 && llr > llr_min && fhat < min_f_reject) {
             data.table::set(segs, i, "status", "loh_partial")
@@ -299,7 +313,7 @@ sc_allelic_baf_fix <- function(segs, hets, sex = "auto", min_sites = 30L, llr_mi
         }
     }
     list(segs = segs[], params = list(r = fit$r, rho = fit$rho, sex = sex, n_ref_sites = fit$n_sites, w = w, err = err,
-                                      min_sites = min_sites, llr_min = llr_min, bin_width = bin_width))
+                                      min_sites = min_sites, min_sites_reject = min_sites_reject, llr_min = llr_min, bin_width = bin_width))
 }
 
 #' @name sc_allelic_gg_segments
@@ -331,7 +345,9 @@ sc_allelic_gg_segments <- function(gg) {
 #'
 #' Apply sc_allelic_baf_fix() to an allelic gGraph: the haploid node CNs of
 #' corrected segments are replaced and every node gets a baf_fix annotation
-#' (status, scaled LLR, sites). Edge CNs are left as solved by the LP.
+#' (status, scaled LLR, sites) and a logical hemizygous flag (male chrX/Y
+#' outside the PARs: major = total, minor = 0, not LOH). Edge CNs are left as
+#' solved by the LP.
 #'
 #' @param gg allelic gGraph or rds path
 #' @param hets data.table(chr, pos, ref, alt) or a path for sc_read_het_counts()
@@ -355,6 +371,7 @@ sc_allelic_fix_gg <- function(gg, hets, ...) {
     }
     lab <- s[, sprintf("%s; llr=%s; sites=%d", status, ifelse(is.na(llr), "NA", sprintf("%.1f", llr)), n_sites)]
     ann <- lab[match(gg$nodes$dt$og.node.id, s$seg_id)]
-    gg$nodes$mark(cn = cn, baf_fix = ann)
+    hemi <- s$hemi[match(gg$nodes$dt$og.node.id, s$seg_id)]
+    gg$nodes$mark(cn = cn, baf_fix = ann, hemizygous = !is.na(hemi) & hemi)
     list(gg = gg, segs = res$segs, params = res$params)
 }

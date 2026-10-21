@@ -74,3 +74,32 @@ test_that("amplified het segments are not turned into LOH", {
     expect_true(s[seg_id == 2, status] %in% c("high_cn_untested", "het_supported", "inconclusive"))
     expect_equal(s[seg_id == 2, new_minor], 1L)
 })
+
+test_that("min_sites_reject tests short LOH segments in the LOH -> het direction only", {
+    segs <- data.table(seg_id = 1:5, chr = c("1", "16", "10", "4", "5"), start = 1L, end = 2e8L,
+                       major = c(1L, 2L, 1L, 1L, 2L), minor = c(1L, 0L, 0L, 1L, 0L))
+    hets <- rbind(
+        sim_sites("1", 0, 6000, f = 0.5, seed = 41),               # calibration
+        sim_sites("16", 0, 20, f = 0.5, spacing = 1e5, seed = 42), # 2:0 call, 20 balanced sites
+        sim_sites("10", 0, 20, f = 0, spacing = 1e5, seed = 43),   # 1:0 call, 20 LOH sites
+        sim_sites("4", 0, 20, f = 0, spacing = 1e5, seed = 44),    # 1:1 call, 20 LOH sites
+        sim_sites("5", 0, 5, f = 0.5, spacing = 1e5, seed = 45))   # 2:0 call, 5 sites
+    s0 <- sc_allelic_baf_fix(segs, hets, sex = "male")$segs[order(seg_id)]
+    expect_equal(s0$status[2:5], rep("few_sites", 4))
+    s <- sc_allelic_baf_fix(segs, hets, sex = "male", min_sites_reject = 10L)$segs[order(seg_id)]
+    expect_equal(s$status, c("het_supported", "loh_rejected", "few_sites", "few_sites", "few_sites"))
+    expect_equal(s[seg_id == 2, c(new_major, new_minor)], c(1L, 1L))
+    expect_equal(s[seg_id == 4, c(new_major, new_minor)], c(1L, 1L))   # het -> LOH not applied below min_sites
+    expect_equal(s[seg_id == 3, c(new_major, new_minor)], c(1L, 0L))
+})
+
+test_that("male X/Y are flagged hemizygous, PAR-only segments are not", {
+    segs <- data.table(seg_id = 1:4, chr = c("1", "X", "X", "Y"), start = c(1L, 20001L, 3e6, 3e6),
+                       end = c(2e8L, 2e6, 1.5e8, 2e7), major = c(1L, 1L, 1L, 1L), minor = c(1L, 1L, 0L, 0L))
+    hets <- sim_sites("1", 0, 6000, f = 0.5, seed = 51)
+    s <- sc_allelic_baf_fix(segs, hets, sex = "male")$segs[order(seg_id)]
+    expect_equal(s$hemi, c(FALSE, FALSE, TRUE, TRUE))
+    expect_equal(s[seg_id == 3, c(new_major, new_minor)], c(1L, 0L))
+    expect_equal(s[seg_id == 3, status], "hemizygous_x")
+    expect_false(any(sc_allelic_baf_fix(segs, hets, sex = "female")$segs$hemi))
+})
