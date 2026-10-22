@@ -229,3 +229,73 @@ simplify_walk_nodes <- function(nodes, circular = FALSE, min_width = 1000, merge
     if (merge_gap > 0) nodes <- collapse_ref_runs(nodes, circular, merge_gap)
     nodes
 }
+
+#' Export an alternative (versioned) walk set of a single-cell patient for gOS
+#'
+#' Writes `<out_dir>/<file>` (default `walks_peel_v4.json`) in the walks.json schema
+#' (`gos-sc-walks/1`), for a walk set proposed by a method other than the curated
+#' walks (e.g. species-guided balance + peel on the v4 per-cell graphs). walks.json
+#' is never touched. The walks come as plain tables (no gWalk), so any method can be
+#' exported: nodes in walk order, per-cell copies, optional junction-only CPLEX copies,
+#' and free-form `evidence` / `curated_match` lists carried into the json.
+#'
+#' Nodes are simplified as in sc_export_walks (`simplify_walk_nodes`); junctions are
+#' typed REF / ALT between consecutive nodes plus the closing junction of a circular walk.
+#'
+#' @param walks list of walks; each a list with id, label, circular, nodes (data.frame
+#'   chromosome, start, end, strand[, cn]), cells (named numeric copies per cell) and
+#'   optionally cells_cplex, genes, driver_genes, species, method, source, closed,
+#'   evidence, curated_match, proposal (all passed through)
+#' @param out_dir patient folder; @param patient patient id; @param file output file name
+#' @param method,version strings written at the top level and into each walk without one
+#' @param cells measured cell ids (default: union of the walks' cells)
+#' @param fit optional list of fit statistics (top level); @param notes optional string
+#' @param min_cn copies from which a cell counts as carrying the walk (ncells, median_cn)
+#' @param simplify collapse reference-adjacent nodes and drop < 1 kb internal pieces
+#' @return path of the written json (invisibly)
+#' @export
+sc_export_walk_set <- function(walks, out_dir, patient, file = "walks_peel_v4.json", method, version,
+                               cells = NULL, fit = NULL, notes = NULL, min_cn = 1, simplify = TRUE, digits = 3) {
+    if (identical(basename(file), "walks.json")) stop("sc_export_walk_set never writes walks.json; use a versioned file name")
+    rnd <- function(x) if (is.null(x)) NULL else as.list(round(x[is.finite(x)], digits))
+    out_walks <- lapply(walks, function(w) {
+        nodes <- data.table::as.data.table(w$nodes)
+        if (!"cn" %in% names(nodes)) nodes[, cn := NA_real_]
+        nodes[, chromosome := sub("^chr", "", as.character(chromosome))]
+        n_raw <- nrow(nodes)
+        circ <- isTRUE(w$circular)
+        if (simplify && n_raw > 1) nodes <- simplify_walk_nodes(nodes, circ)
+        n <- nrow(nodes)
+        pairs <- if (n > 1) cbind(seq_len(n - 1), seq_len(n - 1) + 1) else matrix(integer(0), ncol = 2)
+        if (circ && n >= 1) pairs <- rbind(pairs, c(n, 1))
+        junctions <- lapply(seq_len(nrow(pairs)), function(p) {
+            a <- nodes[pairs[p, 1]]; b <- nodes[pairs[p, 2]]
+            j <- list(from = pairs[p, 1] - 1L, to = pairs[p, 2] - 1L, type = if (isTRUE(ref_adjacent(a, b))) "REF" else "ALT")
+            if ("via" %in% names(b) && !is.na(b$via) && nzchar(b$via)) j$via <- b$via
+            j
+        })
+        cc <- unlist(w$cells); cc <- cc[is.finite(cc)]
+        car <- cc[cc >= min_cn]
+        base <- list(id = as.character(w$id), label = w$label, circular = circ,
+                     span = sum(nodes$end - nodes$start + 1), n_nodes = n, n_nodes_raw = n_raw,
+                     coordinates = paste(sprintf("%s:%d-%d", nodes$chromosome, as.integer(nodes$start), as.integer(nodes$end)), collapse = ";"),
+                     genes = as.character(w$genes %||% character(0)), driver_genes = as.character(w$driver_genes %||% character(0)),
+                     ncells = length(car), total_cn = round(sum(car), digits),
+                     median_cn = if (length(car)) round(stats::median(car), digits) else 0,
+                     max_cn = if (length(car)) round(max(car), digits) else 0,
+                     curated = FALSE, gene_label = w$label, amp_id = w$amp_id %||% w$label,
+                     method = w$method %||% method, version = w$version %||% version,
+                     nodes = nodes[, intersect(c("chromosome", "start", "end", "strand", "cn"), names(nodes)), with = FALSE],
+                     junctions = junctions, cells = rnd(cc), cells_cplex = rnd(unlist(w$cells_cplex)))
+        extra <- w[setdiff(names(w), c(names(base), "nodes", "cells", "cells_cplex"))]
+        c(base, extra)
+    })
+    cells <- cells %||% sort(unique(unlist(lapply(walks, function(w) names(unlist(w$cells))))))
+    out <- list(format = "gos-sc-walks/1", patient = patient, method = method, version = version,
+                n_walks = length(out_walks), n_cells = length(cells), cells = cells, fit = fit, notes = notes, walks = out_walks)
+    dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+    path <- file.path(out_dir, file)
+    jsonlite::write_json(out, path, auto_unbox = TRUE, digits = NA, null = "null", na = "null")
+    invisible(path)
+}
+
