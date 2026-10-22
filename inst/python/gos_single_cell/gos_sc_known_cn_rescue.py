@@ -43,6 +43,7 @@ import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import chrx_flags as cf  # noqa: E402
 import clonality as cl  # noqa: E402
 
 SOURCE = cl.KNOWN_CN_SOURCE
@@ -314,7 +315,7 @@ def mark(row, res, state, status, basis=None):
     return row
 
 
-def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
+def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print, chrx_flagged=None, sex=None):
     pdir = os.path.join(data, patient)
     events = jload(os.path.join(pdir, "filtered.events.json"))
     kept = [e for e in events if e.get("source") != SOURCE]
@@ -324,7 +325,7 @@ def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
         if ctx.reference is not None:
             ctx.reference = dict(ctx.reference, scope="cohort")
     try:
-        cn = cl.CellCN(data, patient)
+        cn = cl.CellCN(data, patient, chrx_flagged=chrx_flagged)
     except (OSError, KeyError, ValueError) as err:
         cn, cn_err = None, str(err)
     else:
@@ -341,7 +342,21 @@ def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
         if cn is None:
             return {"modal_cn": None, "cn2_fraction": None, "counts": {}, "cn_altered": None}
         st = cn.state(chrom, pos, tset)
-        st["cn_altered"] = None if st["cn2_fraction"] is None else (st["cn2_fraction"] < CN_ALTERED_CN2 or st["modal_cn"] != 2)
+        if st["cn2_fraction"] is None:
+            st["cn_altered"] = None
+        elif cf.is_chrx(chrom) and chrx_flagged:
+            # chrX with artefact cells excluded: expected CN follows the patient's sex (male 1, female 2); unknown sex -> not assessed
+            exp = cf.expected_chrx_cn(sex)
+            if exp is None:
+                st["cn_altered"] = None
+            else:
+                frac = st["counts"].get(str(exp), 0) / st["n_cells"]
+                st["cn_altered"] = frac < CN_ALTERED_CN2 or st["modal_cn"] != exp
+                st["expected_cn"] = exp
+        else:
+            st["cn_altered"] = st["cn2_fraction"] < CN_ALTERED_CN2 or st["modal_cn"] != 2
+        if st["cn_altered"] is None and st.get("chrx_not_assessed"):
+            st["cn_status"] = cf.NOT_ASSESSED
         return st
 
     # 1. existing read-evidence driver rows
@@ -354,7 +369,7 @@ def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
         st = state_of(chrom, pos)
         before = e.get("clonality") if not (e.get("clonality_stats") or {}).get("cn_aware") else e.get("clonality_dropout_only")
         mark(e, res, st, None)
-        report["existing"].append({"gene": e["gene"], "variant": e.get("Variant"), "site": sid, "source": e.get("source"), "cn_altered": st["cn_altered"],
+        report["existing"].append({"gene": e["gene"], "variant": e.get("Variant"), "site": sid, "source": e.get("source"), "cn_altered": st["cn_altered"], "cn_status": st.get("cn_status"),
                                    "modal_cn": st["modal_cn"], "cn2_fraction": st["cn2_fraction"], "clonality_before": before, "clonality_after": res["status"],
                                    "allele_loss": res.get("allele_loss"), "reason": res.get("reason"), "evidence_source": res.get("evidence_source")})
 
@@ -400,6 +415,9 @@ def run_patient(data, out, patient, known, man, tabix, tag, dry, log=print):
             continue
         if not qc["pass"]:
             rec["action"] = "read QC fail"
+            continue
+        if st["cn_altered"] is None and st.get("cn_status"):
+            rec["action"] = st["cn_status"] + " (left for review)"
             continue
         if not st["cn_altered"]:
             rec["action"] = "not CN-altered (diploid site missed for another reason; left for review)"
@@ -456,12 +474,16 @@ def main(argv=None):
     ap.add_argument("--tabix", default=os.environ.get("TABIX", "tabix"))
     ap.add_argument("--tag", default="bak_known_cn")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--chrx-flags", help="cells_chrx_flags.tsv: chrX CN of flagged cells is 'not assessed' (chrx_flags.py)")
+    ap.add_argument("--sex-table", help="patient_sex_evidence.tsv: expected chrX CN (male 1, female 2) for the unflagged cells")
     a = ap.parse_args(argv)
+    flags = cf.load_flagged(a.chrx_flags) if a.chrx_flags else {}
+    sexes = cf.load_sex(a.sex_table) if a.sex_table else {}
     known = norm_known(jload(a.known))
     man = read_manifest(a.vcf_manifest)
     reps = {}
     for p in [x for x in a.patients.split(",") if x]:
-        reps[p] = run_patient(a.data, a.out, p, known, man.get(p), a.tabix, a.tag, a.dry)
+        reps[p] = run_patient(a.data, a.out, p, known, man.get(p), a.tabix, a.tag, a.dry, chrx_flagged=flags.get(p), sex=sexes.get(p))
     if not a.dry:
         summ = {p: {"existing": r["existing"], "added": r["added"], "n_swept": len(r["swept"]), "notes": r["notes"], "cn_source": r["cn_source"]} for p, r in reps.items()}
         jdump(os.path.join(a.out, "_cohort", "known_cn_rescue.json"), {"format": "gos-sc-known-cn-rescue-cohort/1", "created": time.strftime("%Y-%m-%dT%H:%M:%S"),

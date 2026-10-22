@@ -562,7 +562,10 @@ class PatientContext:
 class CellCN:
     """Per-cell total CN at a position from data/<P>/cn_binned.json + cn_binned_100kb.cn.u16 (row-major cells x bins, 65535 missing)."""
 
-    def __init__(self, data, patient):
+    def __init__(self, data, patient, chrx_flagged=None):
+        """chrx_flagged: cells whose chrX CN is a dryclean coverage-normalisation artefact (chrx_flags.load_flagged()[patient]); their chrX
+        CN is returned as None ("not assessed"), so site states on chrX are taken from the other cells only."""
+        self.chrx_flagged = set(chrx_flagged or ())
         d = os.path.join(data, patient)
         meta = _load(os.path.join(d, "cn_binned.json"))
         if not meta:
@@ -584,19 +587,29 @@ class CellCN:
         f, n = self.first[c]
         b = f + min(n - 1, (int(pos) - 1) // self.bin_size)
         col = self.m[:, b]
-        return {x: (None if int(v) == self.missing else int(v)) for x, v in zip(self.cells, col)}
+        mask_x = c.upper() == "X" and self.chrx_flagged
+        return {x: (None if int(v) == self.missing or (mask_x and x in self.chrx_flagged) else int(v)) for x, v in zip(self.cells, col)}
 
     def state(self, chrom, pos, cells=None):
         """Summary of the CN state at a site over cells (default all): modal CN, CN2 fraction, counts by CN."""
         v = self.at(chrom, pos)
         vals = [k for x, k in v.items() if k is not None and (cells is None or x in cells)]
+        n_flagged = 0
+        if self.chrx_flagged and str(chrom).replace("chr", "").upper() == "X":
+            n_flagged = sum(1 for x in v if x in self.chrx_flagged and (cells is None or x in cells))
         if not vals:
-            return {"modal_cn": None, "cn2_fraction": None, "counts": {}, "n_cells": 0}
+            st = {"modal_cn": None, "cn2_fraction": None, "counts": {}, "n_cells": 0}
+            if n_flagged:
+                st["chrx_not_assessed"] = {"cells": n_flagged, "reason": "chrX CN not assessed (chrX coverage-normalisation artefact) in all cells"}
+            return st
         cnt = {}
         for k in vals:
             cnt[k] = cnt.get(k, 0) + 1
         modal = max(cnt, key=lambda k: (cnt[k], -abs(k - 2)))
-        return {"modal_cn": modal, "cn2_fraction": round(cnt.get(2, 0) / len(vals), 4), "counts": {str(k): cnt[k] for k in sorted(cnt)}, "n_cells": len(vals)}
+        st = {"modal_cn": modal, "cn2_fraction": round(cnt.get(2, 0) / len(vals), 4), "counts": {str(k): cnt[k] for k in sorted(cnt)}, "n_cells": len(vals)}
+        if n_flagged:
+            st["chrx_not_assessed"] = {"cells": n_flagged, "reason": f"{n_flagged} cells excluded: chrX CN not assessed (chrX coverage-normalisation artefact)"}
+        return st
 
 
 def is_read_evidence(row):
