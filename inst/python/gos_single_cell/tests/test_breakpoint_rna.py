@@ -64,9 +64,9 @@ class TestEndToEnd(unittest.TestCase):
         wtsv(os.path.join(A, "work", "sv_crossing.tsv"), cross_cols, cross)
         wtsv(os.path.join(A, "tables", "sv_transcribed.tsv"), cross_cols + ["transcribed", "rna_junctions"],
              [dict(c, transcribed="TRUE", rna_junctions="x") for c in cross])
-        wtsv(os.path.join(A, "work", "sv_junctions.tsv"), ["patient", "jid", "chrA", "posA", "chrB", "posB"],
-             [dict(patient="P1", jid="100", chrA="7", posA="1000", chrB="7", posB="5000"),
-              dict(patient="P1", jid="200", chrA="1", posA="100", chrB="2", posB="200")])
+        wtsv(os.path.join(A, "work", "sv_junctions.tsv"), ["patient", "jid", "chrA", "posA", "strA", "chrB", "posB", "strB"],
+             [dict(patient="P1", jid="100", chrA="7", posA="1000", strA="-", chrB="7", posB="5000", strB="+"),
+              dict(patient="P1", jid="200", chrA="1", posA="100", strA="+", chrB="2", posB="200", strB="-")])
         rc = ["ci", "chr1", "pos1", "dir1", "chr2", "pos2", "dir2", "reads", "source", "gene1", "gene2", "site1", "site2",
               "reading_frame", "domains", "status", "patient", "jid", "rna_id"]
         reads = []
@@ -155,6 +155,17 @@ class TestEndToEnd(unittest.TestCase):
         self.assertTrue(e["200"]["frame_note"])
         self.assertEqual(e["200"]["confidence"], "suggestive")
         self.assertEqual(e["200"]["reads_non"], 4)
+
+    def test_breakends(self):
+        B.run(self.A, self.G, self.O, ["P1", "BWH69"])
+        bt = json.load(open(os.path.join(self.O, "P1", "rna", "breakpoint_transcripts.json")))
+        e = {x["jid"]: x for x in bt["transcripts"]}
+        self.assertEqual(e["100"]["breakends"], [{"chr": "7", "pos": 1000, "strand": "-"}, {"chr": "7", "pos": 5000, "strand": "+"}])
+        self.assertEqual(bt["jid_coords"]["200"], {"chrA": "1", "posA": 100, "strA": "+", "chrB": "2", "posB": 200, "strB": "-"})
+        self.assertEqual(set(bt["jid_coords"]), set(e))
+        b = json.load(open(os.path.join(self.O, "BWH69", "rna", "breakpoint_transcripts.json")))
+        self.assertEqual(b["jid_coords"]["207007759"]["strA"], "-")
+        self.assertEqual(b["transcripts"][0]["breakends"][1], {"chr": "7", "pos": 55155076, "strand": "+"})
 
     def test_fusion_support(self):
         B.run(self.A, self.G, self.O)

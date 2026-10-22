@@ -160,6 +160,14 @@ def source_name(s):
     return "regtools" if s == "linear" or not s else s
 
 
+def add_breakends(entry, strands):
+    """breakends [{chr,pos,strand} x2] from the entry's coordinates and the sv_junctions strands (strA, strB; None if unknown)."""
+    sa, sb = strands if strands else (None, None)
+    entry["breakends"] = [{"chr": entry["chrA"], "pos": entry["posA"], "strand": sa or None},
+                          {"chr": entry["chrB"], "pos": entry["posB"], "strand": sb or None}]
+    return entry
+
+
 def build_transcripts(patient, trans_rows, reads_by_jid, crossing_by_jid, generated):
     out = []
     for t in trans_rows:
@@ -423,7 +431,8 @@ def run(analysis_dir, gos_data_dir, out_dir, patients=None):
     A = analysis_dir
     cross = rd(os.path.join(A, "work", "sv_crossing.tsv"))
     crossing_by_jid = {r["jid"]: r for r in cross}
-    sv_pos = {r["jid"]: {"chrA": r["chrA"], "posA": to_int(r["posA"]), "chrB": r["chrB"], "posB": to_int(r["posB"])}
+    sv_pos = {r["jid"]: {"chrA": r["chrA"], "posA": to_int(r["posA"]), "chrB": r["chrB"], "posB": to_int(r["posB"]),
+                         "strA": r.get("strA"), "strB": r.get("strB")}
               for r in rd(os.path.join(A, "work", "sv_junctions.tsv"))}
     trans = rd(os.path.join(A, "tables", "sv_transcribed.tsv"))
     only = rd(os.path.join(A, "work", "rna_only_vs_sv.tsv"))
@@ -449,10 +458,15 @@ def run(analysis_dir, gos_data_dir, out_dir, patients=None):
         else:
             fusions = []
         bt = build_transcripts(p, [t for t in trans if t["patient"] == p], reads_by_jid, crossing_by_jid, generated)
+        for e in bt["transcripts"]:
+            sv = sv_pos.get(e["jid"], {})
+            add_breakends(e, (sv.get("strA"), sv.get("strB")))
         if egfr is not None and p == EGFRVIII["patient"]:
-            bt["transcripts"].append(egfr)
+            bt["transcripts"].append(add_breakends(egfr, ("-", "+")))
             bt["transcripts"].sort(key=lambda e: ({"consistent": 0, "suggestive": 1, "low": 2}[e["confidence"]], -e["cross_car"]))
             bt["n_sv"] = len(bt["transcripts"])
+        bt["jid_coords"] = {e["jid"]: {"chrA": e["chrA"], "posA": e["posA"], "strA": e["breakends"][0]["strand"],
+                                       "chrB": e["chrB"], "posB": e["posB"], "strB": e["breakends"][1]["strand"]} for e in bt["transcripts"]}
         fi = build_fusion_isoforms(p, pair_rows, iso_rows, fusions, generated)
         fs = build_fusion_support(p, [x for x in only if x["patient"] == p], fusions, sv_pos, crossing_by_jid, generated)
         od = os.path.join(out_dir, p, "rna")
