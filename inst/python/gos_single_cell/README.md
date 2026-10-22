@@ -36,6 +36,7 @@ Verified on 2026-10-19: `/gpfs/commons/groups/imielinski_lab/Software/miniforge3
 | `gos_sc_rna_covariate_de.py` | Cross-patient RNA differential on the per-cell covariates (rna/covariates.json) -> _cohort/rna_covariate_de.json. | data/_cohort/rna_covariate_de.json, rna_covariate_de_cells.json |
 | `gos_sc_rna_covariates.py` | Extra per-cell covariates for the cross-patient RNA differential (data/<P>/rna/covariates.json). | data/<P>/rna/covariates.json |
 | `gos_sc_site_qc.py` | Export per-site QC scores to <outdir>/<P>/snv_qc.json, keyed by snv_matrix variant id. | <outdir>/<P>/snv_qc.json |
+| `gos_sc_splice_confidence.py` | Confidence tier (consistent / suggestive / low) + reason + consequence of every splicing cluster, finding and event, from the cell-level re-test table (`--deepdive events_annotated.tsv`); `--out` stages, the data dir is only read. | <P>/rna/splicing.json, _cohort/rna/splicing.json, _cohort/splice_support.json, _cohort/vignettes.json (fields added) |
 | `gos_sc_splice_exon_annot.py` | Adds gene exon context to splicing.json files (patient + _cohort) so single-exon / intergenic calls can be filtered. | splicing.json (patient + _cohort), in place |
 | `gos_sc_splice_exons.py` | Exon models of the genes in the single-cell splicing exports, so gOS can draw exons under | data/_cohort/splice_exons.json |
 | `gos_sc_splice_support.py` | Where each splice alteration comes from: DNA (a splice-site SNV in filtered.events.json), RNA (aberrant splicing in | data/_cohort/splice_support.json |
