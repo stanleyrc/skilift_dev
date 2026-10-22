@@ -11,6 +11,13 @@ work/sv_junctions.tsv, work/rna_only_vs_sv.tsv, tables/sv_transcribed.tsv) and w
       that match a DNA SV (rna_only_vs_sv.tsv), tied to the exact `id` of the fusions.json row (matched on the unordered pair of
       breakpoints, then the gene pair; unmatched -> fusion_id null + match_note), with class canonical_splice (both ends at annotated
       splice sites) or cryptic_end (cryptic / intergenic end next to the breakpoint).
+  <out>/<P>/rna/fusion_isoforms.json  format fusion_isoforms_v1: per DNA+RNA fusion gene pair (fusion_pairs.tsv + fusion_isoforms.tsv) the
+      breakpoint isoforms (joined exons, frame, cells, reads, retained domains), the matching fusions.json ids, in-frame / read-through flags.
+  EGFRvIII (BWH69): the genomic deletion (intron 1 -> intron 7) is the DNA evidence; the exact exon 1 / exon 8 DNA junction is cDNA in the DNA
+  libraries (splice mimic) in addition to it. work/egfrviii_del.tsv (srctools 08_egfrviii_del.R) adds the genomic-deletion entry to
+  breakpoint_transcripts.json (it is not in sv_transcribed.tsv: every paired tumour cell carries it, so there is no non-carrier group), with the
+  `nearby_genomic_sv` junctions found around the cDNA junction (work/nearby_genomic_sv.tsv: tier_v2 >= 2 non-mimic junctions with both breakends
+  within 10 kb of the mimic's breakends; shown for cells >= 10).
 Patients without rows still get a file with empty arrays so the UI can say "none found" vs "not available".
 
 Confidence rule (levels as gOS findingConfidence.js):
@@ -233,6 +240,122 @@ def build_transcripts(patient, trans_rows, reads_by_jid, crossing_by_jid, genera
             "n_sv": len(out), "transcripts": out}
 
 
+EGFRVIII = {"patient": "BWH69", "jid": "207007759", "cdna_jid": "207007575"}
+
+
+def amplicon_overlap(analysis_dir, patient, chrom, a, b):
+    path = os.path.join(analysis_dir, "work", "amplicons.tsv")
+    if not os.path.isfile(path):
+        return None
+    for r in rd(path):
+        if r.get("patient") == patient and str(r.get("chr")) == str(chrom) and to_int(r["start"]) <= b and to_int(r["end"]) >= a:
+            return True
+    return False
+
+
+def build_egfrviii(analysis_dir, generated):
+    """Entry for the BWH69 genomic EGFRvIII deletion, or None when work/egfrviii_del.tsv is absent."""
+    p = os.path.join(analysis_dir, "work", "egfrviii_del.tsv")
+    if not os.path.isfile(p):
+        return None
+    rows = [r for r in rd(p) if r["patient"] == EGFRVIII["patient"] and r["jid"] == EGFRVIII["jid"]]
+    if not rows:
+        return None
+    r = rows[0]
+    n_car, n_non = to_int(r["n_car_rna"]), to_int(r["n_non_rna"])
+    car, non = to_int(r["vIII_car"], 0), to_int(r["vIII_non"], 0)
+    all_v3, tum = to_int(r["vIII_cells_all_rna"], 0), to_int(r["vIII_cells_tumour_paired"], 0)
+    tier, reasons, car_rate, non_rate, fold, pv = confidence(car, non, n_car, n_non)
+    if not n_non:
+        reasons = ["%d of %d DNA-carrier tumour cells with RNA show the EGFRvIII junction; there are no non-carrier tumour cells with RNA "
+                   "(every paired tumour cell carries the deletion), so no carrier vs non-carrier comparison is possible" % (car, n_car),
+                   "counts: carrier cells >= %d; no p value" % MIN_CONS if car >= MIN_CONS else "counts: fewer than %d carrier cells" % MIN_CONS]
+    nb = []
+    nbp = os.path.join(analysis_dir, "work", "nearby_genomic_sv.tsv")
+    dna = {}
+    if os.path.isfile(nbp):
+        for x in rd(nbp):
+            if x["patient"] == EGFRVIII["patient"] and x["cdna_jid"] == EGFRVIII["cdna_jid"]:
+                if x["g_jid"] == EGFRVIII["jid"]:
+                    dna = {"n_cells": to_int(x["g_cells"]), "n_reads": to_int(x["g_reads"]), "tier_v2": to_int(x["g_tier_v2"]),
+                           "cdna_cells": to_int(x["cdna_cells"]), "cdna_reads": to_int(x["cdna_reads"])}
+                if to_int(x["g_cells"], 0) >= 10:
+                    nb.append({"jid": x["g_jid"], "cls": x["g_cls"], "posA": to_int(x["g_lo"]), "posB": to_int(x["g_hi"]),
+                               "n_cells": to_int(x["g_cells"]), "n_reads": to_int(x["g_reads"]), "tier_v2": to_int(x["g_tier_v2"])})
+    nb.sort(key=lambda e: -e["n_cells"])
+    amp = amplicon_overlap(analysis_dir, "BWH69", "7", 55022984, 55155076)
+    cons = None
+    cp = os.path.join(analysis_dir, "tables", "consequences.tsv")
+    if os.path.isfile(cp):
+        for c in rd(cp):
+            if c["gene"] == "EGFR" and c["start"] == "55019366" and c["end"] == "55155829" and "BWH69" in c["patients"]:
+                cons = "EGFRvIII exon 1 joined to exon 8: %s, %s, predicted protein %s aa vs %s (canonical transcript simulation, consequences.tsv)" % (
+                    c["effect"], c["frame"].replace("_", "-"), c["protein_len"], c["ref_protein_len"])
+    return {
+        "jid": EGFRVIII["jid"], "stratum": "amplicon" if amp else ("non-amplicon" if amp is False else None), "cls": "DEL-like",
+        "chrA": "7", "posA": 55022984, "chrB": "7", "posB": 55155076, "span": 55155076 - 55022984,
+        "genes_a": ["EGFR"], "genes_b": ["EGFR"], "label": "EGFRvIII (EGFR exon 1 -> exon 8 deletion)",
+        "n_car_rna": n_car, "n_non_rna": n_non, "cross_car": car, "cross_non": non, "cross_other": max(0, all_v3 - tum),
+        "car_rate": car_rate, "non_rate": non_rate, "fold": fold, "fisher_p": pv,
+        "reads_car": to_int(r["vIII_reads_car"]), "reads_non": None if not n_non else to_int(r["vIII_reads_non"]),
+        "reads_note": None if n_non else "no non-carrier cells with RNA for this SV",
+        "rna_junctions": [{"junction": "7:55019366-7:55155829", "source": "regtools", "genes": "EGFR::EGFR", "n_cells": all_v3,
+                           "reading_frame": "in-frame"}],
+        "n_rna_junctions": 1, "frame": "in-frame", "frame_note": None, "consequence": cons,
+        "consequence_note": None if cons else "consequence table row not found",
+        "confidence": tier, "confidence_reasons": reasons,
+        "igv_locus_a": locus("7", 55022984), "igv_locus_b": locus("7", 55155076),
+        "from_sv_transcribed": False,
+        "added_reason": ("Genomic EGFRvIII deletion called in BWH69 DNA (chr7:55,022,984(-) -> 55,155,076(+), intron 1 -> intron 7). It is not in "
+                         "sv_transcribed.tsv because every paired tumour cell carries it (no non-carrier group); the RNA evidence is the EGFR "
+                         "exon 1 -> exon 8 junction (chr7:55,019,366-55,155,829; %d cells in all, %d in tumour cells with paired DNA)." % (all_v3, tum)),
+        "dna_evidence": dict(dna, junction="chr7:55022984(-) -> chr7:55155076(+)", splice_mimic=False),
+        "cdna_junction": {"jid": EGFRVIII["cdna_jid"], "junction": "chr7:55019369 -> chr7:55155828 (exact exon 1 / exon 8 boundaries)",
+                          "splice_mimic": True, "note": "this exact exon-boundary junction in the DNA libraries is cDNA, in addition to the genomic deletion"},
+        "nearby_genomic_sv": nb[:30], "n_nearby_genomic_sv": len(nb)}
+
+
+def build_fusion_isoforms(patient, pair_rows, iso_rows, fusions, generated):
+    by_pair = defaultdict(list)
+    for x in iso_rows:
+        if x["patient"] == patient:
+            by_pair[x["pair"]].append(x)
+    fidx = defaultdict(list)
+    for f in fusions:
+        fidx[frozenset([f.get("breakpoint1"), f.get("breakpoint2")])].append(f["id"])
+    pairs = []
+    for pr in pair_rows:
+        if pr["patient"] != patient:
+            continue
+        isos, ids = [], []
+        for x in sorted(by_pair.get(pr["pair"], []), key=lambda y: -to_int(y["n_cells"], 0)):
+            g1, g2 = ",".join(strip_dist(x["gene1"])) or "intergenic", ",".join(strip_dist(x["gene2"])) or "intergenic"
+            e1 = x["exon1"] or x["site1"] or "?"
+            e2 = x["exon2"] or x["site2"] or "?"
+            k = frozenset(["chr%s:%s" % (x["chr1"], x["pos1"]), "chr%s:%s" % (x["chr2"], x["pos2"])])
+            for fid in fidx.get(k, []):
+                if fid not in ids:
+                    ids.append(fid)
+            fr = x["reading_frame"]
+            isos.append({"exon1": x["exon1"] or None, "site1": x["site1"] or None, "exon2": x["exon2"] or None, "site2": x["site2"] or None,
+                         "pos1": to_int(x["pos1"]), "pos2": to_int(x["pos2"]), "chr1": x["chr1"], "chr2": x["chr2"],
+                         "label": "%s %s -> %s %s" % (g1, e1, g2, e2), "reading_frame": None if fr in ("", ".") else fr,
+                         "n_cells": to_int(x["n_cells"], 0), "n_cells_dnalinked": to_int(x["n_cells_dnalinked"], 0),
+                         "total_reads": to_int(x["total_reads"], 0),
+                         "retained_domains": None if x["retained_domains"] in ("", ".") else x["retained_domains"].lstrip("|"),
+                         "source": x["source"]})
+        g = pr["pair"].split("::")
+        pairs.append({"pair": pr["pair"], "gene1": g[0], "gene2": g[1] if len(g) > 1 else None, "fusion_ids": ids,
+                      "n_isoforms": to_int(pr["n_isoforms"], 0), "n_isoforms_2cells": to_int(pr["n_isoforms_2cells"], 0),
+                      "n_isoforms_splice_both": to_int(pr["n_isoforms_splice_both"], 0), "total_cells": to_int(pr["total_cells"], 0),
+                      "any_inframe": pr["any_inframe"].upper() == "TRUE", "readthrough": pr["readthrough"].upper() == "TRUE",
+                      "top_isoform": pr["top_isoform"], "domains_top": None if pr["domains_top"] in ("", ".") else pr["domains_top"].lstrip("|"),
+                      "isoforms": isos})
+    pairs.sort(key=lambda e: (-e["n_isoforms_2cells"], -e["total_cells"]))
+    return {"format": "fusion_isoforms_v1", "patient": patient, "generated": generated, "source": SOURCE,
+            "n_pairs": len(pairs), "pairs": pairs}
+
+
 def match_fusion(row, fusions):
     """-> (fusion row or None, note). Match on the unordered breakpoint pair, then the gene pair, then the most cells."""
     k = frozenset(["chr%s:%s" % (row["chr1"], row["pos1"]), "chr%s:%s" % (row["chr2"], row["pos2"])])
@@ -304,6 +427,9 @@ def run(analysis_dir, gos_data_dir, out_dir, patients=None):
               for r in rd(os.path.join(A, "work", "sv_junctions.tsv"))}
     trans = rd(os.path.join(A, "tables", "sv_transcribed.tsv"))
     only = rd(os.path.join(A, "work", "rna_only_vs_sv.tsv"))
+    pair_rows = rd(os.path.join(A, "tables", "fusion_pairs.tsv"))
+    iso_rows = rd(os.path.join(A, "work", "fusion_isoforms.tsv"))
+    egfr = build_egfrviii(A, time.strftime("%Y-%m-%d"))
     need = {t["jid"] for t in trans}
     reads_by_jid = defaultdict(list)
     for r in rd(os.path.join(A, "work", "sv_crossing_reads.tsv.gz")):
@@ -323,15 +449,21 @@ def run(analysis_dir, gos_data_dir, out_dir, patients=None):
         else:
             fusions = []
         bt = build_transcripts(p, [t for t in trans if t["patient"] == p], reads_by_jid, crossing_by_jid, generated)
+        if egfr is not None and p == EGFRVIII["patient"]:
+            bt["transcripts"].append(egfr)
+            bt["transcripts"].sort(key=lambda e: ({"consistent": 0, "suggestive": 1, "low": 2}[e["confidence"]], -e["cross_car"]))
+            bt["n_sv"] = len(bt["transcripts"])
+        fi = build_fusion_isoforms(p, pair_rows, iso_rows, fusions, generated)
         fs = build_fusion_support(p, [x for x in only if x["patient"] == p], fusions, sv_pos, crossing_by_jid, generated)
         od = os.path.join(out_dir, p, "rna")
         os.makedirs(od, exist_ok=True)
-        for name, obj in (("breakpoint_transcripts.json", bt), ("fusions_dna_support.json", fs)):
+        for name, obj in (("breakpoint_transcripts.json", bt), ("fusions_dna_support.json", fs), ("fusion_isoforms.json", fi)):
             with open(os.path.join(od, name), "w") as fh:
                 json.dump(obj, fh, indent=1, allow_nan=False)
         summary[p] = {"n_sv": bt["n_sv"], "bt_conf": dict(Counter(e["confidence"] for e in bt["transcripts"])),
                       "n_fusions": fs["n"], "matched": sum(1 for e in fs["entries"] if e["fusion_id"]),
-                      "fs_conf": dict(Counter(e["confidence"] for e in fs["entries"]))}
+                      "fs_conf": dict(Counter(e["confidence"] for e in fs["entries"])),
+                      "n_pairs": fi["n_pairs"], "n_pairs_ge2": sum(1 for e in fi["pairs"] if e["n_isoforms_2cells"] >= 2)}
     return summary
 
 
@@ -349,6 +481,8 @@ def main(argv=None):
         tot["sv"] += v["n_sv"]
         tot["fus"] += v["n_fusions"]
         tot["matched"] += v["matched"]
+        tot["pairs"] += v["n_pairs"]
+        tot["pairs_ge2"] += v["n_pairs_ge2"]
     print("TOTAL", dict(tot))
     return 0
 

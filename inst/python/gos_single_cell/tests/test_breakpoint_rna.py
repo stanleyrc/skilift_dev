@@ -88,6 +88,41 @@ class TestEndToEnd(unittest.TestCase):
                  carrier_cells="8", noncarrier_cells="0", other_cells="1", splice_both="TRUE", explanation="SV + normal splicing"),
             dict(fid="b", patient="P1", gene1="XXX", gene2="YYY", chr1="3", pos1="30", chr2="4", pos2="40", n_cells="2", jids="999",
                  carrier_cells="1", noncarrier_cells="0", other_cells="1", splice_both="FALSE")])
+        wtsv(os.path.join(A, "tables", "fusion_pairs.tsv"),
+             ["patient", "pair", "n_isoforms", "n_isoforms_2cells", "n_isoforms_splice_both", "total_cells", "top_isoform", "frames",
+              "any_inframe", "readthrough", "domains_top"],
+             [dict(patient="P1", pair="AAA::BBB", n_isoforms="2", n_isoforms_2cells="2", n_isoforms_splice_both="1", total_cells="12",
+                   top_isoform="AAA e1_end -> BBB e2_start (9 cells, in-frame)", frames="in-frame,.", any_inframe="TRUE", readthrough="TRUE",
+                   domains_top="|Kin(100%)"),
+              dict(patient="P3", pair="X::Y", n_isoforms="1", n_isoforms_2cells="0", n_isoforms_splice_both="0", total_cells="1",
+                   top_isoform="t", frames=".", any_inframe="FALSE", readthrough="FALSE", domains_top=".")])
+        wtsv(os.path.join(A, "work", "fusion_isoforms.tsv"),
+             ["patient", "pair", "gene1", "gene2", "chr1", "pos1", "exon1", "site1", "chr2", "pos2", "exon2", "site2", "reading_frame",
+              "retained_domains", "n_cells", "n_cells_dnalinked", "total_reads", "readthrough", "source"],
+             [dict(patient="P1", pair="AAA::BBB", gene1="AAA(12)", gene2="BBB", chr1="7", pos1="1010", exon1="e1_end", site1="CDS/splice-site",
+                   chr2="7", pos2="5003", exon2="e2_start", site2="CDS/splice-site", reading_frame="in-frame", retained_domains="|Kin(100%)",
+                   n_cells="9", n_cells_dnalinked="8", total_reads="30", readthrough="TRUE", source="filtered.events"),
+              dict(patient="P1", pair="AAA::BBB", gene1="AAA", gene2="BBB", chr1="7", pos1="1011", exon1="", site1="intron",
+                   chr2="7", pos2="5100", exon2="inside_e3", site2="CDS", reading_frame=".", retained_domains=".",
+                   n_cells="3", n_cells_dnalinked="0", total_reads="4", readthrough="TRUE", source="rescued_dna_junction")])
+        wtsv(os.path.join(A, "work", "amplicons.tsv"), ["chr", "start", "end", "label", "verdict", "source", "patient", "amp_id"],
+             [dict(chr="7", start="1", end="9000000", patient="P1")])
+        wtsv(os.path.join(A, "work", "egfrviii_del.tsv"),
+             ["patient", "jid", "n_car_rna", "n_non_rna", "vIII_car", "vIII_non", "vIII_reads_car", "vIII_reads_non", "egfr_expr_car",
+              "egfr_expr_non", "vIII_cells_all_rna", "vIII_cells_tumour_paired", "vIII_other"],
+             [dict(patient="BWH69", jid="207007759", n_car_rna="130", n_non_rna="0", vIII_car="43", vIII_non="0", vIII_reads_car="726",
+                   vIII_reads_non="0", egfr_expr_car="79", egfr_expr_non="0", vIII_cells_all_rna="71", vIII_cells_tumour_paired="43", vIII_other="0")])
+        wtsv(os.path.join(A, "work", "nearby_genomic_sv.tsv"),
+             ["patient", "cdna_jid", "chr", "cdna_lo", "cdna_hi", "cdna_cells", "cdna_reads", "g_jid", "g_cls", "g_lo", "g_hi", "g_cells", "g_reads", "g_tier_v2"],
+             [dict(patient="BWH69", cdna_jid="207007575", chr="7", cdna_lo="55019369", cdna_hi="55155828", cdna_cells="30", cdna_reads="48",
+                   g_jid="207007759", g_cls="DEL-like", g_lo="55022984", g_hi="55155076", g_cells="189", g_reads="16151", g_tier_v2="3"),
+              dict(patient="BWH69", cdna_jid="207007575", chr="7", cdna_lo="55019369", cdna_hi="55155828", cdna_cells="30", cdna_reads="48",
+                   g_jid="1", g_cls="INV-like", g_lo="55022906", g_hi="55155202", g_cells="86", g_reads="196", g_tier_v2="3"),
+              dict(patient="BWH69", cdna_jid="207007575", chr="7", cdna_lo="55019369", cdna_hi="55155828", cdna_cells="30", cdna_reads="48",
+                   g_jid="2", g_cls="INV-like", g_lo="55022907", g_hi="55155203", g_cells="3", g_reads="4", g_tier_v2="2")])
+        wtsv(os.path.join(A, "tables", "consequences.tsv"), ["gene", "start", "end", "effect", "frame", "protein_len", "ref_protein_len", "pfam_affected", "patients"],
+             [dict(gene="EGFR", start="55019366", end="55155829", effect="truncated_protein_escapes_NMD", frame="in_frame", protein_len="943",
+                   ref_protein_len="1210", pfam_affected="PF00757(Furin-like)", patients="BWH69")])
         self.G = os.path.join(self.td, "gos")
         os.makedirs(os.path.join(self.G, "P1", "rna"))
         os.makedirs(os.path.join(self.G, "P2", "rna"))
@@ -96,6 +131,7 @@ class TestEndToEnd(unittest.TestCase):
             {"id": "OTHER|chr7:5003|chr7:1010", "gene1": "O1", "gene2": "O2", "breakpoint1": "chr7:5003", "breakpoint2": "chr7:1010", "n_cells": 50}]},
             open(os.path.join(self.G, "P1", "rna", "fusions.json"), "w"))
         json.dump({"fusions": []}, open(os.path.join(self.G, "P2", "rna", "fusions.json"), "w"))
+        os.makedirs(os.path.join(self.G, "BWH69", "rna"))
         self.A, self.O = A, os.path.join(self.td, "out")
 
     def test_run(self):
@@ -137,6 +173,45 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(x["class"], "cryptic_end")
         self.assertIsNone(x["distance_bp"])
         self.assertIn("denominators not available", " ".join(x["confidence_reasons"]))
+
+    def test_egfrviii_entry(self):
+        B.run(self.A, self.G, self.O, ["BWH69", "P1"])
+        bt = json.load(open(os.path.join(self.O, "BWH69", "rna", "breakpoint_transcripts.json")))
+        self.assertEqual(bt["n_sv"], 1)
+        e = bt["transcripts"][0]
+        self.assertEqual(e["jid"], "207007759")
+        self.assertEqual((e["cross_car"], e["cross_non"], e["n_non_rna"]), (43, 0, 0))
+        self.assertEqual(e["cross_other"], 28)
+        self.assertIsNone(e["reads_non"])
+        self.assertEqual(e["frame"], "in-frame")
+        self.assertIn("943", e["consequence"])
+        self.assertFalse(e["from_sv_transcribed"])
+        self.assertTrue(e["added_reason"])
+        self.assertEqual(e["confidence"], "consistent")
+        self.assertIn("no non-carrier tumour cells", " ".join(e["confidence_reasons"]))
+        self.assertEqual([x["jid"] for x in e["nearby_genomic_sv"]], ["207007759", "1"])
+        self.assertEqual(e["dna_evidence"]["n_cells"], 189)
+        self.assertTrue(e["cdna_junction"]["splice_mimic"])
+        self.assertEqual(e["stratum"], "non-amplicon")  # no amplicon row for BWH69 in the fixture
+        self.assertNotIn("cDNA-only", json.dumps(bt))
+        # P1 is unaffected
+        p1 = json.load(open(os.path.join(self.O, "P1", "rna", "breakpoint_transcripts.json")))
+        self.assertEqual(p1["n_sv"], 2)
+
+    def test_fusion_isoforms(self):
+        B.run(self.A, self.G, self.O)
+        fi = json.load(open(os.path.join(self.O, "P1", "rna", "fusion_isoforms.json")))
+        self.assertEqual((fi["format"], fi["n_pairs"]), ("fusion_isoforms_v1", 1))
+        p = fi["pairs"][0]
+        self.assertTrue(p["any_inframe"] and p["readthrough"])
+        self.assertEqual(p["fusion_ids"], ["BBB::AAA|chr7:5003|chr7:1010", "OTHER|chr7:5003|chr7:1010"])
+        self.assertEqual(p["isoforms"][0]["label"], "AAA e1_end -> BBB e2_start")
+        self.assertEqual(p["isoforms"][0]["reading_frame"], "in-frame")
+        self.assertIsNone(p["isoforms"][1]["reading_frame"])
+        self.assertEqual(p["isoforms"][1]["label"], "AAA intron -> BBB inside_e3")
+        self.assertEqual(p["isoforms"][0]["retained_domains"], "Kin(100%)")
+        fi2 = json.load(open(os.path.join(self.O, "P2", "rna", "fusion_isoforms.json")))
+        self.assertEqual((fi2["n_pairs"], fi2["pairs"]), (0, []))
 
     def test_empty_patient_files(self):
         B.run(self.A, self.G, self.O)
