@@ -18,8 +18,10 @@ Sections written:
   genes           length-aware recurrence of subclonal truncating (and non-synonymous) SNVs per gene
   pathways        patients x pathway with (subclonal / clonal) hits
   signatures      per patient truncal vs subclonal contrasts (copied from signatures_joint.json)
-  clade_signatures per called clade: NNLS refit of the clade's branch SNVs, bootstrap CI over sites, test vs
-                  parent branch set and vs the truncal set, BH q across the cohort
+  clade_signatures per called clade: fractions from the per-mutation assignment under the ONE patient-level signature fit
+                  (gos_sc_signature_assignment.py; no signature is forced or added per clade), bootstrap CI over mutations,
+                  goodness of fit of the patient set to the clade spectrum, test vs parent branch set and vs the truncal set,
+                  BH q across the cohort
 
 Recurrence method (stated in the JSON):
   Background per patient p: n_p = number of non-truncal (subclonal + private) truncating SNVs (stop_gained,
@@ -50,9 +52,12 @@ from collections import Counter, defaultdict
 import numpy as np
 from scipy.optimize import nnls
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gos_sc_signature_assignment as sa
+
 TRUNC_RE = re.compile(r"stop_gained|splice_acceptor|splice_donor|start_lost|frameshift")
 MIN_CLADE_SITES = 50
-APOBEC = ["SBS2", "SBS13"]
+N_SIM = 1000   # parametric simulations per group for the signature goodness-of-fit p
 CLONAL_FRACTION = 0.85
 MIN_CARRIER_VAF = 0.15  # below this the carriers' alt reads are not het-like (CN-2 het ~ 0.5): dropout model not used
 
@@ -525,64 +530,12 @@ def patient_block(data, P, cosmic, chan_index, n_boot, rng, territory):
         "noisy": P == "BWH69",
     })
 
-    # ---- clade signatures
+    # ---- clade signatures: one patient-level fit, per-mutation assignment (gos_sc_signature_assignment.py); nothing is forced per clade
     sig_block = None
     if sj and clades_doc:
-        base = [s["signature"] for s in sj.get("signature_set", []) if s["signature"] in cosmic]
-        sigs = base + [s for s in APOBEC if s not in base]
-        S = np.column_stack([cosmic[s] for s in sigs])
-
-        def idx_of(ids):
-            return [chan_index[vby[i]["context"]] for i in ids if i in vby and vby[i].get("context") in chan_index]
-
-        truncal_ids = [v["id"] for v in variants if v.get("category") == "truncal" and v.get("cellphy_input")]
-        tr_idx = idx_of(truncal_ids)
-        tr_point, tr_boot = boot_fractions(tr_idx, S, n_boot, rng) if len(tr_idx) >= MIN_CLADE_SITES else (None, None)
-        cl = {c["id"]: c for c in clades_doc.get("clades", [])}
-        fits = {}
-        rows = []
-        for c in clades_doc.get("clades", []):
-            ids = c.get("private_snvs") or []
-            ix = idx_of(ids)
-            r = {"clade": c["id"], "parent": c.get("parent"), "n_cells": c.get("n_cells"), "depth": c.get("depth"), "is_trunk": bool(c.get("is_trunk")) or c.get("parent") is None, "clone_id": c.get("clone_id"), "n_sites": len(ix), "private_drivers": (c.get("private_drivers") or "").strip()}
-            if len(ix) < MIN_CLADE_SITES:
-                r["fitted"] = False
-                r["reason"] = f"n sites {len(ix)} < {MIN_CLADE_SITES}"
-            else:
-                pt, B = boot_fractions(ix, S, n_boot, rng)
-                fits[c["id"]] = (pt, B)
-                r["fitted"] = True
-                r["fractions"] = [{"signature": s, "frac": round(float(pt[j]), 4), "lo": round(float(np.quantile(B[:, j], 0.025)), 4), "hi": round(float(np.quantile(B[:, j], 0.975)), 4)} for j, s in enumerate(sigs)]
-            rows.append(r)
-        # comparisons: vs truncal set, vs nearest fitted ancestor branch set
-        tests = []
-        for r in rows:
-            if not r.get("fitted") or r["is_trunk"]:
-                continue
-            pt, B = fits[r["clade"]]
-            comps = []
-            if tr_point is not None:
-                comps.append(("truncal", tr_point, tr_boot))
-            par = r["parent"]
-            while par and par in cl and par not in fits:
-                par = cl[par].get("parent")
-            if par and par in fits and not (cl[par].get("is_trunk") or cl[par].get("parent") is None):
-                comps.append((par, fits[par][0], fits[par][1]))
-            r["vs"] = []
-            for name, p2, B2 in comps:
-                for j, s in enumerate(sigs):
-                    d = float(pt[j] - p2[j])
-                    db = B[:, j] - B2[:, j]
-                    t = {"clade": r["clade"], "vs": name, "signature": s, "diff": round(d, 4), "lo": round(float(np.quantile(db, 0.025)), 4), "hi": round(float(np.quantile(db, 0.975)), 4), "p": boot_p(db, d), "frac": round(float(pt[j]), 4), "frac_ref": round(float(p2[j]), 4)}
-                    r["vs"].append(t)
-                    tests.append(t)
-        sig_block = {
-            "signatures": sigs,
-            "added": [s for s in APOBEC if s not in base],
-            "truncal": {"n_sites": len(tr_idx), "fractions": [{"signature": s, "frac": round(float(tr_point[j]), 4), "lo": round(float(np.quantile(tr_boot[:, j], 0.025)), 4), "hi": round(float(np.quantile(tr_boot[:, j], 0.975)), 4)} for j, s in enumerate(sigs)] if tr_point is not None else None},
-            "clades": rows,
-            "_tests": tests,
-        }
+        pa, tests = sa.patient_assignment(P, snv, clades_doc, sj, cosmic, chan_index, n_boot, N_SIM, rng)
+        if pa.get("available"):
+            sig_block = {"_assignment": pa, "_tests": tests}
     contrasts = []
     if sj:
         for c in sj.get("contrasts", []):
@@ -661,16 +614,32 @@ def carrier_vaf_flags(data, hits, min_dp=4):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
-    ap.add_argument("--gtf", required=True)
+    ap.add_argument("--gtf", default=None)
     ap.add_argument("--cosmic", required=True)
     ap.add_argument("--work", required=True)
     ap.add_argument("--patients", default="BWH69,BWH70,BWH75,MGH285,MGH301,MGH302,MGH303,MGH304,MGH305")
     ap.add_argument("--n-boot", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--extra", default=None, help="JSON with extra per-hit notes {site: {title, text, loci: [...]}}")
+    ap.add_argument("--signatures-only", action="store_true", help="re-derive only clade_signatures / signature_shifts / clade_signature_method into a copy of --base (no GTF needed)")
+    ap.add_argument("--base", default=None, help="with --signatures-only: existing subclonal_drivers.json (default <data>/_cohort/subclonal_drivers.json)")
+    ap.add_argument("--out", default=None, help="output path (default <data>/_cohort/subclonal_drivers.json); use a staged path to leave live data untouched")
     ap.add_argument("--read-qc", default=None, help="JSON from subclonal/hit_read_qc.py {site: {...}}")
     a = ap.parse_args()
     rng = np.random.default_rng(a.seed)
+    if a.signatures_only:
+        base = load(a.base or os.path.join(a.data, "_cohort", "subclonal_drivers.json"))
+        per, tests = sa.run(a.data, a.cosmic, a.patients.split(","), a.n_boot, N_SIM, a.seed)
+        blocks, shifts = sa.cohort_blocks(per, tests)
+        base["clade_signatures"], base["signature_shifts"] = blocks, shifts
+        base["clade_signature_method"], base["n_boot"] = sa.METHOD_TEXT, a.n_boot
+        base["signature_assignment_created"] = datetime.datetime.now().isoformat(timespec="seconds")
+        out = a.out or os.path.join(a.data, "_cohort", "subclonal_drivers.json")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w") as f:
+            json.dump(base, f, separators=(",", ":"))
+        log("wrote", out, "(signatures only)")
+        return
     terr = gene_territory(a.gtf, os.path.join(a.work, "gene_territory_gencode_v24_ccds.tsv"))
     channels, cosmic = read_cosmic(a.cosmic)
     chan_index = {c: k for k, c in enumerate(channels)}
@@ -821,17 +790,8 @@ def main():
             }
         pw.append({"pathway": name, "genes": gl, "patients": cells})
 
-    # clade signature BH across the cohort
-    all_tests = [t for sb in sigblocks.values() for t in sb["_tests"]]
-    qs = bh([t["p"] for t in all_tests])
-    for t, q in zip(all_tests, qs):
-        t["q"] = q
-    sig_shifts = []
-    for P, sb in sigblocks.items():
-        for t in sb.pop("_tests"):
-            if t["q"] < 0.1 and abs(t["diff"]) >= 0.05:
-                sig_shifts.append({"patient": P, **t})
-    sig_shifts.sort(key=lambda t: (t["q"], -abs(t["diff"])))
+    # clade signature BH across the cohort (per-mutation assignment, no forced signatures)
+    sigblocks, sig_shifts = sa.cohort_blocks({P: sb["_assignment"] for P, sb in sigblocks.items()}, {P: sb["_tests"] for P, sb in sigblocks.items()})
 
     extra = load(a.extra) if a.extra else {}
     for h in hits:
@@ -857,12 +817,7 @@ def main():
             "and SNV noise (BWH69 has many noisy SNVs: see p_patients_no_bwh69; read-level artefact flags from hit_read_qc.py: see p/q_patients_read_qc_pass, which drops flagged driver sites). Hits come from the mutation map, so they include non-OncoKB genes; driver SNVs placed on a truncal node are not counted."
         ),
         "dnds_note": "Gene-level dN/dS is not fitted: subclonal truncating counts are 3-31 per patient. Cohort trunc:missense:synonymous counts per patient are in patients[].background.",
-        "clade_signature_method": (
-            f"Each called clade's branch SNVs (clades.json private_snvs with an SBS96 context) refitted by NNLS on the patient's signature set from signatures_joint.json plus {', '.join(APOBEC)} "
-            f"(so an APOBEC gain can show); bootstrap over sites (n = {a.n_boot}) for 95% CIs; clades with < {MIN_CLADE_SITES} sites are not fitted. Each clade is compared with the truncal set (truncal CellPhy-input sites) "
-            "and with its nearest fitted non-trunk ancestor; two-sided bootstrap p for the fraction difference; BH q across every clade x signature x comparison in the cohort. "
-            "Shifts listed: q < 0.1 and |difference| >= 5 points."
-        ),
+        "clade_signature_method": sa.METHOD_TEXT,
         "n_boot": a.n_boot,
         "patients": patients,
         "hits": hits,
@@ -872,7 +827,7 @@ def main():
         "clade_signatures": sigblocks,
         "signature_shifts": sig_shifts,
     }
-    out = os.path.join(a.data, "_cohort", "subclonal_drivers.json")
+    out = a.out or os.path.join(a.data, "_cohort", "subclonal_drivers.json")
     if os.path.exists(out):
         shutil.copy(out, out + ".bak_" + datetime.date.today().strftime("%y%m%d"))
     tmp = out + ".tmp"

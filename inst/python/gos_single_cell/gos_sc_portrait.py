@@ -120,7 +120,7 @@ def pct(x):
 # ---------------------------------------------------------------- inputs
 
 class Inputs:
-    def __init__(self, data, patients):
+    def __init__(self, data, patients, sub_path=None, apobec_path=None):
         self.data = data
         self.patients = patients
         c = f"{data}/_cohort"
@@ -128,7 +128,9 @@ class Inputs:
         self.assoc = jload(f"{c}/associations.json")
         self.tsg = jload(f"{c}/tsg_loss.json")
         self.hot = jload(f"{c}/hotspot_rescue.json")
-        self.sub = jload(f"{c}/subclonal_drivers.json")
+        self.sub = jload(sub_path or f"{c}/subclonal_drivers.json")
+        ap_ = apobec_path or f"{c}/apobec_direct_test.json"
+        self.apobec = jload(ap_) if os.path.exists(ap_) else None
         self.sigj = jload(f"{c}/signatures_joint.json")
         self.ecpl = jload(f"{c}/ecdna_plasticity.json")
         self.evassoc = jload(f"{c}/event_associations.json")
@@ -628,7 +630,7 @@ def flagged_hits(inp, p):
 def build(args):
     ce = load_cohort_evolution()
     mh = ce.mantel_haenszel
-    inp = Inputs(args.data, args.patients)
+    inp = Inputs(args.data, args.patients, getattr(args, "sub", None), getattr(args, "apobec_test", None))
     neftel, ev = neftel_links(inp, mh)
 
     portraits = {}
@@ -719,19 +721,50 @@ def build(args):
     return cohort, portraits
 
 
+def apobec_cards(inp):
+    ad = inp.apobec
+    if not ad:
+        return []
+    sets = {}
+    for r in ad.get("results", []):
+        if r.get("available"):
+            sets.setdefault(r["patient"], []).append(r)
+    cl_sig = inp.sub.get("clade_signatures", {})
+    cards = []
+    for p, rs in sets.items():
+        sup = [r for r in rs if r["verdict"]["status"] == "supported"]
+        # clades that the old forced-signature fit had called, or that pass nominally, but fail the direct test
+        near = [r for r in rs if r["verdict"]["status"] != "supported" and (r["cg_tcw"]["truncal"]["p_greater"] or 1) < 0.05]
+        poor = {c["clade"] for c in (cl_sig.get(p, {}).get("clades") or []) if c.get("fitted") and (c.get("fit") or {}).get("flag_poor_fit")}
+        if not sup and not near:
+            continue
+        short = lambda r: r["clade"].split("_")[-1]
+        links = [{"label": "Subclonal drivers and signature shifts", "scview": "subclonal"}, {"label": f"{p} signatures", "report": p, "tab": 9}]
+        if sup:
+            txt = f"{p}: " + "; ".join(f"clade {short(r)} has {r['cg_tcw']['k']} of {r['n_private_snvs']} private SNVs at TCW C>G (the SBS13 channel; {pct(r['cg_tcw']['frac'])} vs {pct(r['cg_tcw']['truncal']['frac'])} in the truncal set and {pct(r['cg_tcw']['other_clades']['frac'])} in other clades; q = {r['cg_tcw']['q_enrichment']:.2g})" for r in sup)
+            txt += ". The supporting reads look like real heterozygous SNVs (VAF, reads per carrier cell and plate spread match the clade's other SNVs; no excess in normal cells). The patient-level signature set has no SBS13, so the per-mutation assignment gives no clade an SBS13 share; "
+            pc = [short(r) for r in sup if r["clade"] in poor]
+            txt += (f"the spectrum of clade{'s' if len(pc) > 1 else ''} {', '.join(pc)} also differ{'s' if len(pc) == 1 else ''} from the patient's overall spectrum (flagged, not refitted; the test does not attribute this to a process). " if pc else "")
+            txt += "Canonical GBM carries little APOBEC; a gain confined to late clades would be unexpected."
+            if near:
+                txt += " Not supported after correction: " + "; ".join(f"clade {short(r)} ({r['cg_tcw']['k']}/{r['n_private_snvs']}, q = {r['cg_tcw']['q_enrichment']:.2g})" for r in near) + "."
+            cards.append({"id": f"apobec_{p}", "kind": "signature", "status": "candidate", "title": f"{p}: TCW C>G (SBS13-channel) enrichment in clade{'s' if len(sup) > 1 else ''} " + ", ".join(short(r) for r in sup), "text": txt, "patients": [p],
+                          "caveat": f"Direct count of the channel, not a signature fit: {sum(r['cg_tcw']['k'] for r in sup)} SNVs in total, q is BH over {len(ad.get('results', []))} clades tested; TCW C>T (SBS2) is not enriched; single-cell amplification (PTA) artefacts were checked per plate and in normal cells (apobec_direct_test.json).",
+                          "links": links})
+        else:
+            txt = f"{p}: " + "; ".join(f"clade {short(r)} TCW C>G {r['cg_tcw']['k']}/{r['n_private_snvs']} ({pct(r['cg_tcw']['frac'])}) vs {pct(r['cg_tcw']['truncal']['frac'])} truncal and {pct(r['cg_tcw']['other_clades']['frac'])} other clades, q = {r['cg_tcw']['q_enrichment']:.2g}" for r in near) + ". The earlier SBS13 call came from a per-clade refit with SBS2 / SBS13 forced in; the patient-level fit has no SBS13 and the direct count does not support it."
+            cards.append({"id": f"apobec_{p}", "kind": "signature", "status": "not supported", "title": f"{p}: subclonal APOBEC (SBS13) gain not supported", "text": txt, "patients": [p],
+                          "caveat": "Direct channel count (TCW C>G) over every clade with >= 50 private SNVs, BH-corrected.", "links": links})
+    return cards
+
+
 def cohort_novel(inp, portraits, patients, neftel):
     out = []
     shifts = inp.sub.get("signature_shifts", [])
-    # APOBEC gain
-    by = defaultdict(list)
-    for s in shifts:
-        if s["signature"] in ("SBS13", "SBS2") and s["diff"] > 0 and s["q"] < 0.05:
-            by[s["patient"]].append(s)
-    for p, ss in by.items():
-        txt = f"{p}: " + "; ".join(f"clade {s['clade'].split('_')[-1]} {s['signature']} {pct(s['frac'])} of its SNVs vs {pct(s['frac_ref'])} in {s['vs'].replace('MGH305_', '')} (q = {s['q']:.2g})" for s in ss) + ". Canonical GBM carries little APOBEC (SBS2 / SBS13); a gain confined to late clades is unexpected."
-        out.append({"id": f"apobec_{p}", "kind": "signature", "status": "candidate", "title": f"{p}: subclonal APOBEC (SBS13) gain", "text": txt, "patients": [p],
-                    "caveat": "Fitted on clade-private SNVs (>= 50 sites per clade) with SBS2 / SBS13 added to the patient signature set by design; q is bootstrap-based over sites; small fractions (7-19%).",
-                    "links": [{"label": "Subclonal drivers and signature shifts", "scview": "subclonal"}, {"label": f"{p} signatures", "report": p, "tab": 9}]})
+    # APOBEC (SBS13 / SBS2) card: only what the direct channel test (gos_sc_apobec_direct_test.py) supports. The per-clade signature
+    # fractions are not used any more (the old fit forced SBS2 / SBS13 into every clade); the patient-level set, fitted once on all SNVs,
+    # has no SBS13 and the per-mutation assignment therefore gives no clade an SBS13 share. Clades the patient set fits poorly are listed.
+    out.extend(apobec_cards(inp))
     # SBS1 falls
     s1 = [s for s in shifts if s["signature"] == "SBS1"]
     s1d = [s for s in s1 if s["diff"] < 0 and s["q"] < 0.05]
@@ -839,6 +872,7 @@ def write_json(path, obj, dry=False):
         return
     if os.path.exists(path):
         shutil.copy2(path, f"{path}.bak_{TODAY}")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(obj, f, separators=(",", ":"), allow_nan=False)
@@ -846,16 +880,45 @@ def write_json(path, obj, dry=False):
     log("wrote", path, os.path.getsize(path))
 
 
+def _swap_signature_cards(old, new):
+    keep = [n for n in old if n.get("kind") != "signature"]
+    first = next((i for i, n in enumerate(old) if n.get("kind") == "signature"), 0)
+    pos = sum(1 for n in old[:first] if n.get("kind") != "signature")
+    return keep[:pos] + [n for n in new if n.get("kind") == "signature"] + keep[pos:]
+
+
+def merge_signature_parts(data, cohort, portraits):
+    """Live portrait files with only the signature parts replaced by the freshly computed ones (other inputs may have moved on since the live file was written)."""
+    live = jload(f"{data}/_cohort/portrait.json")
+    live["novel"] = _swap_signature_cards(live["novel"], cohort["novel"])
+    live["created"] = cohort.get("created", live.get("created"))
+    out_p = {}
+    for p, d in portraits.items():
+        lp = jload(f"{data}/{p}/portrait.json")
+        for k in ("signature_contrasts", "clade_signature_shifts"):
+            lp["evolution"][k] = d["evolution"][k]
+        lp["novel"] = _swap_signature_cards(lp.get("novel", []), d.get("novel", []))
+        out_p[p] = lp
+    return live, out_p
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=f"{ROOT}/data")
     ap.add_argument("--patients", nargs="*", default=PATIENTS)
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--sub", default=None, help="subclonal_drivers.json to read instead of <data>/_cohort (e.g. a staged copy)")
+    ap.add_argument("--apobec-test", default=None, help="apobec_direct_test.json (default <data>/_cohort/apobec_direct_test.json)")
+    ap.add_argument("--signatures-only", action="store_true", help="keep the live portrait files and replace only the signature cards (kind == 'signature') and each patient's evolution signature fields")
+    ap.add_argument("--out", default=None, help="write portraits under this stage directory instead of --data (live data is not touched)")
     args = ap.parse_args()
     cohort, portraits = build(args)
-    write_json(f"{args.data}/_cohort/portrait.json", cohort, args.dry)
+    out = args.out or args.data
+    if args.signatures_only:
+        cohort, portraits = merge_signature_parts(args.data, cohort, portraits)
+    write_json(f"{out}/_cohort/portrait.json", cohort, args.dry)
     for p, d in portraits.items():
-        write_json(f"{args.data}/{p}/portrait.json", d, args.dry)
+        write_json(f"{out}/{p}/portrait.json", d, args.dry)
 
 
 if __name__ == "__main__":
