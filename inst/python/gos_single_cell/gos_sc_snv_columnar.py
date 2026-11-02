@@ -132,11 +132,12 @@ PL_NONE = 0       # no PL data for this cell/site (older exports)
 PL_FLAT = 255     # PL present but flat (all genotypes equally likely): no read evidence, P(ALT) meaningless
 
 
-def pl_byte(pl00, pl01, pl11):
-    """Phred PLs of genotypes 0/0, 0/1, 1/1 -> PL confidence byte.
+def pl_byte(pl00, pl01, pl11, q=None):
+    """Phred PLs of genotypes 0/0, 0/1, 1/1 -> PL confidence byte (same maths as srctools gos_sc_upload.R pl_conf_byte).
 
-    P(ALT) = (L01 + L11) / (L00 + L01 + L11), L = 10^(-PL/10), quantised to 1 + round(249 * P) (1..250).
-    Missing PL (None/NaN) or a flat PL (all three equal: no reads, P = 2/3 would be meaningless) -> PL_FLAT.
+    L = 10^(-PL/10). q = per-site prior probability of an ALT genotype (fraction of cells called ALT at the site, split equally
+    between het and hom-alt); None = flat prior over the three genotypes. P(ALT) = q/2 (L01 + L11) / ((1-q) L00 + q/2 (L01 + L11)),
+    byte = 1 + round(249 P) (1..250). Missing PL (None/NaN) or a flat PL (all three equal: no reads) -> PL_FLAT.
     Real PLs only: nothing is derived from the hard genotype call."""
     vals = (pl00, pl01, pl11)
     try:
@@ -147,7 +148,12 @@ def pl_byte(pl00, pl01, pl11):
         l = [10.0 ** (-float(v) / 10.0) for v in vals]
     except (TypeError, ValueError):
         return PL_FLAT
-    return 1 + int(round(249 * (l[1] + l[2]) / (l[0] + l[1] + l[2])))
+    if q is None:
+        p = (l[1] + l[2]) / (l[0] + l[1] + l[2])
+    else:
+        alt = q / 2.0 * (l[1] + l[2])
+        p = alt / ((1.0 - q) * l[0] + alt)
+    return 1 + int(round(249 * p))
 
 
 def decode_matrix(buf, n_sites, with_pl=False):
