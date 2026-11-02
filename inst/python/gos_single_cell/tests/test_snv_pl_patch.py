@@ -19,7 +19,7 @@ class Patch(unittest.TestCase):
         pl[0 * 3 + 2] = 255
         pl[2 * 3 + 1] = 1
         new, n_pl, n = pp.patch(blob, 3, 3, pl, head)
-        self.assertEqual((n_pl, n), (3, 3))
+        self.assertEqual((n_pl, n), (2, 3))   # 255 (flat) is not counted as PL evidence
         self.assertEqual(sc.decode_matrix(new, 3, with_pl=True), [[(0, 3, 2, 1, 250), (2, 1, 1, -1, 255)], [], [(1, 5, 0, 0, 1)]])
         self.assertEqual(len(new), len(blob))
 
