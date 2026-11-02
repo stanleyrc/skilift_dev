@@ -89,7 +89,10 @@ def decode_column(col):
 
 
 def encode_matrix(entries):
-    """entries: per site a list of (cell index, ref, alt, gt). -> (bytes, offsets list, header bytes)."""
+    """entries: per site a list of (cell index, ref, alt, gt[, pl]). -> (bytes, offsets list, header bytes).
+
+    pl is the PL confidence byte stored in the 8th byte of the entry (see pl_byte): 0 = no PL data, 1..250 = P(ALT) quantised,
+    255 = PL present but flat (no read evidence). Entries without a 5th element get 0."""
     n = len(entries)
     offsets = [0]
     for e in entries:
@@ -101,36 +104,60 @@ def encode_matrix(entries):
         import numpy as np
         dt = np.dtype([("c", "<u2"), ("r", "<u2"), ("a", "<u2"), ("g", "i1"), ("p", "u1")])
         arr = np.zeros(offsets[-1], dtype=dt)
-        flat = [x for e in entries for x in e]
+        flat = [(tuple(x) + (0,))[:5] for e in entries for x in e]
         if flat:
-            m = np.array(flat, dtype=np.int64).reshape(-1, 4)
+            m = np.array(flat, dtype=np.int64).reshape(-1, 5)
             arr["c"] = m[:, 0]
             both = (m[:, 1] == MAX_U16) & (m[:, 2] == MAX_U16)
             arr["r"] = np.where(both, MAX_U16, np.minimum(m[:, 1], MAX_COUNT))
             arr["a"] = np.where(both, MAX_U16, np.minimum(m[:, 2], MAX_COUNT))
             arr["g"] = np.where((m[:, 3] == 0) | (m[:, 3] == 1), m[:, 3], -1)
+            arr["p"] = np.where((m[:, 4] >= 0) & (m[:, 4] <= 255), m[:, 4], 0)
         body = arr.tobytes()
     except ImportError:
         body = bytearray(8 * offsets[-1])
         k = 0
         for e in entries:
-            for ci, r, al, gt in e:
+            for ci, r, al, gt, *rest in e:
+                pl = int(rest[0]) if rest and 0 <= int(rest[0]) <= 255 else 0
                 both = r == MAX_U16 and al == MAX_U16
                 struct.pack_into("<HHHbB", body, 8 * k, ci, MAX_U16 if both else min(int(r), MAX_COUNT), MAX_U16 if both else min(int(al), MAX_COUNT),
-                                 int(gt) if gt in (0, 1) else -1, 0)
+                                 int(gt) if gt in (0, 1) else -1, pl)
                 k += 1
         body = bytes(body)
     return head + body, offsets, len(head)
 
 
-def decode_matrix(buf, n_sites):
-    """Inverse of encode_matrix (tests / checks): per site a list of (cell, ref, alt, gt)."""
+PL_NONE = 0       # no PL data for this cell/site (older exports)
+PL_FLAT = 255     # PL present but flat (all genotypes equally likely): no read evidence, P(ALT) meaningless
+
+
+def pl_byte(pl00, pl01, pl11):
+    """Phred PLs of genotypes 0/0, 0/1, 1/1 -> PL confidence byte.
+
+    P(ALT) = (L01 + L11) / (L00 + L01 + L11), L = 10^(-PL/10), quantised to 1 + round(249 * P) (1..250).
+    Missing PL (None/NaN) or a flat PL (all three equal: no reads, P = 2/3 would be meaningless) -> PL_FLAT.
+    Real PLs only: nothing is derived from the hard genotype call."""
+    vals = (pl00, pl01, pl11)
+    try:
+        if any(v is None or v != v for v in vals):
+            return PL_FLAT
+        if pl00 == pl01 == pl11:
+            return PL_FLAT
+        l = [10.0 ** (-float(v) / 10.0) for v in vals]
+    except (TypeError, ValueError):
+        return PL_FLAT
+    return 1 + int(round(249 * (l[1] + l[2]) / (l[0] + l[1] + l[2])))
+
+
+def decode_matrix(buf, n_sites, with_pl=False):
+    """Inverse of encode_matrix (tests / checks): per site a list of (cell, ref, alt, gt[, pl])."""
     offsets = struct.unpack_from(f"<{n_sites + 1}I", buf, 0)
     head = 4 * (n_sites + 1)
     head += (-head) % 8
     out = []
     for s in range(n_sites):
-        out.append([struct.unpack_from("<HHHbB", buf, head + 8 * k)[:4] for k in range(offsets[s], offsets[s + 1])])
+        out.append([struct.unpack_from("<HHHbB", buf, head + 8 * k)[:5 if with_pl else 4] for k in range(offsets[s], offsets[s + 1])])
     return out
 
 
@@ -156,7 +183,7 @@ def write_set(out_dir, name, meta, variants, entries, cells, group_key="anchor")
                 keys.append(k)
     table = dict(meta, format=FORMAT, n_sites=len(variants), cells=list(cells),
                  columns={k: encode_column([v.get(k) for v in variants]) for k in keys},
-                 matrix={"file": f"{name}.cells.bin", "file_gz": f"{name}.cells.bin.gz", "encoding": "csr-u16x3-i8 (8-byte entries; Uint32 site offsets, 8-byte aligned)",
+                 matrix={"file": f"{name}.cells.bin", "file_gz": f"{name}.cells.bin.gz", "encoding": "csr-u16x3-i8-u8 (8-byte entries: cell, ref, alt, gt, pl byte; Uint32 site offsets, 8-byte aligned)", "pl_byte": any(len(x) > 4 and x[4] for e in entries for x in e),
                          "header_bytes": head, "bytes": len(blob), "n_entries": offsets[-1], "group_key": group_key, "groups": groups})
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, f"{name}.cells.bin.tmp"), "wb") as fh:
@@ -184,11 +211,12 @@ def tree_set(snv):
             vi = x[0]
             r, al = x[1], x[2]
             gt = x[3] if len(x) > 3 and x[3] in (0, 1) else -1
+            pl = x[4] if len(x) > 4 and isinstance(x[4], int) and 0 <= x[4] <= 255 else PL_NONE   # 5th element: PL confidence byte
             if r is None or al is None:
-                if gt in (0, 1):      # a genotype call without read counts: ref = alt = 65535
-                    entries[vi].append((ci[c], MAX_U16, MAX_U16, gt))
+                if gt in (0, 1) or pl:      # a genotype call / PL without read counts: ref = alt = 65535
+                    entries[vi].append((ci[c], MAX_U16, MAX_U16, gt) + ((pl,) if pl else ()))
                 continue
-            entries[vi].append((ci[c], r, al, gt))
+            entries[vi].append((ci[c], r, al, gt) + ((pl,) if pl else ()))
     for e in entries:
         e.sort()
     return variants, entries, cells

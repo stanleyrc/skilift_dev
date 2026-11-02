@@ -757,7 +757,8 @@ sc_node_anchors <- function(tree, nodes) {
 #' @param pgv_datadir optional PGV data directory with per-cell genome.json, allelic.json,
 #'   coverage.arrow to link in; leave NULL when the cell files were written with
 #'   lift_gos_sc_cells()
-#' @param snvs optional long SNV table (pair, mutation, vaf, ref.count.t, alt.count.t)
+#' @param snvs optional long SNV table (pair, mutation, vaf, ref.count.t, alt.count.t; optional gt = hard call,
+#'   pl = PL confidence byte 1..250 = P(ALT) quantised, 255 = flat PL / no evidence)
 #' @param variant_info optional per-site table (mutation plus any fields, e.g. category,
 #'   mapped_node, cellphy_input) written onto each variant of snv_matrix.json
 #' @param attributes named list of fields added to every entry (e.g. tumor_type, disease)
@@ -832,11 +833,14 @@ build_gos_sc_dataset <- function(
         variant_ids <- unique(snvs$mutation)
         snvs[, variant := match(mutation, variant_ids) - 1L]
         ## optional 4th element: genotype call (1 alt, 0 ref, null = no call)
-        has_gt <- "gt" %in% names(snvs)
+        has_pl <- "pl" %in% names(snvs)   # optional 5th element: PL confidence byte (see gos_sc_snv_columnar.pl_byte)
+        has_gt <- "gt" %in% names(snvs) || has_pl
+        if (has_pl && !"gt" %in% names(snvs)) snvs[, gt := NA_integer_]
         cell_json <- snvs[, .(json = paste0(
             jsonlite::toJSON(pair[1], auto_unbox = TRUE), ":[",
             paste0("[", variant, ",", count(ref.count.t), ",", count(alt.count.t),
-                   if (has_gt) paste0(",", count(gt)) else "", "]", collapse = ","), "]")),
+                   if (has_gt) paste0(",", count(gt)) else "",
+                   if (has_pl) paste0(",", count(pl)) else "", "]", collapse = ","), "]")),
             by = pair]
         variants <- data.table::data.table(id = variant_ids)
         if (!is.null(variant_info)) {
