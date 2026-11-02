@@ -31,6 +31,15 @@ def patch(buf, n_sites, n_cells, pl, head):
     return buf[:head] + arr.tobytes(), int(((vals > 0) & (vals < 255)).sum()), n_entries
 
 
+def hom_sidecar(buf, n_sites, n_cells, hom, head):
+    """Het/hom sidecar: one byte per CSR entry (entry order), 1..250 = 1 + round(249 P(1/1 | ALT)), 255 flat, 0 none. -> bytes."""
+    offsets = np.frombuffer(buf, dtype="<u4", count=n_sites + 1)
+    n_entries = int(offsets[-1])
+    cell = np.frombuffer(buf, dtype=np.dtype([("c", "<u2"), ("r", "<u2"), ("a", "<u2"), ("g", "i1"), ("p", "u1")]), count=n_entries, offset=head)["c"]
+    site_of = np.repeat(np.arange(n_sites), np.diff(offsets.astype(np.int64)))
+    return hom[site_of * n_cells + cell.astype(np.int64)].astype(np.uint8).tobytes()
+
+
 def run(patient, data, pl_dir, out, name="snv_matrix", tag="261101", min_frac=0.98):
     """patient = report folder name. Returns a status string (ok / skipped: reason)."""
     src = os.path.join(data, patient)
@@ -47,6 +56,13 @@ def run(patient, data, pl_dir, out, name="snv_matrix", tag="261101", min_frac=0.
     if n_entries and n_pl / n_entries < min_frac:
         return f"skipped: {patient} only {n_pl}/{n_entries} matrix entries have a non-flat PL in the pool matrices (cell ids or sites do not match) (< {min_frac})"
     os.makedirs(dst, exist_ok=True)
+    hom_path = os.path.join(pl_dir, patient, "hom_bytes.u8")
+    hom_blob = None
+    if os.path.exists(hom_path):   # optional het/hom plane (gos_sc_pl_dump.R); without it gOS keeps the greyscale only
+        hom = np.fromfile(hom_path, dtype=np.uint8)
+        if hom.size != n_sites * n_cells:
+            sys.exit(f"{patient}: hom_bytes.u8 has {hom.size} values, expected {n_sites} x {n_cells}")
+        hom_blob = hom_sidecar(buf, n_sites, n_cells, hom, tab["matrix"]["header_bytes"])
     with open(os.path.join(dst, "source_cells_bin.md5"), "w") as fh:   # lets the deploy refuse to overwrite a live file that changed since
         fh.write(hashlib.md5(buf).hexdigest() + "\n")
     if os.path.abspath(dst) == os.path.abspath(src):
@@ -61,6 +77,15 @@ def run(patient, data, pl_dir, out, name="snv_matrix", tag="261101", min_frac=0.
             fh.write(new)
         os.replace(p + ".tmp", p)
     tab["matrix"]["pl_byte"] = True
+    if hom_blob is not None:
+        hp = os.path.join(dst, f"{name}.hom.bin")
+        if os.path.islink(hp):
+            os.unlink(hp)
+        with open(hp + ".tmp", "wb") as fh:
+            fh.write(hom_blob)
+        os.replace(hp + ".tmp", hp)
+        tab["matrix"]["hom_file"] = f"{name}.hom.bin"
+        tab["matrix"]["hom_encoding"] = "u8 per CSR entry (same order as cells.bin): 1..250 = 1 + round(249 P(1/1 | ALT)) from the PLs (diploid assumption), 255 flat PL, 0 none"
     tab["matrix"]["encoding"] = "csr-u16x3-i8-u8 (8-byte entries: cell, ref, alt, gt, pl byte; Uint32 site offsets, 8-byte aligned)"
     p = os.path.join(dst, f"{name}.sites.json")
     if os.path.islink(p):

@@ -23,6 +23,16 @@ class Patch(unittest.TestCase):
         self.assertEqual(sc.decode_matrix(new, 3, with_pl=True), [[(0, 3, 2, 1, 250), (2, 1, 1, -1, 255)], [], [(1, 5, 0, 0, 1)]])
         self.assertEqual(len(new), len(blob))
 
+    def test_hom_sidecar_is_one_byte_per_entry_in_csr_order(self):
+        entries = [[(0, 3, 2, 1), (2, 1, 1, -1)], [], [(1, 5, 0, 0)]]
+        blob, _, head = sc.encode_matrix(entries)
+        hom = np.zeros(3 * 3, dtype=np.uint8)
+        hom[0 * 3 + 0] = 250
+        hom[0 * 3 + 2] = 255
+        hom[2 * 3 + 1] = 7
+        side = pp.hom_sidecar(blob, 3, 3, hom, head)
+        self.assertEqual(list(side), [250, 255, 7])
+
 
 if __name__ == "__main__":
     unittest.main()
