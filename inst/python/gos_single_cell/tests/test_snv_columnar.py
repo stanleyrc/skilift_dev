@@ -43,6 +43,11 @@ class Columns(unittest.TestCase):
         self.assertEqual(sc.pl_byte(float("nan"), 3, 3), sc.PL_FLAT)
         mid = sc.pl_byte(3, 0, 20)                              # uncertain: strictly between
         self.assertTrue(100 < mid < 250)
+        # per-site prior: one REF read (PL 0,3,30) is not grey at a site almost nobody carries, but is at a truncal site
+        self.assertLess(sc.pl_byte(0, 3, 30, q=0.02), 10)
+        self.assertGreater(sc.pl_byte(0, 3, 30), 80)            # flat prior: visible grey haze
+        self.assertGreater(sc.pl_byte(0, 3, 30, q=0.95), sc.pl_byte(0, 3, 30, q=0.02))
+        self.assertEqual(sc.pl_byte(0, 0, 0, q=0.5), sc.PL_FLAT)
         self.assertEqual(sc.pl_byte(10, 10, 0) , 1 + round(249 * (0.1 + 1) / (0.1 + 0.1 + 1)))
 
     def test_pl_roundtrip_and_tree_set(self):
