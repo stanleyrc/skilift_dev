@@ -34,6 +34,26 @@ class Columns(unittest.TestCase):
         self.assertEqual(len(blob), head + 8 * 3)
         self.assertEqual(sc.decode_matrix(blob, 3), [[(0, 3, 2, 1), (2, 1, 1, -1)], [], [(1, 5, 0, 0)]])
 
+    def test_pl_byte(self):
+        self.assertEqual(sc.pl_byte(0, 60, 60), 1)            # confident REF -> P(ALT) ~ 0
+        self.assertEqual(sc.pl_byte(60, 30, 0), 250)          # confident ALT (hom) -> ~1
+        self.assertEqual(sc.pl_byte(60, 0, 60), 250)          # confident het -> ~1
+        self.assertEqual(sc.pl_byte(0, 0, 0), sc.PL_FLAT)     # flat PL = no reads: no evidence, not 2/3
+        self.assertEqual(sc.pl_byte(None, 3, 3), sc.PL_FLAT)
+        self.assertEqual(sc.pl_byte(float("nan"), 3, 3), sc.PL_FLAT)
+        mid = sc.pl_byte(3, 0, 20)                              # uncertain: strictly between
+        self.assertTrue(100 < mid < 250)
+        self.assertEqual(sc.pl_byte(10, 10, 0) , 1 + round(249 * (0.1 + 1) / (0.1 + 0.1 + 1)))
+
+    def test_pl_roundtrip_and_tree_set(self):
+        entries = [[(0, 3, 2, 1, 250), (2, 1, 1, -1)], [(1, 5, 0, 0, 1)]]
+        blob, _, _ = sc.encode_matrix(entries)
+        self.assertEqual(sc.decode_matrix(blob, 2, with_pl=True), [[(0, 3, 2, 1, 250), (2, 1, 1, -1, 0)], [(1, 5, 0, 0, 1)]])
+        self.assertEqual(sc.decode_matrix(blob, 2)[0][0], (0, 3, 2, 1))
+        snv = {"variants": [{"id": "chr1_1_A_C"}], "cells": {"c1": [[0, 2, 0, 0, 1]], "c2": [[0, None, None, None, 255]], "c3": [[0, 1, 1, 1]]}}
+        v, e, cells = sc.tree_set(snv)
+        self.assertEqual(e[0], [(0, 2, 0, 0, 1), (1, 65535, 65535, -1, 255), (2, 1, 1, 1)])
+
     def test_clipping(self):
         blob, _, _ = sc.encode_matrix([[(0, 1, 70000, 1)]])
         self.assertEqual(sc.decode_matrix(blob, 1)[0][0][2], 65534)
