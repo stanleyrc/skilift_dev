@@ -28,10 +28,10 @@ def patch(buf, n_sites, n_cells, pl, head):
     site_of = np.repeat(np.arange(n_sites), np.diff(offsets.astype(np.int64)))
     vals = pl[site_of * n_cells + arr["c"].astype(np.int64)]
     arr["p"] = vals
-    return buf[:head] + arr.tobytes(), int((vals > 0).sum()), n_entries
+    return buf[:head] + arr.tobytes(), int(((vals > 0) & (vals < 255)).sum()), n_entries
 
 
-def run(patient, data, pl_dir, out, name="snv_matrix", tag="261101", min_frac=0.995):
+def run(patient, data, pl_dir, out, name="snv_matrix", tag="261101", min_frac=0.98):
     """patient = report folder name. Returns a status string (ok / skipped: reason)."""
     src = os.path.join(data, patient)
     dst = os.path.join(out, patient)
@@ -45,7 +45,7 @@ def run(patient, data, pl_dir, out, name="snv_matrix", tag="261101", min_frac=0.
     buf = open(os.path.join(src, tab["matrix"]["file"]), "rb").read()
     new, n_pl, n_entries = patch(buf, n_sites, n_cells, pl, tab["matrix"]["header_bytes"])
     if n_entries and n_pl / n_entries < min_frac:
-        return f"skipped: {patient} only {n_pl}/{n_entries} matrix entries have PL in the pool matrices (< {min_frac})"
+        return f"skipped: {patient} only {n_pl}/{n_entries} matrix entries have a non-flat PL in the pool matrices (cell ids or sites do not match) (< {min_frac})"
     os.makedirs(dst, exist_ok=True)
     with open(os.path.join(dst, "source_cells_bin.md5"), "w") as fh:   # lets the deploy refuse to overwrite a live file that changed since
         fh.write(hashlib.md5(buf).hexdigest() + "\n")
