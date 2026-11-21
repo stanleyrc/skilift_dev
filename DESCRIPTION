@@ -65,6 +65,7 @@ Suggests:
     Seurat,
     SeuratObject,
     Matrix,
+    rhdf5,
     testthat (>= 2.0),
     covr,
     pkgdown,
